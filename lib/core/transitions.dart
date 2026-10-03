@@ -1018,12 +1018,19 @@ class ChromeHero extends StatelessWidget {
         final to = (toHero.widget as Hero).child;
         final push = direction == HeroFlightDirection.push;
         final shuttle = this.shuttle;
-        if (shuttle == null) return push ? to : from;
-        return shuttle(
-          context,
-          push ? animation : ReverseAnimation(animation),
-          from,
-          to,
+        // The flight is drawn in the navigator's overlay, outside every
+        // page's Material, where text would take the framework's fallback
+        // style (a yellow double underline).
+        return Material(
+          type: MaterialType.transparency,
+          child: shuttle == null
+              ? (push ? to : from)
+              : shuttle(
+                  context,
+                  push ? animation : ReverseAnimation(animation),
+                  from,
+                  to,
+                ),
         );
       },
       placeholderBuilder: (context, size, child) =>

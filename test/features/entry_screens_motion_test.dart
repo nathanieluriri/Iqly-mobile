@@ -176,6 +176,15 @@ void main() {
       _opacity(tester, find.text(title).last),
       closeTo(1 - _ei(0.5), 0.02),
     );
+    // Drawn in the app's own style, not the framework's fallback.
+    expect(
+      tester
+          .renderObject<RenderParagraph>(find.text(title).last)
+          .text
+          .style
+          ?.decoration,
+      isNull,
+    );
     await tester.pump(_ms * 60);
     expect(_opacity(tester, find.text(title).last), closeTo(0, 0.001));
     await tester.pumpAndSettle();
