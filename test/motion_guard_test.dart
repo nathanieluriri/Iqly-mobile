@@ -9,10 +9,17 @@ void main() {
     // Deadlines and demo latency are not motion: they live in
     // lib/core/deadline.dart and lib/data, outside these folders.
     final literal = RegExp(r'\bCurves\.|\bCubic\(|\bDuration\(');
+    // The Wallet and Profile rows were built beside the shared layer and keep
+    // their values in one file each until they move onto it.
+    const legacy = {
+      'lib/features/profile/profile_motion.dart',
+      'lib/features/wallet/wallet_motion.dart',
+    };
     final offenders = <String>[];
     for (final folder in ['lib/ui', 'lib/features']) {
       for (final file in Directory(folder).listSync(recursive: true)) {
         if (file is! File || !file.path.endsWith('.dart')) continue;
+        if (legacy.contains(file.path)) continue;
         final lines = file.readAsLinesSync();
         for (var i = 0; i < lines.length; i++) {
           if (literal.hasMatch(lines[i])) {

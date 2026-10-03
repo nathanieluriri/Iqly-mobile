@@ -37,6 +37,27 @@ void main() {
     );
   });
 
+  testWidgets('page without the back button (B5 Withdrawal pending)', (
+    tester,
+  ) async {
+    await expectComponentGolden(
+      tester,
+      'top_bar_page_no_back',
+      const SizedBox(
+        width: 390,
+        child: IqTopBar(
+          variant: IqTopBarVariant.page,
+          title: 'Withdraw',
+          showBack: false,
+        ),
+      ),
+      size: const Size(390, 56),
+      padding: 0,
+    );
+    expect(icon(IqIcons.back), findsNothing);
+    expect(tester.getCenter(find.text('Withdraw')).dx, closeTo(169, 1));
+  });
+
   testWidgets('round actions reach their callbacks', (tester) async {
     final taps = <String>[];
     Future<void> pump(IqTopBar bar) =>

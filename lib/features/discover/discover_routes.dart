@@ -7,7 +7,9 @@ import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/dock.dart';
 import '../../ui/top_bar.dart';
+import '../profile/profile_routes.dart';
 import '../submissions/my_submissions_screen.dart';
+import '../wallet/wallet_routes.dart';
 import 'app_shell.dart';
 import 'brief_detail_screen.dart';
 import 'filters_sheet.dart';
@@ -16,8 +18,7 @@ import 'saved_briefs_screen.dart';
 
 /// The four dock tabs as a StatefulShellRoute, so each tab keeps its stack
 /// and scroll; the tabs cross with the fade-through and the shell arrives by
-/// hand-off. Wallet and Profile are placeholders until their rows replace
-/// the branch builders.
+/// hand-off.
 RouteBase appShellRoute(GlobalKey<NavigatorState> rootKey) =>
     StatefulShellRoute(
       pageBuilder: (context, state, shell) => handoffPage(
@@ -61,12 +62,8 @@ RouteBase appShellRoute(GlobalKey<NavigatorState> rootKey) =>
         StatefulShellBranch(
           routes: [_push(Routes.submissions, const MySubmissionsScreen())],
         ),
-        StatefulShellBranch(
-          routes: [_push(Routes.wallet, const _TabPlaceholder('Wallet'))],
-        ),
-        StatefulShellBranch(
-          routes: [_push(Routes.profile, const _TabPlaceholder('Profile'))],
-        ),
+        StatefulShellBranch(routes: [walletTabRoute(rootKey)]),
+        StatefulShellBranch(routes: [profileTab]),
       ],
     );
 
@@ -98,30 +95,6 @@ void leave(BuildContext context) {
   }
 }
 
-class _TabPlaceholder extends StatelessWidget {
-  const _TabPlaceholder(this.title);
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: IqColors.bg,
-      body: SafeArea(
-        child: CenteredContent(
-          child: Padding(
-            padding: const EdgeInsets.all(IqSpace.s5),
-            child: Text(
-              title,
-              style: IqText.display.copyWith(color: IqColors.brand),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _PagePlaceholder extends StatelessWidget {
   const _PagePlaceholder(this.title);
 
@@ -130,6 +103,7 @@ class _PagePlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: IqColors.bg,
       body: SafeArea(
         child: CenteredContent(

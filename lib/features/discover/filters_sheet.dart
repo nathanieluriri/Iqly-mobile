@@ -161,8 +161,11 @@ class _FiltersSheetState extends ConsumerState<FiltersSheet> {
                 child: Column(
                   children: [
                     IqButton(
-                      label: 'Show $count ${count == 1 ? 'brief' : 'briefs'}',
+                      label: count == 0
+                          ? 'No briefs match'
+                          : 'Show $count ${count == 1 ? 'brief' : 'briefs'}',
                       width: double.infinity,
+                      disabled: count == 0,
                       onTap: () {
                         ref
                             .read(discoverFiltersProvider.notifier)

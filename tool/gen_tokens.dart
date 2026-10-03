@@ -118,23 +118,43 @@ const _weights = {
 };
 
 const _families = {
-  'Bricolage Grotesque': 'IqFonts.bricolage',
   'Plus Jakarta Sans': 'IqFonts.jakarta',
   'Geist Mono': 'IqFonts.geistMono',
 };
 
-void _writeText(StringBuffer b, List<Map<String, dynamic>> styles) {
+String _family(Map<String, dynamic> style) {
+  if (style['fontFamily'] != 'Bricolage Grotesque') {
+    return _families[style['fontFamily']]!;
+  }
+  return 'IqFonts.bricolage${_num((style['fontSize'] as num).toDouble())}';
+}
+
+void _writeText(StringBuffer b, List<Map<String, dynamic>> allStyles) {
+  final styles = allStyles
+      .where((s) => (s['name'] as String).startsWith('Mob/'))
+      .toList();
+  final opticalSizes = {
+    for (final s in styles)
+      if (s['fontFamily'] == 'Bricolage Grotesque')
+        _num((s['fontSize'] as num).toDouble()),
+  };
   b.writeln('abstract final class IqFonts {');
-  b.writeln("  static const bricolage = 'Bricolage Grotesque';");
+  b.writeln(
+    '  /// Figma sets Bricolage at an automatic optical size, so each Mob size',
+  );
+  b.writeln('  /// has its own instance (tool/gen_fonts.py).');
+  for (final size in opticalSizes) {
+    b.writeln(
+      "  static const bricolage$size = 'Bricolage Grotesque ${size}pt';",
+    );
+  }
   b.writeln("  static const jakarta = 'Plus Jakarta Sans';");
   b.writeln("  static const geistMono = 'Geist Mono';");
   b.writeln('}');
   b.writeln();
   b.writeln('/// The Mob/* ramp from Figma. Sizes are logical pixels.');
   b.writeln('abstract final class IqText {');
-  for (final s in styles.where(
-    (s) => (s['name'] as String).startsWith('Mob/'),
-  )) {
+  for (final s in styles) {
     final name = (s['name'] as String).substring(4);
     final size = (s['fontSize'] as num).toDouble();
     final lh = s['lineHeight'] as Map;
@@ -154,7 +174,7 @@ void _writeText(StringBuffer b, List<Map<String, dynamic>> styles) {
         '  /// Figma sets UPPER case: pass the text through toUpperCase().',
       );
     }
-    final family = _families[s['fontFamily']]!;
+    final family = _family(s);
     final fallback = s['fontFamily'] == 'Geist Mono'
         ? ', fontFamilyFallback: [IqFonts.jakarta]'
         : '';

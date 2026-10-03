@@ -43,6 +43,24 @@ void main() {
     );
   });
 
+  testWidgets('failed receipt draws no tag (B14 194:9835)', (tester) async {
+    await expectComponentGolden(
+      tester,
+      'receipt_card_no_status',
+      const IqReceiptCard(
+        to: 'Access Bank ••6789',
+        reference: 'IQ-WD-240922-3C7Q',
+        date: '11 days ago, 2:05 pm',
+        status: 'Failed',
+        showAmount: false,
+        showStatus: false,
+      ),
+      size: const Size(358, 212),
+    );
+    expect(find.text('Failed'), findsNothing);
+    expect(tester.getSize(find.byType(IqReceiptCard)).height, 212);
+  });
+
   test('status words map to tones', () {
     expect(IqReceiptCard.toneOf('completed'), IqReceiptCardTone.ok);
     expect(IqReceiptCard.toneOf('processing'), IqReceiptCardTone.warn);

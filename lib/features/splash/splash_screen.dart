@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
@@ -13,6 +12,7 @@ import '../../router.dart';
 import '../onboarding/onboarding_draft.dart';
 import '../../theme/theme.dart';
 import 'splash_mark.dart';
+import '../../ui/brand_logo.dart';
 
 /// Boot splash (Figma B · Splash 1 to 4): the mark lights grey to bulb to
 /// brush, then settles into the lockup and dissolves into the app.
@@ -133,7 +133,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                 duration: _duration,
                 curve: curve,
                 opacity: pose.wordmarkOpacity,
-                child: SvgPicture.asset('assets/brand/iqly-logo-cream.svg'),
+                child: const IqBrandLogo(tone: IqBrandTone.onDark),
               ),
             ),
             Positioned(

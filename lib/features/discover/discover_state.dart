@@ -36,6 +36,10 @@ class DiscoverFilters {
 
   bool get forYou => sort == FeedSort.myInterests;
 
+  /// True when the filters hide briefs; the sort alone does not.
+  bool get narrowed =>
+      status != BriefStatus.live || tier != null || category != null;
+
   bool matches(Brief brief) =>
       brief.status == status &&
       (tier == null || brief.tier == tier) &&

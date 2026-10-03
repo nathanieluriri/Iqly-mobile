@@ -16,7 +16,10 @@ enum IqTimelineRowState { done, current, upcoming }
 /// Figma over its note: only the threads under Current and Upcoming are
 /// dashed; the thread under Done is solid brand.
 /// Figma over the icon rule: the Done check is 12 px.
-/// Brief rule kept: [failed] puts the Current core and ring on Color/err.
+/// Brief rule kept: [failed] puts the Current core and ring on Color/err;
+/// a failure does not pulse, so its ring stays still.
+/// An empty [meta] hides the line, as screens do on some rows (B14
+/// Requested), so the row is 43 tall.
 class IqTimelineRow extends StatefulWidget {
   const IqTimelineRow({
     super.key,
@@ -70,7 +73,8 @@ class _IqTimelineRowState extends State<IqTimelineRow>
   PulsePriority get pulsePriority => PulsePriority.currentRing;
 
   @override
-  bool get wantsPulse => widget.state == IqTimelineRowState.current;
+  bool get wantsPulse =>
+      widget.state == IqTimelineRowState.current && !widget.failed;
 
   @override
   void didChangeDependencies() {
@@ -86,7 +90,9 @@ class _IqTimelineRowState extends State<IqTimelineRow>
         !_reduced) {
       _done.forward(from: 0);
     }
-    if (widget.state != oldWidget.state) syncPulse();
+    if (widget.state != oldWidget.state || widget.failed != oldWidget.failed) {
+      syncPulse();
+    }
   }
 
   @override
@@ -196,11 +202,13 @@ class _IqTimelineRowState extends State<IqTimelineRow>
                     ),
                     child: Text(widget.title),
                   ),
-                  const SizedBox(height: IqSpace.s0p5),
-                  Text(
-                    widget.meta,
-                    style: IqText.small.copyWith(color: IqColors.fg3),
-                  ),
+                  if (widget.meta.isNotEmpty) ...[
+                    const SizedBox(height: IqSpace.s0p5),
+                    Text(
+                      widget.meta,
+                      style: IqText.small.copyWith(color: IqColors.fg3),
+                    ),
+                  ],
                 ],
               ),
             ),

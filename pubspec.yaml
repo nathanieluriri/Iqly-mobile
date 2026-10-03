@@ -33,14 +33,26 @@ flutter:
     - assets/vectors/
 
   fonts:
-    - family: Bricolage Grotesque
+    - family: Bricolage Grotesque 34pt
       fonts:
-        - asset: assets/fonts/BricolageGrotesque-Medium.ttf
-          weight: 500
-        - asset: assets/fonts/BricolageGrotesque-Bold.ttf
-          weight: 700
-        - asset: assets/fonts/BricolageGrotesque-ExtraBold.ttf
+        - asset: assets/fonts/BricolageGrotesque-34pt.ttf
           weight: 800
+    - family: Bricolage Grotesque 30pt
+      fonts:
+        - asset: assets/fonts/BricolageGrotesque-30pt.ttf
+          weight: 800
+    - family: Bricolage Grotesque 28pt
+      fonts:
+        - asset: assets/fonts/BricolageGrotesque-28pt.ttf
+          weight: 500
+    - family: Bricolage Grotesque 22pt
+      fonts:
+        - asset: assets/fonts/BricolageGrotesque-22pt.ttf
+          weight: 700
+    - family: Bricolage Grotesque 17pt
+      fonts:
+        - asset: assets/fonts/BricolageGrotesque-17pt.ttf
+          weight: 700
     - family: Plus Jakarta Sans
       fonts:
         - asset: assets/fonts/PlusJakartaSans-Regular.ttf

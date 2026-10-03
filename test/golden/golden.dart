@@ -1,36 +1,41 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/theme/theme.dart';
 
-const _fontFiles = {
-  IqFonts.bricolage: [
-    'BricolageGrotesque-Medium.ttf',
-    'BricolageGrotesque-Bold.ttf',
-    'BricolageGrotesque-ExtraBold.ttf',
-  ],
-  IqFonts.jakarta: [
-    'PlusJakartaSans-Regular.ttf',
-    'PlusJakartaSans-Medium.ttf',
-    'PlusJakartaSans-SemiBold.ttf',
-    'PlusJakartaSans-Bold.ttf',
-  ],
-  IqFonts.geistMono: [
-    'GeistMono-Regular.ttf',
-    'GeistMono-Medium.ttf',
-    'GeistMono-SemiBold.ttf',
-  ],
-};
-
 /// The test engine only ships a placeholder font; load the bundled ones so
 /// goldens show real type. Call from setUpAll.
 Future<void> loadAppFonts() async {
-  for (final entry in _fontFiles.entries) {
-    final loader = FontLoader(entry.key);
-    for (final file in entry.value) {
-      loader.addFont(rootBundle.load('assets/fonts/$file'));
+  final manifest = jsonDecode(await rootBundle.loadString('FontManifest.json'));
+  for (final family in (manifest as List).cast<Map<String, dynamic>>()) {
+    final loader = FontLoader(family['family'] as String);
+    for (final font in (family['fonts'] as List).cast<Map<String, dynamic>>()) {
+      loader.addFont(rootBundle.load(font['asset'] as String));
     }
     await loader.load();
+  }
+}
+
+/// Compares [finder] with a golden painted with BoxShadow blur, as a device
+/// paints it: flutter_test draws shadows without blur, which leaves a hard
+/// band under the dock and cards. The flag is restored before the test ends,
+/// as the test binding requires.
+Future<void> expectMatchesGolden(Finder finder, String path) async {
+  final binding = TestWidgetsFlutterBinding.instance;
+  debugDisableShadows = false;
+  try {
+    void repaint(RenderObject object) {
+      object.markNeedsPaint();
+      object.visitChildren(repaint);
+    }
+
+    binding.renderViews.forEach(repaint);
+    await binding.pump();
+    await expectLater(finder, matchesGoldenFile(path));
+  } finally {
+    debugDisableShadows = true;
   }
 }
 
@@ -54,10 +59,7 @@ Future<void> expectGolden(
     ),
   );
   await tester.pumpAndSettle();
-  await expectLater(
-    find.byType(MaterialApp),
-    matchesGoldenFile('goldens/$name.png'),
-  );
+  await expectMatchesGolden(find.byType(MaterialApp), 'goldens/$name.png');
 }
 
 /// Renders a component on the paper background at its own size, padded.

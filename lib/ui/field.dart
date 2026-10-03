@@ -27,8 +27,9 @@ enum IqFieldSize { standard, large }
 /// Screens hide the status icon and the note on some Valid instances (B0
 /// Your name, Sign in): [showStatus] and [showNote] carry those overrides.
 /// A new picker value crossfades in (200 ms ease-out, none under reduced
-/// motion). Turning to Error wipes the err stroke in left to right (240 ms)
-/// and the help line rises in (160 ms); the screen adds the shake
+/// motion). Turning Active wipes the accent brush in left to right (240 ms,
+/// MOTION-SPEC §5.8), as turning to Error does the err stroke; the error
+/// help line rises in (160 ms); the screen adds the shake
 /// (lib/core/motion).
 class IqField extends StatefulWidget {
   const IqField({
@@ -261,9 +262,11 @@ class _IqFieldState extends State<IqField> {
                     right: 0,
                     top: 1.14,
                     height: 4,
-                    child: IqVector(
-                      'assets/vectors/field-stroke.svg',
-                      color: IqColors.accent,
+                    child: Wipe(
+                      child: IqVector(
+                        'assets/vectors/field-stroke.svg',
+                        color: IqColors.accent,
+                      ),
                     ),
                   ),
                 if (state == IqFieldState.error)

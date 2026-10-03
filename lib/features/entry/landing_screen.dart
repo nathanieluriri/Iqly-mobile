@@ -2,7 +2,6 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
@@ -19,6 +18,7 @@ import 'entry_copy.dart';
 import 'entry_state.dart';
 import 'entry_widgets.dart';
 import 'line_art_loop.dart';
+import '../../ui/brand_logo.dart';
 
 /// B0 Landing (227:10756) and its email focused state (231:11204): the
 /// providers and OR step aside, the drawing shrinks and Continue appears
@@ -202,11 +202,7 @@ class _LandingScreenState extends ConsumerState<LandingScreen> {
         curve: failed ? IqCurves.easeOut : IqCurves.easeIn,
         height: failed ? IqSpace.s3 : 0,
       ),
-      SvgPicture.asset(
-        'assets/brand/iqly-logo.svg',
-        width: 120,
-        semanticsLabel: 'iQLY',
-      ),
+      const IqBrandLogo(width: 120),
       AnimatedContainer(
         duration: motion,
         curve: curve,

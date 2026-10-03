@@ -12,6 +12,7 @@ import 'features/entry/reset_link_sent_screen.dart';
 import 'features/entry/sign_in_screen.dart';
 import 'features/entry/your_name_screen.dart';
 import 'features/onboarding/onboarding_routes.dart';
+import 'features/profile/profile_routes.dart';
 import 'features/splash/splash_screen.dart';
 import 'features/submissions/submissions_routes.dart';
 
@@ -38,12 +39,20 @@ abstract final class Routes {
   static const submissionDetail = '/submissions/:id';
   static const result = '/submissions/:id/result';
   static const wallet = '/wallet';
+  static const withdraw = '/wallet/withdraw';
+  static const selectBank = '/wallet/select-bank';
+  static const withdrawal = '/wallet/withdrawals/:id';
+  static const withdrawalPending = '/wallet/withdrawals/:id/pending';
   static const profile = '/profile';
   static const notifications = '/notifications';
   static const briefDetail = '/briefs/:id';
   static const submit = '/briefs/:id/submit';
   static const polls = '/polls';
   static const activations = '/activations';
+  static const yourDetails = '/profile/details';
+  static const notificationPreferences = '/profile/notifications';
+  static const deleteAccount = '/profile/delete-account';
+  static const accountClosing = '/account-closing';
 
   static String brief(String id) => '/briefs/$id';
   static String submitTo(String id) => '/briefs/$id/submit';
@@ -72,6 +81,7 @@ GoRouter buildRouter({String initialLocation = Routes.splash}) {
       ..._entryRoutes,
       ...onboardingRoutes,
       ...submissionRoutes,
+      ...profileRoutes,
     ],
   );
 }

@@ -10,14 +10,24 @@ import '../../data/repository.dart';
 import '../../router.dart';
 
 /// [city] as it is spelled in [state]'s list, or null when the list does not
-/// have it (a custom city).
+/// have it (a custom city). Spacing, hyphens, apostrophes and the listed
+/// alternate spellings (Shaki for Saki) do not count as a difference.
 String? listedCity(String? state, String city) {
-  final name = city.trim().toLowerCase();
+  final name = placeKey(city);
   if (state == null || name.isEmpty) return null;
   return Reference.cities[state]
-      ?.where((c) => c.toLowerCase() == name)
+      ?.where((c) => placeSpellings(c).any((s) => s == name))
       .firstOrNull;
 }
+
+/// [name] reduced to lower-case letters and digits, so "Ado Ekiti" and
+/// "Ado-Ekiti" compare equal.
+String placeKey(String name) =>
+    name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+/// The keys of [city] and of its alternate spellings.
+Iterable<String> placeSpellings(String city) =>
+    [city, ...?Reference.cityAlternates[city]].map(placeKey);
 
 /// The screens of first run, in order. [label] is what Resume shows after
 /// "Next:".
@@ -153,6 +163,16 @@ class OnboardingDraftNotifier extends Notifier<OnboardingDraft> {
     _save(_profile(interests: next));
   }
 
+  /// Profile's Your details edits the same answers.
+  void setProfile(OnboardingProfile profile) =>
+      _save(state.copyWith(profile: profile));
+
+  /// Sign out and account deletion leave nothing of the answers on the device.
+  void clear() {
+    state = const OnboardingDraft();
+    ref.read(sharedPreferencesProvider).remove(_key);
+  }
+
   void visit(OnboardingStep step) {
     if (state.lastStep == step && !state.deferred) return;
     _save(state.copyWith(lastStep: step, deferred: false));
@@ -203,4 +223,12 @@ String? onboardingLaunchRoute(SessionState session, OnboardingDraft draft) {
 
 final onboardingUserProvider = FutureProvider<User>(
   (ref) => ref.watch(repositoryProvider).user(),
+);
+
+/// The first name Welcome and Done greet: the one typed at sign-up on this
+/// device, else the account's.
+final greetingNameProvider = Provider<String?>(
+  (ref) =>
+      ref.watch(sessionProvider.select((s) => s.firstName)) ??
+      ref.watch(onboardingUserProvider).value?.firstName,
 );
