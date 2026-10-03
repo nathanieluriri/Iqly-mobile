@@ -146,6 +146,8 @@ class WinnerCard extends StatelessWidget {
     final brief = data.item.brief;
     return Hero(
       tag: heroTag(data.item.id),
+      curve: IqCurves.easeInOut,
+      createRectTween: (begin, end) => RectTween(begin: begin, end: end),
       // The flight is drawn in the navigator's overlay, outside every page's
       // Material, where text would take the framework's fallback style (a
       // yellow double underline).

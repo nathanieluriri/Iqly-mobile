@@ -326,6 +326,22 @@ void main() {
       await tester.pumpAndSettle();
     });
 
+    testWidgets('the card flies into the sheet ease-in-out (spec 4.4)', (
+      tester,
+    ) async {
+      await pumpApp(tester, resultPath('s2'), reducedMotion: false);
+      await tester.tap(find.text('Share your win'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 150));
+      // Halfway through the 300 ms rise an ease-in-out flight is halfway
+      // between the 358 card and the 222 preview.
+      expect(
+        tester.getRect(find.byType(IqShareCard).last).width,
+        closeTo(290, 15),
+      );
+      await tester.pumpAndSettle();
+    });
+
     testWidgets('reduced motion: no flight, the sheet fades in place', (
       tester,
     ) async {
