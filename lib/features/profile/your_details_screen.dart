@@ -56,8 +56,7 @@ class YourDetailsScreen extends ConsumerStatefulWidget {
 
   static const readyText = 'All saved · edit any field';
   static const savingText = 'Saving…';
-  static const errorText =
-      'Not saved. Check your connection, then tap Save changes.';
+  static const errorText = 'Not saved. Check your connection.';
 
   @override
   ConsumerState<YourDetailsScreen> createState() => _YourDetailsScreenState();
