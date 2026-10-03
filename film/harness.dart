@@ -16,10 +16,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/app.dart';
+import 'package:iqly_mobile/core/deadline.dart';
 import 'package:iqly_mobile/core/session.dart';
+import 'package:iqly_mobile/data/activations_service.dart';
+import 'package:iqly_mobile/data/demo_data.dart';
+import 'package:iqly_mobile/data/help_service.dart';
+import 'package:iqly_mobile/data/notifications_service.dart';
+import 'package:iqly_mobile/data/polls_service.dart';
+import 'package:iqly_mobile/data/repository.dart';
+import 'package:iqly_mobile/data/wallet_service.dart';
 import 'package:iqly_mobile/theme/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -54,6 +63,35 @@ const _touchFill = Color(0x59000000);
 const _touchRing = Color(0x8CFFFFFF);
 
 typedef FilmScript = Future<void> Function(Director d);
+
+/// The drawn status bar's 9:41, on a weekday (Friday 2 October 2026). The
+/// clock stands still for the whole film.
+final _filmNow = DateTime(2026, 10, 2, 9, 41);
+
+/// The app's clock and every demo source that dates things, at [_filmNow],
+/// so deadlines, ages and greetings agree with the status bar. Each mirrors
+/// the app's own provider with the clock passed in.
+List<Override> _pinnedClock() {
+  DateTime now() => _filmNow;
+  return [
+    clockProvider.overrideWithValue(now),
+    repositoryProvider.overrideWithValue(
+      DemoRepository(DemoData(now: _filmNow), latency: DemoLatency.prototype),
+    ),
+    pollsServiceProvider.overrideWith((ref) => DemoPollsService(clock: now)),
+    walletServiceProvider.overrideWith((ref) => DemoWalletService(clock: now)),
+    helpServiceProvider.overrideWith((ref) => DemoHelpService(clock: now)),
+    notificationsServiceProvider.overrideWith(
+      (ref) =>
+          DemoNotificationsService(ref.watch(repositoryProvider), clock: now),
+    ),
+    activationsServiceProvider.overrideWith((ref) {
+      final service = DemoActivationsService(clock: now);
+      ref.onDispose(service.dispose);
+      return service;
+    }),
+  ];
+}
 
 /// Registers one film. [prefs] seeds SharedPreferences as the device holds
 /// them when the app opens; empty is a fresh install. Errors the app reports
@@ -101,6 +139,7 @@ class Director {
   final _inset = ValueNotifier<double>(0);
   final _stageKey = GlobalKey();
   final _taps = <String>[];
+  final _haptics = <String>[];
   final _errors = <String, _Error>{};
   final _watch = Stopwatch();
 
@@ -336,7 +375,11 @@ class Director {
     // A device answers platform calls such as the error haptic; the test
     // engine has no handler for them.
     final messenger = tester.binding.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(SystemChannels.platform, (_) async {
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'HapticFeedback.vibrate') {
+        final kind = '${call.arguments}'.split('.').last;
+        _haptics.add('${time.toStringAsFixed(3)}\t$kind\t${_screenName()}');
+      }
       return null;
     });
     addTearDown(
@@ -354,7 +397,10 @@ class Director {
         homeIndicator: File('film/assets/home-indicator.svg')
             .readAsStringSync(),
         app: ProviderScope(
-          overrides: [sharedPreferencesProvider.overrideWithValue(shared)],
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(shared),
+            ..._pinnedClock(),
+          ],
           child: const IqlyApp(),
         ),
       ),
@@ -394,6 +440,7 @@ class Director {
       throw TestFailure('$name: ffmpeg exited with $code\n$_ffmpegLog');
     }
     File('$_out.taps').writeAsStringSync(_taps.map((t) => '$t\n').join());
+    File('$_out.haptics').writeAsStringSync(_haptics.map((h) => '$h\n').join());
     File('$_out.errors')
         .writeAsStringSync(_errors.values.map((e) => '$e\n').join());
     final wall = _watch.elapsed;
@@ -549,6 +596,9 @@ class Director {
         ..inset = inset
         ..changed();
       _inset.value = inset;
+      // A focused field keeps its caret above a rising keyboard only when the
+      // view's own insets grow (EditableText.didChangeMetrics), as on iOS.
+      tester.view.viewInsets = FakeViewPadding(bottom: inset * _pixelRatio);
     }
   }
 

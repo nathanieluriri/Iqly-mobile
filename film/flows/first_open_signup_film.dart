@@ -15,6 +15,7 @@ import 'package:iqly_mobile/ui/box_field.dart';
 import 'package:iqly_mobile/ui/next_fab.dart';
 
 import '../harness.dart';
+import '../steps.dart';
 
 /// Fresh install to Discover: splash, landing, sign up with a new email,
 /// the three onboarding steps, Done, the notifications ask and the first tip.
@@ -95,9 +96,7 @@ void main() {
     await d.arrive(find.byType(NotificationsAskScreen));
     await d.tap(find.text('Turn on notifications'));
 
-    await d.arrive(find.byType(HomeScreen), hold: 2);
-    await d.tap(find.text('OK, got it'));
-    await d.waitFor(find.text('Closing soon'));
-    await d.hold(2);
+    await d.waitFor(find.byType(HomeScreen));
+    await readFirstTip(d);
   });
 }

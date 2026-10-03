@@ -60,8 +60,6 @@ void main() {
     await d.settle(on: find.byType(YourDetailsScreen));
     await d.hold(1);
 
-    // Closing the sheet hands focus back to the phone field, so the keypad
-    // returns and the form scrolls up to it; the city is further down.
     final city = find.text('CITY');
     await d.reveal(city, form);
     await d.hold(0.6);
