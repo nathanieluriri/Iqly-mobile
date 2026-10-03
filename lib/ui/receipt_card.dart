@@ -14,6 +14,7 @@ enum IqReceiptCardTone { ok, warn, err }
 /// Figma over brief: only the Completed tone is drawn; the tone is picked from the status word.
 /// Figma over brief: the status tag has radius 6 (a tag), not a full pill.
 /// Brief over Figma: [showAmount] hides the Amount row on the tracker; Figma has no such prop.
+/// [showStatus] carries the B14 failed receipt, which draws no tag.
 class IqReceiptCard extends StatelessWidget {
   const IqReceiptCard({
     super.key,
@@ -23,6 +24,7 @@ class IqReceiptCard extends StatelessWidget {
     this.date = 'Tue, 23 Sep · 4:12 pm',
     this.status = 'Completed',
     this.showAmount = true,
+    this.showStatus = true,
   });
 
   final String amount;
@@ -31,6 +33,7 @@ class IqReceiptCard extends StatelessWidget {
   final String date;
   final String status;
   final bool showAmount;
+  final bool showStatus;
 
   static const double width = 358;
 
@@ -59,11 +62,13 @@ class IqReceiptCard extends StatelessWidget {
       child: Stack(
         children: [
           Padding(
+            // Figma lays the 1 px stroke out inside the card: content
+            // starts at 21, 21 and the card is 261 (216 without Amount).
             padding: const EdgeInsets.fromLTRB(
-              IqSpace.s5,
-              IqSpace.s5,
-              IqSpace.s5,
-              IqSpace.s6,
+              IqSpace.s5 + 1,
+              IqSpace.s5 + 1,
+              IqSpace.s5 + 1,
+              IqSpace.s6 + 1,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -83,25 +88,27 @@ class IqReceiptCard extends StatelessWidget {
                         'Withdrawal receipt'.toUpperCase(),
                         style: IqText.mono.copyWith(color: IqColors.fg2),
                       ),
-                      const SizedBox(width: 30),
-                      Flexible(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: IqSpace.s2,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: fill,
-                            borderRadius: BorderRadius.circular(IqRadius.sm),
-                          ),
-                          child: Text(
-                            status,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: IqText.smallStrong.copyWith(color: ink),
+                      if (showStatus) ...[
+                        const SizedBox(width: 30),
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: IqSpace.s2,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: fill,
+                              borderRadius: BorderRadius.circular(IqRadius.sm),
+                            ),
+                            child: Text(
+                              status,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: IqText.smallStrong.copyWith(color: ink),
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),

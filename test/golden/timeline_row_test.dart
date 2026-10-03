@@ -56,6 +56,42 @@ void main() {
     );
   });
 
+  testWidgets('an empty meta hides the line: 43 tall', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 358,
+              child: IqTimelineRow(title: 'Requested', meta: ''),
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(tester.getSize(find.byType(IqTimelineRow)).height, 43);
+    expect(find.text(''), findsNothing);
+  });
+
+  testWidgets('a failed Current row does not breathe', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 358,
+            child: IqTimelineRow(
+              state: IqTimelineRowState.current,
+              failed: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(tester.hasRunningAnimations, isFalse);
+  });
+
   testWidgets('becoming done draws the thread down', (tester) async {
     Widget row(IqTimelineRowState state) => MaterialApp(
       home: Scaffold(

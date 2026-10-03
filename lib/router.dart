@@ -37,6 +37,10 @@ abstract final class Routes {
   static const submissionDetail = '/submissions/:id';
   static const result = '/submissions/:id/result';
   static const wallet = '/wallet';
+  static const withdraw = '/wallet/withdraw';
+  static const selectBank = '/wallet/select-bank';
+  static const withdrawal = '/wallet/withdrawals/:id';
+  static const withdrawalPending = '/wallet/withdrawals/:id/pending';
   static const profile = '/profile';
   static const notifications = '/notifications';
   static const briefDetail = '/briefs/:id';

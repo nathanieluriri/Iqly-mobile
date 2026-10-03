@@ -22,6 +22,7 @@ import '../../ui/section_title.dart';
 import '../../ui/skeleton.dart';
 import '../../ui/ticket_card.dart';
 import '../onboarding/setup_nudge.dart';
+import '../withdrawals/payout_arrival.dart';
 import 'app_shell.dart';
 import 'discover_state.dart';
 import 'discover_widgets.dart';
@@ -168,6 +169,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 ? FeedChip.forYou
                                 : FeedChip.all,
                           ),
+                          if (ref.watch(recentPayoutProvider)
+                              case final payout?)
+                            _inset(PayoutArrivalRow(payout: payout)),
                           ..._nudge(),
                           ...body,
                         ]),

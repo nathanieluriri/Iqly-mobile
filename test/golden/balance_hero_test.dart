@@ -20,6 +20,28 @@ void main() {
     );
   });
 
+  testWidgets('figureBuilder draws the four figures', (tester) async {
+    final drawn = <String>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: stillMotion(
+            SizedBox(
+              width: 358,
+              child: IqBalanceHero(
+                figureBuilder: (text, style) {
+                  drawn.add(text);
+                  return Text(text, style: style);
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(drawn, ['₦12,500', '.00', '₦10,000.00', '₦62,500.00']);
+  });
+
   testWidgets('withdraw reaches onWithdraw', (tester) async {
     var taps = 0;
     await tester.pumpWidget(

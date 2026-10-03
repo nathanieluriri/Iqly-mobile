@@ -10,6 +10,9 @@ enum IqTopBarVariant { home, page, sheet }
 /// count. Page: round back, centred title, optional trailing action. Sheet:
 /// grabber, title and a 44 pt close. Fills the width; the status bar and
 /// safe area belong to the screen.
+///
+/// [showBack] carries the screens whose Page bar has no back layer (B5
+/// Withdrawal pending): the title then centres from the left padding.
 class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
   const IqTopBar({
     super.key,
@@ -19,6 +22,7 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
     this.count = '2',
     this.showCount = true,
     this.showTrailing = false,
+    this.showBack = true,
     this.trailingIcon = IqIcons.filter,
     this.trailingLabel = 'Filter',
     this.onBell,
@@ -33,6 +37,7 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
   final String count;
   final bool showCount;
   final bool showTrailing;
+  final bool showBack;
   final IqIcons trailingIcon;
 
   /// Screen reader label for the trailing action; match it to [trailingIcon].
@@ -124,15 +129,21 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
       padding: const EdgeInsets.symmetric(horizontal: IqSpace.s3),
       child: Row(
         children: [
-          _RoundButton(
-            onTap: onBack,
-            semanticLabel: 'Back',
-            fill: IqColors.card,
-            stroke: IqColors.line,
-            radius: 22,
-            child: const IqIcon(IqIcons.back, size: 22, color: IqColors.brand),
-          ),
-          const SizedBox(width: IqSpace.s2),
+          if (showBack) ...[
+            _RoundButton(
+              onTap: onBack,
+              semanticLabel: 'Back',
+              fill: IqColors.card,
+              stroke: IqColors.line,
+              radius: 22,
+              child: const IqIcon(
+                IqIcons.back,
+                size: 22,
+                color: IqColors.brand,
+              ),
+            ),
+            const SizedBox(width: IqSpace.s2),
+          ],
           Expanded(
             child: Text(
               title,
