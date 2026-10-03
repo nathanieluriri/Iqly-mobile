@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../../core/money.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
+import '../../data/activations_data.dart';
 import '../../data/help_data.dart';
 import '../../data/models.dart';
 import '../../router.dart';
@@ -28,9 +29,10 @@ import 'help_widgets.dart';
 
 /// B10 · Help thread · replied (141:5876): the ticket's state and subject,
 /// the person's message with what was attached, support's reply and the
-/// balance after the reward it credited, then a reply box under the
-/// action bar. Mark as resolved closes the ticket and goes back to the
-/// activation (B9 Reward credited); View wallet opens the Wallet tab.
+/// balance with the activation's reward in it (credited by the reply, or
+/// already paid when it came), then a reply box under the action bar. Mark
+/// as resolved closes the ticket and goes back to the activation (B9
+/// Reward credited); View wallet opens the Wallet tab.
 ///
 /// Motion (MOTION-SPEC §7.7, Figma 168:1080): sent from the request, the
 /// message arrives at +120 and its attachment line 120 after it; support
@@ -275,9 +277,9 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
     if (ticket.supportTyping) {
       parts.add(const Appear(key: ValueKey('typing'), child: TypingBubble()));
     }
-    final credit = ticket.credit;
-    if (credit != null && wallet != null) {
-      parts.addAll(_balance(credit, wallet));
+    final award = _award(ticket, wallet);
+    if (award != null && wallet != null) {
+      parts.addAll(_balance(award, wallet));
     }
     return [
       for (final (i, part) in parts.indexed) ...[
@@ -306,6 +308,17 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
           : bubble(arriving),
     );
     return MergeSemantics(child: aligned);
+  }
+
+  /// The reward support's reply speaks for: the one it credited, or the
+  /// activation's own payout already in the wallet when it replied.
+  static LedgerEntry? _award(HelpTicket ticket, WalletData? wallet) {
+    final credit = ticket.credit;
+    if (credit != null) return credit;
+    final about = ticket.activationId;
+    if (about == null || wallet == null || !ticket.answered) return null;
+    final paid = Activation.creditIdOf(about);
+    return wallet.ledger.where((l) => l.id == paid).firstOrNull;
   }
 
   /// UPDATED BALANCE: the wallet after the credit, footing to the wallet's

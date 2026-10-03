@@ -516,6 +516,7 @@ void main() {
     expect(find.text('Support replies within 2 hours.'), findsOneWidget);
     await _tap(tester, find.text('Ask for help'));
     expect(router.state.uri.path, Routes.help);
+    expect(router.state.uri.queryParameters['about'], 'a2');
   });
 
   for (final (name, location, seed, now) in [

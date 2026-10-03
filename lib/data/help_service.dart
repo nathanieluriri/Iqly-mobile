@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/money.dart';
+import 'activations_data.dart';
 import 'demo_data.dart';
 import 'help_data.dart';
 import 'models.dart';
@@ -23,8 +24,9 @@ class HelpUpload {
 abstract class HelpService {
   /// Picks a screen recording on the device and uploads it, reporting
   /// progress until it is done. Ends with nothing when the person cancels
-  /// the picker.
-  Stream<HelpUpload> addRecording();
+  /// the picker. [about] names the business the request is about; the demo
+  /// names its file after it.
+  Stream<HelpUpload> addRecording({String? about});
 
   /// Sends [request] to support and opens its ticket.
   Future<HelpTicket> send(HelpRequest request);
@@ -39,10 +41,14 @@ abstract class HelpService {
   Future<HelpTicket> resolve(String ticketId);
 }
 
-/// Picks [DemoHelp.recording] and uploads it in four steps, answers sends
+/// Picks the frame's recording and uploads it in four steps, answers sends
 /// after [delay], and has support start typing [typingAfter] a ticket is
-/// watched and reply [replyAfter] later with the activation reward credited.
-/// A null [replyAfter] leaves tickets waiting.
+/// watched and reply [replyAfter] later. Support answers a request about an
+/// activation that was started: it confirms the steps and credits the
+/// reward, unless the activation was already paid when the request went,
+/// then the reward is in the wallet already and nothing more is credited.
+/// Other requests wait for the live API. A null [replyAfter] leaves tickets
+/// waiting.
 class DemoHelpService implements HelpService {
   DemoHelpService({
     this.delay = const Duration(milliseconds: 700),
@@ -63,6 +69,7 @@ class DemoHelpService implements HelpService {
 
   final requests = <HelpRequest>[];
   final _tickets = <String, HelpTicket>{};
+  final _about = <String, Activation>{};
   int _next = 1;
 
   Future<void> _wait(Duration duration) => duration == Duration.zero
@@ -78,33 +85,35 @@ class DemoHelpService implements HelpService {
   HelpTicket _save(HelpTicket ticket) => _tickets[ticket.id] = ticket;
 
   @override
-  Stream<HelpUpload> addRecording() async* {
+  Stream<HelpUpload> addRecording({String? about}) async* {
+    final file = DemoHelp.recordingFor(about);
     for (final progress in const [0.0, 0.25, 0.5, 0.75]) {
-      yield HelpUpload(DemoHelp.recording, progress);
+      yield HelpUpload(file, progress);
       await _wait(uploadStep);
     }
-    yield const HelpUpload(DemoHelp.recording, 1);
+    yield HelpUpload(file, 1);
   }
 
   @override
   Future<HelpTicket> send(HelpRequest request) async {
     await _wait(delay);
     requests.add(request);
-    return _save(
-      HelpTicket(
-        id: 't${_next++}',
-        subject: request.subject,
-        status: HelpTicketStatus.open,
-        messages: [
-          HelpMessage(
-            author: HelpAuthor.you,
-            body: request.message,
-            at: _clock(),
-            attachment: request.attachment,
-          ),
-        ],
-      ),
+    final ticket = HelpTicket(
+      id: 't${_next++}',
+      subject: request.subject,
+      status: HelpTicketStatus.open,
+      activationId: request.activation?.id,
+      messages: [
+        HelpMessage(
+          author: HelpAuthor.you,
+          body: request.message,
+          at: _clock(),
+          attachment: request.attachment,
+        ),
+      ],
     );
+    if (request.activation case final about?) _about[ticket.id] = about;
+    return _save(ticket);
   }
 
   @override
@@ -113,18 +122,14 @@ class DemoHelpService implements HelpService {
     if (ticket == null) return;
     yield ticket;
     final after = replyAfter;
-    final answered = ticket.messages.any((m) => m.author == HelpAuthor.support);
-    if (after == null || answered) return;
+    final about = _about[ticketId];
+    if (after == null || ticket.answered || about == null || !about.started) {
+      return;
+    }
     await _wait(typingAfter);
     yield _save(_ticket(ticketId).copyWith(supportTyping: true));
     await _wait(after);
     final at = _clock();
-    final credit = LedgerEntry(
-      id: DemoHelp.creditId,
-      type: LedgerType.award,
-      amountKobo: DemoHelp.rewardKobo,
-      createdAt: at,
-    );
     final current = _ticket(ticketId);
     yield _save(
       current.copyWith(
@@ -132,12 +137,23 @@ class DemoHelpService implements HelpService {
         status: current.status == HelpTicketStatus.resolved
             ? HelpTicketStatus.resolved
             : HelpTicketStatus.replied,
-        credit: credit,
+        credit: about.credited
+            ? null
+            : LedgerEntry(
+                id: about.creditId,
+                type: LedgerType.award,
+                amountKobo: about.rewardKobo,
+                createdAt: at,
+              ),
         messages: [
           ...current.messages,
           HelpMessage(
             author: HelpAuthor.support,
-            body: DemoHelp.reply(firstName, naira(credit.amountKobo)),
+            body: DemoHelp.reply(
+              firstName,
+              steps: about.steps.length,
+              amount: naira(about.rewardKobo),
+            ),
             at: at,
           ),
         ],

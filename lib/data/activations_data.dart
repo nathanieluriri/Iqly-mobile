@@ -182,6 +182,13 @@ class Activation {
     return done;
   }
 
+  /// The ledger row its reward lands as, whoever pays it (the business's
+  /// confirmation or support), so it counts once.
+  String get creditId => creditIdOf(id);
+
+  /// [creditId] for the activation with [activationId].
+  static String creditIdOf(String activationId) => 'activation-$activationId';
+
   /// Since when [waitingStep] has waited: its predecessor's confirmation.
   DateTime? get waitingSince =>
       waitingStep == null ? null : progress!.confirmedAt.last;

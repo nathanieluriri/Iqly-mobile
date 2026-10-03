@@ -28,6 +28,7 @@ import '../../ui/step_row.dart';
 import '../../ui/timeline_row.dart';
 import '../../ui/top_bar.dart';
 import '../../ui/video_preview.dart';
+import '../help/help_routes.dart';
 import '../wallet/wallet_format.dart' show nairaParts;
 import '../wallet/wallet_state.dart';
 import 'activation_format.dart';
@@ -691,7 +692,7 @@ class _CheckingPage extends StatelessWidget {
                 kind: IqButtonKind.secondary,
                 showIcon: false,
                 width: double.infinity,
-                onTap: () => context.push(Routes.help),
+                onTap: () => context.push(helpPath(about: a.id)),
               ),
             ],
           ),
@@ -906,9 +907,7 @@ class _RewardWalletState extends ConsumerState<_RewardWallet> {
     if (data == null) return const SizedBox(height: 146);
     final a = widget.activation;
     var totals = data.totals;
-    final paidIn = data.ledger.any(
-      (l) => l.id == ActivationsNotifier.creditId(a.id),
-    );
+    final paidIn = data.ledger.any((l) => l.id == a.creditId);
     if (_before && paidIn) {
       totals = WalletTotals(
         totalEarnedKobo: totals.totalEarnedKobo - a.rewardKobo,

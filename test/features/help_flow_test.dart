@@ -15,6 +15,7 @@ import 'package:iqly_mobile/ui/ticket_tag.dart';
 import 'package:iqly_mobile/ui/video_preview.dart';
 
 import '../golden/screens/app_harness.dart';
+import '../golden/screens/help_harness.dart';
 import '../golden/screens/polls_notifications_help_harness.dart';
 import '../golden/screens/wallet_harness.dart';
 import 'entry_harness.dart' show recordHaptics;
@@ -47,9 +48,10 @@ Future<void> _openFromHome(WidgetTester tester, {HelpService? help}) async {
     overrides: [
       ...laneOverrides(help: help),
       ...walletOverrides(),
+      ...helpActivations(),
     ],
   );
-  GoRouter.of(tester.element(find.byType(HomeScreen))).push(Routes.help);
+  GoRouter.of(tester.element(find.byType(HomeScreen))).push(kudiBoxHelp);
   await tester.pumpAndSettle();
   expect(find.byType(HelpRequestScreen), findsOneWidget);
 }

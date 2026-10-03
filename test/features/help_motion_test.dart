@@ -4,12 +4,12 @@ import 'package:iqly_mobile/core/motion.dart';
 import 'package:iqly_mobile/data/help_service.dart';
 import 'package:iqly_mobile/features/help/help_thread_screen.dart';
 import 'package:iqly_mobile/features/help/help_widgets.dart';
-import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/balance_hero.dart';
 import 'package:iqly_mobile/ui/chat_bubble.dart';
 import 'package:iqly_mobile/ui/proof_tile.dart';
 
 import '../golden/screens/app_harness.dart';
+import '../golden/screens/help_harness.dart';
 import '../golden/screens/polls_notifications_help_harness.dart';
 import '../golden/screens/wallet_harness.dart';
 
@@ -58,10 +58,11 @@ Future<void> _sendFromRequest(
 }) async {
   await pumpApp(
     tester,
-    Routes.help,
+    kudiBoxHelp,
     overrides: [
       ...laneOverrides(help: _slowSupport()),
       ...walletOverrides(),
+      ...helpActivations(),
     ],
   );
   await tester.tap(find.byType(IqProofTile));
