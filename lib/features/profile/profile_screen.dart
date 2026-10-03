@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/flags.dart';
+import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../data/profile_service.dart';
 import '../../data/repository.dart';
@@ -15,7 +16,6 @@ import '../../ui/section_title.dart';
 import '../../ui/top_bar.dart';
 import '../discover/app_shell.dart';
 import '../onboarding/onboarding_draft.dart';
-import 'profile_motion.dart' as motion;
 import 'profile_state.dart';
 
 /// B7 · Profile (40:24), the Profile tab: the name as the title and the
@@ -134,8 +134,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   onBell: () => context.push(Routes.notifications),
                 ),
                 Expanded(
-                  child: motion.Entrance(
-                    length: motion.Entrance.listLength(slots.length),
+                  child: Stagger(
                     child: ListView(
                       padding: EdgeInsets.fromLTRB(
                         IqSpace.s4,
@@ -145,7 +144,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ),
                       children: [
                         for (final (i, slot) in slots.indexed)
-                          motion.Cue.arrive(i, child: slot),
+                          StaggerItem(index: i, child: slot),
                       ],
                     ),
                   ),

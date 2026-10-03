@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 import 'pressable.dart';
@@ -63,7 +64,7 @@ class IqSectionTitle extends StatelessWidget {
                         ),
                         if (showCount) ...[
                           const SizedBox(width: IqSpace.s2),
-                          Text(
+                          RollingText(
                             count.toUpperCase(),
                             style: IqText.mono.copyWith(color: IqColors.fg3),
                           ),

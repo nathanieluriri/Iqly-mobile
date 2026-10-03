@@ -20,7 +20,6 @@ import '../../ui/progress_thread.dart';
 import '../../ui/top_bar.dart';
 import '../onboarding/onboarding_draft.dart';
 import '../onboarding/onboarding_sheets.dart';
-import 'profile_motion.dart' as motion;
 import 'profile_sheets.dart';
 import 'profile_state.dart';
 
@@ -41,10 +40,12 @@ enum _Closing { no, saving, saved }
 /// live on Profile) and the first-run answers through the first-run sheets,
 /// so onboarding and Profile edit one profile.
 ///
-/// Every edit autosaves: the thread turns Progress (half line, no words)
-/// and draws back to Ready when the account has it, its check landing
-/// again. Save changes waits for the last save (spinner), shows a check and
-/// returns to Profile. Fields settle in with the push.
+/// Every edit autosaves: the thread turns Progress ("Saving…" and how many
+/// of the eight fields hold a value, the line shortening to half) and grows
+/// back to Ready when the account has it, its check popping in (spec 7.2,
+/// 5.26). Save changes waits for the last save (spinner), lands a check
+/// with the success haptic and returns to Profile. Fields settle in with
+/// the push.
 ///
 /// The frame draws the older Field set; here a filled field is Exp/Field
 /// Valid without its status icon (hairline base) and an empty one is Empty.
@@ -54,7 +55,8 @@ class YourDetailsScreen extends ConsumerStatefulWidget {
   const YourDetailsScreen({super.key});
 
   static const readyText = 'All saved · edit any field';
-  static const errorText = 'Couldn’t save. Check your connection.';
+  static const savingText = 'Saving…';
+  static const errorText = 'Not saved. Check your connection.';
 
   @override
   ConsumerState<YourDetailsScreen> createState() => _YourDetailsScreenState();
@@ -200,9 +202,9 @@ class _YourDetailsScreenState extends ConsumerState<YourDetailsScreen> {
       errorHaptic();
       return;
     }
-    motion.successHaptic();
+    IqHaptics.success.play();
     setState(() => _closing = _Closing.saved);
-    _leaving = Timer(motion.duration(context, motion.mark, fade: true), _leave);
+    _leaving = Timer(motion(context, IqDurations.mark, fade: true), _leave);
   }
 
   void _leave() {
@@ -336,6 +338,16 @@ class _YourDetailsScreenState extends ConsumerState<YourDetailsScreen> {
         onTap: () => _pickUniversity(answers),
       ),
     ];
+    final filled = [
+      phoneFilled,
+      born != null,
+      origin != null,
+      interests.isNotEmpty,
+      gender != null,
+      answers.state != null,
+      city.isNotEmpty,
+      university != null,
+    ].where((value) => value).length;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
@@ -360,12 +372,15 @@ class _YourDetailsScreenState extends ConsumerState<YourDetailsScreen> {
                   ),
                   child: Shake(
                     trigger: _failures,
-                    child: _SaveThread(save: save),
+                    child: _SaveThread(
+                      save: save,
+                      count: '$filled of ${fields.length}',
+                    ),
                   ),
                 ),
                 Expanded(
-                  child: motion.Entrance(
-                    length: motion.Entrance.listLength(fields.length),
+                  child: Stagger(
+                    move: StaggerMove.settle,
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.fromLTRB(
                         IqSpace.s4,
@@ -378,7 +393,7 @@ class _YourDetailsScreenState extends ConsumerState<YourDetailsScreen> {
                         children: [
                           for (final (i, field) in fields.indexed) ...[
                             if (i > 0) const SizedBox(height: IqSpace.s2),
-                            motion.Cue.settle(i, child: field),
+                            StaggerItem(index: i, child: field),
                           ],
                         ],
                       ),
@@ -421,14 +436,13 @@ OnboardingProfile _answers(
   interests: interests ?? now.interests,
 );
 
-/// The pinned Exp/ProgressThread: Ready ("All saved · edit any field")
-/// draws in left to right, an unsaved edit turns it Progress, a failed save
-/// Error. Each save that lands re-stamps the check (1.15 to 1) over the
-/// thread's own.
+/// The pinned Exp/ProgressThread: Ready ("All saved · edit any field"), an
+/// edit on its way Progress with [count], a save the account refused Error.
 class _SaveThread extends StatelessWidget {
-  const _SaveThread({required this.save});
+  const _SaveThread({required this.save, required this.count});
 
   final DetailsSaveState save;
+  final String count;
 
   @override
   Widget build(BuildContext context) {
@@ -438,49 +452,14 @@ class _SaveThread extends StatelessWidget {
       DetailsSave.pending ||
       DetailsSave.saving => IqProgressThreadState.progress,
     };
-    final thread = IqProgressThread(
-      state: state,
-      status: '',
-      count: '',
-      readyText: YourDetailsScreen.readyText,
-      errorText: YourDetailsScreen.errorText,
-    );
     return Semantics(
       liveRegion: true,
-      child: Stack(
-        children: [
-          AnimatedSwitcher(
-            duration: motion.duration(context, motion.tick),
-            switchInCurve: motion.easeOut,
-            switchOutCurve: motion.easeOut,
-            layoutBuilder: (current, previous) => Stack(
-              alignment: Alignment.topLeft,
-              children: [...previous, ?current],
-            ),
-            child: KeyedSubtree(
-              key: ValueKey(state),
-              child: state == IqProgressThreadState.ready
-                  ? Wipe(child: thread)
-                  : thread,
-            ),
-          ),
-          Positioned(
-            left: 0,
-            top: 0,
-            width: 18,
-            height: 18,
-            child: motion.Stamp(
-              trigger: save.saves,
-              from: motion.restampFrom,
-              hideAtRest: true,
-              child: const IqIcon(
-                IqIcons.success,
-                size: 18,
-                color: IqColors.ok,
-              ),
-            ),
-          ),
-        ],
+      child: IqProgressThread(
+        state: state,
+        status: YourDetailsScreen.savingText,
+        count: count,
+        readyText: YourDetailsScreen.readyText,
+        errorText: YourDetailsScreen.errorText,
       ),
     );
   }
@@ -515,9 +494,7 @@ class _SaveChangesButton extends StatelessWidget {
             child: Semantics(
               liveRegion: true,
               label: 'Saved',
-              child: const motion.Stamp(
-                trigger: 0,
-                onMount: true,
+              child: const _SavedCheck(
                 child: IqIcon(
                   IqIcons.check,
                   size: 24,
@@ -527,6 +504,62 @@ class _SaveChangesButton extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// Lands [child] like the autosave check (spec 5.10): .6 to 1 on the stamp
+/// curve with the opacity in the first half, 200 ms; shown at once under
+/// reduced motion.
+class _SavedCheck extends StatefulWidget {
+  const _SavedCheck({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_SavedCheck> createState() => _SavedCheckState();
+}
+
+class _SavedCheckState extends State<_SavedCheck>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _land = AnimationController(
+    vsync: this,
+    duration: IqDurations.swap,
+  );
+  late final Animation<double> _scale = _land.drive(
+    Tween<double>(
+      begin: IqScale.pop,
+      end: 1,
+    ).chain(CurveTween(curve: IqCurves.stamp)),
+  );
+  late final Animation<double> _opacity = _land.drive(
+    CurveTween(curve: const Interval(0, 0.5, curve: IqCurves.easeOut)),
+  );
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _land.value = 1;
+    } else {
+      _land.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _land.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: _scale,
+      child: FadeTransition(opacity: _opacity, child: widget.child),
     );
   }
 }
