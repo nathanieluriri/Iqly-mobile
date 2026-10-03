@@ -1,0 +1,3 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="160" viewBox="0 3.5 200 160" overflow="visible" fill="none"><path id="ink" d="M118 41.5C118 51.4 109.9 59.5 100 59.5C90.1 59.5 82 51.4 82 41.5C82 31.6 90.1 23.5 100 23.5M100 61.5V119.5M100 119.5L82 155.5M100 119.5L118 155.5M70 47.5L100 75.5L130 47.5" stroke="#2D0048" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" />
+<path id="accent" d="M44 37.5L54 25.5M152 35.5L162 23.5M100 11.5V3.5M36 63.5H46M156 63.5H166" stroke="#F58028" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

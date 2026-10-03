@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="280" height="280" viewBox="0 0 280 280" fill="none"><path id="hand" d="M84 268C76 230 88 198 116 184C112 170 124 164 130 178C132 154 152 152 152 176C158 152 180 154 176 178C186 164 204 172 196 190C206 214 206 240 200 268" stroke="#2D0048" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+<path id="stem" d="M152 176C148 146 144 116 146 84" stroke="#2D0048" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+<path id="leaf-left" d="M145.2 108C119.2 106 103.2 88 103.2 66C125.2 66 143.2 82 145.2 108Z" stroke="#2D0048" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+<path id="leaf-right" d="M146 83.9995C148 59.9995 166 45.9995 188 47.9995C186 71.9995 170 85.9995 146 83.9995Z" stroke="#2D0048" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+<circle id="sun" cx="224" cy="48" r="16" fill="#F58028" />
+</svg>

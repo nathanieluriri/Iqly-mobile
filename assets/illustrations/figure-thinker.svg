@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="340" viewBox="0 0 320 340" fill="none"><path id="top" d="M70 340C72 262 96 212 150 206C206 200 236 246 240 340H70Z" fill="#F58028" />
+<path id="stripe" d="M96 340C98 300 102 260 118 214" stroke="#FEF3C7" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+<path id="stripe_2" d="M134 340C136 300 140 260 156 214" stroke="#FEF3C7" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+<path id="stripe_3" d="M172 340C174 300 178 260 194 214" stroke="#FEF3C7" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+<path id="stripe_4" d="M210 340C212 300 216 260 226 214" stroke="#FEF3C7" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+<rect id="neck" x="146" y="150" width="40" height="62" rx="12" fill="#2D0048" />
+<ellipse id="hair-puff" cx="212" cy="74" rx="66" ry="62" fill="#0A0A0A" />
+<ellipse id="head" cx="152" cy="116" rx="46" ry="54" fill="#2D0048" />
+<path id="hair-front" d="M106 112C104 72.0004 128 50.0004 158 52.0004C190 54.0004 204 78.0004 198 104C186 92.0004 168 90.0004 150 94.0004C132 98.0004 116 106 106 112Z" fill="#0A0A0A" />
+<path id="profile" d="M112 120C104 126 106 136 114 140" stroke="#0A0A0A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+<circle id="earring" cx="190" cy="142" r="9" fill="#FEF3C7" />
+<circle id="earring-hole" cx="190" cy="142" r="4" fill="#2D0048" />
+<path id="arm" d="M226 258C236 220 196 196 150 174" stroke="#2D0048" stroke-width="28" stroke-linecap="round" stroke-linejoin="round" />
+<ellipse id="hand" cx="142" cy="170" rx="18" ry="15" fill="#2D0048" />
+</svg>
