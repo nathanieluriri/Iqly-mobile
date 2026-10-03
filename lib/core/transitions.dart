@@ -12,8 +12,10 @@ import 'motion.dart';
 enum NavDirection { forward, back }
 
 /// Where a hand-off starts (spec 3.5): pass [Arrival.splash] as `extra` for
-/// the Figma 400 ms dissolve.
-enum Arrival { splash }
+/// the Figma 400 ms dissolve, [Arrival.lockup] when the splash has already
+/// moved its wordmark onto the landing logo (spec 3.9), so the page takes
+/// over with no transition.
+enum Arrival { splash, lockup }
 
 /// The scrims under sheets and overlays, from their Figma frames (spec 2.3).
 abstract final class IqScrim {
@@ -116,7 +118,8 @@ enum _Move {
   back(IqDurations.screenBack, IqDurations.screenBack),
   handoff(IqDurations.screen, IqDurations.screenBack),
   splash(IqDurations.handoff, IqDurations.screenBack),
-  lens(IqDurations.swap, IqDurations.swap);
+  lens(IqDurations.swap, IqDurations.swap),
+  cut(Duration.zero, IqDurations.screenBack);
 
   const _Move(this.enter, this.exit);
 
@@ -125,11 +128,13 @@ enum _Move {
 
   bool get slides => this == push || this == back;
 
-  Duration get reduced => this == lens ? Duration.zero : IqDurations.crossfade;
+  Duration get reduced =>
+      this == lens || this == cut ? Duration.zero : IqDurations.crossfade;
 
   static _Move of(Object? extra, _Move fallback) => switch (extra) {
     NavDirection.back => back,
     Arrival.splash => splash,
+    Arrival.lockup => cut,
     _ => fallback,
   };
 }
@@ -782,6 +787,143 @@ class _FadeThroughBranchesState extends State<FadeThroughBranches>
             child: widget.children[index],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// How the page around [context] came in: [NavDirection.back] when a `go`
+/// marked back brought it, so its entrance does not replay (spec 2.6).
+NavDirection arrivalOf(BuildContext context) {
+  final route = ModalRoute.of(context);
+  return route is _IqPageRoute && route._move == _Move.back
+      ? NavDirection.back
+      : NavDirection.forward;
+}
+
+/// Holds [child] 40 ms behind its page while the page slides in, so a
+/// step's control trails its title (spec 4.1); mirrored for a page coming
+/// back from the left. Still at rest, during a back swipe and under
+/// reduced motion.
+class PushTrail extends StatelessWidget {
+  const PushTrail({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final route = ModalRoute.of(context);
+    if (route is! _IqPageRoute || !route._move.slides) return child;
+    final reduced = MediaQuery.disableAnimationsOf(context);
+    final animation = route.animation!;
+    final lag =
+        IqDurations.stagger.inMicroseconds / route._move.enter.inMicroseconds;
+    final from = route._move == _Move.back ? -IqTravel.screen : IqTravel.screen;
+    // One tree shape throughout: a wrapper that came and went would rebuild
+    // the control, and a field in it would drop the keyboard.
+    return AnimatedBuilder(
+      animation: animation,
+      child: child,
+      builder: (context, child) {
+        var dx = 0.0;
+        if (!reduced &&
+            animation.status == AnimationStatus.forward &&
+            route.navigator?.userGestureInProgress != true) {
+          final t = animation.value;
+          final page = IqCurves.easeOut.transform(t);
+          final own = IqCurves.easeOut.transform(
+            ((t - lag) / (1 - lag)).clamp(0.0, 1.0),
+          );
+          dx = from * (page - own);
+        }
+        return Transform.translate(offset: Offset(dx, 0), child: child);
+      },
+    );
+  }
+}
+
+/// The chrome two pages share (spec 4.1, 4.3).
+abstract final class ChromeTags {
+  static const back = 'chrome.back';
+  static const stepMark = 'chrome.stepmark';
+  static const autosave = 'chrome.autosave';
+  static const skip = 'chrome.skip';
+  static const next = 'chrome.next';
+}
+
+/// Draws a [ChromeHero] in flight: [progress] runs 0 to 1 from the leaving
+/// page's [from] look to the arriving page's [to], whichever way the pages
+/// move.
+typedef ChromeShuttle = Widget Function(
+  BuildContext context,
+  Animation<double> progress,
+  Widget from,
+  Widget to,
+);
+
+/// Chrome that two pages share holds still while the pages move (spec 4.1,
+/// 4.3): a Hero whose two ends sit in the same place, drawn in flight by
+/// [shuttle], or as the arriving page draws it. The pages' own copies stay
+/// hit-testable under the flight, so a back tap halfway through a push
+/// still lands. Under reduced motion it turns its hero off and the chrome
+/// crossfades with its page.
+class ChromeHero extends StatelessWidget {
+  const ChromeHero({
+    super.key,
+    required this.tag,
+    required this.child,
+    this.shuttle,
+  });
+
+  final Object tag;
+  final Widget child;
+  final ChromeShuttle? shuttle;
+
+  /// The two looks crossfade (ease-out over the move) with no dip where
+  /// they agree: the look for which [richer] is true fades over the other,
+  /// which stays whole beneath it; two equally rich looks hold still.
+  static ChromeShuttle crossfade(bool Function(Widget look) richer) =>
+      (context, progress, from, to) {
+        final up = richer(to);
+        if (up == richer(from)) return to;
+        final eased = progress.drive(CurveTween(curve: IqCurves.easeOut));
+        return Stack(
+          clipBehavior: Clip.none,
+          children: up
+              ? [from, FadeTransition(opacity: eased, child: to)]
+              : [
+                  to,
+                  FadeTransition(opacity: ReverseAnimation(eased), child: from),
+                ],
+        );
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    // The hero controller looks for heroes from inside each page, below
+    // the route's transitions, so the switch has to sit here.
+    return HeroMode(
+      enabled: !MediaQuery.disableAnimationsOf(context),
+      child: Hero(
+        tag: tag,
+        curve: IqCurves.linear,
+        flightShuttleBuilder:
+            (context, animation, direction, fromHero, toHero) {
+              final from = (fromHero.widget as Hero).child;
+              final to = (toHero.widget as Hero).child;
+              final push = direction == HeroFlightDirection.push;
+              final shuttle = this.shuttle;
+              if (shuttle == null) return push ? to : from;
+              return shuttle(
+                context,
+                push ? animation : ReverseAnimation(animation),
+                from,
+                to,
+              );
+            },
+        placeholderBuilder: (context, size, child) =>
+            Opacity(opacity: 0, child: child),
+        child: child,
       ),
     );
   }

@@ -155,6 +155,83 @@ abstract final class IqSplashTiming {
 
   /// Dark to Settled in place: reduced motion and later launches.
   static const settleInPlace = Duration(milliseconds: 400);
+
+  /// Into the lockup hand-off: the wordmark starts swapping cream for ink.
+  static const logoSwapFrom = Duration(milliseconds: 100);
+
+  /// Into the lockup hand-off: the ink wordmark is fully in.
+  static const logoSwapTo = Duration(milliseconds: 300);
+
+  /// Into any splash hand-off: the status bar turns to dark icons.
+  static const statusBarAt = Duration(milliseconds: 200);
+}
+
+/// The landing's entrance and focus (spec 4.2, 6.2).
+abstract final class IqLandingTiming {
+  /// The providers and the link row fade out of the way as the focus
+  /// starts; Continue fades as the focus ends.
+  static const clear = Duration(milliseconds: 90);
+
+  /// The headline appears this far into the entrance.
+  static const headlineAt = Duration(milliseconds: 60);
+
+  /// The rows start arriving this far into the entrance, 40 apart.
+  static const rowsAt = Duration(milliseconds: 120);
+}
+
+/// The beats of a moment's entrance: Welcome, Resume, Done, Reset link
+/// sent, the notifications ask (spec 5.29, 5.32, 6.8, 6.9, 6.11, 6.17).
+abstract final class IqMomentTiming {
+  /// The eyebrow appears.
+  static const eyebrowAt = Duration(milliseconds: 80);
+
+  /// The title appears.
+  static const titleAt = Duration(milliseconds: 120);
+
+  /// The line under the title appears.
+  static const bodyAt = Duration(milliseconds: 160);
+
+  /// An illustration's accent layer plays.
+  static const accentAt = Duration(milliseconds: 160);
+
+  /// The rows start arriving, 40 apart.
+  static const rowsAt = Duration(milliseconds: 200);
+
+  /// The Done rocket's flame lights.
+  static const flameAt = Duration(milliseconds: 200);
+
+  /// The Done rocket lifts and settles.
+  static const liftAt = Duration(milliseconds: 320);
+
+  /// The Done tickets start arriving, 40 apart.
+  static const ticketsAt = Duration(milliseconds: 240);
+
+  /// The notifications ask's bell starts its swing.
+  static const swingAt = Duration(milliseconds: 200);
+
+  /// The bell's one swing.
+  static const swing = Duration(milliseconds: 480);
+}
+
+/// The one-question chrome and page top bars across a push (spec 4.1, 4.3).
+abstract final class IqChromeTiming {
+  /// The StepMark's outgoing icon fades and shrinks.
+  static const iconOut = Duration(milliseconds: 120);
+
+  /// The StepMark's incoming icon starts its pop.
+  static const iconInAt = Duration(milliseconds: 80);
+
+  /// The StepMark's incoming icon pops.
+  static const iconIn = Duration(milliseconds: 200);
+
+  /// A page title leaves.
+  static const titleOut = Duration(milliseconds: 120);
+
+  /// The next page title starts coming in.
+  static const titleInAt = Duration(milliseconds: 60);
+
+  /// The next page title is fully in.
+  static const titleInEnd = Duration(milliseconds: 240);
 }
 
 /// Distances in logical pixels (spec 2.3).
@@ -233,6 +310,15 @@ abstract final class IqScale {
 
   /// The newly lit Dock glyph.
   static const double dockGlyph = 0.85;
+
+  /// The Done rocket's flame at the low point of a flicker.
+  static const double flicker = 0.85;
+}
+
+/// Angles in degrees (spec 2.3).
+abstract final class IqAngles {
+  /// The notifications ask's bell: the keyframes of its one swing.
+  static const List<double> bellSwing = [0, -10, 8, -4, 0];
 }
 
 /// Opacities (spec 2.3).
@@ -555,6 +641,114 @@ class _RevealState extends _EntranceState<Reveal> {
   }
 }
 
+/// A line under a field, its help or its note, that opens its own slot as
+/// it reveals (spec 2.5 reveal, 5.8): the slot grows while the line fades
+/// in and rises 4 px, 160 ms ease-out, so nothing below jumps; on the way
+/// out the line fades as the slot folds, 150 ms, reading ease-in. A new
+/// line in an open slot reveals again. Reduced motion: the line crossfades
+/// in over 150 with its slot open at once, and goes with a cut.
+class RevealSlot extends StatefulWidget {
+  const RevealSlot({super.key, required this.shown, required this.child});
+
+  final bool shown;
+
+  /// The line, keyed by what it says.
+  final Widget child;
+
+  @override
+  State<RevealSlot> createState() => _RevealSlotState();
+}
+
+class _RevealSlotState extends State<RevealSlot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _slot = AnimationController(
+    vsync: this,
+    duration: IqDurations.tick,
+    reverseDuration: IqDurations.crossfade,
+    value: widget.shown ? 1 : 0,
+    animationBehavior: AnimationBehavior.preserve,
+  )..addStatusListener(_onStatus);
+  late final Animation<double> _t = _slot.drive(
+    CurveTween(curve: IqCurves.easeOut),
+  );
+  late Widget _line = widget.child;
+  int _again = 0;
+  bool _reduced = false;
+
+  void _onStatus(AnimationStatus status) {
+    if ((_reduced || status.isDismissed) && mounted) setState(() {});
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduced = MediaQuery.disableAnimationsOf(context);
+    _slot
+      ..duration = _reduced ? IqDurations.crossfade : IqDurations.tick
+      ..reverseDuration = IqDurations.crossfade;
+  }
+
+  @override
+  void didUpdateWidget(RevealSlot old) {
+    super.didUpdateWidget(old);
+    if (widget.shown) {
+      if (old.shown &&
+          _slot.isCompleted &&
+          !Widget.canUpdate(old.child, widget.child)) {
+        _again++;
+      }
+      _line = widget.child;
+    }
+    if (widget.shown != old.shown) {
+      if (widget.shown) {
+        _slot.forward();
+      } else if (_reduced) {
+        _slot.value = 0;
+      } else {
+        _slot.reverse();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _slot.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.shown && _slot.isDismissed) return const SizedBox.shrink();
+    final line = SizedBox(
+      width: double.infinity,
+      child: _again == 0 ? _line : Reveal(key: ValueKey(_again), child: _line),
+    );
+    final Animation<double> size = _reduced
+        ? (_slot.isDismissed
+              ? kAlwaysDismissedAnimation
+              : kAlwaysCompleteAnimation)
+        : _t;
+    return SizeTransition(
+      sizeFactor: size,
+      alignment: AlignmentDirectional.topStart,
+      child: FadeTransition(
+        opacity: _t,
+        child: AnimatedBuilder(
+          animation: _t,
+          child: line,
+          builder: (context, child) {
+            final rising = !_reduced && _slot.status != AnimationStatus.reverse;
+            return Transform.translate(
+              offset: Offset(0, rising ? ErrorMotion.rise * (1 - _t.value) : 0),
+              child: child,
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
 /// Fades [child] in as it rises 8 px, 220 ms ease-out (spec 2.5 appear);
 /// fades only, 150 ms, under reduced motion.
 class Appear extends _Entrance {
@@ -762,6 +956,151 @@ class StaggerItem extends StatelessWidget {
       ),
     );
     return arrive ? FadeTransition(opacity: t, child: moved) : moved;
+  }
+}
+
+/// The moves a [Beat] can play (spec 2.5).
+enum BeatMove {
+  /// Fade and rise 8, 220 ms.
+  appear(IqDurations.appear, IqTravel.rise, true),
+
+  /// Fade and rise 12, 260 ms.
+  arrive(IqDurations.enter, IqTravel.riseCard, true),
+
+  /// Rise 8 only, 260 ms, for content riding a push.
+  settle(IqDurations.enter, IqTravel.rise, false),
+
+  /// Fade and rise 16, 320 ms: hero glyphs and figures.
+  rise(IqDurations.morph, IqTravel.riseHero, true);
+
+  const BeatMove(this.length, this.travel, this.fades);
+
+  final Duration length;
+  final double travel;
+  final bool fades;
+}
+
+/// A screen's scripted entrance on one controller of [length] (spec 1.3,
+/// 8.1): each [Beat] inside plays its move from its own offset. It plays
+/// once, on the first build; with [play] false (a screen come back to)
+/// everything stands in place. Reduced motion: the fading beats fade in
+/// together over 150 and the rest stand in place.
+class Sequence extends StatefulWidget {
+  const Sequence({
+    super.key,
+    required this.length,
+    required this.child,
+    this.play = true,
+  });
+
+  final Duration length;
+  final Widget child;
+  final bool play;
+
+  @override
+  State<Sequence> createState() => _SequenceState();
+}
+
+class _SequenceState extends State<Sequence>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _clock = AnimationController(
+    vsync: this,
+    animationBehavior: AnimationBehavior.preserve,
+  );
+  bool _reduced = false;
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduced = MediaQuery.disableAnimationsOf(context);
+    if (_started) return;
+    _started = true;
+    if (!widget.play) {
+      _clock.value = 1;
+      return;
+    }
+    _clock.duration = _reduced ? IqDurations.crossfade : widget.length;
+    _clock.forward();
+  }
+
+  @override
+  void dispose() {
+    _clock.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => _SequenceScope(
+    clock: _clock,
+    length: widget.length,
+    reduced: _reduced,
+    child: widget.child,
+  );
+}
+
+class _SequenceScope extends InheritedWidget {
+  const _SequenceScope({
+    required this.clock,
+    required this.length,
+    required this.reduced,
+    required super.child,
+  });
+
+  final Animation<double> clock;
+  final Duration length;
+  final bool reduced;
+
+  /// [length] at [at] into the entrance, as a part of the whole.
+  Animation<double> span(Duration at, Duration length) {
+    final total = this.length.inMicroseconds;
+    final start = (at.inMicroseconds / total).clamp(0.0, 1.0);
+    final end = ((at + length).inMicroseconds / total).clamp(start, 1.0);
+    return clock.drive(
+      CurveTween(curve: Interval(start, end, curve: IqCurves.easeOut)),
+    );
+  }
+
+  @override
+  bool updateShouldNotify(_SequenceScope old) =>
+      clock != old.clock || length != old.length || reduced != old.reduced;
+}
+
+/// One beat of the nearest [Sequence]: [child] plays [move] from [at].
+/// Outside a choreography it stands in place.
+class Beat extends StatelessWidget {
+  const Beat({
+    super.key,
+    required this.child,
+    this.at = Duration.zero,
+    this.move = BeatMove.appear,
+  });
+
+  final Widget child;
+  final Duration at;
+  final BeatMove move;
+
+  @override
+  Widget build(BuildContext context) {
+    final scope = context.dependOnInheritedWidgetOfExactType<_SequenceScope>();
+    if (scope == null) return child;
+    if (scope.reduced) {
+      if (!move.fades) return child;
+      return FadeTransition(
+        opacity: scope.clock.drive(CurveTween(curve: IqCurves.easeOut)),
+        child: child,
+      );
+    }
+    final t = scope.span(at, move.length);
+    final moved = AnimatedBuilder(
+      animation: t,
+      child: child,
+      builder: (context, child) => Transform.translate(
+        offset: Offset(0, move.travel * (1 - t.value)),
+        child: child,
+      ),
+    );
+    return move.fades ? FadeTransition(opacity: t, child: moved) : moved;
   }
 }
 
