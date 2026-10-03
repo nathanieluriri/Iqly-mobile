@@ -121,8 +121,8 @@ class WalletNotifier extends AsyncNotifier<WalletData> {
     state = AsyncData(change(data));
   }
 
-  /// A reward paid outside a submission (an activation): it lands on the
-  /// ledger once, so available and lifetime earned grow by its amount.
+  /// An award the API put on the ledger (support credited an activation
+  /// reward). It lands once, however often it is reported.
   void credit(LedgerEntry award) => _edit(
     (data) => data.ledger.any((l) => l.id == award.id)
         ? data

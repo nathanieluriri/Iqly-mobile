@@ -13,14 +13,20 @@ import 'button.dart';
 ///
 /// The iQLY Ink Wash is a WebGPU fbm shader in Figma that Flutter cannot run
 /// without a shader asset; here it is an approximation in ember pools masked
-/// to the same top-right flare, drifting slowly (still under reduced motion).
+/// to the same top-right flare, painted on its own layer and drifting over a
+/// 24 s loop; it holds still off screen, with its route covered or its tab
+/// hidden, and under reduced motion (spec 5.31, `Figma 37:20`).
+///
+/// The figures and the pending count roll their changed characters when
+/// they change, never on arrival (money is quiet, spec 1.4; build
+/// extension).
 ///
 /// Figma over brief: the Inverse Withdraw button keeps its orange sticker.
 ///
-/// [figureBuilder] draws the four figures; a screen passes one to animate
-/// them (Figma has no motion here). Plain [Text] by default.
-/// [showWithdraw] false drops the button, as the 146 tall instance on the
-/// activation reward screens does.
+/// [figureBuilder] draws the four figures in place of the rolling text.
+///
+/// [showWithdraw] off drops the Withdraw button, as the B10 help thread's
+/// 146 pt instance does (the button is not a prop in Figma).
 class IqBalanceHero extends StatelessWidget {
   const IqBalanceHero({
     super.key,
@@ -44,7 +50,7 @@ class IqBalanceHero extends StatelessWidget {
   final bool showWithdraw;
 
   Widget _figure(String text, TextStyle style) =>
-      figureBuilder?.call(text, style) ?? Text(text, style: style);
+      figureBuilder?.call(text, style) ?? RollingText(text, style: style);
 
   @override
   Widget build(BuildContext context) {
@@ -147,7 +153,7 @@ class _Stat extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label, style: labelStyle),
+        RollingText(label, style: labelStyle),
         const SizedBox(height: IqSpace.s0p5),
         value,
       ],
@@ -158,8 +164,6 @@ class _Stat extends StatelessWidget {
 class _InkWash extends StatefulWidget {
   const _InkWash();
 
-  static const Duration loop = IqDurations.inkWash;
-
   @override
   State<_InkWash> createState() => _InkWashState();
 }
@@ -168,16 +172,29 @@ class _InkWashState extends State<_InkWash>
     with SingleTickerProviderStateMixin {
   late final AnimationController _drift = AnimationController(
     vsync: this,
-    duration: _InkWash.loop,
+    duration: IqDurations.inkWash,
   );
+  bool _visible = false;
+  bool _reduced = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (MediaQuery.disableAnimationsOf(context)) {
-      _drift.stop();
-    } else if (!_drift.isAnimating) {
+    _reduced = MediaQuery.disableAnimationsOf(context);
+    _sync();
+  }
+
+  void _onVisible(bool visible) {
+    _visible = visible;
+    _sync();
+  }
+
+  void _sync() {
+    final run = _visible && !_reduced;
+    if (run && !_drift.isAnimating) {
       _drift.repeat();
+    } else if (!run && _drift.isAnimating) {
+      _drift.stop();
     }
   }
 
@@ -186,6 +203,67 @@ class _InkWashState extends State<_InkWash>
     _drift.dispose();
     super.dispose();
   }
+
+  @override
+  Widget build(BuildContext context) {
+    // Figma masks the wash with a linear flare from (250.6, 102) to
+    // (331.5, 31) on the 358 x 204 card.
+    return FirstSeen(
+      onVisible: _onVisible,
+      child: RepaintBoundary(
+        child: ShaderMask(
+          blendMode: BlendMode.dstIn,
+          shaderCallback: (rect) => LinearGradient(
+            begin: Alignment(250.6 / 358 * 2 - 1, 102 / 204 * 2 - 1),
+            end: Alignment(331.508 / 358 * 2 - 1, 31.0075 / 204 * 2 - 1),
+            colors: [
+              IqColors.sidebarFg.withValues(alpha: 0),
+              IqColors.sidebarFg.withValues(alpha: 0.35),
+              IqColors.sidebarFg,
+            ],
+            stops: const [0, 0.35, 1],
+          ).createShader(rect),
+          child: Opacity(
+            opacity: 0.85,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  height: 164,
+                  // Fades out before the wash box ends so no pool shows a
+                  // clipped edge.
+                  child: ShaderMask(
+                    blendMode: BlendMode.dstIn,
+                    shaderCallback: (rect) => LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        IqColors.sidebarFg,
+                        IqColors.sidebarFg,
+                        IqColors.sidebarFg.withValues(alpha: 0),
+                      ],
+                      stops: const [0, 0.55, 1],
+                    ).createShader(rect),
+                    child: CustomPaint(painter: _EmberPainter(_drift)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The ember pools, repainted from the drift without a layout.
+class _EmberPainter extends CustomPainter {
+  _EmberPainter(this.drift) : super(repaint: drift);
+
+  final Animation<double> drift;
 
   // Ember pools as (x, y, radius, alpha, phase) in the 358 x 164 wash.
   static const _ember = [
@@ -198,89 +276,30 @@ class _InkWashState extends State<_InkWash>
   ];
 
   @override
-  Widget build(BuildContext context) {
-    // Figma masks the wash with a linear flare from (250.6, 102) to
-    // (331.5, 31) on the 358 x 204 card.
-    return ShaderMask(
-      blendMode: BlendMode.dstIn,
-      shaderCallback: (rect) => LinearGradient(
-        begin: Alignment(250.6 / 358 * 2 - 1, 102 / 204 * 2 - 1),
-        end: Alignment(331.508 / 358 * 2 - 1, 31.0075 / 204 * 2 - 1),
-        colors: [
-          IqColors.sidebarFg.withValues(alpha: 0),
-          IqColors.sidebarFg.withValues(alpha: 0.35),
-          IqColors.sidebarFg,
-        ],
-        stops: const [0, 0.35, 1],
-      ).createShader(rect),
-      child: Opacity(
-        opacity: 0.85,
-        child: LayoutBuilder(
-          builder: (context, box) {
-            final sx = box.maxWidth / 358;
-            return AnimatedBuilder(
-              animation: _drift,
-              builder: (context, _) {
-                final t = _drift.value * 2 * math.pi;
-                Widget pool((double, double, double, double, double) p) {
-                  final (x, y, r, alpha, phase) = p;
-                  final dx = 10 * math.sin(t + phase);
-                  final dy = 6 * math.cos(t * 2 + phase);
-                  return Positioned(
-                    left: (x + dx) * sx - r,
-                    top: y + dy - r,
-                    width: r * 2,
-                    height: r * 2,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: RadialGradient(
-                          colors: [
-                            IqColors.accent.withValues(alpha: alpha),
-                            IqColors.accent.withValues(alpha: alpha * 0.6),
-                            IqColors.accent.withValues(alpha: 0),
-                          ],
-                          stops: const [0, 0.55, 1],
-                        ),
-                      ),
-                    ),
-                  );
-                }
-
-                return Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      top: 0,
-                      height: 164,
-                      // Fades out before the wash box ends so no pool shows a
-                      // clipped edge.
-                      child: ShaderMask(
-                        blendMode: BlendMode.dstIn,
-                        shaderCallback: (rect) => LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            IqColors.sidebarFg,
-                            IqColors.sidebarFg,
-                            IqColors.sidebarFg.withValues(alpha: 0),
-                          ],
-                          stops: const [0, 0.55, 1],
-                        ).createShader(rect),
-                        child: Stack(
-                          clipBehavior: Clip.hardEdge,
-                          children: [for (final p in _ember) pool(p)],
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            );
-          },
+  void paint(Canvas canvas, Size size) {
+    final t = drift.value * 2 * math.pi;
+    final sx = size.width / 358;
+    canvas.clipRect(Offset.zero & size, doAntiAlias: false);
+    for (final (x, y, r, alpha, phase) in _ember) {
+      final pool = Rect.fromCircle(
+        center: Offset(
+          (x + 10 * math.sin(t + phase)) * sx,
+          y + 6 * math.cos(t * 2 + phase),
         ),
-      ),
-    );
+        radius: r,
+      );
+      final shader = RadialGradient(
+        colors: [
+          IqColors.accent.withValues(alpha: alpha),
+          IqColors.accent.withValues(alpha: alpha * 0.6),
+          IqColors.accent.withValues(alpha: 0),
+        ],
+        stops: const [0, 0.55, 1],
+      ).createShader(pool);
+      canvas.drawRect(pool, Paint()..shader = shader);
+    }
   }
+
+  @override
+  bool shouldRepaint(_EmberPainter oldDelegate) => oldDelegate.drift != drift;
 }

@@ -6,13 +6,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/deadline.dart';
+import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../data/models.dart';
 import '../../data/share_service.dart';
 import '../../theme/theme.dart';
 import '../../ui/button.dart';
 import '../../ui/top_bar.dart';
-import '../wallet/wallet_motion.dart';
 import 'withdrawal_screen.dart';
 import 'withdrawal_widgets.dart';
 
@@ -20,8 +20,9 @@ import 'withdrawal_widgets.dart';
 /// (To, Reference, Date and the status tag) and the four steps. Share
 /// receipt exports the receipt card as an image to the system share sheet.
 ///
-/// Motion: the amount comes with the page; the receipt arrives (rise 12)
-/// and the steps settle 40 apart; Awaiting approval breathes its ring.
+/// Motion (spec 7.9): the amount comes with the page, no count; the receipt
+/// arrives and draws its tear line; the steps stand still and Awaiting
+/// approval breathes its ring while it holds the screen's pulse.
 ///
 /// Figma: Share receipt has no reaction in the prototype; the app shares
 /// the card, as the ReceiptCard description says ("Share receipt exports
@@ -79,8 +80,7 @@ class _WithdrawalTrackerScreenState
                   onBack: () => leaveWithdrawal(context),
                 ),
                 Expanded(
-                  child: Choreography(
-                    length: WalletDurations.list,
+                  child: Stagger(
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.all(IqSpace.s4),
                       child: Column(
@@ -88,9 +88,9 @@ class _WithdrawalTrackerScreenState
                         children: [
                           WithdrawalAmount(withdrawal: withdrawal),
                           const SizedBox(height: IqSpace.s3),
-                          Cue.arrive(
-                            0,
-                            RepaintBoundary(
+                          StaggerItem(
+                            index: 0,
+                            child: RepaintBoundary(
                               key: _receipt,
                               child: WithdrawalReceipt(
                                 withdrawal: withdrawal,
