@@ -11,6 +11,9 @@ class DemoData {
   DateTime at(int days, [int hours = 0]) =>
       now.add(Duration(days: days, hours: hours));
 
+  /// The three unread Today rows of B6 Notifications; the bell shows this.
+  static const unreadNotifications = 3;
+
   static const user = User(
     firstName: 'Adaeze',
     lastName: 'Okafor',
@@ -207,8 +210,6 @@ class DemoData {
 
   static const activations = ActivationsSummary(closingToday: 1);
 
-  static const unreadNotifications = 3;
-
   static const savedBriefIds = ['c5', 'c4'];
 
   static const closeReminderIds = ['c5'];
@@ -265,6 +266,7 @@ class DemoData {
       type: LedgerType.award,
       amountKobo: 1250000,
       createdAt: at(-2),
+      submissionId: 's2',
     ),
     LedgerEntry(
       id: 'l2',
@@ -277,6 +279,7 @@ class DemoData {
       type: LedgerType.award,
       amountKobo: 5000000,
       createdAt: at(-13),
+      submissionId: 's3',
     ),
   ];
 

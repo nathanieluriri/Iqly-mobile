@@ -12,7 +12,7 @@ import 'package:iqly_mobile/features/entry/your_name_screen.dart';
 import 'package:iqly_mobile/ui/box_field.dart';
 
 import '../golden.dart';
-import 'discover_harness.dart';
+import 'app_harness.dart';
 import 'screen_golden.dart';
 
 void main() {

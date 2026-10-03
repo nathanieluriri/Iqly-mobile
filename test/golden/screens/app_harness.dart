@@ -26,7 +26,7 @@ class ScriptedRepository extends DemoRepository {
   int _call = 0;
 
   @override
-  Future<List<Brief>> briefs() {
+  Future<List<Brief>> briefs({BriefsLoad load = BriefsLoad.any}) {
     final step = calls[_call < calls.length ? _call : calls.length - 1];
     _call++;
     return switch (step) {

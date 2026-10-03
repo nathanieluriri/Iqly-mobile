@@ -7,7 +7,7 @@ import 'package:iqly_mobile/features/discover/discover_state.dart';
 import 'package:iqly_mobile/router.dart';
 
 import '../golden.dart';
-import 'discover_harness.dart';
+import 'app_harness.dart';
 
 Future<void> _golden(String name) => expectLater(
   find.byType(MaterialApp),

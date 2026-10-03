@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/app.dart';
 import 'package:iqly_mobile/core/session.dart';
+import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/onboarding_service.dart';
+import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
 import 'package:iqly_mobile/features/entry/notifications_ask_screen.dart';
 import 'package:iqly_mobile/features/onboarding/about_you_screen.dart';
@@ -45,6 +47,7 @@ Future<(SharedPreferences, _RecordingService)> _launch(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
         onboardingServiceProvider.overrideWithValue(service),
+        repositoryProvider.overrideWithValue(DemoRepository(DemoData())),
       ],
       child: const IqlyApp(),
     ),

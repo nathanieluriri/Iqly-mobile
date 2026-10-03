@@ -12,6 +12,7 @@ import 'features/entry/sign_in_screen.dart';
 import 'features/entry/your_name_screen.dart';
 import 'features/onboarding/onboarding_routes.dart';
 import 'features/splash/splash_screen.dart';
+import 'features/submissions/submissions_routes.dart';
 
 abstract final class Routes {
   static const splash = '/splash';
@@ -33,6 +34,8 @@ abstract final class Routes {
   static const savedBriefs = '/home/saved';
   static const filters = '/home/filters';
   static const submissions = '/submissions';
+  static const submissionDetail = '/submissions/:id';
+  static const result = '/submissions/:id/result';
   static const wallet = '/wallet';
   static const profile = '/profile';
   static const notifications = '/notifications';
@@ -66,6 +69,7 @@ GoRouter buildRouter({String initialLocation = Routes.splash}) {
       ...discoverRoutes,
       ..._entryRoutes,
       ...onboardingRoutes,
+      ...submissionRoutes,
     ],
   );
 }

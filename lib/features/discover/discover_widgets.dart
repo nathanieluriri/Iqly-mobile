@@ -7,6 +7,7 @@ import '../../core/deadline.dart';
 import '../../core/flags.dart';
 import '../../core/money.dart';
 import '../../data/models.dart';
+import '../../data/repository.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/bookmark.dart';
@@ -23,7 +24,7 @@ class DiscoverTopBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(onboardingUserProvider).value;
-    final unread = ref.watch(unreadCountProvider).value ?? 0;
+    final unread = ref.watch(unreadNotificationsProvider).value ?? 0;
     final now = ref.watch(clockProvider)();
     return IqTopBar(
       greeting: greeting(now, user?.firstName),

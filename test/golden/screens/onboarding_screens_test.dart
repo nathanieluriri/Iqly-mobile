@@ -13,7 +13,7 @@ import 'package:iqly_mobile/features/onboarding/where_you_studied_screen.dart';
 import 'package:iqly_mobile/theme/theme.dart';
 
 import '../golden.dart';
-import 'discover_harness.dart';
+import 'app_harness.dart';
 import 'onboarding_harness.dart';
 
 void main() {

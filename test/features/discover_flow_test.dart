@@ -11,7 +11,7 @@ import 'package:iqly_mobile/ui/section_title.dart';
 import 'package:iqly_mobile/ui/switch.dart';
 import 'package:iqly_mobile/ui/ticket_card.dart';
 
-import '../golden/screens/discover_harness.dart';
+import '../golden/screens/app_harness.dart';
 
 Finder _ticket(String title) => find.byWidgetPredicate(
   (w) =>

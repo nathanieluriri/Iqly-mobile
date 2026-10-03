@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/app.dart';
 import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/data/auth.dart';
+import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/device.dart';
+import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
 import 'package:iqly_mobile/features/entry/forgot_password_screen.dart';
 import 'package:iqly_mobile/features/entry/landing_screen.dart';
@@ -54,6 +56,7 @@ Future<ProviderContainer> _boot(
       deviceServiceProvider.overrideWithValue(
         device ?? DemoDeviceService(delay: Duration.zero),
       ),
+      repositoryProvider.overrideWithValue(DemoRepository(DemoData())),
     ],
   );
   addTearDown(container.dispose);

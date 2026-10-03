@@ -88,10 +88,6 @@ final feedInterestsProvider = Provider<List<String>>((ref) {
   ];
 });
 
-final unreadCountProvider = FutureProvider<int>(
-  (ref) => ref.watch(repositoryProvider).unreadNotificationCount(),
-);
-
 final pollBrandsProvider = FutureProvider<List<PollBrand>>(
   (ref) => ref.watch(repositoryProvider).pollBrands(),
 );
@@ -150,8 +146,9 @@ abstract final class FeedPaging {
 
 class DiscoverFeedNotifier extends AsyncNotifier<FeedData> {
   @override
-  Future<FeedData> build() async =>
-      FeedData(briefs: await ref.watch(repositoryProvider).briefs());
+  Future<FeedData> build() async => FeedData(
+    briefs: await ref.watch(repositoryProvider).briefs(load: BriefsLoad.feed),
+  );
 
   Future<void> retry() async {
     state = const AsyncLoading();
@@ -165,7 +162,9 @@ class DiscoverFeedNotifier extends AsyncNotifier<FeedData> {
     if (current == null || current.refresh == RefreshPhase.refreshing) return;
     state = AsyncData(current.copyWith(refresh: RefreshPhase.refreshing));
     try {
-      final briefs = await ref.read(repositoryProvider).briefs();
+      final briefs = await ref
+          .read(repositoryProvider)
+          .briefs(load: BriefsLoad.refresh);
       state = AsyncData(
         current.copyWith(
           briefs: briefs,
@@ -189,7 +188,9 @@ class DiscoverFeedNotifier extends AsyncNotifier<FeedData> {
     if (current == null || current.loadingMore) return;
     state = AsyncData(current.copyWith(loadingMore: true));
     try {
-      final briefs = await ref.read(repositoryProvider).briefs();
+      final briefs = await ref
+          .read(repositoryProvider)
+          .briefs(load: BriefsLoad.nextPage);
       state = AsyncData(
         current.copyWith(
           briefs: briefs,
