@@ -14,8 +14,8 @@ import '../../theme/theme.dart';
 import '../../ui/activation_ticket.dart';
 import '../../ui/banner.dart';
 import '../../ui/icon.dart';
-import '../../ui/illustration.dart';
 import '../../ui/list_row.dart';
+import '../wallet/wallet_arrives.dart';
 import '../../ui/spots_stamp.dart';
 import '../../ui/top_bar.dart';
 import '../discover/discover_routes.dart' show leave;
@@ -283,7 +283,7 @@ class _Empty extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const IllustrationArrival(IqIllustrations.wallet),
+          const WalletArrives(),
           const SizedBox(height: IqSpace.s2),
           Text(
             'No activations right now',
