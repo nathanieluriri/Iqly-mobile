@@ -144,9 +144,10 @@ class _AnswerAreaState extends State<AnswerArea> {
 
 /// The steps under the pinned chrome: the new one slides in 24 from the
 /// side it comes from and fades in while the old one slides 24 the other
-/// way and fades, 300 ms forward and 240 back, as a push would (MOTION-SPEC
-/// §3.1, §4.1: the chrome holds still). Reduced motion: a 150 crossfade.
-class StepSwitcher extends StatelessWidget {
+/// way and fades, 300 ms forward and 240 back, both on one clock, as a push
+/// would (MOTION-SPEC §3.1, §4.1: the chrome holds still). Reduced motion:
+/// a 150 crossfade. Each step keeps its state while it leaves.
+class StepSwitcher extends StatefulWidget {
   const StepSwitcher({super.key, required this.back, required this.child});
 
   /// The change went back a step.
@@ -154,61 +155,96 @@ class StepSwitcher extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    final reduced = MediaQuery.disableAnimationsOf(context);
-    final duration = reduced
+  State<StepSwitcher> createState() => _StepSwitcherState();
+}
+
+class _StepSwitcherState extends State<StepSwitcher>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _clock = AnimationController(
+    vsync: this,
+    value: 1,
+    animationBehavior: AnimationBehavior.preserve,
+  )..addStatusListener(_onStatus);
+  Widget? _leaving;
+  bool _back = false;
+  bool _reduced = false;
+
+  void _onStatus(AnimationStatus status) {
+    if (status.isCompleted && _leaving != null && mounted) {
+      setState(() => _leaving = null);
+    }
+  }
+
+  @override
+  void didUpdateWidget(StepSwitcher old) {
+    super.didUpdateWidget(old);
+    if (old.child.key == widget.child.key) return;
+    _reduced = MediaQuery.disableAnimationsOf(context);
+    _back = widget.back;
+    _leaving = old.child;
+    _clock.duration = _reduced
         ? IqDurations.crossfade
-        : back
+        : _back
         ? IqDurations.screenBack
         : IqDurations.screen;
-    final current = child.key;
-    return AnimatedSwitcher(
-      duration: duration,
-      layoutBuilder: (current, previous) => Stack(
-        alignment: Alignment.topCenter,
-        children: [...previous, ?current],
-      ),
-      transitionBuilder: (child, animation) {
-        if (reduced) return FadeTransition(opacity: animation, child: child);
-        final incoming = child.key == current;
-        return AnimatedBuilder(
-          animation: animation,
-          child: child,
-          builder: (context, child) {
-            final t = animation.value;
-            final double dx;
-            final double opacity;
-            if (incoming) {
-              final from = back ? -IqTravel.screen : IqTravel.screen;
-              dx = from * (1 - IqCurves.easeOut.transform(t));
-              opacity = const Interval(
-                0,
-                0.6,
-                curve: IqCurves.easeOut,
-              ).transform(t);
-            } else {
-              final gone = 1 - t;
-              final to = back ? IqTravel.screen : -IqTravel.screen;
-              dx = to * IqCurves.easeIn.transform(gone);
-              opacity =
-                  1 -
-                  const Interval(
-                    0,
-                    0.5,
-                    curve: IqCurves.easeIn,
-                  ).transform(gone);
-            }
-            return IgnorePointer(
-              ignoring: !incoming,
-              child: Opacity(
-                opacity: opacity,
-                child: Transform.translate(offset: Offset(dx, 0), child: child),
-              ),
-            );
-          },
+    _clock.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _clock.dispose();
+    super.dispose();
+  }
+
+  Widget _move(Widget child, {required bool incoming}) {
+    return AnimatedBuilder(
+      key: child.key,
+      animation: _clock,
+      child: child,
+      builder: (context, child) {
+        final t = _leaving == null ? 1.0 : _clock.value;
+        if (_reduced) {
+          return IgnorePointer(
+            ignoring: !incoming,
+            child: Opacity(opacity: incoming ? t : 1 - t, child: child),
+          );
+        }
+        final double dx;
+        final double opacity;
+        if (incoming) {
+          final from = _back ? -IqTravel.screen : IqTravel.screen;
+          dx = from * (1 - IqCurves.easeOut.transform(t));
+          opacity = const Interval(
+            0,
+            0.6,
+            curve: IqCurves.easeOut,
+          ).transform(t);
+        } else {
+          final to = _back ? IqTravel.screen : -IqTravel.screen;
+          dx = to * IqCurves.easeIn.transform(t);
+          opacity =
+              1 - const Interval(0, 0.5, curve: IqCurves.easeIn).transform(t);
+        }
+        return IgnorePointer(
+          ignoring: !incoming,
+          child: Opacity(
+            opacity: opacity,
+            child: Transform.translate(offset: Offset(dx, 0), child: child),
+          ),
         );
       },
-      child: child,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final leaving = _leaving;
+    return Stack(
+      alignment: Alignment.topCenter,
+      children: [
+        if (leaving != null) _move(leaving, incoming: false),
+        _move(widget.child, incoming: true),
+      ],
     );
   }
 }

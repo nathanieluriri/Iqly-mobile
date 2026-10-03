@@ -54,7 +54,7 @@ class SubmitDraft {
 
 enum SubmitStep { answer, questions, sent }
 
-/// Characters counted the way iqly.net counts them: trimmed.
+/// Trimmed, as iqly.net counts the title, so spaces never reach a minimum.
 int titleLength(SubmitDraft draft) => draft.title.trim().length;
 int answerLength(SubmitDraft draft) => draft.answer.trim().length;
 

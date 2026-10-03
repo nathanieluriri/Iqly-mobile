@@ -101,17 +101,28 @@ class _Board extends StatelessWidget {
           Stagger(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final (i, item) in board.items.indexed) ...[
-                  if (i > 0) const SizedBox(height: IqLeaderboardRow.gap),
-                  StaggerItem(index: i, child: _item(item, i)),
-                ],
-              ],
+              children: _items(),
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// Rows and gaps take the stagger's slots in reading order; the cutoff
+  /// line draws in on the slot of the row after it, so a short board moves
+  /// as a whole.
+  List<Widget> _items() {
+    var slot = 0;
+    return [
+      for (final (i, item) in board.items.indexed) ...[
+        if (i > 0) const SizedBox(height: IqLeaderboardRow.gap),
+        if (item is BoardCutoff)
+          _item(item, slot)
+        else
+          StaggerItem(index: slot, child: _item(item, slot++)),
+      ],
+    ];
   }
 
   Widget _item(BoardItem item, int index) => switch (item) {

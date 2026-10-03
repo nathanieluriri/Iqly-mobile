@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/submit_data.dart';
 import 'package:iqly_mobile/data/submit_service.dart';
 import 'package:iqly_mobile/features/discover/brief_detail_screen.dart';
@@ -7,6 +8,7 @@ import 'package:iqly_mobile/features/discover/home_screen.dart';
 import 'package:iqly_mobile/features/submissions/my_submissions_screen.dart';
 import 'package:iqly_mobile/features/submissions/submission_detail_screen.dart';
 import 'package:iqly_mobile/features/submit/submit_screen.dart';
+import 'package:iqly_mobile/features/submit/submit_state.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/field.dart';
 import 'package:iqly_mobile/ui/poll_option.dart';
@@ -416,5 +418,46 @@ void main() {
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
       semantics.dispose();
     });
+  }
+
+  testWidgets('B3: a brief that does not load offers Try again', (
+    tester,
+  ) async {
+    final service = _FailingOpen();
+    await pumpApp(
+      tester,
+      Routes.submitTo('c5'),
+      overrides: [submitServiceProvider.overrideWithValue(service)],
+    );
+    expect(find.text('Couldn’t load. Check your connection.'), findsOneWidget);
+    expect(find.text('Continue'), findsNothing);
+
+    service.fail = false;
+    await _tap(tester, find.text('Try again'));
+    expect(find.text("What's your take?"), findsOneWidget);
+  });
+
+  test('signing out forgets every draft', () async {
+    SharedPreferences.setMockInitialValues({
+      'submit.draft.c5': '{"title":"A"}',
+      'submit.draft.c9': '{"answer":"B"}',
+      'session.signedIn': true,
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await forgetSubmitDrafts(prefs);
+    expect(prefs.getKeys(), {'session.signedIn'});
+  });
+}
+
+/// Opening the brief fails until [fail] is cleared.
+class _FailingOpen extends DemoSubmitService {
+  _FailingOpen() : super(DemoData(now: figmaNow), clock: () => figmaNow);
+
+  bool fail = true;
+
+  @override
+  Future<SubmitOpening> open(String briefId) {
+    if (fail) return Future.error(Exception('offline'));
+    return super.open(briefId);
   }
 }

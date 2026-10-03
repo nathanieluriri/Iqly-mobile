@@ -266,6 +266,11 @@ class _WinnerViewState extends ConsumerState<WinnerView>
       markerReveal: _marker,
       accentReveal: _accent,
     );
+    final label = [
+      data.shareEyebrow,
+      data.item.submission.title,
+      data.amount,
+    ].join(', ');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -285,20 +290,21 @@ class _WinnerViewState extends ConsumerState<WinnerView>
                 Center(
                   child: AnimatedBuilder(
                     animation: _card,
-                    child: IqPressable(
-                      onTap: board ? openBoard : null,
-                      semanticLabel: [
-                        data.shareEyebrow,
-                        data.item.submission.title,
-                        data.amount,
-                      ].join(', '),
-                      builder: (context, pressed) => AnimatedScale(
-                        scale: pressed ? IqScale.cardPress : 1,
-                        duration: pressMotion(context, pressed),
-                        curve: IqCurves.easeOut,
-                        child: ExcludeSemantics(child: card),
-                      ),
-                    ),
+                    child: board
+                        ? IqPressable(
+                            onTap: openBoard,
+                            semanticLabel: label,
+                            builder: (context, pressed) => AnimatedScale(
+                              scale: pressed ? IqScale.cardPress : 1,
+                              duration: pressMotion(context, pressed),
+                              curve: IqCurves.easeOut,
+                              child: ExcludeSemantics(child: card),
+                            ),
+                          )
+                        : Semantics(
+                            label: label,
+                            child: ExcludeSemantics(child: card),
+                          ),
                     builder: (context, child) => Opacity(
                       opacity: _card.value,
                       child: Transform.translate(
