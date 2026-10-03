@@ -14,7 +14,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// The whole app on a 390 x 844 phone with reduced motion and instant
 /// services and data. Without [start] it plays the splash through to the landing.
-/// [prepare] seeds providers before the first route.
+/// [prepare] seeds providers before the first route. With [reduced] false
+/// the motion plays and the app opens straight on [start], its entrance
+/// still to play.
 Future<ProviderContainer> bootApp(
   WidgetTester tester, {
   Map<String, Object> prefs = const {},
@@ -22,17 +24,25 @@ Future<ProviderContainer> bootApp(
   AuthService? auth,
   DemoDeviceService? device,
   void Function(ProviderContainer container)? prepare,
+  bool reduced = true,
 }) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
-  tester.platformDispatcher.accessibilityFeaturesTestValue =
-      const FakeAccessibilityFeatures(disableAnimations: true);
   addTearDown(tester.view.reset);
-  addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+  if (reduced) {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+  }
   SharedPreferences.setMockInitialValues(prefs);
   final shared = await SharedPreferences.getInstance();
+  final router = !reduced && start != null
+      ? buildRouter(initialLocation: start)
+      : null;
+  if (router != null) addTearDown(router.dispose);
   final container = ProviderContainer(
     overrides: [
+      if (router != null) routerProvider.overrideWithValue(router),
       sharedPreferencesProvider.overrideWithValue(shared),
       authServiceProvider.overrideWithValue(
         auth ?? DemoAuthService(delay: Duration.zero),
@@ -48,6 +58,7 @@ Future<ProviderContainer> bootApp(
   await tester.pumpWidget(
     UncontrolledProviderScope(container: container, child: const IqlyApp()),
   );
+  if (router != null) return container;
   if (start == null) {
     await tester.pump(const Duration(seconds: 3));
   } else {

@@ -38,17 +38,29 @@ void main() {
     );
   });
 
+  // Figma draws the next button Enabled on both frames, so a last name and
+  // a valid password are typed to check that look.
   testWidgets('your name (227:10921)', (tester) async {
     await expectScreenGolden(
       tester,
       'entry_your_name',
       const YourNameScreen(),
       prepare: (c) => c.read(entryDraftProvider.notifier).setName('Adaeze', ''),
+      act: (tester) async {
+        await tester.enterText(find.byType(EditableText).last, 'Okafor');
+      },
     );
   });
 
   testWidgets('password (227:10970)', (tester) async {
-    await expectScreenGolden(tester, 'entry_password', const PasswordScreen());
+    await expectScreenGolden(
+      tester,
+      'entry_password',
+      const PasswordScreen(),
+      act: (tester) async {
+        await tester.enterText(find.byType(EditableText), 'longenough');
+      },
+    );
   });
 
   testWidgets('sign in with email (227:11109)', (tester) async {
