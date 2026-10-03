@@ -10,7 +10,8 @@ import 'vector.dart';
 /// link, shown only when the section is truncated. The root clips its
 /// content, so only the top sliver of the brush underline shows, as in Figma.
 ///
-/// Figma over brief: the link is "See all" only; there is no Filter option.
+/// Figma over brief: the master link is "See all" only; Discover overrides the
+/// text to "Filter" on some sections, carried by [link].
 class IqSectionTitle extends StatelessWidget {
   const IqSectionTitle({
     super.key,
@@ -18,6 +19,7 @@ class IqSectionTitle extends StatelessWidget {
     this.count = '3',
     this.showCount = true,
     this.showLink = true,
+    this.link = 'See all',
     this.onSeeAll,
   });
 
@@ -25,6 +27,7 @@ class IqSectionTitle extends StatelessWidget {
   final String count;
   final bool showCount;
   final bool showLink;
+  final String link;
   final VoidCallback? onSeeAll;
 
   static const double linkHitWidth = 72;
@@ -76,7 +79,7 @@ class IqSectionTitle extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Text(
-                            'See all',
+                            link,
                             style: IqText.smallStrong.copyWith(
                               color: IqColors.primary,
                             ),
@@ -112,7 +115,7 @@ class IqSectionTitle extends StatelessWidget {
                 width: linkHitWidth,
                 child: IqPressable(
                   onTap: onSeeAll,
-                  semanticLabel: 'See all',
+                  semanticLabel: link,
                   builder: (context, pressed) => const SizedBox.expand(),
                 ),
               ),

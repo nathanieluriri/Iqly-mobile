@@ -11,6 +11,9 @@ class DemoData {
   DateTime at(int days, [int hours = 0]) =>
       now.add(Duration(days: days, hours: hours));
 
+  /// The three unread Today rows of B6 Notifications; the bell shows this.
+  static const unreadNotifications = 3;
+
   static const user = User(
     firstName: 'Adaeze',
     lastName: 'Okafor',
@@ -33,6 +36,7 @@ class DemoData {
       deadline: at(5),
       businessName: 'Orchid Foods',
       createdAt: at(-9),
+      interest: 'marketing_advertising',
     ),
     Brief(
       id: 'c2',
@@ -45,6 +49,7 @@ class DemoData {
       deadline: at(12),
       businessName: 'Basket NG',
       createdAt: at(-4),
+      interest: 'business_entrepreneurship',
     ),
     Brief(
       id: 'c3',
@@ -57,6 +62,7 @@ class DemoData {
       deadline: at(-3),
       businessName: null,
       createdAt: at(-40),
+      interest: 'finance_fintech',
     ),
     Brief(
       id: 'c4',
@@ -69,7 +75,9 @@ class DemoData {
       deadline: at(1),
       businessName: 'Kudi Box',
       createdAt: at(-12),
+      interest: 'finance_fintech',
       spotsLeft: 3,
+      spotsTotal: 20,
     ),
     Brief(
       id: 'c5',
@@ -82,7 +90,9 @@ class DemoData {
       deadline: at(0, 6),
       businessName: 'Sunline',
       createdAt: at(-7),
+      interest: 'marketing_advertising',
       spotsLeft: 12,
+      spotsTotal: 40,
     ),
     Brief(
       id: 'c6',
@@ -95,6 +105,7 @@ class DemoData {
       deadline: at(20),
       businessName: 'Unibooks',
       createdAt: at(-2),
+      interest: 'education',
     ),
     Brief(
       id: 'c7',
@@ -107,6 +118,7 @@ class DemoData {
       deadline: at(8),
       businessName: 'Harbour Microfinance',
       createdAt: at(-6),
+      interest: 'business_entrepreneurship',
     ),
     Brief(
       id: 'c8',
@@ -119,6 +131,7 @@ class DemoData {
       deadline: at(-15),
       businessName: 'Volt Riders',
       createdAt: at(-45),
+      interest: 'marketing_advertising',
     ),
     Brief(
       id: 'c9',
@@ -131,6 +144,7 @@ class DemoData {
       deadline: null,
       businessName: 'Swapit',
       createdAt: at(-1),
+      interest: 'tech_gadgets',
     ),
     Brief(
       id: 'c10',
@@ -143,6 +157,7 @@ class DemoData {
       deadline: at(3),
       businessName: 'Garri & Co',
       createdAt: at(-10),
+      interest: 'agriculture_food',
     ),
     Brief(
       id: 'c11',
@@ -155,6 +170,7 @@ class DemoData {
       deadline: at(15),
       businessName: 'Lagoon Lines',
       createdAt: at(-3),
+      interest: 'business_entrepreneurship',
     ),
     Brief(
       id: 'c12',
@@ -167,20 +183,36 @@ class DemoData {
       deadline: at(9),
       businessName: 'Harbour Microfinance',
       createdAt: at(-5),
+      interest: 'finance_fintech',
     ),
     Brief(
       id: 'c13',
       title: 'Make school fee payments less stressful',
       body: 'Parents pay fees in three trips to the bank. Design a flow that takes one.',
-      tier: Tier.advanced,
+      tier: Tier.standard,
       category: Category.productDesign,
       rewardPoolKobo: 55000000,
       status: BriefStatus.live,
       deadline: at(25),
       businessName: 'Classpay',
       createdAt: at(-1),
+      interest: 'education',
     ),
   ];
+
+  /// Illustrative design proposals (polls, activations, saved briefs, close
+  /// reminders): the API does not serve them yet.
+  static const pollBrands = [
+    PollBrand(businessName: 'Orchid Foods', openPolls: 2, unanswered: 2),
+    PollBrand(businessName: 'Unibooks', openPolls: 1, unanswered: 1),
+    PollBrand(businessName: 'Sunline', openPolls: 1, unanswered: 0),
+  ];
+
+  static const activations = ActivationsSummary(closingToday: 1);
+
+  static const savedBriefIds = ['c5', 'c4'];
+
+  static const closeReminderIds = ['c5'];
 
   late final List<Submission> submissions = [
     Submission(
@@ -234,6 +266,7 @@ class DemoData {
       type: LedgerType.award,
       amountKobo: 1250000,
       createdAt: at(-2),
+      submissionId: 's2',
     ),
     LedgerEntry(
       id: 'l2',
@@ -246,6 +279,7 @@ class DemoData {
       type: LedgerType.award,
       amountKobo: 5000000,
       createdAt: at(-13),
+      submissionId: 's3',
     ),
   ];
 

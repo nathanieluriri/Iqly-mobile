@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../data/auth.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
-import '../../ui/field.dart';
+import 'entry_copy.dart';
 import 'entry_state.dart';
 import 'entry_widgets.dart';
 import 'show_password.dart';
@@ -24,14 +24,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   final _password = EntryInput();
   bool _shown = false;
   bool _busy = false;
-  String? _error;
 
   @override
   void initState() {
     super.initState();
     _email = EntryInput(ref.read(entryDraftProvider).email);
-    _password.controller.addListener(_clearError);
-    _email.controller.addListener(_clearError);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       (isEmail(_email.text) ? _password : _email).focus.requestFocus();
@@ -45,23 +42,24 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     super.dispose();
   }
 
-  void _clearError() {
-    if (_error != null) setState(() => _error = null);
-  }
-
-  bool get _ready =>
-      isEmail(_email.text) && _password.controller.text.isNotEmpty;
+  bool get _filled =>
+      _email.text.isNotEmpty && _password.controller.text.isNotEmpty;
 
   Future<void> _next() async {
-    if (!_ready || _busy) return;
+    if (!_filled || _busy) return;
+    if (!isEmail(_email.text)) {
+      _email.fail(EntryCopy.badEmail);
+      return;
+    }
     _busy = true;
     final result = await ref
         .read(authServiceProvider)
         .signIn(email: _email.text, password: _password.controller.text);
     _busy = false;
     if (!mounted) return;
-    if (!result.ok) {
-      setState(() => _error = result.error);
+    final failure = result.failure;
+    if (failure != null) {
+      _password.fail(EntryCopy.signIn(failure));
       return;
     }
     await completeSignIn(ref, newAccount: false);
@@ -80,39 +78,24 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       builder: (context, _) => EntryScaffold(
         title: 'Sign in with email',
         onBack: () => goBack(context, Routes.landing),
-        action: NextBar(enabled: _ready, onTap: _next),
+        action: NextBar(enabled: _filled, onTap: _next),
         children: [
           const EntryTitle('Sign in'),
           const SizedBox(height: IqSpace.s4),
-          IqField(
-            size: IqFieldSize.large,
+          EntryField(
+            input: _email,
             label: 'Email',
-            value: '',
-            state: fieldStateFor(_email, valid: isEmail(_email.text)),
-            showStatus: false,
-            showNote: false,
-            controller: _email.controller,
-            focusNode: _email.focus,
+            valid: isEmail(_email.text),
             keyboardType: TextInputType.emailAddress,
             autofillHints: const [AutofillHints.email],
             textInputAction: TextInputAction.next,
             onSubmitted: (_) => _password.focus.requestFocus(),
           ),
           const SizedBox(height: IqSpace.s4),
-          IqField(
-            size: IqFieldSize.large,
+          EntryField(
+            input: _password,
             label: 'Password',
-            value: '',
-            help: _error ?? '',
-            state: fieldStateFor(
-              _password,
-              valid: _password.controller.text.isNotEmpty,
-              error: _error != null,
-            ),
-            showStatus: false,
-            showNote: false,
-            controller: _password.controller,
-            focusNode: _password.focus,
+            valid: _password.controller.text.isNotEmpty,
             obscureText: !_shown,
             keyboardType: TextInputType.visiblePassword,
             autofillHints: const [AutofillHints.password],

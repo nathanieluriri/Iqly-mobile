@@ -150,22 +150,69 @@ class OnboardingStepScaffold extends StatelessWidget {
   }
 }
 
-/// Autosave is a check, never a sentence (brief section 0).
-class AutosaveCheck extends StatelessWidget {
+/// Autosave is a check, never a sentence (brief section 0). It pops in, 0.6
+/// to 1 with a small overshoot, when the step first saves.
+class AutosaveCheck extends StatefulWidget {
   const AutosaveCheck({super.key, required this.saved});
 
   final bool saved;
 
+  static const duration = Duration(milliseconds: 200);
+
+  @override
+  State<AutosaveCheck> createState() => _AutosaveCheckState();
+}
+
+class _AutosaveCheckState extends State<AutosaveCheck>
+    with SingleTickerProviderStateMixin {
+  late final _pop = AnimationController(
+    vsync: this,
+    duration: AutosaveCheck.duration,
+    value: widget.saved ? 1 : 0,
+  );
+  late final _overshoot = CurvedAnimation(
+    parent: _pop,
+    curve: Curves.easeOutBack,
+    reverseCurve: Curves.easeIn,
+  );
+  late final _scale = Tween(begin: 0.6, end: 1.0).animate(_overshoot);
+  late final _opacity = CurvedAnimation(
+    parent: _pop,
+    curve: const Interval(0, 0.5, curve: Curves.easeOut),
+    reverseCurve: Curves.easeIn,
+  );
+
+  @override
+  void didUpdateWidget(AutosaveCheck old) {
+    super.didUpdateWidget(old);
+    if (widget.saved == old.saved) return;
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _pop.value = widget.saved ? 1 : 0;
+    } else if (widget.saved) {
+      _pop.forward(from: 0);
+    } else {
+      _pop.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _overshoot.dispose();
+    _opacity.dispose();
+    _pop.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: saved ? 'Saved' : null,
-      child: AnimatedOpacity(
-        opacity: saved ? 1 : 0,
-        duration: MediaQuery.disableAnimationsOf(context)
-            ? Duration.zero
-            : const Duration(milliseconds: 200),
-        child: const IqIcon(IqIcons.check, size: 20, color: IqColors.ok),
+      label: widget.saved ? 'Saved' : null,
+      child: FadeTransition(
+        opacity: _opacity,
+        child: ScaleTransition(
+          scale: _scale,
+          child: const IqIcon(IqIcons.check, size: 20, color: IqColors.ok),
+        ),
       ),
     );
   }

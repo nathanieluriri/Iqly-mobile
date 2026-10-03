@@ -57,7 +57,10 @@ class Brief {
     required this.deadline,
     required this.businessName,
     required this.createdAt,
+    this.interest,
     this.spotsLeft,
+    this.spotsTotal,
+    this.winnerRule = 'Winners split the pool.',
   });
 
   final String id;
@@ -71,8 +74,78 @@ class Brief {
   final String? businessName;
   final DateTime createdAt;
 
+  /// The onboarding interest value this brief is filed under (For you
+  /// groups). Illustrative: demo.ts has categories only.
+  final String? interest;
+
   /// Illustrative (Figma tickets); demo.ts has no capacity. Null is no limit.
   final int? spotsLeft;
+  final int? spotsTotal;
+
+  /// Illustrative winner rule shown on brief detail.
+  final String winnerRule;
+
+  bool get isLive => status == BriefStatus.live;
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'title': title,
+    'body': body,
+    'tier': tier.name,
+    'category': category.name,
+    'rewardPoolKobo': rewardPoolKobo,
+    'status': status.name,
+    'deadline': deadline?.toIso8601String(),
+    'businessName': businessName,
+    'createdAt': createdAt.toIso8601String(),
+    'interest': interest,
+    'spotsLeft': spotsLeft,
+    'spotsTotal': spotsTotal,
+    'winnerRule': winnerRule,
+  };
+
+  factory Brief.fromJson(Map<String, Object?> json) {
+    final deadline = json['deadline'] as String?;
+    return Brief(
+      id: json['id']! as String,
+      title: json['title']! as String,
+      body: json['body']! as String,
+      tier: Tier.values.byName(json['tier']! as String),
+      category: Category.values.byName(json['category']! as String),
+      rewardPoolKobo: json['rewardPoolKobo']! as int,
+      status: BriefStatus.values.byName(json['status']! as String),
+      deadline: deadline == null ? null : DateTime.parse(deadline),
+      businessName: json['businessName'] as String?,
+      createdAt: DateTime.parse(json['createdAt']! as String),
+      interest: json['interest'] as String?,
+      spotsLeft: json['spotsLeft'] as int?,
+      spotsTotal: json['spotsTotal'] as int?,
+      winnerRule: json['winnerRule'] as String? ?? 'Winners split the pool.',
+    );
+  }
+}
+
+/// A business with open polls, as a Discover brand bubble.
+class PollBrand {
+  const PollBrand({
+    required this.businessName,
+    required this.openPolls,
+    required this.unanswered,
+  });
+
+  final String businessName;
+  final int openPolls;
+  final int unanswered;
+
+  String get initial => businessName.substring(0, 1);
+  bool get allAnswered => unanswered == 0;
+}
+
+/// The Activations row on Discover.
+class ActivationsSummary {
+  const ActivationsSummary({required this.closingToday});
+
+  final int closingToday;
 }
 
 class Submission {
@@ -99,10 +172,14 @@ class LedgerEntry {
     required this.type,
     required this.amountKobo,
     required this.createdAt,
+    this.submissionId,
   });
 
   final String id;
   final LedgerType type;
+
+  /// The winning submission an award pays out; null for withdrawals.
+  final String? submissionId;
 
   /// Signed: awards are positive, withdrawals negative.
   final int amountKobo;

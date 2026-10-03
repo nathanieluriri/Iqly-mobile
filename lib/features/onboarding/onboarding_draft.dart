@@ -5,8 +5,29 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/session.dart';
 import '../../data/models.dart';
 import '../../data/onboarding_service.dart';
+import '../../data/reference_data.dart';
 import '../../data/repository.dart';
 import '../../router.dart';
+
+/// [city] as it is spelled in [state]'s list, or null when the list does not
+/// have it (a custom city). Spacing, hyphens, apostrophes and the listed
+/// alternate spellings (Shaki for Saki) do not count as a difference.
+String? listedCity(String? state, String city) {
+  final name = placeKey(city);
+  if (state == null || name.isEmpty) return null;
+  return Reference.cities[state]
+      ?.where((c) => placeSpellings(c).any((s) => s == name))
+      .firstOrNull;
+}
+
+/// [name] reduced to lower-case letters and digits, so "Ado Ekiti" and
+/// "Ado-Ekiti" compare equal.
+String placeKey(String name) =>
+    name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+/// The keys of [city] and of its alternate spellings.
+Iterable<String> placeSpellings(String city) =>
+    [city, ...?Reference.cityAlternates[city]].map(placeKey);
 
 /// The screens of first run, in order. [label] is what Resume shows after
 /// "Next:".
@@ -123,7 +144,12 @@ class OnboardingDraftNotifier extends Notifier<OnboardingDraft> {
 
   void setOccupation(String value) => _save(_profile(occupation: value));
 
-  void setState(String value) => _save(_profile(state: value));
+  /// A new state keeps the city only if that state's list has it.
+  void setState(String value) {
+    if (value == _p.state) return;
+    final city = listedCity(value, _p.city);
+    _save(_profile(state: value, city: city ?? ''));
+  }
 
   void setCity(String value) => _save(_profile(city: value));
 
