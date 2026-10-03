@@ -13,6 +13,8 @@ import 'package:iqly_mobile/features/profile/your_details_screen.dart';
 import 'package:iqly_mobile/features/settings/account_closing_screen.dart';
 import 'package:iqly_mobile/features/settings/delete_account_screen.dart';
 import 'package:iqly_mobile/features/settings/notification_preferences_screen.dart';
+import 'package:iqly_mobile/features/wallet/wallet_screen.dart';
+import 'package:iqly_mobile/features/wallet/withdraw_sheet.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/pressable.dart';
@@ -319,14 +321,16 @@ void main() {
     expect(find.byType(SavedBriefsScreen), findsOneWidget);
   });
 
-  testWidgets('Bank account opens Withdraw; the bell opens Notifications', (
-    tester,
-  ) async {
+  testWidgets('Bank account opens Withdraw over the Wallet; the bell opens '
+      'Notifications', (tester) async {
     final semantics = tester.ensureSemantics();
     await pumpProfileApp(tester, Routes.profile);
     await _tap(tester, find.text('Bank account'));
-    expect(find.text('Withdraw'), findsOneWidget);
-    await _tap(tester, find.bySemanticsLabel('Back'));
+    expect(find.byType(WithdrawSheet), findsOneWidget);
+    await _tap(tester, find.bySemanticsLabel('Close'));
+    expect(find.byType(WithdrawSheet), findsNothing);
+    expect(find.byType(WalletScreen), findsOneWidget);
+    await _tap(tester, find.text('Profile'));
     expect(find.byType(ProfileScreen), findsOneWidget);
 
     await _tap(tester, _bell);

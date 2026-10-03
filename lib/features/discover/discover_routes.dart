@@ -8,6 +8,7 @@ import '../../ui/dock.dart';
 import '../../ui/top_bar.dart';
 import '../profile/profile_routes.dart';
 import '../submissions/my_submissions_screen.dart';
+import '../wallet/wallet_routes.dart';
 import 'app_shell.dart';
 import 'brief_detail_screen.dart';
 import 'filters_sheet.dart';
@@ -15,8 +16,7 @@ import 'home_screen.dart';
 import 'saved_briefs_screen.dart';
 
 /// The four dock tabs as a StatefulShellRoute, so each tab keeps its stack
-/// and scroll. Wallet is a placeholder until its row replaces the branch
-/// builder.
+/// and scroll.
 RouteBase appShellRoute(GlobalKey<NavigatorState> rootKey) =>
     StatefulShellRoute.indexedStack(
       pageBuilder: (context, state, shell) => _dissolve(
@@ -60,9 +60,7 @@ RouteBase appShellRoute(GlobalKey<NavigatorState> rootKey) =>
         StatefulShellBranch(
           routes: [_tab(Routes.submissions, const MySubmissionsScreen())],
         ),
-        StatefulShellBranch(
-          routes: [_tab(Routes.wallet, const _TabPlaceholder('Wallet'))],
-        ),
+        StatefulShellBranch(routes: [walletTabRoute(rootKey)]),
         StatefulShellBranch(routes: [profileTab]),
       ],
     );
@@ -124,31 +122,6 @@ void leave(BuildContext context) {
     context.pop();
   } else {
     context.go(Routes.home);
-  }
-}
-
-class _TabPlaceholder extends StatelessWidget {
-  const _TabPlaceholder(this.title);
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      resizeToAvoidBottomInset: false,
-      backgroundColor: IqColors.bg,
-      body: SafeArea(
-        child: CenteredContent(
-          child: Padding(
-            padding: const EdgeInsets.all(IqSpace.s5),
-            child: Text(
-              title,
-              style: IqText.display.copyWith(color: IqColors.brand),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 

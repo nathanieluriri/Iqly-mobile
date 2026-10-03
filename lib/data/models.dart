@@ -192,12 +192,76 @@ class Withdrawal {
     required this.amountKobo,
     required this.status,
     required this.createdAt,
+    this.reference,
+    this.bankName,
+    this.accountNumber,
+    this.approvedAt,
+    this.sentAt,
+    this.completedAt,
+    this.failureReason,
   });
 
   final String id;
   final int amountKobo;
   final WithdrawalStatus status;
   final DateTime createdAt;
+
+  /// The transfer reference on the receipt.
+  final String? reference;
+  final String? bankName;
+  final String? accountNumber;
+
+  /// When iQLY approved it, the transfer left for the bank, and the money
+  /// arrived. Null until each happens (or when the API does not say).
+  final DateTime? approvedAt;
+  final DateTime? sentAt;
+  final DateTime? completedAt;
+
+  /// The bank's words when it failed or reversed the transfer.
+  final String? failureReason;
+
+  /// The word the product shows: processing reads as pending, as on the web.
+  String get statusWord => switch (status) {
+    WithdrawalStatus.processing => WithdrawalStatus.pending.name,
+    _ => status.name,
+  };
+
+  /// Pending and processing are on hold.
+  bool get onHold =>
+      status == WithdrawalStatus.pending ||
+      status == WithdrawalStatus.processing;
+
+  bool get failed =>
+      status == WithdrawalStatus.failed || status == WithdrawalStatus.reversed;
+
+  /// "Access Bank ••6789".
+  String? get destination {
+    final bank = bankName;
+    final number = accountNumber;
+    if (bank == null) return null;
+    if (number == null || number.length < 4) return bank;
+    return '$bank ••${number.substring(number.length - 4)}';
+  }
+
+  Withdrawal copyWith({
+    WithdrawalStatus? status,
+    DateTime? approvedAt,
+    DateTime? sentAt,
+    DateTime? completedAt,
+    String? failureReason,
+  }) => Withdrawal(
+    id: id,
+    amountKobo: amountKobo,
+    status: status ?? this.status,
+    createdAt: createdAt,
+    reference: reference,
+    bankName: bankName,
+    accountNumber: accountNumber,
+    approvedAt: approvedAt ?? this.approvedAt,
+    sentAt: sentAt ?? this.sentAt,
+    completedAt: completedAt ?? this.completedAt,
+    failureReason: failureReason ?? this.failureReason,
+  );
 }
 
 class Bank {

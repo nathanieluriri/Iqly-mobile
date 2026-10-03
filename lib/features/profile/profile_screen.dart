@@ -66,7 +66,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         description: bank == null ? '' : bankLine(bank),
         showDescription: bank != null,
         icon: IqIcons.bank,
-        onTap: () => context.push(Routes.withdraw),
+        onTap: () => context.go(Routes.withdraw),
       ),
       if (Flags.savedBriefs)
         IqListRow(

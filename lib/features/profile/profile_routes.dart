@@ -1,11 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/flags.dart';
-import '../../core/responsive.dart';
 import '../../router.dart';
-import '../../theme/theme.dart';
-import '../../ui/top_bar.dart';
 import '../settings/account_closing_screen.dart';
 import '../settings/delete_account_screen.dart';
 import '../settings/notification_preferences_screen.dart';
@@ -53,34 +49,4 @@ final profileRoutes = <RouteBase>[
       ),
     ),
   ],
-  _withdrawStandIn,
 ];
-
-/// Stands in for the Withdraw sheet the Wallet row adds at Routes.withdraw;
-/// drop it when that branch merges.
-final _withdrawStandIn = GoRoute(
-  path: Routes.withdraw,
-  pageBuilder: (context, state) =>
-      motion.pushPage(context, state, const _WithdrawStandIn()),
-);
-
-class _WithdrawStandIn extends StatelessWidget {
-  const _WithdrawStandIn();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: IqColors.bg,
-      body: SafeArea(
-        child: CenteredContent(
-          child: IqTopBar(
-            variant: IqTopBarVariant.page,
-            title: 'Withdraw',
-            onBack: () =>
-                context.canPop() ? context.pop() : context.go(Routes.profile),
-          ),
-        ),
-      ),
-    );
-  }
-}

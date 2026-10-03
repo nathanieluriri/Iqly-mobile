@@ -106,9 +106,12 @@ class Hairline extends StatelessWidget {
 /// a Color/panel card, radius 20, pulsing like Exp/Skeleton. It has no spec
 /// in the design system yet, so it lives with the row.
 class SkeletonCard extends StatefulWidget {
-  const SkeletonCard({super.key, this.height = 96});
+  const SkeletonCard({super.key, this.height = 96, this.radius = 20});
 
   final double height;
+
+  /// The Wallet failed frame (165:8792) sets 12 on its 64 tall rows.
+  final double radius;
 
   @override
   State<SkeletonCard> createState() => _SkeletonCardState();
@@ -149,7 +152,7 @@ class _SkeletonCardState extends State<SkeletonCard>
       height: widget.height,
       decoration: BoxDecoration(
         color: IqColors.panel,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(widget.radius),
       ),
     );
     if (still) return card;
