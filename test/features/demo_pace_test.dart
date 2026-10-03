@@ -25,6 +25,7 @@ void main() {
   testWidgets('loading 1.2 s, refreshing 1 s, loading more 2 s', (
     tester,
   ) async {
+    final start = tester.binding.clock.now();
     final container = await pumpApp(
       tester,
       Routes.home,
@@ -33,12 +34,17 @@ void main() {
         latency: DemoLatency.prototype,
       ),
     );
+    // LoadingGate: paper for 300 ms, then the skeletons until the data.
+    await _at(tester, start, 299);
+    expect(find.byType(IqSkeleton), findsNothing);
+    await _at(tester, start, 301);
     expect(find.byType(IqSkeleton), findsWidgets);
-    await tester.pump(const Duration(milliseconds: 1000));
+    await _at(tester, start, 1199);
     expect(find.text('Closing soon'), findsNothing);
-    await tester.pump(const Duration(milliseconds: 200));
+    await _at(tester, start, 1201);
     await tester.pumpAndSettle();
     expect(find.text('Closing soon'), findsOneWidget);
+    expect(find.byType(IqSkeleton), findsNothing);
 
     container.read(discoverFeedProvider.notifier).refresh();
     await tester.pump();
@@ -80,6 +86,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1200));
     await tester.pumpAndSettle();
 
+    final tap = tester.binding.clock.now();
     await tester.tap(
       find.descendant(
         of: find.byType(IqDock),
@@ -87,11 +94,23 @@ void main() {
       ),
     );
     await tester.pump();
+    expect(find.text('LOADING…'), findsNothing);
+    await _at(tester, tap, 301);
     expect(find.text('LOADING…'), findsOneWidget);
-    await tester.pump(const Duration(milliseconds: 1000));
+    await _at(tester, tap, 1199);
     expect(find.text('Bring the shop to the hostel'), findsNothing);
-    await tester.pump(const Duration(milliseconds: 300));
+    await _at(tester, tap, 1201);
     await tester.pumpAndSettle();
     expect(find.text('Bring the shop to the hostel'), findsOneWidget);
+    expect(find.text('LOADING…'), findsNothing);
   });
+}
+
+/// Pumps until [ms] after [start] on the test clock, then one more frame.
+Future<void> _at(WidgetTester tester, DateTime start, int ms) async {
+  final left = start
+      .add(Duration(milliseconds: ms))
+      .difference(tester.binding.clock.now());
+  if (left > Duration.zero) await tester.pump(left);
+  await tester.pump();
 }

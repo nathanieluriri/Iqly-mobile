@@ -15,12 +15,13 @@ enum IqBrandBubbleState { newPolls, done }
 /// grey ring and check mean all answered. [onTap] opens that business's
 /// poll sheet. Figma State=New is [IqBrandBubbleState.newPolls].
 ///
-/// Turning Done plays once (MOTION-SPEC §5.28): the ring and avatar cross to
-/// grey over 200 ms, the count badge pops out (150 ms ease-in) and the check
-/// badge pops in from +120 (220 ms). A new count rolls. A change made while
-/// the bubble is out of view (Discover under the Polls pages) waits until
-/// it is back and the page on top has left. Reduced motion: the new look at
-/// once.
+/// Motion (spec 5.28, 5.24): the ring and avatar press to .96 (120 ms, back
+/// in 160). Turning Done plays once: the ring and avatar cross to grey over
+/// 200 ms, the count badge pops out (150 ms ease-in) and the check badge
+/// pops in from +120 (220 ms). A new count rolls. A change made while the
+/// bubble is out of view (Discover under the Polls pages) waits until it is
+/// back and the page on top has left. Reduced motion: the new look at once,
+/// with no press scale.
 class IqBrandBubble extends StatefulWidget {
   const IqBrandBubble({
     super.key,
@@ -136,17 +137,24 @@ class _IqBrandBubbleState extends State<IqBrandBubble>
   Widget build(BuildContext context) {
     return IqPressable(
       onTap: widget.onTap,
-      builder: (context, _) => SizedBox(
+      builder: (context, pressed) => SizedBox(
         width: 88,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              width: 70,
-              height: 70,
-              child: AnimatedBuilder(
-                animation: _done,
-                builder: (context, _) => _ring(),
+            AnimatedScale(
+              scale: pressed && !MediaQuery.disableAnimationsOf(context)
+                  ? IqScale.soft
+                  : 1,
+              duration: pressed ? IqDurations.press : IqDurations.release,
+              curve: IqCurves.easeOut,
+              child: SizedBox(
+                width: 70,
+                height: 70,
+                child: AnimatedBuilder(
+                  animation: _done,
+                  builder: (context, _) => _ring(),
+                ),
               ),
             ),
             const SizedBox(height: IqSpace.s1p5),

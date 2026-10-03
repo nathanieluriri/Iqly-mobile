@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 import 'pressable.dart';
@@ -13,6 +15,14 @@ enum IqTopBarVariant { home, page, sheet }
 ///
 /// [showBack] carries the screens whose Page bar has no back layer (B5
 /// Withdrawal pending): the title then centres from the left padding.
+///
+/// Motion (spec 5.22, 5.18, 4.3; build extension): the round buttons fill
+/// panel while pressed (100 ms, back in 160); a new greeting crossfades in
+/// (150 ms); the unread count pops in (.6 to 1, 220 ms; no sooner than 200
+/// ms after the bar appears), rolls when it changes and pops out (150 ms
+/// ease-in) at zero. With [sharedChrome] on both Page bars of a push, the
+/// back button holds still and the title crossfades (out over the first
+/// 40%, in from 20% to 80%).
 class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
   const IqTopBar({
     super.key,
@@ -29,6 +39,7 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
     this.onBack,
     this.onTrailing,
     this.onClose,
+    this.sharedChrome = false,
   });
 
   final IqTopBarVariant variant;
@@ -46,6 +57,10 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onBack;
   final VoidCallback? onTrailing;
   final VoidCallback? onClose;
+
+  /// Page bars that pass this hold their back button and title across a
+  /// push between them.
+  final bool sharedChrome;
 
   @override
   Size get preferredSize => Size.fromHeight(switch (variant) {
@@ -80,15 +95,7 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
         children: [
           Row(
             children: [
-              Expanded(
-                child: Text(
-                  greeting,
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.ellipsis,
-                  style: IqText.small.copyWith(color: IqColors.fg2),
-                ),
-              ),
+              Expanded(child: _Greeting(greeting)),
               _RoundButton(
                 onTap: onBell,
                 semanticLabel: 'Notifications',
@@ -100,12 +107,11 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
                   alignment: Alignment.center,
                   children: [
                     const IqIcon(IqIcons.bell, size: 24, color: IqColors.brand),
-                    if (showCount)
-                      Positioned(
-                        left: 16,
-                        top: -14,
-                        child: _CountBadge(count: count),
-                      ),
+                    Positioned(
+                      left: 16,
+                      top: -14,
+                      child: _Badge(count: count, shown: showCount),
+                    ),
                   ],
                 ),
               ),
@@ -130,28 +136,34 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
       child: Row(
         children: [
           if (showBack) ...[
-            _RoundButton(
-              onTap: onBack,
-              semanticLabel: 'Back',
-              fill: IqColors.card,
-              stroke: IqColors.line,
-              radius: 22,
-              child: const IqIcon(
-                IqIcons.back,
-                size: 22,
-                color: IqColors.brand,
+            _shared(
+              _ChromeHero.back,
+              _RoundButton(
+                onTap: onBack,
+                semanticLabel: 'Back',
+                fill: IqColors.card,
+                stroke: IqColors.line,
+                radius: 22,
+                child: const IqIcon(
+                  IqIcons.back,
+                  size: 22,
+                  color: IqColors.brand,
+                ),
               ),
             ),
             const SizedBox(width: IqSpace.s2),
           ],
           Expanded(
-            child: Text(
-              title,
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: IqText.cardTitle.copyWith(color: IqColors.brand),
+            child: _shared(
+              _ChromeHero.title,
+              Text(
+                title,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: IqText.cardTitle.copyWith(color: IqColors.brand),
+              ),
             ),
           ),
           const SizedBox(width: IqSpace.s2),
@@ -164,6 +176,62 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
             )
           else
             const SizedBox.square(dimension: 44),
+        ],
+      ),
+    );
+  }
+
+  Widget _shared(_ChromeHero hero, Widget child) {
+    if (!sharedChrome) return child;
+    return switch (hero) {
+      _ChromeHero.back => Hero(
+        tag: hero,
+        // The real button stays under the flight, unseen, so a back tap
+        // mid-push still lands.
+        placeholderBuilder: (context, size, child) =>
+            Opacity(opacity: 0, child: child),
+        child: child,
+      ),
+      _ChromeHero.title => Hero(
+        tag: hero,
+        flightShuttleBuilder: _crossfadeTitle,
+        child: child,
+      ),
+    };
+  }
+
+  static Widget _crossfadeTitle(
+    BuildContext flightContext,
+    Animation<double> animation,
+    HeroFlightDirection direction,
+    BuildContext fromContext,
+    BuildContext toContext,
+  ) {
+    final from = (fromContext.widget as Hero).child;
+    final to = (toContext.widget as Hero).child;
+    return Material(
+      type: MaterialType.transparency,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          FadeTransition(
+            opacity: animation.drive(
+              Tween<double>(begin: 1, end: 0).chain(
+                CurveTween(
+                  curve: const Interval(0, 0.4, curve: IqCurves.easeIn),
+                ),
+              ),
+            ),
+            child: Center(child: from),
+          ),
+          FadeTransition(
+            opacity: animation.drive(
+              CurveTween(
+                curve: const Interval(0.2, 0.8, curve: IqCurves.easeOut),
+              ),
+            ),
+            child: Center(child: to),
+          ),
         ],
       ),
     );
@@ -243,19 +311,123 @@ class _RoundButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final rest = fill ?? IqColors.panel.withValues(alpha: 0);
+    final down = fill == IqColors.panel ? IqColors.line : IqColors.panel;
     return IqPressable(
       onTap: onTap,
       semanticLabel: semanticLabel,
-      builder: (context, pressed) => Container(
+      builder: (context, pressed) => AnimatedContainer(
         width: 44,
         height: 44,
         alignment: Alignment.center,
+        duration: pressed ? IqDurations.dim : IqDurations.release,
+        curve: IqCurves.easeOut,
         decoration: BoxDecoration(
-          color: fill,
+          color: pressed ? down : rest,
           borderRadius: BorderRadius.circular(radius),
           border: stroke == null ? null : Border.all(color: stroke!),
         ),
         child: child,
+      ),
+    );
+  }
+}
+
+/// The greeting line, crossfading when its words change (spec 5.22).
+class _Greeting extends StatelessWidget {
+  const _Greeting(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: IqDurations.crossfade,
+      switchInCurve: IqCurves.easeOut,
+      switchOutCurve: IqCurves.easeOut,
+      layoutBuilder: (current, previous) => Stack(
+        alignment: AlignmentDirectional.centerStart,
+        children: [...previous, ?current],
+      ),
+      child: Text(
+        text,
+        key: ValueKey(text),
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.ellipsis,
+        style: IqText.small.copyWith(color: IqColors.fg2),
+      ),
+    );
+  }
+}
+
+/// The unread count on the bell (spec 5.18): pops in when it appears, no
+/// sooner than 200 ms after the bar does; rolls when it changes; pops out
+/// at zero. Shown or gone at once under reduced motion.
+class _Badge extends StatefulWidget {
+  const _Badge({required this.count, required this.shown});
+
+  final String count;
+  final bool shown;
+
+  @override
+  State<_Badge> createState() => _BadgeState();
+}
+
+class _BadgeState extends State<_Badge> with SingleTickerProviderStateMixin {
+  late final AnimationController _pop = AnimationController(
+    vsync: this,
+    value: widget.shown ? 1 : 0,
+  )..addStatusListener((_) => setState(() {}));
+  late String _count = widget.count;
+  final Duration _born = SchedulerBinding.instance.currentSystemFrameTimeStamp;
+
+  @override
+  void didUpdateWidget(_Badge old) {
+    super.didUpdateWidget(old);
+    if (widget.shown) _count = widget.count;
+    if (widget.shown == old.shown) return;
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _pop.value = widget.shown ? 1 : 0;
+    } else if (widget.shown) {
+      final age = SchedulerBinding.instance.currentSystemFrameTimeStamp - _born;
+      final wait = age < IqDurations.swap
+          ? IqDurations.swap - age
+          : Duration.zero;
+      final total = wait + IqDurations.appear;
+      _pop.value = 0;
+      _pop.animateTo(
+        1,
+        duration: total,
+        curve: Interval(
+          wait.inMicroseconds / total.inMicroseconds,
+          1,
+          curve: IqCurves.easeOut,
+        ),
+      );
+    } else {
+      _pop.animateBack(
+        0,
+        duration: IqDurations.crossfade,
+        curve: IqCurves.easeIn,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _pop.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_pop.isDismissed) return const SizedBox.shrink();
+    return FadeTransition(
+      opacity: _pop,
+      child: ScaleTransition(
+        scale: _pop.drive(Tween(begin: IqScale.pop, end: 1)),
+        child: _CountBadge(count: _count),
       ),
     );
   }
@@ -278,12 +450,13 @@ class _CountBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: IqColors.bg, width: 2),
       ),
-      child: Text(
+      child: RollingText(
         count,
-        maxLines: 1,
-        softWrap: false,
         style: IqText.label.copyWith(color: IqColors.primaryFg),
       ),
     );
   }
 }
+
+/// The Page bar parts that hold still across a push (spec 4.3).
+enum _ChromeHero { back, title }

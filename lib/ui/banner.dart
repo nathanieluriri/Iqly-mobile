@@ -13,7 +13,8 @@ enum IqBannerKind { urgent, offline, error }
 /// false (180 ms, reading ease-in); under reduced motion it fades. The
 /// Urgent clock pulses like Countdown Hot (halo 1 to 1.8, .35 to 0, every
 /// 1.4 s) while it holds the screen's pulse, and holds a static .2 halo
-/// otherwise and under reduced motion.
+/// otherwise and under reduced motion. [margin] is space that opens and
+/// closes with the banner (the gap to the list it pushes).
 ///
 /// Figma over brief: Urgent is Color/accent-soft and Error Color/err-soft, not the full accent or red.
 /// Figma over its note: Offline is Color/panel, not the paper background.
@@ -28,6 +29,7 @@ class IqBanner extends StatefulWidget {
     this.showAction = true,
     this.onAction,
     this.visible = true,
+    this.margin = EdgeInsets.zero,
   });
 
   final IqBannerKind kind;
@@ -36,6 +38,7 @@ class IqBanner extends StatefulWidget {
   final bool showAction;
   final VoidCallback? onAction;
   final bool visible;
+  final EdgeInsetsGeometry margin;
 
   static const Duration enter = IqDurations.mark;
   static const Duration exit = IqDurations.ink;
@@ -80,7 +83,7 @@ class _IqBannerState extends State<IqBanner>
 
   @override
   Widget build(BuildContext context) {
-    final strip = _Strip(widget);
+    final strip = Padding(padding: widget.margin, child: _Strip(widget));
     if (MediaQuery.disableAnimationsOf(context)) {
       return AnimatedBuilder(
         animation: _show,
@@ -240,27 +243,29 @@ class _PulseState extends State<_Pulse>
         clipBehavior: Clip.none,
         alignment: Alignment.center,
         children: [
-          AnimatedBuilder(
-            animation: pulse,
-            builder: (context, _) {
-              final t = pulse.value;
-              final grow = IqCurves.easeOut.transform(t);
-              return Transform.scale(
-                scale: pulsing ? 1 + (IqScale.halo - 1) * grow : 1,
-                child: Opacity(
-                  opacity: pulsing
-                      ? IqOpacity.halo * (1 - t)
-                      : IqOpacity.haloStill,
-                  child: const DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: IqColors.accentStrong,
-                      shape: BoxShape.circle,
+          RepaintBoundary(
+            child: AnimatedBuilder(
+              animation: pulse,
+              builder: (context, _) {
+                final t = pulse.value;
+                final grow = IqCurves.easeOut.transform(t);
+                return Transform.scale(
+                  scale: pulsing ? 1 + (IqScale.halo - 1) * grow : 1,
+                  child: Opacity(
+                    opacity: pulsing
+                        ? IqOpacity.halo * (1 - t)
+                        : IqOpacity.haloStill,
+                    child: const DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: IqColors.accentStrong,
+                        shape: BoxShape.circle,
+                      ),
+                      child: SizedBox.square(dimension: 24),
                     ),
-                    child: SizedBox.square(dimension: 24),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
           widget.child,
         ],

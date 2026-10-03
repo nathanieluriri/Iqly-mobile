@@ -103,6 +103,19 @@ abstract final class IqDurations {
   /// The first-run tip waits for Home to arrive.
   static const tipWait = Duration(milliseconds: 600);
 
+  /// Content arriving behind a skeleton's fade (spec 2.6).
+  static const lag = Duration(milliseconds: 60);
+
+  /// Illustrations and hero icons arrive: fade and rise 16 (spec 5.29).
+  static const illustration = Duration(milliseconds: 320);
+
+  /// An Urgency tone change, once (spec 5.14).
+  static const tone = Duration(milliseconds: 400);
+
+  /// An unsaved ticket stays in the Saved list this long before it folds
+  /// away (spec 5.12).
+  static const unsave = Duration(milliseconds: 300);
+
   /// Loop: Countdown Hot halo, Banner Urgent clock, ClaimStamp Checking dot.
   static const pulse = Duration(milliseconds: 1400);
 
@@ -634,6 +647,15 @@ class Arrive extends _Entrance {
     this.duration = IqDurations.enter,
   });
 
+  /// An illustration's or hero icon's ink: rise 16 over 320 (spec 5.29).
+  const Arrive.illustration({
+    super.key,
+    required super.child,
+    super.delay,
+    super.whenSeen,
+  }) : distance = IqTravel.riseHero,
+       duration = IqDurations.illustration;
+
   final double distance;
   final Duration duration;
 
@@ -818,10 +840,13 @@ class StaggerItem extends StatelessWidget {
 /// stand still and the width eases (spec 2.5 roll). A cut under reduced
 /// motion; never rolls on its first build.
 class RollingText extends StatefulWidget {
-  const RollingText(this.text, {super.key, required this.style});
+  const RollingText(this.text, {super.key, required this.style, this.overflow});
 
   final String text;
   final TextStyle style;
+
+  /// How the text gives way when it does not fit, between rolls.
+  final TextOverflow? overflow;
 
   @override
   State<RollingText> createState() => _RollingTextState();
@@ -870,6 +895,7 @@ class _RollingTextState extends State<RollingText>
         widget.text,
         maxLines: 1,
         softWrap: false,
+        overflow: widget.overflow,
         style: widget.style,
       );
     } else {
@@ -1131,57 +1157,94 @@ class _CollapseState extends State<Collapse> with TickerProviderStateMixin {
   }
 }
 
-/// A first load on the kit's clock (spec 2.6): nothing for the first
-/// 300 ms, then [skeleton], held at least 600 once shown; when [loading]
-/// ends the skeleton fades out in 150 ms ease-in and [child] comes in 60 ms
-/// later, so its own arrive plays over it. Data inside the first 300 ms
-/// brings [child] at once. [skeletonNow] shows the skeleton without the
-/// wait (a failed load that already draws it). Under reduced motion the
-/// skeleton and the content cross in 150. It fills its parent.
+/// What a [LoadingGate] shows (spec 2.6).
+enum GatePhase {
+  /// Paper, for the first 300 ms of a load.
+  waiting,
+
+  /// The skeleton, held at least 600 ms once shown.
+  skeleton,
+
+  /// The skeleton fading out over the content as it arrives.
+  handover,
+
+  /// The content.
+  content,
+}
+
+/// Builds a [LoadingGate.builder] for [phase]; [skeletonOpacity] runs the
+/// skeleton's fade in the hand-over and stands at 1 before it.
+typedef LoadingGateBuilder = Widget Function(
+  BuildContext context,
+  GatePhase phase,
+  Animation<double> skeletonOpacity,
+);
+
+/// A first load on the kit's clock (spec 2.6, 5.15): paper for 300 ms;
+/// then, if it is still loading, the skeleton, held at least 600 ms once
+/// shown; then the skeleton fades out over 150 ms ease-in while the content
+/// arrives from +60. Data inside 300 ms goes straight to the content.
+/// [skeletonNow] shows the skeleton without the wait (a failed load that
+/// already draws it). [onOpen] runs when a load opens onto the content,
+/// with how long the content's arrival still waits, so the screen can play
+/// its arrive. Reduced motion keeps the waits and makes the hand-over a
+/// 150 ms crossfade.
 class LoadingGate extends StatefulWidget {
+  /// Shows [skeleton], then [child], filling its parent. [child] comes in
+  /// at +60, so its own arrive plays over the fading skeleton.
   const LoadingGate({
     super.key,
     required this.loading,
-    required this.skeleton,
-    required this.child,
+    required Widget this.skeleton,
+    required Widget this.child,
     this.skeletonNow = false,
-  });
+    this.onOpen,
+  }) : builder = null;
+
+  /// Lets the screen place each phase itself (as slivers, say); the
+  /// hand-over brings the content at once and [onOpen] gets the 60.
+  const LoadingGate.builder({
+    super.key,
+    required this.loading,
+    required LoadingGateBuilder this.builder,
+    this.skeletonNow = false,
+    this.onOpen,
+  }) : skeleton = null,
+       child = null;
 
   final bool loading;
-  final Widget skeleton;
-  final Widget child;
+  final Widget? skeleton;
+  final Widget? child;
+  final LoadingGateBuilder? builder;
   final bool skeletonNow;
+  final ValueChanged<Duration>? onOpen;
 
   @override
   State<LoadingGate> createState() => _LoadingGateState();
 }
 
-enum _GatePhase { waiting, skeleton, leaving, content }
-
 class _LoadingGateState extends State<LoadingGate>
     with SingleTickerProviderStateMixin {
-  static const _lag = Duration(milliseconds: 60);
-
-  late final AnimationController _out = AnimationController(
+  late final AnimationController _fade = AnimationController(
     vsync: this,
     duration: IqDurations.crossfade,
     animationBehavior: AnimationBehavior.preserve,
-  )..addStatusListener(_onOut);
-  late final Animation<double> _skeletonOpacity = _out.drive(
-    Tween<double>(begin: 1, end: 0).chain(CurveTween(curve: IqCurves.easeIn)),
+  )..addStatusListener(_onFade);
+  late final Animation<double> _skeletonOpacity = ReverseAnimation(
+    _fade.drive(CurveTween(curve: IqCurves.easeIn)),
   );
-  _GatePhase _phase = _GatePhase.content;
+  GatePhase _phase = GatePhase.content;
   bool _childIn = true;
-  bool _held = false;
+  bool _held = true;
   bool _reduced = false;
   Timer? _wait;
   Timer? _hold;
-  Timer? _lagTimer;
+  Timer? _lag;
 
   @override
   void initState() {
     super.initState();
-    if (widget.loading) _load();
+    if (widget.loading) _start();
   }
 
   @override
@@ -1194,35 +1257,27 @@ class _LoadingGateState extends State<LoadingGate>
   void didUpdateWidget(LoadingGate old) {
     super.didUpdateWidget(old);
     if (widget.loading && !old.loading) {
-      _load();
+      _start();
       return;
     }
-    if (widget.skeletonNow &&
-        !old.skeletonNow &&
-        _phase == _GatePhase.waiting) {
+    if (widget.skeletonNow && !old.skeletonNow && _phase == GatePhase.waiting) {
       _showSkeleton();
     }
-    if (!widget.loading && old.loading) {
-      if (_phase == _GatePhase.waiting) {
-        _wait?.cancel();
-        _phase = _GatePhase.content;
-        _childIn = true;
-      } else if (_phase == _GatePhase.skeleton && _held) {
-        _leave();
-      }
-    }
+    if (!widget.loading && old.loading) _land();
   }
 
-  void _load() {
-    _lagTimer?.cancel();
-    _out.value = 0;
+  void _start() {
+    _wait?.cancel();
+    _hold?.cancel();
+    _lag?.cancel();
+    _fade.value = 0;
     _childIn = false;
+    _held = true;
     if (widget.skeletonNow) {
       _showSkeleton();
       return;
     }
-    _phase = _GatePhase.waiting;
-    _wait?.cancel();
+    _phase = GatePhase.waiting;
     _wait = Timer(IqDurations.skeletonDelay, () {
       if (mounted && widget.loading) setState(_showSkeleton);
     });
@@ -1230,62 +1285,83 @@ class _LoadingGateState extends State<LoadingGate>
 
   void _showSkeleton() {
     _wait?.cancel();
-    _phase = _GatePhase.skeleton;
-    _held = false;
     _hold?.cancel();
+    _phase = GatePhase.skeleton;
+    _held = false;
     _hold = Timer(IqDurations.skeletonMin, () {
       _held = true;
-      if (mounted && !widget.loading) setState(_leave);
+      if (mounted && !widget.loading) setState(_handOver);
     });
   }
 
-  void _leave() {
-    _phase = _GatePhase.leaving;
-    _out.forward(from: 0);
-    if (_reduced) {
+  void _land() {
+    switch (_phase) {
+      case GatePhase.waiting:
+        _wait?.cancel();
+        _phase = GatePhase.content;
+        _childIn = true;
+        widget.onOpen?.call(Duration.zero);
+      case GatePhase.skeleton:
+        if (_held) _handOver();
+      case GatePhase.handover || GatePhase.content:
+        break;
+    }
+  }
+
+  void _handOver() {
+    _phase = GatePhase.handover;
+    _fade.forward(from: 0);
+    final lag = _reduced ? Duration.zero : IqDurations.lag;
+    if (widget.builder != null || lag == Duration.zero) {
       _childIn = true;
+      widget.onOpen?.call(lag);
       return;
     }
-    _lagTimer = Timer(_lag, () {
-      if (mounted) setState(() => _childIn = true);
+    _lag = Timer(lag, () {
+      if (!mounted) return;
+      setState(() => _childIn = true);
+      widget.onOpen?.call(Duration.zero);
     });
   }
 
-  void _onOut(AnimationStatus status) {
-    if (!status.isCompleted || !mounted) return;
-    setState(() {
-      _phase = _GatePhase.content;
-      _childIn = true;
-    });
+  void _onFade(AnimationStatus status) {
+    if (status.isCompleted && mounted && _phase == GatePhase.handover) {
+      setState(() {
+        _phase = GatePhase.content;
+        _childIn = true;
+      });
+    }
   }
 
   @override
   void dispose() {
     _wait?.cancel();
     _hold?.cancel();
-    _lagTimer?.cancel();
-    _out.dispose();
+    _lag?.cancel();
+    _fade.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final leaving = _phase == _GatePhase.leaving;
+    final builder = widget.builder;
+    if (builder != null) return builder(context, _phase, _skeletonOpacity);
+    final handover = _phase == GatePhase.handover;
     return Stack(
       fit: StackFit.expand,
       children: [
         if (_childIn)
-          KeyedSubtree(key: const ValueKey('content'), child: widget.child),
-        if (_phase == _GatePhase.skeleton || leaving)
+          KeyedSubtree(key: const ValueKey('content'), child: widget.child!),
+        if (_phase == GatePhase.skeleton || handover)
           KeyedSubtree(
             key: const ValueKey('skeleton'),
             child: IgnorePointer(
-              ignoring: leaving,
+              ignoring: handover,
               child: ExcludeSemantics(
-                excluding: leaving,
+                excluding: handover,
                 child: FadeTransition(
                   opacity: _skeletonOpacity,
-                  child: widget.skeleton,
+                  child: widget.skeleton!,
                 ),
               ),
             ),
@@ -1330,6 +1406,246 @@ class FadeThrough extends StatelessWidget {
       child: child,
     );
   }
+}
+
+/// Plays a list's arrive (spec 2.6, 5.17) through the [Arrivals] it is
+/// given to.
+class ArrivalsController {
+  _ArrivalsState? _state;
+  Duration? _pending;
+
+  /// Opens a wave: the [ArriveItem]s built for the first time before the
+  /// frame ends arrive in reading order, 40 ms apart, after [after]. Call it
+  /// when data the person waited for lands (a first load, a new page, new
+  /// items from a refresh), never for revisits or lens changes.
+  void play({Duration after = Duration.zero}) {
+    final state = _state;
+    if (state == null) {
+      _pending = after;
+    } else {
+      state._play(after);
+    }
+  }
+}
+
+/// Hosts the arrive waves of the list below it (spec 2.6): each wave runs on
+/// one clock, and every [ArriveItem] reads its own interval of it.
+class Arrivals extends StatefulWidget {
+  const Arrivals({super.key, required this.controller, required this.child});
+
+  final ArrivalsController controller;
+  final Widget child;
+
+  @override
+  State<Arrivals> createState() => _ArrivalsState();
+}
+
+class _ArrivalsState extends State<Arrivals> with TickerProviderStateMixin {
+  final _waves = <_Wave>[];
+  _Wave? _open;
+  bool _reduced = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _attach(widget.controller);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduced = MediaQuery.disableAnimationsOf(context);
+    final pending = widget.controller._pending;
+    if (pending != null) {
+      widget.controller._pending = null;
+      _play(pending);
+    }
+  }
+
+  @override
+  void didUpdateWidget(Arrivals old) {
+    super.didUpdateWidget(old);
+    if (old.controller != widget.controller) {
+      if (old.controller._state == this) old.controller._state = null;
+      _attach(widget.controller);
+    }
+  }
+
+  void _attach(ArrivalsController controller) => controller._state = this;
+
+  void _play(Duration after) {
+    final wave = _Wave(this, _reduced ? Duration.zero : after, _reduced);
+    _waves.add(wave);
+    _open = wave;
+    wave.clock.forward();
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (identical(_open, wave)) _open = null;
+    });
+    SchedulerBinding.instance.ensureVisualUpdate();
+  }
+
+  _Slot? _join() {
+    final wave = _open;
+    if (wave == null || wave.joined >= Stagger.moving) return null;
+    return _Slot(wave, wave.joined++);
+  }
+
+  @override
+  void dispose() {
+    if (widget.controller._state == this) widget.controller._state = null;
+    for (final wave in _waves) {
+      wave.clock.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      _ArrivalsScope(state: this, child: widget.child);
+}
+
+class _ArrivalsScope extends InheritedWidget {
+  const _ArrivalsScope({required this.state, required super.child});
+
+  final _ArrivalsState state;
+
+  @override
+  bool updateShouldNotify(_ArrivalsScope old) => false;
+}
+
+class _Wave {
+  _Wave(TickerProvider vsync, this.after, this.reduced)
+    : clock = AnimationController(
+        vsync: vsync,
+        duration: reduced ? IqDurations.crossfade : after + _span,
+        animationBehavior: AnimationBehavior.preserve,
+      );
+
+  /// Six slots 40 apart, the last one's Highlight included.
+  static final Duration _span =
+      IqDurations.stagger * (Stagger.moving - 1) +
+      ArriveItem.markLead +
+      IqDurations.mark;
+
+  final AnimationController clock;
+  final Duration after;
+  final bool reduced;
+  int joined = 0;
+
+  Animation<double> span(Duration from, Duration length) {
+    final total = clock.duration!.inMicroseconds;
+    final start = (from.inMicroseconds / total).clamp(0.0, 1.0);
+    final end = ((from + length).inMicroseconds / total).clamp(start, 1.0);
+    return clock.drive(
+      CurveTween(curve: Interval(start, end, curve: IqCurves.easeOut)),
+    );
+  }
+}
+
+class _Slot {
+  _Slot(this.wave, this.index);
+
+  final _Wave wave;
+  final int index;
+
+  Duration get start => wave.after + IqDurations.stagger * index;
+
+  Animation<double> arrive() => wave.reduced
+      ? wave.clock.drive(CurveTween(curve: IqCurves.easeOut))
+      : wave.span(start, IqDurations.enter);
+
+  Animation<double> beat(Duration lead, Duration length) =>
+      wave.reduced ? kAlwaysCompleteAnimation : wave.span(start + lead, length);
+}
+
+/// One item of the nearest [Arrivals] in reading order (titles count). Built
+/// for the first time while a wave is open, it takes the wave's next slot
+/// and arrives: fade and rise 12 over 260 ms ease-out, 40 ms after the slot
+/// before; from the seventh slot on, or with no wave open, it stands in
+/// place. Under reduced motion a wave fades in together over 150 ms. It
+/// keeps itself alive in a lazy list, so it never arrives twice.
+class ArriveItem extends StatefulWidget {
+  const ArriveItem({super.key, required this.child});
+
+  final Widget child;
+
+  /// A Highlight in an arriving row wipes this long after the row starts
+  /// (spec 5.13).
+  static const markLead = Duration(milliseconds: 120);
+
+  /// A SectionTitle's underline wipes this long after the title starts
+  /// (spec 5.25).
+  static const underlineLead = Duration(milliseconds: 60);
+
+  /// A beat of the arriving item around [context]: [lead] after the item
+  /// starts, over [length], ease-out (shown at once under reduced motion).
+  /// Null when there is no item or it is not arriving, so a mark falls back
+  /// to playing when first seen.
+  static Animation<double>? beatOf(
+    BuildContext context, {
+    required Duration lead,
+    required Duration length,
+  }) => context.dependOnInheritedWidgetOfExactType<_ArriveCue>()?.slot?.beat(
+    lead,
+    length,
+  );
+
+  @override
+  State<ArriveItem> createState() => _ArriveItemState();
+}
+
+class _ArriveItemState extends State<ArriveItem>
+    with AutomaticKeepAliveClientMixin {
+  _Slot? _slot;
+  Animation<double>? _move;
+  bool _joined = false;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_joined) return;
+    _joined = true;
+    _slot = context
+        .getInheritedWidgetOfExactType<_ArrivalsScope>()
+        ?.state
+        ._join();
+    _move = _slot?.arrive();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final move = _move;
+    var child = widget.child;
+    if (move != null) {
+      child = FadeTransition(
+        opacity: move,
+        child: _slot!.wave.reduced
+            ? child
+            : AnimatedBuilder(
+                animation: move,
+                child: child,
+                builder: (context, child) => Transform.translate(
+                  offset: Offset(0, IqTravel.riseCard * (1 - move.value)),
+                  child: child,
+                ),
+              ),
+      );
+    }
+    return _ArriveCue(slot: _slot, child: child);
+  }
+}
+
+class _ArriveCue extends InheritedWidget {
+  const _ArriveCue({required this.slot, required super.child});
+
+  final _Slot? slot;
+
+  @override
+  bool updateShouldNotify(_ArriveCue old) => slot != old.slot;
 }
 
 /// Calls [onSeen] once at least half of [child] is painted inside the
@@ -1421,8 +1737,37 @@ class PulseScope extends StatefulWidget {
     return claim;
   }
 
+  /// Joins the skeleton beat of the screen around [context] (spec 5.15);
+  /// null outside a scope. Skeletons are exempt from the one-pulse rule.
+  static SkeletonBeat? joinSkeletonBeat(BuildContext context) => context
+      .getInheritedWidgetOfExactType<_PulseScopeMarker>()
+      ?.state
+      ._joinBeat();
+
   @override
   State<PulseScope> createState() => _PulseScopeState();
+}
+
+/// A skeleton's place on its screen's beat (spec 5.15): every bar on a
+/// screen pulses .5 to 1 to .5 over 900 ms in phase, on one clock that the
+/// screen's [PulseScope] runs while any skeleton is on it, so a skeleton
+/// mounted later joins the beat. Leave it from the skeleton's dispose.
+class SkeletonBeat {
+  SkeletonBeat._(this.opacity, this._leave);
+
+  /// The bars' opacity.
+  final Animation<double> opacity;
+  final VoidCallback _leave;
+
+  /// Gives the beat back; the clock stops with the last skeleton.
+  void leave() => _leave();
+
+  /// The bars' opacity on [clock], one cycle per turn of the clock.
+  static Animation<double> on(Animation<double> clock) =>
+      TweenSequence<double>([
+        TweenSequenceItem(tween: Tween(begin: 0.5, end: 1), weight: 1),
+        TweenSequenceItem(tween: Tween(begin: 1, end: 0.5), weight: 1),
+      ]).chain(CurveTween(curve: IqCurves.easeInOut)).animate(clock);
 }
 
 /// A claimant's hold on its screen's pulse.
@@ -1452,9 +1797,36 @@ class _PulseScopeMarker extends InheritedWidget {
   bool updateShouldNotify(_PulseScopeMarker old) => false;
 }
 
-class _PulseScopeState extends State<PulseScope> {
+class _PulseScopeState extends State<PulseScope>
+    with SingleTickerProviderStateMixin {
   final _claims = <PulseClaim>[];
   final _after = _AfterFrame();
+  AnimationController? _beat;
+  Animation<double>? _beatOpacity;
+  int _beaters = 0;
+  bool _gone = false;
+
+  SkeletonBeat _joinBeat() {
+    final beat = _beat ??= AnimationController(
+      vsync: this,
+      duration: IqDurations.skeletonPulse,
+    );
+    final opacity = _beatOpacity ??= SkeletonBeat.on(beat);
+    if (_beaters++ == 0) beat.repeat();
+    var left = false;
+    return SkeletonBeat._(opacity, () {
+      if (left) return;
+      left = true;
+      if (--_beaters == 0 && !_gone) beat.stop();
+    });
+  }
+
+  @override
+  void dispose() {
+    _gone = true;
+    _beat?.dispose();
+    super.dispose();
+  }
 
   void _add(PulseClaim claim) {
     _claims.add(claim);

@@ -41,11 +41,7 @@ class WalletArrives extends StatelessWidget {
               ),
             ),
           ),
-          const Arrive(
-            distance: IqTravel.riseHero,
-            duration: IqDurations.morph,
-            child: _Layer(kind, keep: 'ink'),
-          ),
+          const Arrive.illustration(child: _Layer(kind, keep: 'ink')),
         ],
       ),
     );

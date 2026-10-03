@@ -59,9 +59,7 @@ class AccountClosingScreen extends ConsumerWidget {
                           height: 176,
                           child: Align(
                             alignment: Alignment.topLeft,
-                            child: Arrive(
-                              distance: IqTravel.riseHero,
-                              duration: IqDurations.morph,
+                            child: Arrive.illustration(
                               child: IqIllustration(IqIllustrations.megaphone),
                             ),
                           ),

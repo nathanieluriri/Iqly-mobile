@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -76,6 +77,23 @@ final discoverFiltersProvider =
     NotifierProvider<DiscoverFiltersNotifier, DiscoverFilters>(
       DiscoverFiltersNotifier.new,
     );
+
+/// Counts lens chip taps (For you, All, Saved), so the feed under the chips
+/// fades its content in on each (spec 3.7).
+class LensSwitchNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void bump() => state++;
+}
+
+final lensSwitchProvider = NotifierProvider<LensSwitchNotifier, int>(
+  LensSwitchNotifier.new,
+);
+
+/// The lists that have played their first arrive this session (spec 2.6:
+/// a list arrives on its first load, not on revisits).
+final arrivedListsProvider = Provider<Set<String>>((ref) => <String>{});
 
 /// The interests that order For you: the ones picked in first run, else
 /// the profile's.
@@ -354,16 +372,21 @@ List<Brief> _sorted(Iterable<Brief> briefs, int Function(Brief, Brief) by) {
 class SavedBriefsNotifier extends AsyncNotifier<List<Brief>> {
   static const _key = 'discover.savedBriefs';
 
+  /// The device's copy is there from the first frame, so a bookmark never
+  /// animates into the state it already had.
   @override
-  Future<List<Brief>> build() async {
-    final prefs = ref.watch(sharedPreferencesProvider);
-    final raw = prefs.getString(_key);
+  FutureOr<List<Brief>> build() {
+    final raw = ref.watch(sharedPreferencesProvider).getString(_key);
     if (raw != null) {
       return [
         for (final item in jsonDecode(raw) as List<Object?>)
           Brief.fromJson((item! as Map).cast<String, Object?>()),
       ];
     }
+    return _seed();
+  }
+
+  Future<List<Brief>> _seed() async {
     final repo = ref.watch(repositoryProvider);
     final saved = [
       for (final id in await repo.savedBriefIds()) ?await repo.brief(id),
@@ -396,13 +419,18 @@ final savedBriefsProvider =
 class CloseRemindersNotifier extends AsyncNotifier<Set<String>> {
   static const _key = 'discover.closeReminders';
 
+  /// The device's copy is there from the first frame, so "Remind me" opens
+  /// in its state instead of switching into it.
   @override
-  Future<Set<String>> build() async {
-    final prefs = ref.watch(sharedPreferencesProvider);
-    final stored = prefs.getStringList(_key);
+  FutureOr<Set<String>> build() {
+    final stored = ref.watch(sharedPreferencesProvider).getStringList(_key);
     if (stored != null) return stored.toSet();
+    return _seed();
+  }
+
+  Future<Set<String>> _seed() async {
     final ids = await ref.watch(repositoryProvider).closeReminderIds();
-    await prefs.setStringList(_key, ids);
+    await ref.read(sharedPreferencesProvider).setStringList(_key, ids);
     return ids.toSet();
   }
 

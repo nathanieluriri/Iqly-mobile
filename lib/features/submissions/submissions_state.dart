@@ -92,8 +92,13 @@ final mySubmissionsProvider = FutureProvider.autoDispose<MySubmissions>(
   },
 );
 
+/// Taken from the loaded list at once when there is one, so a detail pushed
+/// from a row draws from its first frame and its status can fly in.
 final submissionItemProvider = FutureProvider.autoDispose
-    .family<SubmissionItem?, String>((ref, id) async {
-      final all = await ref.watch(mySubmissionsProvider.future);
-      return all.items.where((i) => i.id == id).firstOrNull;
+    .family<SubmissionItem?, String>((ref, id) {
+      SubmissionItem? pick(MySubmissions all) =>
+          all.items.where((i) => i.id == id).firstOrNull;
+      final loaded = ref.watch(mySubmissionsProvider).value;
+      if (loaded != null) return pick(loaded);
+      return ref.watch(mySubmissionsProvider.future).then(pick);
     });

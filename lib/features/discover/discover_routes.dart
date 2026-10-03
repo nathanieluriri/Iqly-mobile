@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/transitions.dart';
+import '../../data/models.dart';
 import '../../router.dart';
 import '../../ui/dock.dart';
 import '../activations/activations_routes.dart';
@@ -19,13 +20,15 @@ import 'saved_briefs_screen.dart';
 
 /// The four dock tabs as a StatefulShellRoute, so each tab keeps its stack
 /// and scroll; the tabs cross with the fade-through and the shell arrives by
-/// hand-off.
+/// hand-off. Tapping the lit tab pops it to its root, or, at its root,
+/// scrolls its list to the top (spec 3.6).
 RouteBase appShellRoute(GlobalKey<NavigatorState> rootKey) =>
     StatefulShellRoute(
       pageBuilder: (context, state, shell) => handoffPage(
         state,
         AppShell(
           active: IqDockActive.values[shell.currentIndex],
+          atRoot: state.uri.path == _tabRoots[shell.currentIndex],
           onTab: (tab) => shell.goBranch(
             tab.index,
             initialLocation: tab.index == shell.currentIndex,
@@ -45,7 +48,7 @@ RouteBase appShellRoute(GlobalKey<NavigatorState> rootKey) =>
                 GoRoute(
                   path: 'saved',
                   pageBuilder: (context, state) =>
-                      lensPage(state, const SavedBriefsScreen()),
+                      stillPage(state, const SavedBriefsScreen()),
                 ),
                 GoRoute(
                   path: 'filters',
@@ -73,13 +76,28 @@ RouteBase appShellRoute(GlobalKey<NavigatorState> rootKey) =>
 final discoverRoutes = <RouteBase>[
   GoRoute(
     path: Routes.briefDetail,
-    pageBuilder: (context, state) =>
-        pushPage(state, BriefDetailScreen(id: state.pathParameters['id']!)),
+    pageBuilder: (context, state) => pushPage(
+      state,
+      BriefDetailScreen(
+        id: state.pathParameters['id']!,
+        initial: switch (state.extra) {
+          final Brief brief => brief,
+          _ => null,
+        },
+      ),
+    ),
     routes: [...submitRoutes],
   ),
   ...notificationsRoutes,
   ...pollsRoutes,
   ...activationsRoutes,
+];
+
+const _tabRoots = [
+  Routes.home,
+  Routes.submissions,
+  Routes.wallet,
+  Routes.profile,
 ];
 
 GoRoute _push(String path, Widget screen) => GoRoute(

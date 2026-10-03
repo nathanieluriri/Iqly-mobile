@@ -18,16 +18,17 @@ import '../onboarding/onboarding_draft.dart';
 import 'discover_state.dart';
 
 /// Exp/TopBar Home: greeting, "Discover" and the bell with the unread count.
+/// The greeting names the person by the first name typed at sign-up on this
+/// device, else the account's.
 class DiscoverTopBar extends ConsumerWidget {
   const DiscoverTopBar({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(onboardingUserProvider).value;
     final unread = ref.watch(unreadNotificationsProvider).value ?? 0;
     final now = ref.watch(clockProvider)();
     return IqTopBar(
-      greeting: greeting(now, user?.firstName),
+      greeting: greeting(now, ref.watch(greetingNameProvider)),
       title: 'Discover',
       count: '$unread',
       showCount: unread > 0,
@@ -44,6 +45,7 @@ void browseForYou(BuildContext context, WidgetRef ref) {
 }
 
 /// The feed lens row: For you, All and (behind Flags.savedBriefs) Saved.
+/// Each tap fades the content under the chips in (spec 3.7).
 class FeedChips extends ConsumerWidget {
   const FeedChips({super.key, required this.selected});
 
@@ -53,6 +55,7 @@ class FeedChips extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     void pick(FeedChip chip) {
       final filters = ref.read(discoverFiltersProvider.notifier);
+      ref.read(lensSwitchProvider.notifier).bump();
       switch (chip) {
         case FeedChip.forYou:
           filters.showForYou();
@@ -87,7 +90,8 @@ class FeedChips extends ConsumerWidget {
 }
 
 /// A brief as an Exp/TicketCard with its live deadline chip, capacity and
-/// bookmark. Tapping opens brief detail.
+/// bookmark. Tapping opens brief detail, handing it the brief so the push
+/// draws the page from its first frame.
 class BriefTicket extends ConsumerWidget {
   const BriefTicket({
     super.key,
@@ -123,7 +127,29 @@ class BriefTicket extends ConsumerWidget {
       onBookmarkChanged: (state) => ref
           .read(savedBriefsProvider.notifier)
           .setSaved(brief, state == IqBookmarkState.on),
-      onTap: () => context.push(Routes.brief(brief.id)),
+      onTap: () => context.push(Routes.brief(brief.id), extra: brief),
+    );
+  }
+}
+
+/// The lens chips as chrome: pinned under the top bar while the feed scrolls
+/// beneath them (B12 192:9179, 192:9334), on paper, with the 12 pt gap to
+/// the first item.
+class PinnedFeedChips extends StatelessWidget {
+  const PinnedFeedChips({super.key, required this.selected});
+
+  final FeedChip selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return PinnedHeaderSliver(
+      child: ColoredBox(
+        color: IqColors.bg,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: IqSpace.s3),
+          child: FeedChips(selected: selected),
+        ),
+      ),
     );
   }
 }

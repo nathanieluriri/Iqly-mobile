@@ -15,6 +15,9 @@ Future<void> _golden(
   IqlyRepository? repository,
 ]) async {
   await pumpApp(tester, location, repository: repository);
+  // A load still running shows its skeleton after LoadingGate's 300 ms.
+  await tester.pump(const Duration(milliseconds: 300));
+  await tester.pumpAndSettle();
   await expectMatchesGolden(
     find.byType(MaterialApp),
     'goldens/submissions_$name.png',
