@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
+import '../../core/transitions.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
@@ -24,7 +25,8 @@ import 'notifications_state.dart';
 /// bell on Discover, Wallet, Profile and My submissions. Deadlines and spots
 /// read brief data, the result and the payouts the ledger and withdrawals;
 /// seeing the feed clears the bell on every tab. Opening a row marks it
-/// read, and back on the feed its dot shrinks away.
+/// read once the page it opened has gone, so back on the feed its dot
+/// shrinks away in view.
 ///
 /// Motion (MOTION-SPEC §7.5): the rows arrive the first time the feed shows
 /// in a session, each title's highlighter wiping 120 ms into its row's
@@ -142,7 +144,8 @@ class _FeedState extends ConsumerState<_Feed> {
       return;
     }
     await context.push(link.location);
-    if (mounted) await feed.markRead(item.note.id);
+    if (!mounted) return;
+    whenUncovered(context, () => feed.markRead(item.note.id).ignore());
   }
 
   @override

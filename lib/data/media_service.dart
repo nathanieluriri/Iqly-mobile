@@ -9,8 +9,10 @@ import 'activations_data.dart';
 /// strings) and reads its length and first frame with video_player. The
 /// demo hands back the recording of the Figma frames.
 abstract class MediaService {
-  /// Null when the person backs out of the picker.
-  Future<ProofVideo?> pickVideo();
+  /// Null when the person backs out of the picker. [about] names the
+  /// business the recording proves a step for; the demo names its file
+  /// after it, the device's picker has the file's own name.
+  Future<ProofVideo?> pickVideo({String? about});
 }
 
 class DemoMediaService implements MediaService {
@@ -26,17 +28,29 @@ class DemoMediaService implements MediaService {
     length: Duration(seconds: 42),
   );
 
+  /// "kudi-box-signup.mp4": a demo recording of [business]'s app, [what] it
+  /// shows after the name, as the frames name theirs.
+  static String recordingName(String business, String what) =>
+      '${business.toLowerCase().replaceAll(' ', '-')}-$what.mp4';
+
   final Duration delay;
 
-  /// What the next pick returns; null backs out.
+  /// What the next pick returns; null backs out. The [sample] takes the
+  /// name of the business it proves a step for.
   ProofVideo? video;
   int picks = 0;
 
   @override
-  Future<ProofVideo?> pickVideo() async {
+  Future<ProofVideo?> pickVideo({String? about}) async {
     if (delay > Duration.zero) await Future<void>.delayed(delay);
     picks++;
-    return video;
+    final video = this.video;
+    if (about == null || !identical(video, sample)) return video;
+    return ProofVideo(
+      name: recordingName(about, 'signup'),
+      bytes: sample.bytes,
+      length: sample.length,
+    );
   }
 }
 

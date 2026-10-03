@@ -74,16 +74,13 @@ class ActivationsNotifier extends AsyncNotifier<List<Activation>> {
         .read(walletProvider.notifier)
         .credit(
           LedgerEntry(
-            id: creditId(activation.id),
+            id: activation.creditId,
             type: LedgerType.award,
             amountKobo: activation.rewardKobo,
             createdAt: activation.progress!.paidAt!,
           ),
         );
   }
-
-  /// The ledger row an activation's reward lands as.
-  static String creditId(String activationId) => 'activation-$activationId';
 }
 
 /// No automatic retry: the failed state offers "Try again".
@@ -170,7 +167,9 @@ class ProofDraftNotifier extends Notifier<ProofDraft> {
   /// Opens the picker; a recording over the limit turns the tile to Error,
   /// any other starts uploading.
   Future<void> pick() async {
-    final video = await ref.read(mediaServiceProvider).pickVideo();
+    final video = await ref
+        .read(mediaServiceProvider)
+        .pickVideo(about: ref.read(activationProvider(id))?.business);
     if (!ref.mounted || video == null) return;
     if (video.tooLong) {
       state = state.copyWith(

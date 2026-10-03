@@ -16,7 +16,6 @@ import 'package:iqly_mobile/ui/next_fab.dart';
 import 'entry_harness.dart';
 
 const _medium = 'HapticFeedbackType.mediumImpact';
-const _light = 'HapticFeedbackType.lightImpact';
 
 IqField _field(WidgetTester tester, String label) => tester.widget<IqField>(
   find.byWidgetPredicate((w) => w is IqField && w.label == label),
@@ -59,10 +58,11 @@ void main() {
       expect(find.byType(LandingScreen), findsOneWidget);
       expect(find.text(EntryCopy.badEmail), findsOneWidget);
       expect(_box(tester).state, IqBoxFieldState.error);
-      expect(haptics, [_light, _medium]);
+      // The refusal lands with the tap, so it plays in the commit's place.
+      expect(haptics, [_medium]);
 
       await _tapText(tester, 'Continue');
-      expect(haptics, [_light, _medium, _light, _medium]);
+      expect(haptics, [_medium, _medium]);
 
       await tester.tap(find.byType(IqBoxField));
       await tester.pumpAndSettle();
@@ -186,7 +186,7 @@ void main() {
         expect(find.text(expected[name]!), findsOneWidget);
         expect(_field(tester, 'Password').state, IqFieldState.error);
         expect(_field(tester, 'Password').help, expected[name]);
-        expect(haptics, [_light, _medium]);
+        expect(haptics, [_medium]);
       });
     }
 
@@ -234,7 +234,7 @@ void main() {
       expect(_field(tester, 'Password').state, IqFieldState.error);
       expect(_field(tester, 'Password').help, 'At least 8 characters');
       expect(find.text('At least 8 characters'), findsOneWidget);
-      expect(haptics, [_light, _medium]);
+      expect(haptics, [_medium]);
 
       await typeInto(tester, 0, 'shorter');
       expect(_field(tester, 'Password').state, isNot(IqFieldState.error));

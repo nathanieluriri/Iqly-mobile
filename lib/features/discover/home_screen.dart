@@ -11,6 +11,7 @@ import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../core/session.dart';
+import '../../core/transitions.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
@@ -44,9 +45,10 @@ import 'feed_slivers.dart';
 /// one PullIndicator fades in with the pull, turns its arrow when armed
 /// (select haptic, once a pull), holds its 52 pt slot while refreshing,
 /// shows Done for 800 ms and then closes the slot as the feed slides up; a
-/// new page arrives from its first ticket; the lens chips and filters fade
-/// the content in (200 ms, no stagger); Try again sends the banner up and
-/// waits again, and a failed retry brings it back with the error haptic.
+/// new page arrives from its first ticket; the lens chips and filters cross
+/// the content under the still chips (200 ms, no stagger); Try again sends
+/// the banner up and waits again, and a failed retry brings it back with
+/// the error haptic.
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -60,16 +62,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   final _scroll = ScrollController();
   final _arrivals = ArrivalsController();
+  final _chips = GlobalKey();
   final _pull = ValueNotifier<double>(0);
   final _armed = ValueNotifier<bool>(false);
-  late final AnimationController _lens = AnimationController(
-    vsync: this,
-    duration: IqDurations.swap,
-    value: 1,
-  );
-  late final Animation<double> _lensIn = _lens.drive(
-    CurveTween(curve: IqCurves.easeOut),
-  );
   late final AnimationController _slot = AnimationController(vsync: this);
   bool _steady = false;
   bool _buzzed = false;
@@ -86,7 +81,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _scroll.dispose();
     _pull.dispose();
     _armed.dispose();
-    _lens.dispose();
     _slot.dispose();
     super.dispose();
   }
@@ -207,12 +201,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
   }
 
-  void _fadeContent() {
-    if (_reduced) {
-      _lens.value = 1;
-    } else {
-      _lens.forward(from: 0);
-    }
+  void _crossContent() {
+    final chips = _chips.currentContext;
+    if (chips != null) LensCrossfade.cross(context, line: chips);
   }
 
   void _retry() {
@@ -240,10 +231,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   void _listen() {
     ref.listen(discoverFiltersProvider, (previous, next) {
+      _crossContent();
       ref.read(discoverFeedProvider.notifier).resetWindow();
-      _fadeContent();
     });
-    ref.listen(lensSwitchProvider, (previous, next) => _fadeContent());
     ref.listen(discoverFeedProvider.select((f) => f.value?.refresh), (
       previous,
       next,
@@ -328,7 +318,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         slivers: [
                           _refreshSlot(data),
                           PinnedFeedChips(
-                            selected: filters.forYou
+                            chipsKey: _chips,
+                            // While the Saved lens, its own route, covers
+                            // this page, these chips show Saved too, so a
+                            // pick there lands here from Saved rather than
+                            // from the lens this page held before.
+                            selected: ModalRoute.isCurrentOf(context) == false
+                                ? FeedChip.saved
+                                : filters.forYou
                                 ? FeedChip.forYou
                                 : FeedChip.all,
                           ),
@@ -458,12 +455,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           child: ArriveItem(child: _SetupNudgeSlot()),
         ),
       if (content)
-        SliverFadeTransition(
+        SliverList.list(
           key: const ValueKey('feed'),
-          opacity: _lensIn,
-          sliver: SliverList.list(
-            children: _spaced(data == null ? _failed() : _feed(data)),
-          ),
+          children: _spaced(data == null ? _failed() : _feed(data)),
         ),
     ];
     if (slivers.isEmpty) return const SliverToBoxAdapter();

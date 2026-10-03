@@ -122,7 +122,7 @@ void main() {
     expect(find.text('₦7,500.00'), findsOneWidget);
     expect(wallet.requests.single.amountKobo, 500000);
     expect(wallet.requests.single.account.accountNumber, '0123456789');
-    expect(haptics, [_commit, _commit, _success]);
+    expect(haptics, [_commit, _success]);
 
     await _tap(tester, find.text('Back to wallet'));
     await _settle(tester);
@@ -218,7 +218,7 @@ void main() {
 
     await _tap(tester, find.text('Withdraw').last);
     expect(find.text(help), findsOneWidget);
-    expect(haptics, [_commit, _error]);
+    expect(haptics, [_error]);
 
     await _type(tester, _amountField(), '999');
     expect(find.text(help), findsNothing);
@@ -304,7 +304,7 @@ void main() {
     expect(find.text('to Kuda Bank ••6789'), findsOneWidget);
     expect(wallet.requests.single.account.bankName, 'Kuda Bank');
     expect(wallet.requests.single.amountKobo, 500000);
-    expect(haptics, [_commit, _error, _success, _commit, _success]);
+    expect(haptics, [_commit, _error, _success, _success]);
     semantics.dispose();
   });
 

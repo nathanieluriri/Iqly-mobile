@@ -110,12 +110,21 @@ class ActionBar extends StatelessWidget {
   }
 }
 
+/// Whether a page above hides the screen around [context]: its tickers are
+/// off, or the page has just started to leave and still covers it whole
+/// (the first frame of a pop, when the tickers are already back on).
+bool covered(BuildContext context) {
+  if (!TickerMode.valuesOf(context).enabled) return true;
+  return ModalRoute.of(context)?.secondaryAnimation?.value == 1;
+}
+
 /// The Dissolve between the states of one screen (spec 3.4): the new state
 /// fades in over the old, 300 ms ease-out (the old reads ease-in as it
 /// goes), a 150 ms crossfade under reduced motion. While a page above
 /// covers the screen the change is a cut, so the screen is already in its
-/// new state when that page leaves (Send proof back to Your proof). [fit]
-/// passthrough lets the states size the space, top aligned.
+/// new state when that page leaves (Send proof back to Your proof, whose
+/// change lands as the proof page starts to pop). [fit] passthrough lets
+/// the states size the space, top aligned.
 class StateDissolve extends StatefulWidget {
   const StateDissolve({
     super.key,
@@ -152,9 +161,8 @@ class _StateDissolveState extends State<StateDissolve>
   void didUpdateWidget(StateDissolve old) {
     super.didUpdateWidget(old);
     if (old.child.key == widget.child.key) return;
-    final covered = !TickerMode.valuesOf(context).enabled;
     final length = motion(context, IqDurations.screen, fade: true);
-    if (covered || length == Duration.zero) {
+    if (covered(context) || length == Duration.zero) {
       _previous = null;
       _fade.value = 1;
       return;

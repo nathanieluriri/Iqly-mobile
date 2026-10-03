@@ -78,19 +78,6 @@ final discoverFiltersProvider =
       DiscoverFiltersNotifier.new,
     );
 
-/// Counts lens chip taps (For you, All, Saved), so the feed under the chips
-/// fades its content in on each (spec 3.7).
-class LensSwitchNotifier extends Notifier<int> {
-  @override
-  int build() => 0;
-
-  void bump() => state++;
-}
-
-final lensSwitchProvider = NotifierProvider<LensSwitchNotifier, int>(
-  LensSwitchNotifier.new,
-);
-
 /// The lists that have played their first arrive this session (spec 2.6:
 /// a list arrives on its first load, not on revisits).
 final arrivedListsProvider = Provider<Set<String>>((ref) => <String>{});

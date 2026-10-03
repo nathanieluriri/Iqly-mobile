@@ -2,10 +2,16 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/activations_data.dart';
 import '../../data/help_data.dart';
 import '../../data/help_service.dart';
 import '../../data/models.dart';
 import '../wallet/wallet_state.dart';
+
+/// The title of a thread about [activation] ("Kudi Box activation" in the
+/// frame), or the screen's own name without one.
+String helpSubject(Activation? activation) =>
+    activation == null ? 'Help' : '${activation.business} activation';
 
 /// What the person is writing to support: the message, the optional
 /// recording (or the one going up) and how sending went.
@@ -56,13 +62,14 @@ class HelpDraftNotifier extends Notifier<HelpDraft> {
   void write(String message) =>
       state = state.copyWith(message: message, failed: false);
 
-  /// Picks a recording and uploads it (HelpService.addRecording).
-  void addRecording() {
+  /// Picks a recording of [about]'s app and uploads it
+  /// (HelpService.addRecording).
+  void addRecording({String? about}) {
     if (state.upload != null) return;
     _upload?.cancel();
     _upload = ref
         .read(helpServiceProvider)
-        .addRecording()
+        .addRecording(about: about)
         .listen(
           (step) => state = step.done
               ? state.copyWith(recording: () => step.file, upload: () => null)
@@ -78,9 +85,9 @@ class HelpDraftNotifier extends Notifier<HelpDraft> {
 
   void removeRecording() => state = state.copyWith(recording: () => null);
 
-  /// Sends the draft about [subject]; the new ticket, or null when it did
-  /// not go.
-  Future<HelpTicket?> send(String subject) async {
+  /// Sends the draft about [subject], the [activation] it names if any;
+  /// the new ticket, or null when it did not go.
+  Future<HelpTicket?> send(String subject, {Activation? activation}) async {
     final draft = state;
     if (!draft.canSend) return null;
     state = draft.copyWith(sending: true, failed: false);
@@ -92,6 +99,7 @@ class HelpDraftNotifier extends Notifier<HelpDraft> {
               subject: subject,
               message: draft.message.trim(),
               attachment: draft.recording,
+              activation: activation,
             ),
           );
       state = state.copyWith(sending: false);

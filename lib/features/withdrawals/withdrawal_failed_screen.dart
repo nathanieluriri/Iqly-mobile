@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import '../../core/deadline.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
-import '../../core/transitions.dart';
 import '../../data/models.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -63,14 +62,10 @@ class WithdrawalFailedScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                ChromeHero(
-                  tag: ChromeTags.back,
-                  shuttle: IqTopBar.shuttle,
-                  child: IqTopBar(
-                    variant: IqTopBarVariant.page,
-                    title: 'Withdrawal',
-                    onBack: () => leaveWithdrawal(context),
-                  ),
+                IqTopBar(
+                  variant: IqTopBarVariant.page,
+                  title: 'Withdrawal',
+                  onBack: () => leaveWithdrawal(context),
                 ),
                 Expanded(
                   child: Stagger(

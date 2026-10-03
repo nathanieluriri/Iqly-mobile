@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/data/activations_service.dart';
 import 'package:iqly_mobile/features/activations/activations_routes.dart';
+import 'package:iqly_mobile/features/activations/activations_state.dart';
 import 'package:iqly_mobile/features/activations/activations_widgets.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/balance_hero.dart';
@@ -279,6 +280,53 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
     });
 
+    testWidgets('paid while another page covers it: no moment and no haptic; '
+        'back on it, the stamp lands over a wallet already paid', (
+      tester,
+    ) async {
+      final haptics = recordHaptics(tester);
+      final container = await pumpActivations(
+        tester,
+        activationPath('a2'),
+        now: friday,
+        reducedMotion: false,
+        settle: false,
+        service: instantActivations(
+          now: friday,
+          seed: Figma.world(friday, kudiBox: Figma.proofSent),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.scrollUntilVisible(
+        find.text('Ask for help'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.tap(find.text('Ask for help'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(find.text('Your proof'), findsNothing);
+
+      container.read(activationsProvider.notifier).refresh('a2');
+      await _run(tester, 1000);
+      expect(haptics, isNot(contains(_success)));
+
+      await tester.tap(_button('Back'));
+      await tester.pump();
+      final stamp = <(double, double)>[];
+      await _run(tester, 600, (at) {
+        stamp.add((_stampOpacity(tester), _stampScale(tester)));
+        expect(_hero(tester).amount, '₦14,000', reason: 'at $at ms');
+      });
+      expect(find.text('Your reward'), findsOneWidget);
+      expect(stamp.first.$1, 0);
+      expect(stamp.where((s) => _between(s.$1) && s.$2 > 1), isNotEmpty);
+      expect(stamp.last.$1, 1);
+      expect(stamp.last.$2, closeTo(1, 0.001));
+      expect(haptics, isNot(contains(_success)));
+    });
+
     testWidgets('reduced motion: a 150 ms crossfade to the reward, the stamp '
         'fades in at rest, the balance is new at once', (tester) async {
       final haptics = recordHaptics(tester);
@@ -483,7 +531,7 @@ void main() {
       await tester.tap(find.text('Send proof'));
       await tester.pump();
       await tester.pump();
-      expect(haptics, [_commit, _success]);
+      expect(haptics, [_success]);
       await _run(tester, 100);
       expect(find.text('Upload proof of step 2'), findsNothing);
       expect(find.text('Your proof'), findsOneWidget);
@@ -497,6 +545,48 @@ void main() {
       expect(stamp.where((s) => _between(s.$1) && s.$2 > 1), isNotEmpty);
       expect(stamp.last.$1, 1);
       expect(stamp.last.$2, closeTo(1, 0.001));
+    });
+
+    testWidgets('sent from the activation: it is Your proof from the pop’s '
+        'first frame, so only the pop and the recording’s flight move', (
+      tester,
+    ) async {
+      await pumpActivations(
+        tester,
+        activationPath('a2'),
+        now: friday,
+        service: _stuck(),
+        reducedMotion: false,
+        settle: false,
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.tap(find.text('Upload proof of step 2'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.tap(find.byType(IqProofTile));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      final from = tester.getTopLeft(find.byType(ProofFrame)).dy;
+
+      await tester.tap(find.text('Send proof'));
+      final flight = <double>[];
+      for (var at = 16; at <= 400; at += 16) {
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(_layerOf('_Layout.steps'), findsNothing, reason: 'at $at ms');
+        if (_layerOf('_Layout.checking').evaluate().isNotEmpty) {
+          expect(_layer(tester, '_Layout.checking'), 1, reason: 'at $at ms');
+        }
+        flight.addAll([
+          for (final frame in tester.renderObjectList<RenderBox>(
+            find.byType(ProofFrame),
+          ))
+            frame.localToGlobal(Offset.zero).dy,
+        ]);
+      }
+      expect(find.text('Upload proof'), findsNothing);
+      expect(find.text('Your proof'), findsOneWidget);
+      final to = tester.getTopLeft(find.byType(ProofFrame)).dy;
+      expect(flight.where((y) => y > from + 1 && y < to - 1), isNotEmpty);
     });
 
     testWidgets('play: the frame flies from the thumbnail to the player', (

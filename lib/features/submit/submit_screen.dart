@@ -83,10 +83,17 @@ class _SubmitScreenState extends ConsumerState<SubmitScreen> {
       if (!ref.read(submitFlowProvider(_id)).sending) IqHaptics.error.play();
       return;
     }
-    if (result.ok) {
+    if (result.receipt case final receipt?) {
       FocusManager.instance.primaryFocus?.unfocus();
       IqHaptics.success.play();
-      ref.invalidate(mySubmissionsProvider);
+      ref
+          .read(sentSubmissionsProvider.notifier)
+          .add(
+            SubmissionItem(
+              submission: receipt.submission,
+              brief: ref.read(submitOpeningProvider(_id)).value?.brief,
+            ),
+          );
       ref.invalidate(briefDetailProvider(_id));
       return;
     }
@@ -245,12 +252,14 @@ class _Form extends StatelessWidget {
                 ? AnswerStep(
                     key: const ValueKey(SubmitStep.answer),
                     brief: brief,
+                    flow: flow,
                     settle: !flow.back,
                   )
                 : QuestionsStep(
                     key: const ValueKey(SubmitStep.questions),
                     briefId: brief.id,
                     form: form,
+                    flow: flow,
                   ),
           ),
         ),

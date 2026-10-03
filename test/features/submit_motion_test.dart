@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/motion.dart';
+import 'package:iqly_mobile/features/submit/submit_sent.dart';
+import 'package:iqly_mobile/features/submit/submit_steps.dart';
 import 'package:iqly_mobile/features/submit/submit_thread.dart';
 import 'package:iqly_mobile/features/submit/submit_widgets.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/theme/theme.dart';
+import 'package:iqly_mobile/ui/field.dart';
 import 'package:iqly_mobile/ui/highlight.dart';
+import 'package:iqly_mobile/ui/poll_option.dart';
 
 import '../golden/screens/app_harness.dart';
 import '../golden/screens/submit_harness.dart';
@@ -270,6 +274,69 @@ void main() {
       await tester.pumpAndSettle();
       expect(inkRise(tester), 0);
       expect(find.text('1 of 29'), findsOneWidget);
+    });
+
+    testWidgets('the questions keep what was sent while they fade out', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        Routes.submitTo('c5'),
+        reducedMotion: false,
+        prefs: submitDraftPrefs(
+          title: SubmitCopy.title,
+          answer: SubmitCopy.answer,
+          answers: {
+            'language': [SubmitCopy.language],
+            'placement': ['On the kiosk itself'],
+          },
+        ),
+        overrides: instantSubmit(),
+      );
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Attachments'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Attachments'));
+      await tester.pumpAndSettle();
+      const file = 'IMG_0412.jpg (240 KB)';
+      expect(find.text(file), findsOneWidget);
+
+      await tester.tap(find.text('Send response'));
+      await tester.pump();
+      var frames = 0;
+      for (var at = 16; at <= 400; at += 16) {
+        await tester.pump(const Duration(milliseconds: 16));
+        if (find.byType(QuestionsStep).evaluate().isEmpty) break;
+        if (find.byType(SentMoment).evaluate().isEmpty) continue;
+        frames++;
+        final language = tester.widgetList<IqPollOption>(
+          find.byWidgetPredicate(
+            (w) => w is IqPollOption && w.label == SubmitCopy.language,
+          ),
+        );
+        expect(
+          language.map((o) => o.state),
+          everyElement(IqPollOptionState.selected),
+          reason: 'at $at ms',
+        );
+        expect(find.text(file), findsOneWidget, reason: 'at $at ms');
+        expect(
+          tester
+              .widget<IqField>(
+                find.byWidgetPredicate(
+                  (w) =>
+                      w is IqField &&
+                      w.label == 'Where would you put this line first?',
+                ),
+              )
+              .state,
+          IqFieldState.valid,
+          reason: 'at $at ms',
+        );
+      }
+      expect(frames, greaterThan(10));
+      expect(find.byType(QuestionsStep), findsNothing);
     });
 
     testWidgets('reduced motion: fades only, the Highlight is there', (

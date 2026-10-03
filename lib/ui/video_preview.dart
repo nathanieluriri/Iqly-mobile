@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -18,9 +19,10 @@ enum IqVideoPreviewState { ready, uploading, failed }
 ///
 /// [onPlay] works from the moment the upload finishes (the sticker scales
 /// .92 while pressed); [onRemove] should open Exp/ConfirmSheet before
-/// anything is deleted. Upload to ready pops the play sticker in (.6 to 1,
-/// 220 ms ease-out) and slides the duration stamp up 6 px. Reduced motion:
-/// fades only.
+/// anything is deleted. Upload to ready completes the thread (it fills to
+/// the end over 200 ms ease-out, then folds away), pops the play sticker in
+/// (.6 to 1, 220 ms ease-out) and slides the duration stamp up 6 px.
+/// Reduced motion: fades only, and the thread goes at once.
 /// [showRemove] false drops the remove sticker once the recording is sent
 /// (B9 · Proof · submitted shows an empty disc there).
 ///
@@ -75,19 +77,37 @@ class _IqVideoPreviewState extends State<IqVideoPreview>
     CurveTween(curve: IqCurves.easeOut),
   );
 
+  /// The upload just finished: the thread stays to fill to the end.
+  bool _finishing = false;
+
+  /// The full thread folds away.
+  bool _folded = false;
+  Timer? _fold;
+
   bool get _reduced => MediaQuery.disableAnimationsOf(context);
 
   @override
   void didUpdateWidget(IqVideoPreview oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.state == IqVideoPreviewState.ready &&
-        oldWidget.state != IqVideoPreviewState.ready) {
-      _ready.forward(from: 0);
+    final state = widget.state;
+    if (state == oldWidget.state) return;
+    _fold?.cancel();
+    _finishing =
+        state == IqVideoPreviewState.ready &&
+        oldWidget.state == IqVideoPreviewState.uploading &&
+        !_reduced;
+    _folded = false;
+    if (_finishing) {
+      _fold = Timer(IqDurations.swap, () {
+        if (mounted) setState(() => _folded = true);
+      });
     }
+    if (state == IqVideoPreviewState.ready) _ready.forward(from: 0);
   }
 
   @override
   void dispose() {
+    _fold?.cancel();
     _ready.dispose();
     super.dispose();
   }
@@ -294,25 +314,31 @@ class _IqVideoPreviewState extends State<IqVideoPreview>
                     color: failed ? IqColors.errStrong : IqColors.fg3,
                   ),
                 ),
-                if (state == IqVideoPreviewState.uploading) ...[
-                  const SizedBox(height: IqSpace.s0p5),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(2),
-                    child: Container(
-                      width: 100,
-                      height: 4,
-                      color: IqColors.line,
-                      alignment: Alignment.centerLeft,
-                      child: AnimatedFractionallySizedBox(
-                        duration: motion(context, IqDurations.swap),
-                        curve: IqCurves.easeOut,
-                        widthFactor: widget.progress.clamp(0.0, 1.0),
-                        heightFactor: 1,
-                        child: const ColoredBox(color: IqColors.accent),
+                if (state == IqVideoPreviewState.uploading || _finishing)
+                  Collapse(
+                    open: !_folded,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: IqSpace.s0p5),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(2),
+                        child: Container(
+                          width: 100,
+                          height: 4,
+                          color: IqColors.line,
+                          alignment: Alignment.centerLeft,
+                          child: AnimatedFractionallySizedBox(
+                            duration: motion(context, IqDurations.swap),
+                            curve: IqCurves.easeOut,
+                            widthFactor: _finishing
+                                ? 1
+                                : widget.progress.clamp(0.0, 1.0),
+                            heightFactor: 1,
+                            child: const ColoredBox(color: IqColors.accent),
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ],
               ],
             ),
           ),

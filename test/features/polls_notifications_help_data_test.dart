@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/deadline.dart';
+import 'package:iqly_mobile/data/activations_data.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/help_data.dart';
 import 'package:iqly_mobile/data/help_service.dart';
@@ -14,7 +15,6 @@ import 'package:iqly_mobile/features/notifications/notifications_state.dart';
 import 'package:iqly_mobile/features/polls/polls_state.dart';
 import 'package:iqly_mobile/features/wallet/wallet_state.dart';
 import 'package:iqly_mobile/ui/notification.dart';
-import 'package:iqly_mobile/features/activations/activations_state.dart';
 
 import '../golden/screens/app_harness.dart';
 
@@ -211,14 +211,16 @@ void main() {
   });
 
   group('B10 help', () {
+    final kudiBox = DemoActivations(figmaNow).kudiBox;
+
     test('the credited reward takes the DemoData wallet to the frame', () {
       final data = DemoData(now: figmaNow);
       final before = walletTotals(data.ledger, data.withdrawals);
       expect(before.withdrawableKobo, 1250000);
       final credit = LedgerEntry(
-        id: DemoHelp.creditId,
+        id: kudiBox.creditId,
         type: LedgerType.award,
-        amountKobo: DemoHelp.rewardKobo,
+        amountKobo: kudiBox.rewardKobo,
         createdAt: figmaNow,
       );
       final after = walletTotals([credit, ...data.ledger], data.withdrawals);
@@ -240,7 +242,13 @@ void main() {
         clock: () => figmaNow,
       );
       final ticket = await service.send(
-        const HelpRequest(subject: DemoHelp.subject, message: 'Help'),
+        HelpRequest(
+          subject: 'Kudi Box activation',
+          message: 'Help',
+          activation: kudiBox.withProgress(
+            ActivationProgress(startedAt: figmaNow),
+          ),
+        ),
       );
       expect(ticket.status, HelpTicketStatus.open);
       final updates = await service.watch(ticket.id).toList();
@@ -248,6 +256,7 @@ void main() {
       final replied = updates.last;
       expect(replied.status, HelpTicketStatus.replied);
       expect(replied.credit?.amountKobo, 150000);
+      expect(replied.credit?.id, kudiBox.creditId);
       expect(
         replied.messages.last.body,
         'Thanks, Adaeze. All three steps confirmed. ₦1,500.00 is in your '
@@ -269,16 +278,16 @@ void main() {
       addTearDown(container.dispose);
       await container.read(walletProvider.future);
       final credit = LedgerEntry(
-        id: DemoHelp.creditId,
+        id: kudiBox.creditId,
         type: LedgerType.award,
-        amountKobo: DemoHelp.rewardKobo,
+        amountKobo: kudiBox.rewardKobo,
         createdAt: figmaNow,
       );
       container.read(walletProvider.notifier)
         ..credit(credit)
         ..credit(credit);
       final wallet = container.read(walletProvider).value!;
-      expect(wallet.ledger.where((l) => l.id == DemoHelp.creditId).length, 1);
+      expect(wallet.ledger.where((l) => l.id == kudiBox.creditId).length, 1);
       expect(wallet.totals.withdrawableKobo, 1400000);
     });
   });
@@ -300,9 +309,5 @@ void main() {
         .value!
         .firstWhere((b) => b.id == 'unibooks');
     expect(unibooks.brand.unanswered, 0);
-  });
-
-  test('support credits the Kudi Box reward on the activation payout row', () {
-    expect(DemoHelp.creditId, ActivationsNotifier.creditId('a2'));
   });
 }

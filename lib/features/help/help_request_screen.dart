@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
-import '../../data/help_data.dart';
+import '../../data/activations_data.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/button.dart';
@@ -15,15 +15,17 @@ import '../../ui/field.dart';
 import '../../ui/proof_tile.dart';
 import '../../ui/top_bar.dart';
 import '../../ui/video_preview.dart';
+import '../activations/activations_state.dart';
 import '../discover/discover_routes.dart';
 import 'help_routes.dart';
 import 'help_state.dart';
 
 /// B10 · Help request (141:5818), opened from the proof-submitted screen
-/// (B9). What happened goes in the one Field, several lines, up to 1,000
-/// characters with a live count; a recording is optional and goes up
-/// before it can be sent. Send to support opens the thread in its place,
-/// so back from the thread returns to the activation.
+/// (B9) about that activation, which names the thread ("Kudi Box
+/// activation" in the frame). What happened goes in the one Field, several
+/// lines, up to 1,000 characters with a live count; a recording is
+/// optional and goes up before it can be sent. Send to support opens the
+/// thread in its place, so back from the thread returns to the activation.
 ///
 /// Where the build parts from the frame: the message box is Exp/Field (the
 /// one text entry component) where Figma draws a plain frame, so focus
@@ -32,10 +34,10 @@ import 'help_state.dart';
 /// sticker follows the Exp/VideoPreview master (brand, white cross) where
 /// the frame's older instance is white with a red cross.
 class HelpRequestScreen extends ConsumerStatefulWidget {
-  const HelpRequestScreen({super.key, this.subject});
+  const HelpRequestScreen({super.key, this.about});
 
-  /// What the request is about; the Kudi Box activation in the demo.
-  final String? subject;
+  /// The id of the activation the request is about.
+  final String? about;
 
   static const int maxLength = 1000;
 
@@ -55,11 +57,11 @@ class _HelpRequestScreenState extends ConsumerState<HelpRequestScreen> {
     super.dispose();
   }
 
-  Future<void> _send() async {
+  Future<void> _send(Activation? activation) async {
     FocusScope.of(context).unfocus();
     final ticket = await ref
         .read(helpDraftProvider.notifier)
-        .send(widget.subject ?? DemoHelp.subject);
+        .send(helpSubject(activation), activation: activation);
     if (!mounted) return;
     if (ticket == null) {
       setState(() => _shakes++);
@@ -85,6 +87,10 @@ class _HelpRequestScreenState extends ConsumerState<HelpRequestScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final about = widget.about;
+    final activation = about == null
+        ? null
+        : ref.watch(activationProvider(about));
     final draft = ref.watch(helpDraftProvider);
     final count = _thousands.format(draft.message.characters.length);
     final limit = _thousands.format(HelpRequestScreen.maxLength);
@@ -154,9 +160,9 @@ class _HelpRequestScreenState extends ConsumerState<HelpRequestScreen> {
                         const SizedBox(height: IqSpace.s4),
                         _Recording(
                           draft: draft,
-                          onAdd: ref
+                          onAdd: () => ref
                               .read(helpDraftProvider.notifier)
-                              .addRecording,
+                              .addRecording(about: activation?.business),
                           onRemove: _remove,
                         ),
                       ],
@@ -177,7 +183,7 @@ class _HelpRequestScreenState extends ConsumerState<HelpRequestScreen> {
                         width: double.infinity,
                         disabled: !draft.canSend && !draft.sending,
                         loading: draft.sending,
-                        onTap: _send,
+                        onTap: () => _send(activation),
                       ),
                       const SizedBox(height: IqSpace.s2),
                       Text(

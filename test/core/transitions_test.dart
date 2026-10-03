@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:iqly_mobile/core/motion.dart';
 import 'package:iqly_mobile/core/transitions.dart';
 import 'package:iqly_mobile/theme/theme.dart';
+import 'package:iqly_mobile/ui/top_bar.dart';
 
 const _size = Size(390, 844);
 const _sheetHeight = 400.0;
@@ -131,6 +132,24 @@ double _opacity(WidgetTester tester, String page) {
   for (final widget in tester.widgetList(
     find.ancestor(
       of: find.byKey(ValueKey(page)),
+      matching: find.byWidgetPredicate(
+        (w) => w is FadeTransition || w is Opacity,
+      ),
+    ),
+  )) {
+    opacity *= widget is FadeTransition
+        ? widget.opacity.value
+        : (widget as Opacity).opacity;
+  }
+  return opacity;
+}
+
+/// The product of every fade above [finder].
+double _opacityOf(WidgetTester tester, Finder finder) {
+  var opacity = 1.0;
+  for (final widget in tester.widgetList(
+    find.ancestor(
+      of: finder,
       matching: find.byWidgetPredicate(
         (w) => w is FadeTransition || w is Opacity,
       ),
@@ -378,6 +397,31 @@ void main() {
       expect(_dx(tester, 'b'), 0);
       expect(router.state.uri.path, '/b');
     }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+  });
+
+  group('whenUncovered', () {
+    testWidgets('runs at once with nothing over the page, else once the page '
+        'above has gone', (tester) async {
+      final router = await _pump(tester);
+      final a = tester.element(find.byKey(const ValueKey('a')));
+      var ran = 0;
+      whenUncovered(a, () => ran++);
+      expect(ran, 1);
+
+      router.push('/b');
+      await tester.pump();
+      await tester.pump(_ms * 150);
+      whenUncovered(a, () => ran++);
+      await tester.pumpAndSettle();
+      expect(ran, 1);
+
+      router.pop();
+      await tester.pump();
+      await tester.pump(_ms * 200);
+      expect(ran, 1);
+      await tester.pump(_ms * 41);
+      expect(ran, 2);
+    });
   });
 
   group('keyboard', () {
@@ -791,6 +835,151 @@ void main() {
       expect(_opacity(tester, 'card'), 1);
       await tester.pump(_ms);
       expect(tester.hasRunningAnimations, isFalse);
+    });
+  });
+
+  group('page bars', () {
+    Widget page(Widget bar) => Material(
+      color: IqColors.bg,
+      child: Column(children: [bar, const Spacer()]),
+    );
+
+    IqTopBar bar(String title, {bool back = true}) => IqTopBar(
+      variant: IqTopBarVariant.page,
+      title: title,
+      showBack: back,
+      onBack: () {},
+    );
+
+    Future<GoRouter> bars(WidgetTester tester) => _pumpWith(
+      tester,
+      GoRouter(
+        initialLocation: '/first',
+        routes: [
+          GoRoute(
+            path: '/first',
+            pageBuilder: (c, s) => pushPage(s, page(bar('First'))),
+          ),
+          GoRoute(
+            path: '/second',
+            pageBuilder: (c, s) => pushPage(s, page(bar('Second'))),
+          ),
+          GoRoute(
+            path: '/wrapped',
+            pageBuilder: (c, s) => pushPage(
+              s,
+              page(
+                ChromeHero(
+                  tag: ChromeTags.back,
+                  shuttle: IqTopBar.shuttle,
+                  child: bar('Wrapped'),
+                ),
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/two-states',
+            pageBuilder: (c, s) => pushPage(
+              s,
+              page(Stack(children: [bar('Leaving'), bar('Coming')])),
+            ),
+          ),
+          GoRoute(
+            path: '/home',
+            pageBuilder: (c, s) =>
+                pushPage(s, page(const IqTopBar(title: 'Discover'))),
+          ),
+          GoRoute(
+            path: '/no-back',
+            pageBuilder: (c, s) =>
+                pushPage(s, page(bar('Withdraw', back: false))),
+          ),
+        ],
+      ),
+    );
+
+    /// Where the bar is drawn: its flying copy while one flies.
+    Offset drawn(WidgetTester tester) =>
+        tester.getTopLeft(find.byType(IqTopBar).last);
+
+    testWidgets('every Page bar holds its back button across a push and a '
+        'pop while the titles cross (spec 4.3)', (tester) async {
+      final router = await bars(tester);
+      final rest = drawn(tester);
+      router.push('/second');
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 60);
+      expect(drawn(tester), rest);
+      expect(
+        _opacityOf(tester, find.text('First').last),
+        closeTo(1 - _ei(0.5), 0.02),
+      );
+      expect(_opacityOf(tester, find.text('Second').last), 0);
+      await tester.pumpAndSettle();
+
+      router.pop();
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 48);
+      expect(drawn(tester), rest);
+      expect(
+        _opacityOf(tester, find.text('Second').last),
+        closeTo(1 - _ei(0.5), 0.02),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Second'), findsNothing);
+      expect(find.byType(IqTopBar), findsOneWidget);
+    });
+
+    testWidgets('a bar a screen already wraps in the chrome hero flies once', (
+      tester,
+    ) async {
+      final router = await bars(tester);
+      final rest = drawn(tester);
+      router.push('/wrapped');
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 150);
+      expect(drawn(tester), rest);
+      await tester.pumpAndSettle();
+      expect(find.byType(Hero), findsOneWidget);
+    });
+
+    testWidgets('a page that holds two bars as one state dissolves into the '
+        'next offers one of them to the flight', (tester) async {
+      final router = await bars(tester);
+      final rest = drawn(tester);
+      router.push('/two-states');
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 150);
+      expect(tester.takeException(), isNull);
+      expect(drawn(tester), rest);
+      await tester.pumpAndSettle();
+      router.pop();
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 120);
+      expect(tester.takeException(), isNull);
+      expect(drawn(tester), rest);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('a Home bar, and a Page bar with no back button, ride their '
+        'page', (tester) async {
+      final router = await bars(tester);
+      final rest = drawn(tester);
+      for (final location in ['/home', '/no-back']) {
+        router.push(location);
+        await tester.pump();
+        await tester.pump();
+        await tester.pump(_ms * 150);
+        expect(drawn(tester).dx, closeTo(rest.dx + 24 * (1 - _eo(0.5)), 0.5));
+        await tester.pumpAndSettle();
+        router.pop();
+        await tester.pumpAndSettle();
+      }
     });
   });
 

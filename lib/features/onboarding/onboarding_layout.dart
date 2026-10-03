@@ -93,13 +93,10 @@ class _OnboardingStepScaffoldState extends State<OnboardingStepScaffold> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  ChromeHero(
-                    tag: ChromeTags.back,
-                    child: IqTopBar(
-                      variant: IqTopBarVariant.page,
-                      title: '',
-                      onBack: widget.onBack,
-                    ),
+                  IqTopBar(
+                    variant: IqTopBarVariant.page,
+                    title: '',
+                    onBack: widget.onBack,
                   ),
                   SizedBox(
                     height: 48,

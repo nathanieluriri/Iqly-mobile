@@ -9,7 +9,6 @@ import '../../core/flags.dart';
 import '../../core/money.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
-import '../../core/transitions.dart';
 import '../../data/models.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -68,14 +67,10 @@ class BriefDetailScreen extends ConsumerWidget {
               children: [
                 Stack(
                   children: [
-                    ChromeHero(
-                      tag: ChromeTags.back,
-                      shuttle: IqTopBar.shuttle,
-                      child: IqTopBar(
-                        variant: IqTopBarVariant.page,
-                        title: 'Brief',
-                        onBack: () => leave(context),
-                      ),
+                    IqTopBar(
+                      variant: IqTopBarVariant.page,
+                      title: 'Brief',
+                      onBack: () => leave(context),
                     ),
                     if (brief != null && Flags.savedBriefs)
                       Positioned(

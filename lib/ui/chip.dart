@@ -20,7 +20,9 @@ enum IqChipState { standard, selected }
 /// ease-out; selecting crossfades the fill and label (120) while the tick's
 /// 16 px slot opens and the tick pops from .6, so a Wrap's neighbours glide
 /// with the width each frame; deselecting fades the tick as its slot closes
-/// (120, ease-in). Reduced motion: colours and width cut, no scale.
+/// (120, ease-in). A change made while the chip is hidden (its page covered)
+/// is in place when it shows again, with no motion. Reduced motion: colours
+/// and width cut, no scale.
 class IqChip extends StatefulWidget {
   const IqChip({
     super.key,
@@ -54,11 +56,13 @@ class _IqChipState extends State<IqChip> with SingleTickerProviderStateMixin {
 
   bool get _reduced => MediaQuery.disableAnimationsOf(context);
 
+  bool get _hidden => !TickerMode.valuesOf(context).enabled;
+
   @override
   void didUpdateWidget(IqChip old) {
     super.didUpdateWidget(old);
     if (widget.state == old.state) return;
-    if (_reduced) {
+    if (_reduced || _hidden) {
       _tick.value = _selected ? 1 : 0;
       return;
     }
@@ -78,7 +82,7 @@ class _IqChipState extends State<IqChip> with SingleTickerProviderStateMixin {
   Widget build(BuildContext context) {
     final selected = _selected;
     final onChanged = widget.onChanged;
-    final ink = motion(context, IqChip.pop);
+    final ink = _hidden ? Duration.zero : motion(context, IqChip.pop);
     final curve = selected ? IqCurves.easeOut : IqCurves.easeIn;
     return Semantics(
       selected: selected,

@@ -10,10 +10,12 @@ import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/discover/brief_detail_screen.dart';
 import 'package:iqly_mobile/features/discover/discover_state.dart';
+import 'package:iqly_mobile/features/discover/discover_widgets.dart';
 import 'package:iqly_mobile/features/discover/filters_sheet.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
 import 'package:iqly_mobile/features/discover/saved_briefs_screen.dart';
 import 'package:iqly_mobile/router.dart';
+import 'package:iqly_mobile/theme/theme.dart';
 import 'package:iqly_mobile/ui/banner.dart';
 import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/chip.dart';
@@ -94,6 +96,26 @@ ScrollPosition _feed(WidgetTester tester) => tester
     .position;
 
 double _top(WidgetTester tester, Finder finder) => tester.getTopLeft(finder).dy;
+
+/// The product of every fade above [finder].
+double _shown(WidgetTester tester, Finder finder) {
+  var opacity = 1.0;
+  for (final widget in tester.widgetList(
+    find.ancestor(
+      of: finder,
+      matching: find.byWidgetPredicate(
+        (w) => w is FadeTransition || w is Opacity || w is SliverFadeTransition,
+      ),
+    ),
+  )) {
+    opacity *= switch (widget) {
+      FadeTransition(:final opacity) => opacity.value,
+      SliverFadeTransition(:final opacity) => opacity.value,
+      _ => (widget as Opacity).opacity,
+    };
+  }
+  return opacity;
+}
 
 Finder get _chips => find.byType(IqChip).first;
 
@@ -298,20 +320,33 @@ void main() {
     expect(find.text('Open polls').hitTestable(), findsNothing);
   });
 
-  testWidgets('a lens chip fades the content in, 200 ms, no stagger', (
-    tester,
-  ) async {
+  testWidgets('a lens chip holds the chrome and crosses the content over '
+      '200 ms, so cards on both lenses stay steady (spec 3.7)', (tester) async {
     final haptics = recordHaptics(tester);
     await pumpApp(tester, Routes.home, reducedMotion: false);
+    final chipsBottom = tester.getBottomLeft(find.byType(FeedChips)).dy;
+    final shared = find.text('Open polls');
+    final old = find.descendant(
+      of: find.byType(LensCrossfade),
+      matching: find.byType(RawImage),
+    );
+    expect(old, findsNothing);
+
     await tester.tap(find.text('All'));
     await tester.pump();
-    await tester.pump(_ms * 100);
-    final fade = tester.widget<SliverFadeTransition>(
-      find.byType(SliverFadeTransition),
+    expect(_shown(tester, shared), 1);
+    expect(_shown(tester, old), 1);
+    final clip = tester.widget<ClipRect>(
+      find.ancestor(of: old, matching: find.byType(ClipRect)).first,
     );
-    expect(fade.opacity.value, closeTo(_eo(0.5), 0.01));
-    await tester.pumpAndSettle();
-    expect(fade.opacity.value, 1);
+    expect(clip.clipper!.getClip(const Size(390, 844)).top, chipsBottom);
+    await tester.pump(_ms * 100);
+    expect(_shown(tester, shared), 1);
+    expect(_shown(tester, old), closeTo(1 - _eo(0.5), 0.01));
+    await tester.pump(_ms * 101);
+    await tester.pump();
+    expect(old, findsNothing);
+    expect(_shown(tester, shared), 1);
     expect(haptics, ['HapticFeedbackType.selectionClick']);
 
     // Saved is its own route, served with no page transition.
@@ -319,6 +354,112 @@ void main() {
     await tester.pump();
     expect(find.byType(SavedBriefsScreen), findsOneWidget);
     expect(find.byType(HomeScreen).hitTestable(), findsNothing);
+    expect(_shown(tester, old), 1);
+    await tester.pumpAndSettle();
+    expect(old, findsNothing);
+  });
+
+  testWidgets('a second pick while the content crosses starts a new '
+      'crossing from what is on screen', (tester) async {
+    await pumpApp(tester, Routes.home, reducedMotion: false);
+    final old = find.descendant(
+      of: find.byType(LensCrossfade),
+      matching: find.byType(RawImage),
+    );
+    await tester.tap(find.text('All'));
+    await tester.pump();
+    await tester.pump(_ms * 100);
+    expect(_shown(tester, old), closeTo(1 - _eo(0.5), 0.01));
+    await tester.tap(find.text('For you'));
+    await tester.pump();
+    expect(old, findsOneWidget);
+    expect(_shown(tester, old), 1);
+    await tester.pump(_ms * 100);
+    expect(_shown(tester, old), closeTo(1 - _eo(0.5), 0.01));
+    await tester.pumpAndSettle();
+    expect(old, findsNothing);
+    expect(_shown(tester, find.text('Open polls')), 1);
+  });
+
+  testWidgets('reduced motion: a lens chip cuts to the new content', (
+    tester,
+  ) async {
+    await pumpApp(tester, Routes.home);
+    await tester.tap(find.text('All'));
+    await tester.pump();
+    expect(
+      find.descendant(
+        of: find.byType(LensCrossfade),
+        matching: find.byType(RawImage),
+      ),
+      findsNothing,
+    );
+    expect(_shown(tester, find.text('Open polls')), 1);
+  });
+
+  testWidgets('Filters: Show N briefs crosses the feed under the dropping '
+      'sheet (spec 6.21)', (tester) async {
+    await pumpApp(tester, Routes.filters, reducedMotion: false);
+    await tester.tap(find.text('TIER'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Advanced'));
+    await tester.pumpAndSettle();
+    final old = find.descendant(
+      of: find.byType(LensCrossfade),
+      matching: find.byType(RawImage),
+    );
+    expect(old, findsNothing);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(FiltersSheet),
+        matching: find.textContaining('Show '),
+      ),
+    );
+    await tester.pump();
+    expect(_shown(tester, old), 1);
+    await tester.pump(_ms * 100);
+    expect(_shown(tester, old), closeTo(1 - _eo(0.5), 0.01));
+    await tester.pumpAndSettle();
+    expect(old, findsNothing);
+    expect(find.byType(FiltersSheet), findsNothing);
+  });
+
+  testWidgets('Saved to For you goes straight to For you: All never lights '
+      '(spec 3.7)', (tester) async {
+    await pumpApp(tester, Routes.home, reducedMotion: false);
+    await tester.tap(find.text('All'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Saved'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SavedBriefsScreen), findsOneWidget);
+
+    Color fill(String label) {
+      final chip = find.descendant(
+        of: find.byType(HomeScreen),
+        matching: find.byWidgetPredicate(
+          (w) => w is IqChip && w.label == label,
+        ),
+      );
+      final box = tester.widget<Container>(
+        find.descendant(of: chip, matching: find.byType(Container)).first,
+      );
+      return (box.decoration! as BoxDecoration).color!;
+    }
+
+    await tester.tap(find.text('For you'));
+    var shown = 0;
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(_ms * 16);
+      if (find.byType(HomeScreen).evaluate().isEmpty) continue;
+      shown++;
+      expect(fill('All'), IqColors.card, reason: 'frame $i');
+    }
+    expect(shown, greaterThan(8));
+    await tester.pumpAndSettle();
+    expect(find.byType(SavedBriefsScreen), findsNothing);
+    expect(fill('For you'), IqColors.brand);
+    expect(fill('Saved'), IqColors.card);
+    expect(fill('All'), IqColors.card);
   });
 
   testWidgets('Try again sends the banner up; a failed retry brings it back', (
