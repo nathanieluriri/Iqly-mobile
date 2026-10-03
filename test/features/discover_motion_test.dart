@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/motion.dart';
+import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/discover/brief_detail_screen.dart';
@@ -44,6 +45,14 @@ class _Controlled extends ScriptedRepository {
     }
     return super.briefs(load: load);
   }
+}
+
+/// The feed answers at once, the Activations summary when the test says so.
+class _LateActivations extends ScriptedRepository {
+  final summary = Completer<ActivationsSummary>();
+
+  @override
+  Future<ActivationsSummary> activationsSummary() => summary.future;
 }
 
 /// The feed fails to load, and the retry waits for the test.
@@ -117,6 +126,27 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(IqSkeleton), findsNothing);
     expect(find.text('Closing soon'), findsOneWidget);
+  });
+
+  testWidgets('the feed waits for Open polls and Activations above it', (
+    tester,
+  ) async {
+    final repository = _LateActivations();
+    await pumpApp(tester, Routes.home, repository: repository);
+    await tester.pump(_ms * 300);
+    await tester.pump();
+    expect(find.byType(IqSkeleton), findsNWidgets(4));
+    await tester.pump(_ms * 900);
+    expect(find.byType(IqTicketCard), findsNothing);
+    expect(find.byType(IqSkeleton), findsNWidgets(4));
+
+    repository.summary.complete(DemoData.activations);
+    await tester.pumpAndSettle();
+    expect(find.byType(IqSkeleton), findsNothing);
+    expect(
+      _top(tester, find.text('Activations')),
+      lessThan(_top(tester, find.byType(IqTicketCard).first)),
+    );
   });
 
   testWidgets('pull to refresh in one slot: fade, arm, hold, Done, close', (

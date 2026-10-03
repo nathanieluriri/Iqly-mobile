@@ -275,6 +275,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ref.watch(feedInterestsProvider);
     final data = feed.value;
     final failed = feed.hasError && !feed.isLoading;
+    final proposalsPending =
+        (Flags.polls && _pending(ref.watch(pollBrandsProvider))) ||
+        (Flags.activations && _pending(ref.watch(activationsSummaryProvider)));
     final onboardingDone = ref.watch(
       sessionProvider.select((s) => s.onboardingDone),
     );
@@ -341,7 +344,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                             ),
                           LoadingGate.builder(
                             key: const ValueKey('gate'),
-                            loading: data == null && !failed,
+                            loading:
+                                (data == null && !failed) || proposalsPending,
                             onOpen: (after) => _arrivals.play(after: after),
                             builder: (context, phase, skeletonOpacity) =>
                                 _body(phase, skeletonOpacity, data, nudge),
@@ -481,6 +485,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ),
     ),
   ];
+
+  /// Open polls and Activations sit above the feed, so the feed waits for
+  /// their first answer rather than being pushed down when they land.
+  static bool _pending(AsyncValue<Object?> value) =>
+      !value.hasValue && !value.hasError;
 
   /// Open polls and the Activations row, each behind its flag.
   List<_Item> _proposals() {
