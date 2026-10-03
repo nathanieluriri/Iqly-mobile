@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
-import '../../core/transitions.dart';
 import '../../data/models.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -76,14 +75,10 @@ class _SelectBankScreenState extends ConsumerState<SelectBankScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  ChromeHero(
-                    tag: ChromeTags.back,
-                    shuttle: IqTopBar.shuttle,
-                    child: IqTopBar(
-                      variant: IqTopBarVariant.page,
-                      title: 'Select bank',
-                      onBack: _back,
-                    ),
+                  IqTopBar(
+                    variant: IqTopBarVariant.page,
+                    title: 'Select bank',
+                    onBack: _back,
                   ),
                   StaggerItem(
                     index: 0,

@@ -1029,7 +1029,11 @@ typedef ChromeShuttle = Widget Function(
 /// hit-testable under the flight, so a back tap halfway through a push
 /// still lands. Under reduced motion it turns its hero off and the chrome
 /// crossfades with its page.
-class ChromeHero extends StatelessWidget {
+///
+/// A page that holds two of one [tag] at once (one state dissolving into
+/// the next) offers only the older to a flight, as a navigator takes one
+/// hero per tag from each page; the newer takes over once the older goes.
+class ChromeHero extends StatefulWidget {
   const ChromeHero({
     super.key,
     required this.tag,
@@ -1060,36 +1064,110 @@ class ChromeHero extends StatelessWidget {
         );
       };
 
+  /// Whether chrome built at [context] may carry its own [ChromeHero]: it is
+  /// not inside another Hero (heroes do not nest) nor drawn in a flight.
+  static bool canCarry(BuildContext context) =>
+      context.findAncestorWidgetOfExactType<Hero>() == null &&
+      context.findAncestorWidgetOfExactType<_InFlight>() == null;
+
+  @override
+  State<ChromeHero> createState() => _ChromeHeroState();
+}
+
+class _ChromeHeroState extends State<ChromeHero> {
+  /// The chrome heroes on each page by tag, oldest first.
+  static final _pages = Expando<Map<Object, List<_ChromeHeroState>>>();
+
+  List<_ChromeHeroState>? _line;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _line ??= _join();
+  }
+
+  @override
+  void didUpdateWidget(ChromeHero old) {
+    super.didUpdateWidget(old);
+    if (old.tag == widget.tag) return;
+    _leave();
+    _line = _join();
+  }
+
+  List<_ChromeHeroState>? _join() {
+    final route = ModalRoute.of(context);
+    if (route == null) return null;
+    return ((_pages[route] ??= {})[widget.tag] ??= [])..add(this);
+  }
+
+  void _leave() {
+    final line = _line;
+    _line = null;
+    if (line == null) return;
+    final led = identical(line.first, this);
+    line.remove(this);
+    if (!led || line.isEmpty) return;
+    final next = line.first;
+    WidgetsBinding.instance.addPostFrameCallback((_) => next._lead());
+  }
+
+  void _lead() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _leave();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Hero(
-      tag: tag,
-      curve: IqCurves.linear,
-      flightShuttleBuilder: (context, animation, direction, fromHero, toHero) {
-        final from = (fromHero.widget as Hero).child;
-        final to = (toHero.widget as Hero).child;
-        final push = direction == HeroFlightDirection.push;
-        final shuttle = this.shuttle;
-        // The flight is drawn in the navigator's overlay, outside every
-        // page's Material, where text would take the framework's fallback
-        // style (a yellow double underline).
-        return Material(
-          type: MaterialType.transparency,
-          child: shuttle == null
-              ? (push ? to : from)
-              : shuttle(
-                  context,
-                  push ? animation : ReverseAnimation(animation),
-                  from,
-                  to,
+    final line = _line;
+    final shuttle = widget.shuttle;
+    return HeroMode(
+      enabled: line == null || identical(line.first, this),
+      child: Hero(
+        tag: widget.tag,
+        curve: IqCurves.linear,
+        flightShuttleBuilder:
+            (context, animation, direction, fromHero, toHero) {
+              final from = (fromHero.widget as Hero).child;
+              final to = (toHero.widget as Hero).child;
+              final push = direction == HeroFlightDirection.push;
+              // The flight is drawn in the navigator's overlay, outside every
+              // page's Material, where text would take the framework's
+              // fallback style (a yellow double underline).
+              return _InFlight(
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: shuttle == null
+                      ? (push ? to : from)
+                      : shuttle(
+                          context,
+                          push ? animation : ReverseAnimation(animation),
+                          from,
+                          to,
+                        ),
                 ),
-        );
-      },
-      placeholderBuilder: (context, size, child) =>
-          Opacity(opacity: 0, child: child),
-      child: child,
+              );
+            },
+        placeholderBuilder: (context, size, child) =>
+            Opacity(opacity: 0, child: child),
+        child: widget.child,
+      ),
     );
   }
+}
+
+/// Marks chrome drawn in a [ChromeHero]'s flight.
+class _InFlight extends StatelessWidget {
+  const _InFlight({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => child;
 }
 
 /// Same screen, new state (spec 3.4): [child], told apart by its key,

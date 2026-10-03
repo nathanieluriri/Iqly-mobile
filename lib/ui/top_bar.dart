@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 import '../core/motion.dart';
+import '../core/transitions.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 import 'pressable.dart';
@@ -20,9 +21,10 @@ enum IqTopBarVariant { home, page, sheet }
 /// panel while pressed (100 ms, back in 160); a new greeting crossfades in
 /// (150 ms); the unread count pops in (.6 to 1, 220 ms; no sooner than 200
 /// ms after the bar appears), rolls when it changes and pops out (150 ms
-/// ease-in) at zero. Across a push between two Page bars, each in a
-/// ChromeHero with [shuttle], the back button holds still while the titles
-/// cross.
+/// ease-in) at zero. A Page bar with its back button carries itself as
+/// chrome: across a push or a pop to another such bar the back button holds
+/// still while the titles cross ([shuttle]). Home and Sheet bars share
+/// nothing and ride their page.
 class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
   const IqTopBar({
     super.key,
@@ -68,7 +70,9 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
     Widget from,
     Widget to,
   ) {
-    if ((from as IqTopBar).title == (to as IqTopBar).title) return to;
+    final old = _barOf(from);
+    final next = _barOf(to);
+    if (old.title == next.title) return next;
     return AnimatedBuilder(
       animation: progress,
       builder: (context, _) {
@@ -91,14 +95,14 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
         );
         return Stack(
           children: [
-            ClipRect(clipper: const _BarSide(back: true), child: to),
+            ClipRect(clipper: const _BarSide(back: true), child: next),
             ClipRect(
               clipper: const _BarSide(back: false),
-              child: Opacity(opacity: 1 - out, child: from),
+              child: Opacity(opacity: 1 - out, child: old),
             ),
             ClipRect(
               clipper: const _BarSide(back: false),
-              child: Opacity(opacity: come, child: to),
+              child: Opacity(opacity: come, child: next),
             ),
           ],
         );
@@ -115,6 +119,19 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (variant == IqTopBarVariant.page &&
+        showBack &&
+        ChromeHero.canCarry(context)) {
+      return ChromeHero(
+        tag: ChromeTags.back,
+        shuttle: shuttle,
+        child: _Carried(this),
+      );
+    }
+    return _drawn();
+  }
+
+  Widget _drawn() {
     return SizedBox(
       height: preferredSize.height,
       width: double.infinity,
@@ -273,6 +290,19 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 }
+
+/// A Page bar as its own chrome hero holds it; in flight [IqTopBar.shuttle]
+/// draws the bars themselves.
+class _Carried extends StatelessWidget {
+  const _Carried(this.bar);
+
+  final IqTopBar bar;
+
+  @override
+  Widget build(BuildContext context) => bar._drawn();
+}
+
+IqTopBar _barOf(Widget look) => look is _Carried ? look.bar : look as IqTopBar;
 
 /// The Page bar's back button side (12 padding, 44 button, 8 gap) or the
 /// rest of it.

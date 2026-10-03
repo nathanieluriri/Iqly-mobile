@@ -15,6 +15,7 @@ import 'package:iqly_mobile/theme/theme.dart';
 import 'package:iqly_mobile/ui/highlight.dart';
 import 'package:iqly_mobile/ui/notification.dart';
 import 'package:iqly_mobile/ui/pressable.dart';
+import 'package:iqly_mobile/ui/top_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../golden/screens/app_harness.dart';
@@ -156,6 +157,58 @@ void main() {
     expect(_rowOpacity(tester, 'n4'), first);
     await tester.pumpAndSettle();
     expect(tester.hasRunningAnimations, isFalse);
+  });
+
+  testWidgets('Notifications to Brief and back: one back button holds and '
+      'the titles cross in place (spec 4.3)', (tester) async {
+    await pumpApp(
+      tester,
+      Routes.notifications,
+      overrides: [...laneOverrides(), ...walletOverrides()],
+      reducedMotion: false,
+    );
+    final rest = tester.getTopLeft(find.byType(IqTopBar));
+    double shown(String title) {
+      var opacity = 1.0;
+      for (final w in tester.widgetList(
+        find.ancestor(
+          of: find.text(title).last,
+          matching: find.byWidgetPredicate(
+            (w) => w is FadeTransition || w is Opacity,
+          ),
+        ),
+      )) {
+        opacity *= w is FadeTransition
+            ? w.opacity.value
+            : (w as Opacity).opacity;
+      }
+      return opacity;
+    }
+
+    await tester.tap(find.text('Closes in 6h'));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+    expect(tester.getTopLeft(find.byType(IqTopBar).last), rest);
+    expect(shown('Notifications'), closeTo(0.5, 0.2));
+    expect(shown('Brief'), 0);
+    await tester.pumpAndSettle();
+    expect(find.byType(BriefDetailScreen), findsOneWidget);
+
+    await tester.tap(
+      find
+          .byWidgetPredicate(
+            (w) => w is IqPressable && w.semanticLabel == 'Back',
+          )
+          .last,
+    );
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 48));
+    expect(tester.getTopLeft(find.byType(IqTopBar).last), rest);
+    expect(shown('Notifications'), 0);
+    await tester.pumpAndSettle();
+    expect(find.byType(BriefDetailScreen), findsNothing);
   });
 
   group('the unread dot', () {
