@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/session.dart';
 import '../../router.dart';
+import '../onboarding/onboarding_draft.dart';
 import '../../theme/theme.dart';
 import 'splash_mark.dart';
 
@@ -64,8 +65,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     }
     await _wait(_settledHold);
     if (!mounted) return;
-    final signedIn = ref.read(sessionProvider).signedIn;
-    context.go(signedIn ? Routes.home : Routes.landing);
+    final session = ref.read(sessionProvider);
+    if (!session.signedIn) return context.go(Routes.landing);
+    final draft = ref.read(onboardingDraftProvider);
+    context.go(onboardingLaunchRoute(session, draft) ?? Routes.home);
   }
 
   void _go(SplashPhase phase, Duration duration) {

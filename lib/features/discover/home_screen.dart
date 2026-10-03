@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../core/responsive.dart';
 import '../../theme/theme.dart';
 import '../entry/first_tip.dart';
+import '../onboarding/setup_nudge.dart';
 
 /// Placeholder until row B1 is built.
 class HomeScreen extends StatelessWidget {
@@ -20,7 +21,14 @@ class HomeScreen extends StatelessWidget {
             child: CenteredContent(
               child: Padding(
                 padding: const EdgeInsets.all(IqSpace.s4),
-                child: Text('Discover', style: IqText.display),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text('Discover', style: IqText.display),
+                    const SizedBox(height: IqSpace.s3),
+                    const SetupNudge(),
+                  ],
+                ),
               ),
             ),
           ),

@@ -10,8 +10,8 @@ import 'features/entry/password_screen.dart';
 import 'features/entry/reset_link_sent_screen.dart';
 import 'features/entry/sign_in_screen.dart';
 import 'features/entry/your_name_screen.dart';
+import 'features/onboarding/onboarding_routes.dart';
 import 'features/splash/splash_screen.dart';
-import 'theme/theme.dart';
 
 abstract final class Routes {
   static const splash = '/splash';
@@ -24,6 +24,12 @@ abstract final class Routes {
   static const resetLinkSent = '/forgot-password/sent';
   static const notificationsAsk = '/turn-on-notifications';
   static const onboarding = '/onboarding';
+  static const onboardingAboutYou = '/onboarding/about-you';
+  static const onboardingWhereYouLive = '/onboarding/where-you-live';
+  static const onboardingWhereYouStudied = '/onboarding/where-you-studied';
+  static const onboardingWhatYouLike = '/onboarding/what-you-like';
+  static const onboardingResume = '/onboarding/resume';
+  static const onboardingDone = '/onboarding/done';
 }
 
 final routerProvider = Provider<GoRouter>(
@@ -44,10 +50,7 @@ final routerProvider = Provider<GoRouter>(
         pageBuilder: (context, state) => _dissolve(state, const HomeScreen()),
       ),
       ..._entryRoutes,
-      GoRoute(
-        path: Routes.onboarding,
-        builder: (context, state) => const _OnboardingPlaceholder(),
-      ),
+      ...onboardingRoutes,
     ],
   ),
 );
@@ -91,14 +94,3 @@ final _entryRoutes = [
     builder: (context, state) => const NotificationsAskScreen(),
   ),
 ];
-
-/// Stands in for the B11 onboarding hub until that row merges.
-class _OnboardingPlaceholder extends StatelessWidget {
-  const _OnboardingPlaceholder();
-
-  @override
-  Widget build(BuildContext context) => const Scaffold(
-    backgroundColor: IqColors.bg,
-    body: SafeArea(child: Text('Onboarding', style: IqText.display)),
-  );
-}
