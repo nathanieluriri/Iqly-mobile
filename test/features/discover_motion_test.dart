@@ -359,6 +359,28 @@ void main() {
     expect(old, findsNothing);
   });
 
+  testWidgets('a second pick while the content crosses starts a new '
+      'crossing from what is on screen', (tester) async {
+    await pumpApp(tester, Routes.home, reducedMotion: false);
+    final old = find.descendant(
+      of: find.byType(LensCrossfade),
+      matching: find.byType(RawImage),
+    );
+    await tester.tap(find.text('All'));
+    await tester.pump();
+    await tester.pump(_ms * 100);
+    expect(_shown(tester, old), closeTo(1 - _eo(0.5), 0.01));
+    await tester.tap(find.text('For you'));
+    await tester.pump();
+    expect(old, findsOneWidget);
+    expect(_shown(tester, old), 1);
+    await tester.pump(_ms * 100);
+    expect(_shown(tester, old), closeTo(1 - _eo(0.5), 0.01));
+    await tester.pumpAndSettle();
+    expect(old, findsNothing);
+    expect(_shown(tester, find.text('Open polls')), 1);
+  });
+
   testWidgets('reduced motion: a lens chip cuts to the new content', (
     tester,
   ) async {

@@ -1216,6 +1216,8 @@ class _LensCrossfadeState extends State<LensCrossfade>
 
   void _cross(BuildContext line) {
     if (MediaQuery.disableAnimationsOf(context)) return;
+    // A pick and the filter change it makes both ask in one frame, and the
+    // last frame drawn is the same for both.
     if (_fade.isAnimating && _fade.value == 0) return;
     final content = _content.currentContext?.findRenderObject();
     final edge = line.findRenderObject();
@@ -1247,21 +1249,26 @@ class _LensCrossfadeState extends State<LensCrossfade>
   @override
   Widget build(BuildContext context) {
     final image = _image;
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        _LastFrame(key: _content, child: widget.child),
-        if (image != null)
-          IgnorePointer(
-            child: ClipRect(
-              clipper: _Below(_line),
-              child: FadeTransition(
-                opacity: _was,
-                child: RawImage(image: image, fit: BoxFit.fill),
+    // The last frame holds a crossing still under way, so a second pick
+    // starts from what is on screen.
+    return _LastFrame(
+      key: _content,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          widget.child,
+          if (image != null)
+            IgnorePointer(
+              child: ClipRect(
+                clipper: _Below(_line),
+                child: FadeTransition(
+                  opacity: _was,
+                  child: RawImage(image: image, fit: BoxFit.fill),
+                ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }
