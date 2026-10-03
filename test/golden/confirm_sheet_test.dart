@@ -43,4 +43,51 @@ void main() {
     await tester.pumpAndSettle();
     expect(results, [true, false]);
   });
+
+  testWidgets('a second Remove tap or a scrim tap pops only the sheet', (
+    tester,
+  ) async {
+    for (final second in ['remove', 'scrim']) {
+      final results = <bool>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          key: ValueKey(second),
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (context) => Scaffold(
+                      body: TextButton(
+                        onPressed: () async =>
+                            results.add(await showIqConfirmSheet(context)),
+                        child: const Text('screen'),
+                      ),
+                    ),
+                  ),
+                ),
+                child: const Text('home'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('home'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('screen'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove recording'));
+      await tester.pump(const Duration(milliseconds: 50));
+      if (second == 'remove') {
+        await tester.tap(find.text('Remove recording'), warnIfMissed: false);
+      } else {
+        await tester.tapAt(const Offset(20, 20));
+      }
+      await tester.pump(const Duration(milliseconds: 80));
+      await tester.tap(find.text('Remove recording'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(find.text('screen'), findsOneWidget, reason: second);
+      expect(results, [true], reason: second);
+    }
+  });
 }

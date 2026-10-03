@@ -45,4 +45,28 @@ void main() {
     await tester.pump();
     expect(tester.getSize(find.byType(IqBanner)).height, 0);
   });
+
+  testWidgets('the action takes taps across 44 pt without growing', (
+    tester,
+  ) async {
+    var taps = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              IqBanner(kind: IqBannerKind.error, onAction: () => taps++),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump(IqBanner.enter);
+    final banner = tester.getRect(find.byType(IqBanner));
+    final action = tester.getCenter(find.text('Try again'));
+    expect(banner.height, 46);
+    await tester.tapAt(Offset(action.dx, action.dy - 20));
+    await tester.tapAt(Offset(action.dx, action.dy + 20));
+    expect(taps, 2);
+  });
 }

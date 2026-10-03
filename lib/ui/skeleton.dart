@@ -82,56 +82,59 @@ class _IqSkeletonState extends State<IqSkeleton>
     );
   }
 
-  Widget _ticket(double width) => Container(
-    width: width,
-    height: 136,
-    decoration: BoxDecoration(
-      color: IqColors.tint,
-      borderRadius: BorderRadius.circular(16),
-    ),
-    child: Stack(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _bar(26, 26, 13),
-                  const SizedBox(width: IqSpace.s2),
-                  _bar(120, 12, 6),
-                ],
-              ),
-              const SizedBox(height: IqSpace.s2),
-              _bar(218, 14, 9),
-              const SizedBox(height: IqSpace.s2),
-              _bar(160, 14, 9),
-              const SizedBox(height: IqSpace.s2),
-              _bar(113, 28, 14),
-            ],
+  Widget _ticket(double width) {
+    final stub = width - 358;
+    return Container(
+      width: width,
+      height: 136,
+      decoration: BoxDecoration(
+        color: IqColors.tint,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _bar(26, 26, 13),
+                    const SizedBox(width: IqSpace.s2),
+                    _bar(120, 12, 6),
+                  ],
+                ),
+                const SizedBox(height: IqSpace.s2),
+                _bar(218, 14, 9),
+                const SizedBox(height: IqSpace.s2),
+                _bar(160, 14, 9),
+                const SizedBox(height: IqSpace.s2),
+                _bar(113, 28, 14),
+              ],
+            ),
           ),
-        ),
-        Positioned(left: 260, top: 28, child: _bar(87, 10, 5)),
-        Positioned(left: 260, top: 44, child: _bar(79, 16, 6)),
-        Positioned(left: 256, top: 96, child: _bar(83, 16, 6)),
-        Positioned(
-          left: 245.5,
-          top: 13,
-          height: 110,
-          width: 1,
-          child: IqPerforation(
-            color: IqColors.brand.withValues(alpha: 0.2),
-            thickness: 1,
-            dash: 3,
-            gap: 4,
-            roundCap: false,
+          Positioned(left: 260 + stub, top: 28, child: _bar(87, 10, 5)),
+          Positioned(left: 260 + stub, top: 44, child: _bar(79, 16, 6)),
+          Positioned(left: 256 + stub, top: 96, child: _bar(83, 16, 6)),
+          Positioned(
+            left: 245.5 + stub,
+            top: 13,
+            height: 110,
+            width: 1,
+            child: IqPerforation(
+              color: IqColors.brand.withValues(alpha: 0.2),
+              thickness: 1,
+              dash: 3,
+              gap: 4,
+              roundCap: false,
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 
   Widget _row(double width) => Container(
     width: width,

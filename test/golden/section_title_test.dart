@@ -38,4 +38,26 @@ void main() {
     await tester.tap(find.text('See all'));
     expect(taps, 1);
   });
+
+  testWidgets('See all takes taps across a 44 pt band', (tester) async {
+    var taps = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              const SizedBox(height: 40),
+              IqSectionTitle(onSeeAll: () => taps++),
+            ],
+          ),
+        ),
+      ),
+    );
+    final link = tester.getCenter(find.text('See all'));
+    final box = tester.getRect(find.byType(IqSectionTitle));
+    await tester.tapAt(Offset(link.dx, box.top - 5));
+    await tester.tapAt(Offset(link.dx, box.bottom + 5));
+    expect(box.height, lessThan(44));
+    expect(taps, 2);
+  });
 }

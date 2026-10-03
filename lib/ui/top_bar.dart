@@ -20,6 +20,7 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
     this.showCount = true,
     this.showTrailing = false,
     this.trailingIcon = IqIcons.filter,
+    this.trailingLabel = 'Filter',
     this.onBell,
     this.onBack,
     this.onTrailing,
@@ -33,6 +34,9 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
   final bool showCount;
   final bool showTrailing;
   final IqIcons trailingIcon;
+
+  /// Screen reader label for the trailing action; match it to [trailingIcon].
+  final String trailingLabel;
   final VoidCallback? onBell;
   final VoidCallback? onBack;
   final VoidCallback? onTrailing;
@@ -143,6 +147,7 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
           if (showTrailing)
             _RoundButton(
               onTap: onTrailing,
+              semanticLabel: trailingLabel,
               radius: 22,
               child: IqIcon(trailingIcon, size: 22, color: IqColors.brand),
             )

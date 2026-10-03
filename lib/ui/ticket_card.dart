@@ -158,31 +158,43 @@ class IqTicketCard extends StatelessWidget {
                 style: IqText.cardTitle.copyWith(color: text),
               ),
             ),
-            Positioned(
-              left: 16,
-              top: hero ? 144 : 92,
-              child: IqUrgency(
-                text: urgency,
-                tone:
-                    urgencyTone ??
-                    (hero ? IqUrgencyTone.hot : IqUrgencyTone.warm),
-              ),
-            ),
-            if (showRule)
+            if (hero) ...[
               Positioned(
-                left: hero ? 210 : 139,
-                top: hero ? 67 : 97,
-                right: hero ? 4 : null,
-                child: Text(
-                  rule,
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.ellipsis,
-                  style: IqText.small.copyWith(
-                    color: hero
-                        ? IqColors.primaryFg.withValues(alpha: 0.8)
-                        : IqColors.fg3,
+                left: 16,
+                top: 144,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: showBookmark ? 126 : 172,
                   ),
+                  child: IqUrgency(
+                    text: urgency,
+                    tone: urgencyTone ?? IqUrgencyTone.hot,
+                  ),
+                ),
+              ),
+              if (showRule)
+                Positioned(left: 210, top: 67, right: 4, child: _rule(hero)),
+            ] else
+              Positioned(
+                left: 16,
+                top: 92,
+                width: 222,
+                child: Row(
+                  children: [
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: showRule ? 222 - _ruleGap : 222,
+                      ),
+                      child: IqUrgency(
+                        text: urgency,
+                        tone: urgencyTone ?? IqUrgencyTone.warm,
+                      ),
+                    ),
+                    if (showRule) ...[
+                      const SizedBox(width: _ruleGap),
+                      Expanded(child: _rule(hero)),
+                    ],
+                  ],
                 ),
               ),
             Positioned(
@@ -234,4 +246,16 @@ class IqTicketCard extends StatelessWidget {
       ),
     );
   }
+
+  static const double _ruleGap = 10;
+
+  Widget _rule(bool hero) => Text(
+    rule,
+    maxLines: 1,
+    softWrap: false,
+    overflow: TextOverflow.ellipsis,
+    style: IqText.small.copyWith(
+      color: hero ? IqColors.primaryFg.withValues(alpha: 0.8) : IqColors.fg3,
+    ),
+  );
 }

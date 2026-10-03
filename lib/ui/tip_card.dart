@@ -52,17 +52,23 @@ class IqTipCard extends StatelessWidget {
             height: 1,
             child: ColoredBox(color: IqColors.line),
           ),
+          // A 44 pt strip from the hairline to the card edge keeps the text
+          // at Figma's 28, 179 while meeting the minimum tap size.
           Positioned(
-            left: 28,
-            top: 179,
+            left: 14,
+            top: 156,
+            height: 44,
             child: IqPressable(
               onTap: onAction,
               semanticLabel: action,
-              builder: (context, pressed) => Text(
-                action,
-                maxLines: 1,
-                softWrap: false,
-                style: IqText.button.copyWith(color: IqColors.brand),
+              builder: (context, pressed) => Padding(
+                padding: const EdgeInsets.fromLTRB(14, 23, 14, 0),
+                child: Text(
+                  action,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: IqText.button.copyWith(color: IqColors.brand),
+                ),
               ),
             ),
           ),

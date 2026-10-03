@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/ui/urgency.dart';
 import 'package:iqly_mobile/ui/bookmark.dart';
 import 'package:iqly_mobile/ui/ticket_card.dart';
 
@@ -45,5 +46,22 @@ void main() {
     expect(saved, IqBookmarkState.on);
     await tester.tap(find.text('A tagline for a solar kiosk network'));
     expect(opened, 1);
+  });
+
+  testWidgets('a long deadline keeps clear of the rule', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: IqTicketCard(
+            kind: IqTicketCardKind.list,
+            urgency: 'Closes in 25 days',
+          ),
+        ),
+      ),
+    );
+    final chip = tester.getRect(find.byType(IqUrgency));
+    final rule = tester.getRect(find.text('Top 10% paid'));
+    expect(rule.left, greaterThanOrEqualTo(chip.right + 10));
+    expect(rule.right, lessThanOrEqualTo(246));
   });
 }

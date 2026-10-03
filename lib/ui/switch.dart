@@ -13,10 +13,18 @@ enum IqSwitchState { off, on }
 /// Figma over brief: both knobs carry a 1.5 px Color/brand outline.
 /// Figma gives no timing; 160 ms follows the kit rule of 150 to 300 ms ease-out.
 class IqSwitch extends StatelessWidget {
-  const IqSwitch({super.key, this.state = IqSwitchState.off, this.onChanged});
+  const IqSwitch({
+    super.key,
+    this.state = IqSwitchState.off,
+    this.onChanged,
+    this.semanticLabel,
+  });
 
   final IqSwitchState state;
   final ValueChanged<IqSwitchState>? onChanged;
+
+  /// Needed when the switch stands alone; Exp/SettingRow supplies its own.
+  final String? semanticLabel;
 
   static const Duration duration = Duration(milliseconds: 160);
 
@@ -30,6 +38,7 @@ class IqSwitch extends StatelessWidget {
     return Semantics(
       toggled: on,
       enabled: onChanged != null,
+      label: semanticLabel,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onChanged == null

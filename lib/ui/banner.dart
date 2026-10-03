@@ -135,27 +135,32 @@ class _Strip extends StatelessWidget {
       ),
     };
     final glyph = IqIcon(icon, size: 22, color: ink);
+    // The vertical padding lives on the children so the action's 44 pt hit
+    // box fits inside the 46 pt strip without growing it.
+    const vertical = EdgeInsets.symmetric(vertical: IqSpace.s3);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: IqRadius.xl,
-        vertical: IqSpace.s3,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
         color: fill,
         borderRadius: BorderRadius.circular(IqRadius.xl),
       ),
       child: Row(
         children: [
-          if (banner.kind == IqBannerKind.urgent)
-            _Pulse(child: glyph)
-          else
-            glyph,
+          Padding(
+            padding: vertical,
+            child: banner.kind == IqBannerKind.urgent
+                ? _Pulse(child: glyph)
+                : glyph,
+          ),
           const SizedBox(width: IqSpace.s3),
           Expanded(
-            child: Text(
-              banner.title ?? title,
-              style: IqText.smallStrong.copyWith(color: IqColors.fg),
+            child: Padding(
+              padding: vertical,
+              child: Text(
+                banner.title ?? title,
+                style: IqText.smallStrong.copyWith(color: IqColors.fg),
+              ),
             ),
           ),
           if (banner.showAction) ...[
@@ -163,20 +168,29 @@ class _Strip extends StatelessWidget {
             IqPressable(
               onTap: banner.onAction,
               semanticLabel: banner.action ?? action,
-              builder: (context, pressed) => Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    banner.action ?? action,
-                    style: IqText.smallStrong.copyWith(color: IqColors.primary),
+              builder: (context, pressed) => ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  widthFactor: 1,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        banner.action ?? action,
+                        style: IqText.smallStrong.copyWith(
+                          color: IqColors.primary,
+                        ),
+                      ),
+                      const SizedBox(width: IqSpace.s1),
+                      const IqIcon(
+                        IqIcons.forward,
+                        size: 14,
+                        color: IqColors.primary,
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: IqSpace.s1),
-                  const IqIcon(
-                    IqIcons.forward,
-                    size: 14,
-                    color: IqColors.primary,
-                  ),
-                ],
+                ),
               ),
             ),
           ],

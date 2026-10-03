@@ -27,4 +27,19 @@ void main() {
     await tester.tap(find.text('OK, got it'));
     expect(taps, 1);
   });
+
+  testWidgets('the action takes taps across a 44 pt strip', (tester) async {
+    var taps = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(child: IqTipCard(onAction: () => taps++)),
+        ),
+      ),
+    );
+    final card = tester.getRect(find.byType(IqTipCard));
+    await tester.tapAt(card.topLeft + const Offset(40, 158));
+    await tester.tapAt(card.topLeft + const Offset(40, 198));
+    expect(taps, 2);
+  });
 }

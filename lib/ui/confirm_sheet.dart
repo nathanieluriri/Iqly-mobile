@@ -130,20 +130,11 @@ Future<bool> showIqConfirmSheet(
 }) async {
   final result = await Navigator.of(context).push<bool>(
     _ConfirmSheetRoute(
-      builder: (context) => IqConfirmSheet(
+      builder: (context) => _ConfirmSheetBody(
         title: title,
         body: body,
         confirmLabel: confirmLabel,
         cancelLabel: cancelLabel,
-        onConfirm: () => Future.delayed(
-          MediaQuery.disableAnimationsOf(context)
-              ? Duration.zero
-              : const Duration(milliseconds: 100),
-          () {
-            if (context.mounted) Navigator.of(context).pop(true);
-          },
-        ),
-        onCancel: () => Navigator.of(context).pop(false),
       ),
       label: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     ),
@@ -151,17 +142,76 @@ Future<bool> showIqConfirmSheet(
   return result ?? false;
 }
 
+class _ConfirmSheetBody extends StatefulWidget {
+  const _ConfirmSheetBody({
+    required this.title,
+    required this.body,
+    required this.confirmLabel,
+    required this.cancelLabel,
+  });
+
+  final String title;
+  final String body;
+  final String confirmLabel;
+  final String cancelLabel;
+
+  @override
+  State<_ConfirmSheetBody> createState() => _ConfirmSheetBodyState();
+}
+
+class _ConfirmSheetBodyState extends State<_ConfirmSheetBody> {
+  bool _closing = false;
+
+  // One pop only: a second tap during the sink delay or the exit animation
+  // would otherwise pop the route underneath.
+  void _close(bool result, Duration delay) {
+    if (_closing) return;
+    _closing = true;
+    final route = ModalRoute.of(context);
+    if (route is _ConfirmSheetRoute) route.lock();
+    Future.delayed(delay, () {
+      if (mounted && route != null && route.isCurrent) {
+        Navigator.of(context).pop(result);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IqConfirmSheet(
+      title: widget.title,
+      body: widget.body,
+      confirmLabel: widget.confirmLabel,
+      cancelLabel: widget.cancelLabel,
+      onConfirm: () => _close(
+        true,
+        MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 100),
+      ),
+      onCancel: () => _close(false, Duration.zero),
+    );
+  }
+}
+
 class _ConfirmSheetRoute extends PopupRoute<bool> {
   _ConfirmSheetRoute({required this.builder, required this.label});
 
   final WidgetBuilder builder;
   final String label;
+  bool _locked = false;
+
+  void lock() {
+    if (_locked) return;
+    _locked = true;
+    changedInternalState();
+  }
 
   @override
   Color? get barrierColor => IqColors.brand.withValues(alpha: 0.5);
 
   @override
-  bool get barrierDismissible => true;
+  bool get barrierDismissible => !_locked;
 
   @override
   String? get barrierLabel => label;

@@ -30,4 +30,21 @@ void main() {
     }
     expect(taps, 1);
   });
+
+  testWidgets('the bottom band follows the OS inset, 34 minimum', (
+    tester,
+  ) async {
+    for (final (inset, height) in [(0.0, 88.0), (48.0, 102.0)]) {
+      await tester.pumpWidget(
+        MediaQuery(
+          data: MediaQueryData(viewPadding: EdgeInsets.only(bottom: inset)),
+          child: const Directionality(
+            textDirection: TextDirection.ltr,
+            child: Center(child: IqBarButton()),
+          ),
+        ),
+      );
+      expect(tester.getSize(find.byType(IqBarButton)).height, height);
+    }
+  });
 }
