@@ -14,6 +14,7 @@ import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/balance_hero.dart';
 import 'package:iqly_mobile/ui/dock.dart';
 import 'package:iqly_mobile/ui/field.dart';
+import 'package:iqly_mobile/ui/list_row.dart';
 import 'package:iqly_mobile/ui/timeline_row.dart';
 
 import '../golden/screens/app_harness.dart';
@@ -460,6 +461,44 @@ void main() {
     await _tap(tester, find.text('Withdraw'));
     await _settle(tester);
     await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+    semantics.dispose();
+  });
+
+  for (final (name, location, repository) in [
+    ('pending', '/wallet/withdrawals/w4/pending', RequestedWalletRepository()),
+    ('tracker', '/wallet/withdrawals/w3', WalletRepository()),
+    ('failed', '/wallet/withdrawals/w1', WalletRepository()),
+    ('Home after payout', Routes.home, PaidOutWalletRepository()),
+  ]) {
+    testWidgets('$name: 44 pt targets, all labelled', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await pumpApp(
+        tester,
+        location,
+        repository: repository,
+        overrides: walletOverrides(),
+      );
+      await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      semantics.dispose();
+    });
+  }
+
+  testWidgets('select bank: every row is a labelled 64 pt target', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    await pumpApp(
+      tester,
+      Routes.selectBank,
+      repository: WalletRepository(),
+      overrides: walletOverrides(),
+    );
+    await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+    expect(
+      tester.getSize(find.widgetWithText(IqListRow, 'Kuda Bank')).height,
+      64,
+    );
     semantics.dispose();
   });
 
