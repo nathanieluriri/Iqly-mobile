@@ -4,8 +4,8 @@ import '../theme/theme.dart';
 
 /// The sticker shadow: a filled copy of the pill offset 4,4 behind it. On
 /// press the pill drops onto the shadow (Figma draws it at 3,3) and the
-/// shadow disappears, 120 ms ease-out. Primary buttons and the next button
-/// only; never chips, tabs or cards.
+/// shadow disappears, 120 ms ease-out (a cut under reduced motion). Primary
+/// buttons and the next button only; never chips, tabs or cards.
 class Sticker extends StatelessWidget {
   const Sticker({
     super.key,
@@ -29,6 +29,9 @@ class Sticker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final drop = pressed ? pressOffset : 0.0;
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : Sticker.duration;
     return Stack(
       clipBehavior: Clip.none,
       children: [
