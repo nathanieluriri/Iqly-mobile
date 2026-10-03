@@ -870,8 +870,9 @@ class _Tail extends StatelessWidget {
   }
 }
 
-/// The empty and failed feed: an optional illustration, then a card title
-/// and one line appearing at +80 and +120 (spec 6.24).
+/// The empty and failed feed: an optional illustration rising in, its
+/// accent sweeping from +160 (spec 5.29), then a card title and one line
+/// appearing at +80 and +120 (spec 6.24).
 class _EmptyText extends StatelessWidget {
   const _EmptyText({required this.title, this.body, this.illustration});
 
@@ -886,7 +887,10 @@ class _EmptyText extends StatelessWidget {
       child: Column(
         children: [
           if (illustration != null) ...[
-            IqIllustration(illustration!),
+            IqIllustration(
+              illustration!,
+              entrance: IqIllustrationEntrance.rise,
+            ),
             const SizedBox(height: IqSpace.s2),
           ],
           Appear(

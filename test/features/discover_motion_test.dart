@@ -18,6 +18,7 @@ import 'package:iqly_mobile/ui/banner.dart';
 import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/chip.dart';
 import 'package:iqly_mobile/ui/dock.dart';
+import 'package:iqly_mobile/ui/illustration.dart';
 import 'package:iqly_mobile/ui/pull_indicator.dart';
 import 'package:iqly_mobile/ui/skeleton.dart';
 import 'package:iqly_mobile/ui/switch.dart';
@@ -511,6 +512,106 @@ void main() {
     await tester.pump(_ms * 120);
     expect(find.text(before), findsNothing);
     expect(find.text(after), findsOneWidget);
+  });
+
+  group('the Trophy of the empty feed arrives (spec 6.24, 5.29)', () {
+    final pictures = find.descendant(
+      of: find.byType(IqIllustration),
+      matching: find.byWidgetPredicate(
+        (w) => w.runtimeType.toString() == 'SvgPicture',
+      ),
+    );
+
+    /// How far the Trophy's ink still sits below its place.
+    double inkDrop(WidgetTester tester) => tester
+        .widget<Transform>(
+          find
+              .descendant(
+                of: find.byType(IqIllustration),
+                matching: find.byType(Transform),
+              )
+              .at(1),
+        )
+        .transform
+        .getTranslation()
+        .y;
+
+    Future<void> rises(WidgetTester tester) async {
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(_ms * 16);
+        if (find.byType(IqIllustration).evaluate().isNotEmpty) break;
+      }
+      await tester.pump(_ms * 240);
+      expect(find.byType(IqIllustration), findsOneWidget);
+      // The whole, the ink rising 16 over 320 and the accent sweeping from
+      // +160.
+      expect(pictures, findsNWidgets(3));
+      expect(inkDrop(tester), greaterThan(0));
+      expect(inkDrop(tester), lessThan(IqTravel.riseHero));
+      await tester.pump(_ms * 400);
+      expect(pictures, findsOneWidget);
+    }
+
+    testWidgets('no briefs', (tester) async {
+      await pumpApp(
+        tester,
+        Routes.home,
+        repository: ScriptedRepository([BriefsCall.empty]),
+        reducedMotion: false,
+        settle: false,
+      );
+      expect(find.byType(IqIllustration), findsNothing);
+      await rises(tester);
+      expect(find.text('No open briefs right now'), findsOneWidget);
+    });
+
+    testWidgets('no briefs match the filters', (tester) async {
+      final container = await pumpApp(
+        tester,
+        Routes.home,
+        reducedMotion: false,
+        settle: false,
+      );
+      await tester.pump(_ms * 600);
+      container
+          .read(discoverFiltersProvider.notifier)
+          .apply(
+            const DiscoverFilters(
+              tier: Tier.advanced,
+              category: Category.technology,
+            ),
+          );
+      await rises(tester);
+      expect(find.text('No briefs match these filters'), findsOneWidget);
+    });
+
+    testWidgets('reduced motion: it fades in over 150, standing still', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        Routes.home,
+        repository: ScriptedRepository([BriefsCall.empty]),
+        settle: false,
+      );
+      for (var i = 0; i < 10; i++) {
+        await tester.pump();
+        if (find.byType(IqIllustration).evaluate().isNotEmpty) break;
+      }
+      await tester.pump();
+      await tester.pump(_ms * 75);
+      expect(pictures, findsOneWidget);
+      expect(
+        tester
+            .widget<Opacity>(
+              find.ancestor(of: pictures, matching: find.byType(Opacity)).first,
+            )
+            .opacity,
+        closeTo(_eo(0.5), 0.02),
+      );
+      await tester.pumpAndSettle();
+      expect(pictures, findsOneWidget);
+    });
   });
 
   testWidgets('the first tip waits for the feed to land and arrive (227:11321 '
