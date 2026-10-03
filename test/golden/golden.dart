@@ -35,7 +35,7 @@ Future<void> loadAppFonts() async {
 }
 
 /// Renders [child] on the app theme at [size] (the Figma frame by default)
-/// and compares it with test/golden/goldens/<name>.png. Update with
+/// and compares it with `test/golden/goldens/<name>.png`. Update with
 /// `flutter test --update-goldens test/golden`.
 Future<void> expectGolden(
   WidgetTester tester,

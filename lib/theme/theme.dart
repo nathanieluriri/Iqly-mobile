@@ -23,6 +23,7 @@ ThemeData buildTheme() {
       onError: IqColors.card,
       outline: IqColors.line,
     ),
+    // Figma text styles carry no colour; the engine would paint null as white.
     textTheme: const TextTheme(
       displayLarge: IqText.display,
       headlineMedium: IqText.headline,
@@ -34,7 +35,7 @@ ThemeData buildTheme() {
       labelLarge: IqText.button,
       labelMedium: IqText.label,
       labelSmall: IqText.mono,
-    ),
+    ).apply(bodyColor: IqColors.fg, displayColor: IqColors.fg),
     // The Material ripple is not part of the design; press states are drawn by the components.
     splashFactory: NoSplash.splashFactory,
     highlightColor: IqColors.brandWash,
