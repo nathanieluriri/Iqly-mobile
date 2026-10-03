@@ -10,7 +10,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// home indicator (34) as safe-area insets, animations off. [keyboard] raises
 /// a system keyboard of that height. [prepare] seeds providers before the
 /// first frame; [act] drives the screen into the frame's state. [overrides]
-/// swap services (a zero-delay auth, say).
+/// replace providers such as the repository or swap services (a zero-delay
+/// auth, say).
 Future<void> expectScreenGolden(
   WidgetTester tester,
   String name,

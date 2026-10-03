@@ -5,13 +5,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/app.dart';
 import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/data/auth.dart';
+import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/device.dart';
+import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/next_fab.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// The whole app on a 390 x 844 phone with reduced motion and instant
-/// services. Without [start] it plays the splash through to the landing.
+/// services and data. Without [start] it plays the splash through to the landing.
 /// [prepare] seeds providers before the first route.
 Future<ProviderContainer> bootApp(
   WidgetTester tester, {
@@ -38,6 +40,7 @@ Future<ProviderContainer> bootApp(
       deviceServiceProvider.overrideWithValue(
         device ?? DemoDeviceService(delay: Duration.zero),
       ),
+      repositoryProvider.overrideWithValue(DemoRepository(DemoData())),
     ],
   );
   addTearDown(container.dispose);

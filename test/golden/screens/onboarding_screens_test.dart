@@ -1,6 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:iqly_mobile/features/discover/home_screen.dart';
+import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/features/onboarding/about_you_screen.dart';
 import 'package:iqly_mobile/features/onboarding/done_screen.dart';
 import 'package:iqly_mobile/features/onboarding/resume_screen.dart';
@@ -10,6 +12,7 @@ import 'package:iqly_mobile/features/onboarding/where_you_live_screen.dart';
 import 'package:iqly_mobile/features/onboarding/where_you_studied_screen.dart';
 
 import '../golden.dart';
+import 'app_harness.dart';
 import 'onboarding_harness.dart';
 
 void main() {
@@ -119,17 +122,18 @@ void main() {
     );
   });
 
-  testWidgets('188:8570 Home setup nudge (Discover placeholder)', (
-    tester,
-  ) async {
-    final prefs = await onboardingPrefs(
-      draft: {...sampleAboutYou, 'deferred': true},
-      firstTipSeen: true,
-    );
-    await expectGolden(
+  testWidgets('188:8570 Home setup nudge', (tester) async {
+    await pumpApp(
       tester,
-      'onboarding_home_setup_nudge',
-      onboardingFrame(prefs, const HomeScreen()),
+      Routes.home,
+      prefs: {
+        ...signedInPrefs(onboardingDone: false),
+        'onboarding.draft': jsonEncode({...sampleAboutYou, 'deferred': true}),
+      },
+    );
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/onboarding_home_setup_nudge.png'),
     );
   });
 }

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'features/discover/home_screen.dart';
+import 'features/discover/discover_routes.dart';
 import 'features/entry/forgot_password_screen.dart';
 import 'features/entry/landing_screen.dart';
 import 'features/entry/notifications_ask_screen.dart';
@@ -12,6 +12,7 @@ import 'features/entry/sign_in_screen.dart';
 import 'features/entry/your_name_screen.dart';
 import 'features/onboarding/onboarding_routes.dart';
 import 'features/splash/splash_screen.dart';
+import 'features/submissions/submissions_routes.dart';
 
 abstract final class Routes {
   static const splash = '/splash';
@@ -30,11 +31,30 @@ abstract final class Routes {
   static const onboardingWhatYouLike = '/onboarding/what-you-like';
   static const onboardingResume = '/onboarding/resume';
   static const onboardingDone = '/onboarding/done';
+  static const savedBriefs = '/home/saved';
+  static const filters = '/home/filters';
+  static const submissions = '/submissions';
+  static const submissionDetail = '/submissions/:id';
+  static const result = '/submissions/:id/result';
+  static const wallet = '/wallet';
+  static const profile = '/profile';
+  static const notifications = '/notifications';
+  static const briefDetail = '/briefs/:id';
+  static const submit = '/briefs/:id/submit';
+  static const polls = '/polls';
+  static const activations = '/activations';
+
+  static String brief(String id) => '/briefs/$id';
+  static String submitTo(String id) => '/briefs/$id/submit';
 }
 
-final routerProvider = Provider<GoRouter>(
-  (ref) => GoRouter(
-    initialLocation: Routes.splash,
+final routerProvider = Provider<GoRouter>((ref) => buildRouter());
+
+GoRouter buildRouter({String initialLocation = Routes.splash}) {
+  final rootKey = GlobalKey<NavigatorState>();
+  return GoRouter(
+    navigatorKey: rootKey,
+    initialLocation: initialLocation,
     routes: [
       GoRoute(
         path: Routes.splash,
@@ -45,15 +65,14 @@ final routerProvider = Provider<GoRouter>(
         pageBuilder: (context, state) =>
             _dissolve(state, const LandingScreen()),
       ),
-      GoRoute(
-        path: Routes.home,
-        pageBuilder: (context, state) => _dissolve(state, const HomeScreen()),
-      ),
+      appShellRoute(rootKey),
+      ...discoverRoutes,
       ..._entryRoutes,
       ...onboardingRoutes,
+      ...submissionRoutes,
     ],
-  ),
-);
+  );
+}
 
 /// The splash hands off with a 0.4 s ease-out dissolve (Figma prototype).
 CustomTransitionPage<void> _dissolve(GoRouterState state, Widget child) =>

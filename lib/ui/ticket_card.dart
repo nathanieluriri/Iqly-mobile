@@ -32,6 +32,7 @@ class IqTicketCard extends StatelessWidget {
     this.showRule = true,
     this.showBookmark = false,
     this.spots = '12 spots left',
+    this.showSpotsMarker = true,
     this.urgency = 'Closes in 6h',
     this.urgencyTone,
     this.bookmarkState = IqBookmarkState.off,
@@ -48,6 +49,10 @@ class IqTicketCard extends StatelessWidget {
   final bool showRule;
   final bool showBookmark;
   final String? spots;
+
+  /// Off for open capacity: Discover screens hide the Highlight marker
+  /// behind "No limit".
+  final bool showSpotsMarker;
   final String urgency;
 
   /// Defaults to Hot on Hero and Warm on List, as in Figma.
@@ -131,11 +136,8 @@ class IqTicketCard extends StatelessWidget {
                   ),
                   const SizedBox(width: IqSpace.s2),
                   Expanded(
-                    child: Text(
+                    child: _Meta(
                       meta,
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.ellipsis,
                       style: IqText.small.copyWith(
                         color: hero
                             ? IqColors.sidebarFg.withValues(alpha: 0.8)
@@ -225,11 +227,28 @@ class IqTicketCard extends StatelessWidget {
               Positioned(
                 left: hero ? 201 : 256,
                 top: hero ? 148 : 96,
-                child: IqHighlight(
-                  text: spots!,
-                  tone: hero ? IqHighlightTone.inverse : IqHighlightTone.orange,
-                  style: IqText.smallStrong,
-                ),
+                child: showSpotsMarker
+                    ? IqHighlight(
+                        text: spots!,
+                        tone: hero
+                            ? IqHighlightTone.inverse
+                            : IqHighlightTone.orange,
+                        style: IqText.smallStrong,
+                      )
+                    : Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: IqSpace.s1,
+                          vertical: 1,
+                        ),
+                        child: Text(
+                          spots!,
+                          maxLines: 1,
+                          softWrap: false,
+                          style: IqText.smallStrong.copyWith(
+                            color: hero ? IqColors.primaryFg : IqColors.brand,
+                          ),
+                        ),
+                      ),
               ),
             if (showBookmark)
               Positioned(
@@ -258,4 +277,47 @@ class IqTicketCard extends StatelessWidget {
       color: hero ? IqColors.primaryFg.withValues(alpha: 0.8) : IqColors.fg3,
     ),
   );
+}
+
+/// "Business · Tier": a long business name gives way first, so the tier
+/// after the last separator shows in full. When the tier would leave the name
+/// less than 40 pt (large text), the whole line ellipsizes instead.
+class _Meta extends StatelessWidget {
+  const _Meta(this.text, {required this.style});
+
+  final String text;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    Text part(String value) => Text(
+      value,
+      maxLines: 1,
+      softWrap: false,
+      overflow: TextOverflow.ellipsis,
+      style: style,
+    );
+    final cut = text.lastIndexOf(' · ');
+    if (cut < 0) return part(text);
+    final tail = text.substring(cut);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final painter = TextPainter(
+          text: TextSpan(text: tail, style: style),
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+          maxLines: 1,
+        )..layout();
+        final fits = painter.width + 40 <= constraints.maxWidth;
+        painter.dispose();
+        if (!fits) return part(text);
+        return Row(
+          children: [
+            Flexible(child: part(text.substring(0, cut))),
+            part(tail),
+          ],
+        );
+      },
+    );
+  }
 }

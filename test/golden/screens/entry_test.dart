@@ -1,7 +1,7 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/data/auth.dart';
-import 'package:iqly_mobile/features/discover/home_screen.dart';
 import 'package:iqly_mobile/features/entry/entry_state.dart';
 import 'package:iqly_mobile/features/entry/forgot_password_screen.dart';
 import 'package:iqly_mobile/features/entry/landing_screen.dart';
@@ -14,6 +14,7 @@ import 'package:iqly_mobile/ui/box_field.dart';
 import 'package:iqly_mobile/ui/next_fab.dart';
 
 import '../golden.dart';
+import 'app_harness.dart';
 import 'screen_golden.dart';
 
 void main() {
@@ -89,11 +90,14 @@ void main() {
   });
 
   testWidgets('home first tip (227:11321)', (tester) async {
-    await expectScreenGolden(
+    await pumpApp(
       tester,
-      'entry_home_first_tip',
-      const HomeScreen(),
-      prefs: {'session.signedIn': true, 'session.onboardingDone': true},
+      Routes.home,
+      prefs: signedInPrefs(firstTipSeen: false),
+    );
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/entry_home_first_tip.png'),
     );
   });
 
