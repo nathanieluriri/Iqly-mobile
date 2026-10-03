@@ -11,11 +11,16 @@ class SessionState {
     this.signedIn = false,
     this.onboardingDone = false,
     this.firstTipSeen = false,
+    this.firstName,
   });
 
   final bool signedIn;
   final bool onboardingDone;
   final bool firstTipSeen;
+
+  /// The first name typed at sign-up on this device, null after any other
+  /// sign-in. Welcome and Done greet it until the account says otherwise.
+  final String? firstName;
 
   SessionState copyWith({
     bool? signedIn,
@@ -25,6 +30,7 @@ class SessionState {
     signedIn: signedIn ?? this.signedIn,
     onboardingDone: onboardingDone ?? this.onboardingDone,
     firstTipSeen: firstTipSeen ?? this.firstTipSeen,
+    firstName: firstName,
   );
 }
 
@@ -32,6 +38,7 @@ class SessionNotifier extends Notifier<SessionState> {
   static const _signedIn = 'session.signedIn';
   static const _onboardingDone = 'session.onboardingDone';
   static const _firstTipSeen = 'session.firstTipSeen';
+  static const _firstName = 'session.firstName';
 
   @override
   SessionState build() {
@@ -40,6 +47,7 @@ class SessionNotifier extends Notifier<SessionState> {
       signedIn: prefs.getBool(_signedIn) ?? false,
       onboardingDone: prefs.getBool(_onboardingDone) ?? false,
       firstTipSeen: prefs.getBool(_firstTipSeen) ?? false,
+      firstName: prefs.getString(_firstName),
     );
   }
 
@@ -51,6 +59,19 @@ class SessionNotifier extends Notifier<SessionState> {
 
   Future<void> setFirstTipSeen(bool value) =>
       _set(_firstTipSeen, value, state.copyWith(firstTipSeen: value));
+
+  Future<void> setFirstName(String? value) async {
+    state = SessionState(
+      signedIn: state.signedIn,
+      onboardingDone: state.onboardingDone,
+      firstTipSeen: state.firstTipSeen,
+      firstName: value,
+    );
+    final prefs = ref.read(sharedPreferencesProvider);
+    await (value == null
+        ? prefs.remove(_firstName)
+        : prefs.setString(_firstName, value));
+  }
 
   Future<void> _set(String key, bool value, SessionState next) async {
     state = next;

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 import 'pressable.dart';
@@ -23,6 +24,12 @@ enum IqFieldSize { standard, large }
 /// Figma over brief: the mock caret is on Size=Large Active only (a focused field still shows the live cursor).
 /// Figma over brief: Picker Valid hides the help line.
 /// Figma over brief: the Active label is Color/primary, the Error label Color/err-strong.
+/// Screens hide the status icon and the note on some Valid instances (B0
+/// Your name, Sign in): [showStatus] and [showNote] carry those overrides.
+/// A new picker value crossfades in (200 ms ease-out, none under reduced
+/// motion). Turning to Error wipes the err stroke in left to right (240 ms)
+/// and the help line rises in (160 ms); the screen adds the shake
+/// (lib/core/motion).
 class IqField extends StatefulWidget {
   const IqField({
     super.key,
@@ -45,6 +52,10 @@ class IqField extends StatefulWidget {
     this.textInputAction,
     this.inputFormatters,
     this.autofocus = false,
+    this.obscureText = false,
+    this.autofillHints,
+    this.showStatus = true,
+    this.showNote = true,
   });
 
   final IqFieldKind kind;
@@ -66,6 +77,10 @@ class IqField extends StatefulWidget {
   final TextInputAction? textInputAction;
   final List<TextInputFormatter>? inputFormatters;
   final bool autofocus;
+  final bool obscureText;
+  final Iterable<String>? autofillHints;
+  final bool showStatus;
+  final bool showNote;
 
   @override
   State<IqField> createState() => _IqFieldState();
@@ -121,7 +136,8 @@ class _IqFieldState extends State<IqField> {
       _ => IqColors.fg3,
     };
     final showHelp =
-        state == IqFieldState.error || (state == IqFieldState.valid && _isText);
+        state == IqFieldState.error ||
+        (state == IqFieldState.valid && _isText && widget.showNote);
     final mockCaret =
         _large &&
         state == IqFieldState.active &&
@@ -137,6 +153,10 @@ class _IqFieldState extends State<IqField> {
             textInputAction: widget.textInputAction,
             inputFormatters: widget.inputFormatters,
             autofocus: widget.autofocus,
+            obscureText: widget.obscureText,
+            autocorrect: !widget.obscureText,
+            enableSuggestions: !widget.obscureText,
+            autofillHints: widget.autofillHints,
             maxLines: 1,
             style: valueStyle.copyWith(color: IqColors.fg),
             cursorColor: IqColors.brand,
@@ -147,13 +167,10 @@ class _IqFieldState extends State<IqField> {
               hintStyle: valueStyle.copyWith(color: IqColors.fg3),
             ),
           )
-        : Text(
-            state == IqFieldState.empty
+        : _PickerValue(
+            text: state == IqFieldState.empty
                 ? widget.pickerPlaceholder
                 : widget.pickerValue,
-            maxLines: 1,
-            softWrap: false,
-            overflow: TextOverflow.ellipsis,
             style: valueStyle.copyWith(
               color: state == IqFieldState.empty ? IqColors.fg3 : IqColors.fg,
             ),
@@ -187,11 +204,11 @@ class _IqFieldState extends State<IqField> {
                   ],
                 ),
               ),
-              if (state == IqFieldState.valid) ...[
+              if (state == IqFieldState.valid && widget.showStatus) ...[
                 const SizedBox(width: IqSpace.s3),
                 const IqIcon(IqIcons.success, size: 22, color: IqColors.ok),
               ],
-              if (state == IqFieldState.error) ...[
+              if (state == IqFieldState.error && widget.showStatus) ...[
                 const SizedBox(width: IqSpace.s3),
                 const IqIcon(IqIcons.error, size: 22, color: IqColors.err),
               ],
@@ -237,17 +254,30 @@ class _IqFieldState extends State<IqField> {
                         : IqColors.line,
                   ),
                 ),
-                if (state == IqFieldState.active || state == IqFieldState.error)
-                  Positioned(
+                if (state == IqFieldState.active)
+                  const Positioned(
+                    key: ValueKey('stroke-active'),
                     left: 0,
                     right: 0,
                     top: 1.14,
                     height: 4,
                     child: IqVector(
                       'assets/vectors/field-stroke.svg',
-                      color: state == IqFieldState.error
-                          ? IqColors.err
-                          : IqColors.accent,
+                      color: IqColors.accent,
+                    ),
+                  ),
+                if (state == IqFieldState.error)
+                  const Positioned(
+                    key: ValueKey('stroke-error'),
+                    left: 0,
+                    right: 0,
+                    top: 1.14,
+                    height: 4,
+                    child: Wipe(
+                      child: IqVector(
+                        'assets/vectors/field-stroke.svg',
+                        color: IqColors.err,
+                      ),
                     ),
                   ),
               ],
@@ -255,14 +285,22 @@ class _IqFieldState extends State<IqField> {
           ),
           if (showHelp) ...[
             const SizedBox(height: IqSpace.s1p5),
-            Text(
-              state == IqFieldState.valid ? widget.note : widget.help,
-              style: IqText.small.copyWith(
-                color: state == IqFieldState.valid
-                    ? IqColors.ok
-                    : IqColors.errStrong,
+            if (state == IqFieldState.valid)
+              Text(
+                widget.note,
+                style: IqText.small.copyWith(color: IqColors.ok),
+              )
+            else
+              Reveal(
+                key: ValueKey(widget.help),
+                child: Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    widget.help,
+                    style: IqText.small.copyWith(color: IqColors.errStrong),
+                  ),
+                ),
               ),
-            ),
           ],
         ],
       ),
@@ -283,6 +321,38 @@ class _IqFieldState extends State<IqField> {
       semanticLabel:
           '${widget.pickerLabel}, ${state == IqFieldState.empty ? widget.pickerPlaceholder : widget.pickerValue}',
       builder: (context, pressed) => body,
+    );
+  }
+}
+
+class _PickerValue extends StatelessWidget {
+  const _PickerValue({required this.text, required this.style});
+
+  final String text;
+  final TextStyle style;
+
+  static const duration = Duration(milliseconds: 200);
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : duration,
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeOut,
+      layoutBuilder: (current, previous) => Stack(
+        alignment: AlignmentDirectional.centerStart,
+        children: [...previous, ?current],
+      ),
+      child: Text(
+        text,
+        key: ValueKey((text, style.color)),
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.ellipsis,
+        style: style,
+      ),
     );
   }
 }

@@ -69,6 +69,7 @@ class DemoData {
       deadline: at(1),
       businessName: 'Kudi Box',
       createdAt: at(-12),
+      spotsLeft: 3,
     ),
     Brief(
       id: 'c5',
@@ -81,6 +82,7 @@ class DemoData {
       deadline: at(0, 6),
       businessName: 'Sunline',
       createdAt: at(-7),
+      spotsLeft: 12,
     ),
     Brief(
       id: 'c6',

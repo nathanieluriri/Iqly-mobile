@@ -57,6 +57,7 @@ class Brief {
     required this.deadline,
     required this.businessName,
     required this.createdAt,
+    this.spotsLeft,
   });
 
   final String id;
@@ -69,6 +70,9 @@ class Brief {
   final DateTime? deadline;
   final String? businessName;
   final DateTime createdAt;
+
+  /// Illustrative (Figma tickets); demo.ts has no capacity. Null is no limit.
+  final int? spotsLeft;
 }
 
 class Submission {
