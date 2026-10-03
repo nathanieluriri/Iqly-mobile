@@ -109,16 +109,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           IqHaptics.select.play();
         }
         _armed.value = armed;
-      } else if (_armed.value) {
-        _armed.value = false;
-        _startRefresh(fromPull: true);
+      } else {
+        _release();
       }
-    } else if (n is ScrollEndNotification && _armed.value) {
-      _armed.value = false;
-      _startRefresh(fromPull: true);
+    } else if (n is ScrollEndNotification) {
+      _release();
     }
     if (metrics.extentAfter < _loadMoreWithin) _maybeLoadMore();
     return false;
+  }
+
+  /// The finger lifted: a pull past 64 refreshes.
+  void _release() {
+    if (!_armed.value) return;
+    _armed.value = false;
+    _startRefresh(fromPull: true);
   }
 
   void _maybeLoadMore() {
@@ -135,12 +140,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ref.read(discoverFeedProvider.notifier).refresh();
   }
 
-  /// A pull hands its overscroll to the slot, so nothing moves and the list
-  /// settles onto the slot; a refresh started elsewhere slides it open.
+  /// A pull hands its overscroll to the slot, so nothing jumps, and the list
+  /// settles onto the slot over 200 ms ease-out; a refresh started elsewhere
+  /// slides it open.
   void _openSlot({required bool steady}) {
     _closingAs = null;
     if (steady) {
-      _hold(1);
+      _hold(1, then: _settleOnSlot);
     } else if (_reduced) {
       setState(() => _slot.value = 1);
     } else {
@@ -171,14 +177,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   /// Sets the slot without moving what is on screen.
-  void _hold(double value) {
+  void _hold(double value, {VoidCallback? then}) {
     setState(() {
       _steady = true;
       _slot.value = value;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _steady = false);
+      if (!mounted) return;
+      setState(() => _steady = false);
+      then?.call();
     });
+  }
+
+  void _settleOnSlot() {
+    if (!_scroll.hasClients) return;
+    final top = _scroll.position.minScrollExtent;
+    if (_scroll.position.pixels >= top) return;
+    if (_reduced) {
+      _scroll.jumpTo(top);
+    } else {
+      _scroll.animateTo(
+        top,
+        duration: IqDurations.swap,
+        curve: IqCurves.easeOut,
+      );
+    }
   }
 
   void _fadeContent() {
@@ -269,62 +292,68 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             children: [
               const DiscoverTopBar(),
               Expanded(
-                child: NotificationListener<ScrollNotification>(
-                  onNotification: _onScroll,
-                  child: Arrivals(
-                    controller: _arrivals,
-                    child: CustomScrollView(
-                      controller: _scroll,
-                      physics: const AlwaysScrollableScrollPhysics(
-                        parent: BouncingScrollPhysics(),
-                      ),
-                      slivers: [
-                        _refreshSlot(data),
-                        PinnedFeedChips(
-                          selected: filters.forYou
-                              ? FeedChip.forYou
-                              : FeedChip.all,
+                child: Listener(
+                  onPointerUp: (_) => _release(),
+                  onPointerCancel: (_) => _release(),
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: _onScroll,
+                    child: Arrivals(
+                      controller: _arrivals,
+                      child: CustomScrollView(
+                        controller: _scroll,
+                        physics: const AlwaysScrollableScrollPhysics(
+                          parent: BouncingScrollPhysics(),
                         ),
-                        SliverToBoxAdapter(
-                          key: const ValueKey('banner'),
-                          child: _inset(
-                            IqBanner(
-                              kind: IqBannerKind.error,
-                              title: 'Couldn’t load. Check your connection.',
-                              action: 'Try again',
-                              visible: failed,
-                              margin: const EdgeInsets.only(bottom: IqSpace.s3),
-                              onAction: _retry,
-                            ),
+                        slivers: [
+                          _refreshSlot(data),
+                          PinnedFeedChips(
+                            selected: filters.forYou
+                                ? FeedChip.forYou
+                                : FeedChip.all,
                           ),
-                        ),
-                        if (payout != null)
                           SliverToBoxAdapter(
-                            key: const ValueKey('payout'),
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(
-                                IqSpace.s4,
-                                0,
-                                IqSpace.s4,
-                                IqSpace.s3,
+                            key: const ValueKey('banner'),
+                            child: _inset(
+                              IqBanner(
+                                kind: IqBannerKind.error,
+                                title: 'Couldn’t load. Check your connection.',
+                                action: 'Try again',
+                                visible: failed,
+                                margin: const EdgeInsets.only(
+                                  bottom: IqSpace.s3,
+                                ),
+                                onAction: _retry,
                               ),
-                              child: PayoutArrivalRow(payout: payout),
                             ),
                           ),
-                        SkeletonGate.builder(
-                          key: const ValueKey('gate'),
-                          loading: data == null && !failed,
-                          onOpen: (after) => _arrivals.play(after: after),
-                          builder: (context, phase, skeletonOpacity) =>
-                              _body(phase, skeletonOpacity, data, nudge),
-                        ),
-                        SliverToBoxAdapter(
-                          key: const ValueKey('inset'),
-                          child: SizedBox(
-                            height: AppShell.contentInset(context),
+                          if (payout != null)
+                            SliverToBoxAdapter(
+                              key: const ValueKey('payout'),
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  IqSpace.s4,
+                                  0,
+                                  IqSpace.s4,
+                                  IqSpace.s3,
+                                ),
+                                child: PayoutArrivalRow(payout: payout),
+                              ),
+                            ),
+                          SkeletonGate.builder(
+                            key: const ValueKey('gate'),
+                            loading: data == null && !failed,
+                            onOpen: (after) => _arrivals.play(after: after),
+                            builder: (context, phase, skeletonOpacity) =>
+                                _body(phase, skeletonOpacity, data, nudge),
                           ),
-                        ),
-                      ],
+                          SliverToBoxAdapter(
+                            key: const ValueKey('inset'),
+                            child: SizedBox(
+                              height: AppShell.contentInset(context),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

@@ -176,7 +176,7 @@ class Hairline extends StatelessWidget {
 /// a Color/panel card, radius 20, pulsing on the screen's skeleton beat like
 /// Exp/Skeleton (spec 5.15). It has no spec in the design system yet, so it
 /// lives with the row.
-class SkeletonCard extends StatefulWidget {
+class SkeletonCard extends StatelessWidget {
   const SkeletonCard({super.key, this.height = 96, this.radius = 20});
 
   final double height;
@@ -185,20 +185,15 @@ class SkeletonCard extends StatefulWidget {
   final double radius;
 
   @override
-  State<SkeletonCard> createState() => _SkeletonCardState();
-}
-
-class _SkeletonCardState extends State<SkeletonCard> {
-  @override
   Widget build(BuildContext context) {
     return SkeletonPulse(
       builder: (context, opacity) => FadeTransition(
         opacity: opacity,
         child: Container(
-          height: widget.height,
+          height: height,
           decoration: BoxDecoration(
             color: IqColors.panel,
-            borderRadius: BorderRadius.circular(widget.radius),
+            borderRadius: BorderRadius.circular(radius),
           ),
         ),
       ),
