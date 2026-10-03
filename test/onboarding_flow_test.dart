@@ -7,6 +7,7 @@ import 'package:iqly_mobile/app.dart';
 import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/data/onboarding_service.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
+import 'package:iqly_mobile/features/entry/notifications_ask_screen.dart';
 import 'package:iqly_mobile/features/onboarding/about_you_screen.dart';
 import 'package:iqly_mobile/features/onboarding/done_screen.dart';
 import 'package:iqly_mobile/features/onboarding/onboarding_sheets.dart';
@@ -16,6 +17,7 @@ import 'package:iqly_mobile/features/onboarding/what_you_like_screen.dart';
 import 'package:iqly_mobile/features/onboarding/where_you_live_screen.dart';
 import 'package:iqly_mobile/features/onboarding/where_you_studied_screen.dart';
 import 'package:iqly_mobile/ui/next_fab.dart';
+import 'package:iqly_mobile/ui/tip_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _RecordingService implements OnboardingService {
@@ -123,7 +125,7 @@ void main() {
     ]);
 
     await _tap(tester, find.text('Continue'));
-    expect(find.text('Notifications'), findsOneWidget);
+    expect(find.byType(NotificationsAskScreen), findsOneWidget);
   });
 
   testWidgets('reopening mid-flow lands on Resume', (tester) async {
@@ -153,6 +155,9 @@ void main() {
     await _launch(tester);
     await _tap(tester, find.text('Skip for now'));
     expect(find.byType(HomeScreen), findsOneWidget);
+    expect(find.byType(IqTipCard), findsOneWidget);
+    await _tap(tester, find.text('OK, got it'));
+    expect(find.byType(IqTipCard), findsNothing);
     expect(find.text('Finish setting up'), findsOneWidget);
     expect(find.text('3 steps left'), findsOneWidget);
     await _tap(tester, find.text('Finish setting up'));

@@ -1,7 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 import 'package:iqly_mobile/app.dart';
 import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/data/auth.dart';
@@ -14,6 +13,8 @@ import 'package:iqly_mobile/features/entry/password_screen.dart';
 import 'package:iqly_mobile/features/entry/reset_link_sent_screen.dart';
 import 'package:iqly_mobile/features/entry/sign_in_screen.dart';
 import 'package:iqly_mobile/features/entry/your_name_screen.dart';
+import 'package:iqly_mobile/features/onboarding/done_screen.dart';
+import 'package:iqly_mobile/features/onboarding/welcome_screen.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/box_field.dart';
 import 'package:iqly_mobile/ui/next_fab.dart';
@@ -108,7 +109,7 @@ void main() {
 
     await _typeInto(tester, 0, 'longenough');
     await _next(tester);
-    expect(find.text('Onboarding'), findsOneWidget);
+    expect(find.byType(WelcomeScreen), findsOneWidget);
     expect(c.read(sessionProvider).signedIn, isTrue);
     expect(c.read(sessionProvider).onboardingDone, isFalse);
   });
@@ -156,7 +157,7 @@ void main() {
     await _boot(tester);
     await tester.tap(find.byType(IqProviderButton).first);
     await tester.pumpAndSettle();
-    expect(find.text('Onboarding'), findsOneWidget);
+    expect(find.byType(WelcomeScreen), findsOneWidget);
   });
 
   testWidgets('Google: a known account goes to Discover', (tester) async {
@@ -204,15 +205,21 @@ void main() {
     expect(device.opened, [LegalLinks.privacy]);
   });
 
-  testWidgets('back from the notifications ask returns to onboarding', (
+  testWidgets('back from the notifications ask returns to onboarding Done', (
     tester,
   ) async {
-    await _boot(tester, start: Routes.onboarding);
-    GoRouter.of(tester.element(find.text('Onboarding')))
-        .push(Routes.notificationsAsk);
+    await _boot(
+      tester,
+      prefs: {'session.signedIn': true},
+      start: Routes.onboardingDone,
+    );
+    expect(find.byType(DoneScreen), findsOneWidget);
+    await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
+    expect(find.byType(NotificationsAskScreen), findsOneWidget);
     await tester.tap(find.bySemanticsLabel('Back'));
     await tester.pumpAndSettle();
-    expect(find.text('Onboarding'), findsOneWidget);
+    expect(find.byType(DoneScreen), findsOneWidget);
+    await tester.pump(const Duration(seconds: 1));
   });
 }

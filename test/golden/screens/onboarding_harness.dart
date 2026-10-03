@@ -9,10 +9,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 Future<SharedPreferences> onboardingPrefs({
   Map<String, Object?> draft = const {},
   bool onboardingDone = false,
+  bool firstTipSeen = false,
 }) async {
   SharedPreferences.setMockInitialValues({
     'session.signedIn': true,
     'session.onboardingDone': onboardingDone,
+    'session.firstTipSeen': firstTipSeen,
     if (draft.isNotEmpty) 'onboarding.draft': jsonEncode(draft),
   });
   return SharedPreferences.getInstance();

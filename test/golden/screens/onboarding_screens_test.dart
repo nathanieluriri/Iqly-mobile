@@ -111,6 +111,7 @@ void main() {
   ) async {
     final prefs = await onboardingPrefs(
       draft: {...sampleAboutYou, 'deferred': true},
+      firstTipSeen: true,
     );
     await expectGolden(
       tester,
