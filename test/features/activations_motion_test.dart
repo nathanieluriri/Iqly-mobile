@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/data/activations_service.dart';
 import 'package:iqly_mobile/features/activations/activations_routes.dart';
+import 'package:iqly_mobile/features/activations/activations_state.dart';
 import 'package:iqly_mobile/features/activations/activations_widgets.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/balance_hero.dart';
@@ -277,6 +278,53 @@ void main() {
       expect(_hero(tester).amount, '₦14,000');
       expect(_hero(tester).earned, '₦64,000.00');
       await tester.pump(const Duration(milliseconds: 500));
+    });
+
+    testWidgets('paid while another page covers it: no moment and no haptic; '
+        'back on it, the stamp lands over a wallet already paid', (
+      tester,
+    ) async {
+      final haptics = recordHaptics(tester);
+      final container = await pumpActivations(
+        tester,
+        activationPath('a2'),
+        now: friday,
+        reducedMotion: false,
+        settle: false,
+        service: instantActivations(
+          now: friday,
+          seed: Figma.world(friday, kudiBox: Figma.proofSent),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.scrollUntilVisible(
+        find.text('Ask for help'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.tap(find.text('Ask for help'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(find.text('Your proof'), findsNothing);
+
+      container.read(activationsProvider.notifier).refresh('a2');
+      await _run(tester, 1000);
+      expect(haptics, isNot(contains(_success)));
+
+      await tester.tap(_button('Back'));
+      await tester.pump();
+      final stamp = <(double, double)>[];
+      await _run(tester, 600, (at) {
+        stamp.add((_stampOpacity(tester), _stampScale(tester)));
+        expect(_hero(tester).amount, '₦14,000', reason: 'at $at ms');
+      });
+      expect(find.text('Your reward'), findsOneWidget);
+      expect(stamp.first.$1, 0);
+      expect(stamp.where((s) => _between(s.$1) && s.$2 > 1), isNotEmpty);
+      expect(stamp.last.$1, 1);
+      expect(stamp.last.$2, closeTo(1, 0.001));
+      expect(haptics, isNot(contains(_success)));
     });
 
     testWidgets('reduced motion: a 150 ms crossfade to the reward, the stamp '
