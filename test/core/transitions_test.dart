@@ -44,6 +44,26 @@ class _Sheet extends StatelessWidget {
   }
 }
 
+/// A page that makes room for the keyboard, with a foot at the bottom.
+class _Form extends StatelessWidget {
+  const _Form(this.name);
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: IqColors.bg,
+      body: Column(
+        children: [
+          const Spacer(),
+          SizedBox(key: ValueKey('$name-foot'), height: 20),
+        ],
+      ),
+    );
+  }
+}
+
 GoRouter _router([String initial = '/a']) => GoRouter(
   initialLocation: initial,
   routes: [
@@ -60,6 +80,14 @@ GoRouter _router([String initial = '/a']) => GoRouter(
     GoRoute(
       path: '/sheet',
       pageBuilder: (c, s) => sheetPage(s, const _Sheet(), scrim: IqScrim.sheet),
+    ),
+    GoRoute(
+      path: '/form-a',
+      pageBuilder: (c, s) => pushPage(s, const _Form('a')),
+    ),
+    GoRoute(
+      path: '/form-b',
+      pageBuilder: (c, s) => pushPage(s, const _Form('b')),
     ),
   ],
 );
@@ -350,6 +378,57 @@ void main() {
       expect(_dx(tester, 'b'), 0);
       expect(router.state.uri.path, '/b');
     }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+  });
+
+  group('keyboard', () {
+    double foot(WidgetTester tester, String page) =>
+        tester.getTopLeft(find.byKey(ValueKey('$page-foot'))).dy;
+
+    void keyboard(WidgetTester tester, double inset) =>
+        tester.view.viewInsets = FakeViewPadding(bottom: inset);
+
+    testWidgets('a page on its way out keeps its insets while the keyboard '
+        'moves; the page coming in follows it', (tester) async {
+      final router = await _pump(tester, initial: '/form-a');
+      keyboard(tester, 336);
+      await tester.pump();
+      expect(foot(tester, 'a'), 844 - 336 - 20);
+
+      router.push('/form-b');
+      await tester.pump();
+      for (final inset in [200.0, 80.0, 0.0]) {
+        keyboard(tester, inset);
+        await tester.pump(_ms * 50);
+        expect(foot(tester, 'a'), 844 - 336 - 20);
+        expect(foot(tester, 'b'), 844 - inset - 20);
+      }
+      await tester.pumpAndSettle();
+
+      keyboard(tester, 336);
+      await tester.pump();
+      router.pop();
+      await tester.pump();
+      for (final inset in [200.0, 80.0, 0.0]) {
+        keyboard(tester, inset);
+        await tester.pump(_ms * 50);
+        expect(foot(tester, 'b'), 844 - 336 - 20);
+        expect(foot(tester, 'a'), 844 - inset - 20);
+      }
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('b-foot')), findsNothing);
+    });
+
+    testWidgets('a page under a sheet is not leaving: it follows the '
+        'keyboard', (tester) async {
+      final router = await _pump(tester, initial: '/form-a');
+      keyboard(tester, 336);
+      await tester.pump();
+      router.push('/sheet');
+      await tester.pump();
+      keyboard(tester, 0);
+      await tester.pump(_ms * 50);
+      expect(foot(tester, 'a'), 844 - 20);
+    });
   });
 
   group('hand-off', () {

@@ -161,8 +161,8 @@ class EntryScaffold extends StatelessWidget {
   final String title;
   final Widget? action;
 
-  /// Screens without fields keep their layout while the previous screen's
-  /// keyboard slides away over them.
+  /// Screens without fields keep their layout, the home indicator's
+  /// padding included, while a keyboard slides over them.
   final bool hasFields;
   final bool settle;
 
@@ -193,6 +193,7 @@ class EntryScaffold extends StatelessWidget {
         backgroundColor: IqColors.bg,
         resizeToAvoidBottomInset: hasFields,
         body: SafeArea(
+          maintainBottomViewPadding: !hasFields,
           child: CenteredContent(
             child: Column(
               children: [

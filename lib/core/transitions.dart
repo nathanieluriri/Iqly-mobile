@@ -225,6 +225,7 @@ class _IqPageRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
 
   final _Move _move;
   _IqPageRoute<dynamic>? _cover;
+  Route<dynamic>? _next;
 
   late final Animation<double> _fadeIn = animation!.drive(
     CurveTween(
@@ -274,8 +275,17 @@ class _IqPageRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
 
   @override
   void didChangeNext(Route<dynamic>? nextRoute) {
+    _next = nextRoute;
     if (nextRoute is _IqPageRoute) _cover = nextRoute;
     super.didChangeNext(nextRoute);
+  }
+
+  /// Popped, replaced, or covered by another page; a sheet over it leaves
+  /// it on screen.
+  bool get _leaving {
+    if (!isActive) return true;
+    final next = _next;
+    return !isCurrent && next is TransitionRoute && next.opaque;
   }
 
   @override
@@ -289,7 +299,12 @@ class _IqPageRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
       explicitChildNodes: true,
       child: _heroes(
         context,
-        PulseScope(child: (settings as _IqPage<T>).child),
+        PulseScope(
+          child: _HeldInsets(
+            route: this,
+            child: (settings as _IqPage<T>).child,
+          ),
+        ),
       ),
     );
   }
@@ -346,6 +361,44 @@ class _IqPageRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
 /// route's transitions, so heroes are switched off for reduced motion here.
 Widget _heroes(BuildContext context, Widget page) =>
     HeroMode(enabled: !MediaQuery.disableAnimationsOf(context), child: page);
+
+/// A page on its way out keeps the insets it last had while it was the
+/// current page, so it holds still while a keyboard comes or goes over it
+/// (spec 4.5): one closing as the next page arrives, or the next page's own
+/// rising as this one leaves.
+class _HeldInsets extends StatefulWidget {
+  const _HeldInsets({required this.route, required this.child});
+
+  final _IqPageRoute<dynamic> route;
+  final Widget child;
+
+  @override
+  State<_HeldInsets> createState() => _HeldInsetsState();
+}
+
+class _HeldInsetsState extends State<_HeldInsets> {
+  MediaQueryData? _held;
+
+  @override
+  Widget build(BuildContext context) {
+    // Only to rebuild when the page stops or starts being the current one.
+    ModalRoute.isCurrentOf(context);
+    final media = MediaQuery.of(context);
+    final held = _held;
+    if (!widget.route._leaving || held == null) {
+      _held = media;
+      return MediaQuery(data: media, child: widget.child);
+    }
+    return MediaQuery(
+      data: media.copyWith(
+        padding: held.padding,
+        viewPadding: held.viewPadding,
+        viewInsets: held.viewInsets,
+      ),
+      child: widget.child,
+    );
+  }
+}
 
 /// The iOS back swipe from the left edge (spec 3.2): the page follows the
 /// finger, then pops when dragged past half the width or flung right at a
