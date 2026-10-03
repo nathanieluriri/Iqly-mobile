@@ -334,29 +334,73 @@ void main() {
     double fade(WidgetTester tester, int i) => tester
         .widgetList<FadeTransition>(
           find.ancestor(
-            of: find.byKey(ValueKey(i)),
-            matching: find.byType(FadeTransition),
+            of: find.byKey(ValueKey(i), skipOffstage: false),
+            matching: find.byType(FadeTransition, skipOffstage: false),
           ),
         )
         .fold(1.0, (o, w) => o * w.opacity.value);
 
-    testWidgets('items arrive 40 ms apart and the seventh stands still', (
-      tester,
-    ) async {
+    testWidgets('items arrive 40 ms apart; those after the sixth, on '
+        'screen, arrive with it', (tester) async {
       await _pumpTop(tester, list());
+      await tester.pump();
       expect(rise(tester, 0), closeTo(12, 0.01));
       expect(fade(tester, 0), 0);
-      expect(rise(tester, 6), 0);
-      expect(fade(tester, 6), 1);
+      expect(rise(tester, 6), closeTo(12, 0.01));
+      expect(fade(tester, 7), 0);
       await tester.pump(const Duration(milliseconds: 170));
       expect(fade(tester, 0), closeTo(_eo(170 / 260), 0.01));
       expect(fade(tester, 2), closeTo(_eo(90 / 260), 0.01));
       expect(rise(tester, 5), closeTo(12, 0.01));
-      await tester.pump(const Duration(milliseconds: 290));
+      await tester.pump(const Duration(milliseconds: 160));
+      expect(fade(tester, 5), closeTo(_eo(130 / 260), 0.01));
+      for (final i in [6, 7]) {
+        expect(fade(tester, i), fade(tester, 5));
+        expect(rise(tester, i), rise(tester, 5));
+      }
+      await tester.pump(const Duration(milliseconds: 130));
       for (var i = 0; i < 8; i++) {
         expect(rise(tester, i), 0);
         expect(fade(tester, i), 1);
       }
+    });
+
+    testWidgets('items after the sixth below the fold render in place', (
+      tester,
+    ) async {
+      await _pumpTop(
+        tester,
+        SizedBox(
+          width: 100,
+          height: 300,
+          child: Stagger(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                for (var i = 0; i < 20; i++)
+                  StaggerItem(
+                    index: i,
+                    child: SizedBox(key: ValueKey(i), height: 30),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      for (final i in [6, 9]) {
+        expect(fade(tester, i), 0, reason: 'item $i is on screen');
+      }
+      expect(fade(tester, 10), 1);
+      expect(
+        tester
+            .getTopLeft(find.byKey(const ValueKey(10), skipOffstage: false))
+            .dy,
+        300,
+      );
+      await tester.pump(const Duration(milliseconds: 330));
+      expect(fade(tester, 9), closeTo(_eo(130 / 260), 0.01));
+      expect(fade(tester, 10), 1);
     });
 
     testWidgets('settle only rises 8, and a list not playing stands still', (
@@ -377,6 +421,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 75));
       expect(fade(tester, 0), closeTo(_eo(0.5), 0.01));
       expect(fade(tester, 5), closeTo(_eo(0.5), 0.01));
+      expect(fade(tester, 7), closeTo(_eo(0.5), 0.01));
       expect(rise(tester, 5), 0);
     });
   });

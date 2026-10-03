@@ -109,6 +109,23 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('the feed arrives top first: the rows after the sixth slot, all '
+      'on screen, arrive with it', (tester) async {
+    await _pumpFeed(tester);
+    await tester.pump();
+    await tester.pump();
+    final rows = tester.widgetList<IqNotification>(find.byType(IqNotification));
+    expect(rows.length, greaterThan(5));
+    final last = (rows.last.key! as ValueKey<String>).value;
+    expect(_rowOpacity(tester, last), 0);
+    await tester.pump(const Duration(milliseconds: 190));
+    expect(_rowOpacity(tester, last), 0);
+    await tester.pump(const Duration(milliseconds: 140));
+    expect(_rowOpacity(tester, last), inExclusiveRange(0, 1));
+    await tester.pumpAndSettle();
+    expect(_rowOpacity(tester, last), 1);
+  });
+
   testWidgets('each headline wipes 120 ms into its row', (tester) async {
     await _pumpFeed(tester);
     await tester.pump();
