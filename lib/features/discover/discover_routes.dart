@@ -135,6 +135,7 @@ class _TabPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: IqColors.bg,
       body: SafeArea(
         child: CenteredContent(
@@ -159,6 +160,7 @@ class _PagePlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: IqColors.bg,
       body: SafeArea(
         child: CenteredContent(

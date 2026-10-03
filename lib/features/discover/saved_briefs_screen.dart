@@ -50,6 +50,7 @@ class SavedBriefsScreen extends ConsumerWidget {
     }
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: IqColors.bg,
       body: SafeArea(
         bottom: false,

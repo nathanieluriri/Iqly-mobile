@@ -121,9 +121,15 @@ List<String> searchUniversities(String query, {String? state}) {
   return [...near, ...matches.where((u) => !near.contains(u))];
 }
 
-/// [state]'s cities matching [query], in list order (capital first).
-List<String> searchCities(String state, String query) =>
-    _matching(Reference.cities[state] ?? const [], query);
+/// [state]'s cities matching [query], in list order (capital first). Matches
+/// ignore spacing and punctuation and include alternate spellings.
+List<String> searchCities(String state, String query) {
+  final q = placeKey(query);
+  return [
+    for (final city in Reference.cities[state] ?? const <String>[])
+      if (q.isEmpty || placeSpellings(city).any((s) => s.contains(q))) city,
+  ];
+}
 
 List<String> _matching(List<String> names, String query) {
   final q = query.trim().toLowerCase();

@@ -33,6 +33,7 @@ class _NotificationsAskScreenState
   @override
   Widget build(BuildContext context) {
     return EntryScaffold(
+      hasFields: false,
       onBack: () => goBack(context, Routes.onboardingDone),
       action: EntryButtons(
         primary: 'Turn on notifications',
