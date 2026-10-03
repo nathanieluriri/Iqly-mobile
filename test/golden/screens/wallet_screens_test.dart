@@ -1,9 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderClipRect;
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/core/motion.dart';
+import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/data/wallet_service.dart';
 import 'package:iqly_mobile/features/wallet/wallet_routes.dart';
 import 'package:iqly_mobile/router.dart';
+import 'package:iqly_mobile/theme/theme.dart';
+import 'package:iqly_mobile/ui/illustration.dart';
 
 import '../golden.dart';
 import 'app_harness.dart';
@@ -36,6 +44,18 @@ Future<void> _settleSheet(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// The B5 withdraw with the ledger held until the test answers, so the
+/// pending moment starts on a frame the test picks.
+class _HeldRequestedRepository extends RequestedWalletRepository {
+  final answer = Completer<void>();
+
+  @override
+  Future<List<LedgerEntry>> ledger() async {
+    await answer.future;
+    return super.ledger();
+  }
+}
+
 void main() {
   setUpAll(loadAppFonts);
 
@@ -63,6 +83,66 @@ void main() {
         'wallet_withdrawal_pending',
         withdrawalPendingPath('w4'),
         repository: RequestedWalletRepository(),
+      );
+    });
+
+    testWidgets('withdrawal pending mid-sweep: the ink whole, the strap '
+        'alone half across (spec 5.29)', (tester) async {
+      final repository = _HeldRequestedRepository();
+      await pumpApp(
+        tester,
+        withdrawalPendingPath('w4'),
+        repository: repository,
+        reducedMotion: false,
+        overrides: walletOverrides(),
+      );
+      repository.answer.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(Arrive), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 242));
+
+      final art = find.byWidgetPredicate(
+        (w) =>
+            w is SvgPicture &&
+            (w.bytesLoader as SvgAssetLoader).assetName ==
+                IqIllustrations.wallet.asset,
+      );
+      final ink = find.descendant(of: find.byType(Arrive), matching: art);
+      final strap = find.descendant(of: find.byType(Wipe), matching: art);
+      Color fill(Finder layer, String? id, Color color) =>
+          (tester.widget<SvgPicture>(layer).bytesLoader as SvgAssetLoader)
+              .colorMapper!
+              .substitute(id, 'path', 'fill', color);
+
+      expect(fill(strap, 'accent', IqColors.accent), IqColors.accent);
+      expect(fill(strap, 'ink', IqColors.brand).a, 0);
+      expect(fill(strap, null, IqColors.brand).a, 0);
+      expect(fill(ink, 'ink', IqColors.brand), IqColors.brand);
+      expect(fill(ink, null, IqColors.brand), IqColors.brand);
+      expect(fill(ink, 'accent', IqColors.accent).a, 0);
+
+      final inkFade = tester.widget<FadeTransition>(
+        find.ancestor(of: ink, matching: find.byType(FadeTransition)).first,
+      );
+      expect(inkFade.opacity.value, greaterThan(0.9));
+      final sweep = tester.renderObject<RenderClipRect>(
+        find.ancestor(of: strap, matching: find.byType(ClipRect)).first,
+      );
+      expect(
+        sweep.clipper!.getClip(sweep.size).width / sweep.size.width,
+        closeTo(0.5, 0.01),
+      );
+
+      await expectMatchesGolden(
+        find.byType(MaterialApp),
+        'goldens/wallet_withdrawal_pending_mid_sweep.png',
+      );
+
+      await tester.pump(const Duration(seconds: 1));
+      await expectMatchesGolden(
+        find.byType(MaterialApp),
+        'goldens/wallet_withdrawal_pending.png',
       );
     });
 
