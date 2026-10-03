@@ -673,10 +673,8 @@ class _CheckingPage extends StatelessWidget {
                 meta:
                     '${videoLength(video.length)} · ${videoSize(video.bytes)}',
                 showRemove: false,
-                thumbnail: Hero(
-                  tag: proofHeroTag(a.id),
-                  child: const ProofFrame(),
-                ),
+                thumbnail: const ProofFrame(),
+                heroTag: proofHeroTag(a.id),
                 onPlay: () => context.push(proofPlayerPath(a.id)),
               ),
               _gap,

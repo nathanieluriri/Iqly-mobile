@@ -26,6 +26,12 @@ enum IqVideoPreviewState { ready, uploading, failed }
 /// [showRemove] false drops the remove sticker once the recording is sent
 /// (B9 · Proof · submitted shows an empty disc there).
 ///
+/// [heroTag] makes the thumbnail a Hero, its stickers and stamp inside, so
+/// they go with the frame when it flies and nothing of it stays behind
+/// under the flight: pushed, the flight draws the look it lands on; popped,
+/// the leaving look fades out over the arriving one, so a sticker only the
+/// leaving look has (the remove X, back from Send proof) fades with it.
+///
 /// Figma over its note: the master's duration stamp sits below the clipped
 /// thumbnail, so it is hidden by default; [showDuration] places it bottom
 /// left, 12 px in, as the note intends (the owner to choose).
@@ -41,6 +47,7 @@ class IqVideoPreview extends StatefulWidget {
     this.meta,
     this.progress = 0.64,
     this.thumbnail,
+    this.heroTag,
     this.showRemove = true,
     this.onPlay,
     this.onRemove,
@@ -54,6 +61,7 @@ class IqVideoPreview extends StatefulWidget {
   final String? meta;
   final double progress;
   final Widget? thumbnail;
+  final Object? heroTag;
   final bool showRemove;
   final VoidCallback? onPlay;
   final VoidCallback? onRemove;
@@ -131,150 +139,183 @@ class _IqVideoPreviewState extends State<IqVideoPreview>
     );
   }
 
+  /// The flight between two thumbnails, or a thumbnail and the player.
+  static Widget _flight(
+    BuildContext context,
+    Animation<double> animation,
+    HeroFlightDirection direction,
+    BuildContext from,
+    BuildContext to,
+  ) {
+    final arriving = (to.widget as Hero).child;
+    // Drawn in the navigator's overlay, outside every page's Material, where
+    // the stamp's text would take the framework's fallback style.
+    return Material(
+      type: MaterialType.transparency,
+      child: direction == HeroFlightDirection.push
+          ? arriving
+          : Stack(
+              fit: StackFit.expand,
+              children: [
+                arriving,
+                FadeTransition(
+                  opacity: animation,
+                  child: (from.widget as Hero).child,
+                ),
+              ],
+            ),
+    );
+  }
+
   Widget _thumbnail() {
+    final heroTag = widget.heroTag;
+    final thumbnail = ColoredBox(color: IqColors.brand, child: _contents());
+    return SizedBox(
+      height: 200,
+      child: heroTag == null
+          ? thumbnail
+          : Hero(tag: heroTag, flightShuttleBuilder: _flight, child: thumbnail),
+    );
+  }
+
+  Widget _contents() {
     final state = widget.state;
     final reduced = _reduced;
     final pop = _pop;
-    return SizedBox(
-      height: 200,
-      child: ColoredBox(
-        color: IqColors.brand,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            if (widget.thumbnail != null)
-              Positioned.fill(child: widget.thumbnail!)
-            else ...[
-              Container(
-                width: 88,
-                height: 170,
-                decoration: BoxDecoration(
-                  color: IqColors.sidebarAccent,
-                  borderRadius: BorderRadius.circular(12),
-                ),
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        if (widget.thumbnail != null)
+          Positioned.fill(child: widget.thumbnail!)
+        else ...[
+          Container(
+            width: 88,
+            height: 170,
+            decoration: BoxDecoration(
+              color: IqColors.sidebarAccent,
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          Positioned(
+            top: 40,
+            child: Container(
+              width: 48,
+              height: 6,
+              decoration: BoxDecoration(
+                color: IqColors.sidebarFg.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(3),
               ),
-              Positioned(
-                top: 40,
-                child: Container(
-                  width: 48,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: IqColors.sidebarFg.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(3),
-                  ),
+            ),
+          ),
+        ],
+        IqPressable(
+          onTap: state == IqVideoPreviewState.ready ? widget.onPlay : null,
+          semanticLabel: 'Play',
+          behavior: HitTestBehavior.deferToChild,
+          builder: (context, pressed) => AnimatedScale(
+            scale: pressed && !reduced ? IqScale.playPress : 1,
+            duration: pressMotion(context, pressed),
+            curve: IqCurves.easeOut,
+            child: FadeTransition(
+              opacity: pop,
+              child: AnimatedBuilder(
+                animation: pop,
+                builder: (context, child) => Transform.scale(
+                  scale: reduced
+                      ? 1
+                      : IqScale.pop + (1 - IqScale.pop) * pop.value,
+                  child: child,
                 ),
-              ),
-            ],
-            IqPressable(
-              onTap: state == IqVideoPreviewState.ready ? widget.onPlay : null,
-              semanticLabel: 'Play',
-              behavior: HitTestBehavior.deferToChild,
-              builder: (context, pressed) => AnimatedScale(
-                scale: pressed && !reduced ? IqScale.playPress : 1,
-                duration: pressMotion(context, pressed),
-                curve: IqCurves.easeOut,
-                child: FadeTransition(
-                  opacity: pop,
-                  child: AnimatedBuilder(
-                    animation: pop,
-                    builder: (context, child) => Transform.scale(
-                      scale: reduced
-                          ? 1
-                          : IqScale.pop + (1 - IqScale.pop) * pop.value,
-                      child: child,
+                child: IqTilt(
+                  degrees: 4,
+                  child: Container(
+                    width: 56,
+                    height: 56,
+                    alignment: Alignment.center,
+                    decoration: const BoxDecoration(
+                      color: IqColors.accent,
+                      shape: BoxShape.circle,
                     ),
-                    child: IqTilt(
-                      degrees: 4,
-                      child: Container(
-                        width: 56,
-                        height: 56,
-                        alignment: Alignment.center,
-                        decoration: const BoxDecoration(
-                          color: IqColors.accent,
-                          shape: BoxShape.circle,
-                        ),
-                        child: IqIcon(
-                          switch (state) {
-                            IqVideoPreviewState.ready => IqIcons.play,
-                            IqVideoPreviewState.uploading => IqIcons.upload,
-                            IqVideoPreviewState.failed => IqIcons.warning,
-                          },
-                          size: 24,
-                          color: IqColors.brand,
-                        ),
-                      ),
+                    child: IqIcon(
+                      switch (state) {
+                        IqVideoPreviewState.ready => IqIcons.play,
+                        IqVideoPreviewState.uploading => IqIcons.upload,
+                        IqVideoPreviewState.failed => IqIcons.warning,
+                      },
+                      size: 24,
+                      color: IqColors.brand,
                     ),
                   ),
                 ),
               ),
             ),
-            if (state == IqVideoPreviewState.ready && widget.showDuration)
-              Positioned(
-                left: IqSpace.s3,
-                bottom: IqSpace.s3,
-                child: FadeTransition(
-                  opacity: pop,
-                  child: AnimatedBuilder(
-                    animation: pop,
-                    builder: (context, child) => Transform.translate(
-                      offset: Offset(
-                        0,
-                        reduced ? 0 : IqTravel.tick * (1 - pop.value),
-                      ),
-                      child: child,
-                    ),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: IqSpace.s1p5,
-                        vertical: IqSpace.s0p5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: IqColors.accentSoft,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        widget.duration.toUpperCase(),
-                        style: IqText.mono.copyWith(color: IqColors.brand),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            // Figma's 310, 12 is the tilted frame's origin; this is its
-            // circle measured from the thumbnail's top right corner.
-            // 44 pt hit area around the 36 px sticker.
-            if (widget.showRemove)
-              Positioned(
-                top: 6,
-                right: 4,
-                width: 44,
-                height: 44,
-                child: IqPressable(
-                  onTap: widget.onRemove,
-                  semanticLabel: 'Remove',
-                  builder: (context, pressed) => Transform.rotate(
-                    angle: -6 * math.pi / 180,
-                    child: Container(
-                      margin: const EdgeInsets.all(4),
-                      width: 36,
-                      height: 36,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: pressed ? IqColors.brandDark : IqColors.brand,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const IqIcon(
-                        IqIcons.close,
-                        size: 18,
-                        color: IqColors.primaryFg,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
+          ),
         ),
-      ),
+        if (state == IqVideoPreviewState.ready && widget.showDuration)
+          Positioned(
+            left: IqSpace.s3,
+            bottom: IqSpace.s3,
+            child: FadeTransition(
+              opacity: pop,
+              child: AnimatedBuilder(
+                animation: pop,
+                builder: (context, child) => Transform.translate(
+                  offset: Offset(
+                    0,
+                    reduced ? 0 : IqTravel.tick * (1 - pop.value),
+                  ),
+                  child: child,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: IqSpace.s1p5,
+                    vertical: IqSpace.s0p5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: IqColors.accentSoft,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    widget.duration.toUpperCase(),
+                    style: IqText.mono.copyWith(color: IqColors.brand),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        // Figma's 310, 12 is the tilted frame's origin; this is its
+        // circle measured from the thumbnail's top right corner.
+        // 44 pt hit area around the 36 px sticker.
+        if (widget.showRemove)
+          Positioned(
+            top: 6,
+            right: 4,
+            width: 44,
+            height: 44,
+            child: IqPressable(
+              onTap: widget.onRemove,
+              semanticLabel: 'Remove',
+              builder: (context, pressed) => Transform.rotate(
+                angle: -6 * math.pi / 180,
+                child: Container(
+                  margin: const EdgeInsets.all(4),
+                  width: 36,
+                  height: 36,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: pressed ? IqColors.brandDark : IqColors.brand,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const IqIcon(
+                    IqIcons.close,
+                    size: 18,
+                    color: IqColors.primaryFg,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 

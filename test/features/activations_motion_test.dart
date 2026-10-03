@@ -12,6 +12,7 @@ import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/theme/theme.dart';
 import 'package:iqly_mobile/ui/balance_hero.dart';
 import 'package:iqly_mobile/ui/claim_stamp.dart';
+import 'package:iqly_mobile/ui/icon.dart';
 import 'package:iqly_mobile/ui/pressable.dart';
 import 'package:iqly_mobile/ui/proof_tile.dart';
 import 'package:iqly_mobile/ui/step_row.dart';
@@ -169,6 +170,9 @@ Rect _rectOf(Element element) {
 List<(Rect, double)> _drawn(Finder finder) => [
   for (final element in finder.evaluate()) (_rectOf(element), _fadeOf(element)),
 ];
+
+Finder _icon(IqIcons icon) =>
+    find.byWidgetPredicate((w) => w is IqIcon && w.icon == icon);
 
 void main() {
   setUpAll(loadAppFonts);
@@ -671,6 +675,49 @@ void main() {
       expect(upload.map((d) => d.$1.left).toSet(), hasLength(1));
       expect(yours.where((d) => d.$2 < 0.99), isNotEmpty);
       expect(upload.where((d) => d.$2 < 0.99), isNotEmpty);
+    });
+
+    testWidgets('sent: the play sticker and the remove X go with the '
+        'recording and never blink as it flies', (tester) async {
+      await _readyToSend(tester);
+      final flying = find.byElementPredicate(
+        (e) =>
+            e.widget is ProofFrame &&
+            e.findAncestorWidgetOfExactType<Hero>() == null,
+      );
+      double seen(IqIcons icon) {
+        final flight = flying.evaluate().map(_rectOf).firstOrNull;
+        var strongest = 0.0;
+        for (final element in _icon(icon).evaluate()) {
+          final onPage = element.findAncestorWidgetOfExactType<Scaffold>();
+          final under =
+              onPage != null &&
+              flight != null &&
+              flight.contains(_rectOf(element).center);
+          strongest = math.max(strongest, under ? 0 : _fadeOf(element));
+        }
+        return strongest;
+      }
+
+      expect(seen(IqIcons.close), 1);
+      expect(seen(IqIcons.play), 1);
+      await tester.tap(find.text('Send proof'));
+      final remove = <double>[];
+      final play = <double>[];
+      var flew = false;
+      for (var at = 16; at <= 400; at += 16) {
+        await tester.pump(const Duration(milliseconds: 16));
+        flew |= flying.evaluate().isNotEmpty;
+        remove.add(seen(IqIcons.close));
+        play.add(seen(IqIcons.play));
+      }
+      expect(flew, isTrue);
+      for (var i = 1; i < remove.length; i++) {
+        expect(remove[i], lessThanOrEqualTo(remove[i - 1] + 0.01));
+      }
+      expect(remove.where((o) => o > 0.05 && o < 0.95), isNotEmpty);
+      expect(remove.last, 0);
+      expect(play, everyElement(greaterThan(0.99)));
     });
 
     testWidgets('play: the frame flies from the thumbnail to the player', (
