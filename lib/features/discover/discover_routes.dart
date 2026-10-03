@@ -9,6 +9,7 @@ import '../../ui/dock.dart';
 import '../../ui/top_bar.dart';
 import '../profile/profile_routes.dart';
 import '../submissions/my_submissions_screen.dart';
+import '../submit/submit_routes.dart';
 import '../wallet/wallet_routes.dart';
 import 'app_shell.dart';
 import 'brief_detail_screen.dart';
@@ -74,7 +75,7 @@ final discoverRoutes = <RouteBase>[
     path: Routes.briefDetail,
     pageBuilder: (context, state) =>
         pushPage(state, BriefDetailScreen(id: state.pathParameters['id']!)),
-    routes: [_push('submit', const _PagePlaceholder('Submit'))],
+    routes: [...submitRoutes],
   ),
   _push(Routes.notifications, const _PagePlaceholder('Notifications')),
   _push(Routes.polls, const _PagePlaceholder('Polls')),

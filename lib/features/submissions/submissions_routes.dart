@@ -1,11 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../router.dart';
-import '../../theme/theme.dart';
-import '../../ui/top_bar.dart';
+import '../outcomes/outcomes_routes.dart';
 import 'submission_detail_screen.dart';
 
 String submissionPath(String id) => '/submissions/$id';
@@ -22,41 +19,5 @@ final submissionRoutes = <RouteBase>[
       SubmissionDetailScreen(id: state.pathParameters['id']!),
     ),
   ),
-  GoRoute(
-    path: Routes.result,
-    pageBuilder: (context, state) =>
-        pushPage(state, _ResultPlaceholder(id: state.pathParameters['id']!)),
-  ),
+  ...outcomeRoutes,
 ];
-
-/// Placeholder until row B13 (Result Winner, Result Not selected) is built.
-class _ResultPlaceholder extends StatelessWidget {
-  const _ResultPlaceholder({required this.id});
-
-  final String id;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      resizeToAvoidBottomInset: false,
-      backgroundColor: IqColors.bg,
-      body: SafeArea(
-        child: CenteredContent(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              IqTopBar(
-                key: ValueKey('result-$id'),
-                variant: IqTopBarVariant.page,
-                title: 'Your result',
-                onBack: () => context.canPop()
-                    ? context.pop()
-                    : context.go(Routes.submissions, extra: NavDirection.back),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
