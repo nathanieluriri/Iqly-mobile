@@ -499,6 +499,48 @@ void main() {
       expect(stamp.last.$2, closeTo(1, 0.001));
     });
 
+    testWidgets('sent from the activation: it is Your proof from the pop’s '
+        'first frame, so only the pop and the recording’s flight move', (
+      tester,
+    ) async {
+      await pumpActivations(
+        tester,
+        activationPath('a2'),
+        now: friday,
+        service: _stuck(),
+        reducedMotion: false,
+        settle: false,
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.tap(find.text('Upload proof of step 2'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.tap(find.byType(IqProofTile));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      final from = tester.getTopLeft(find.byType(ProofFrame)).dy;
+
+      await tester.tap(find.text('Send proof'));
+      final flight = <double>[];
+      for (var at = 16; at <= 400; at += 16) {
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(_layerOf('_Layout.steps'), findsNothing, reason: 'at $at ms');
+        if (_layerOf('_Layout.checking').evaluate().isNotEmpty) {
+          expect(_layer(tester, '_Layout.checking'), 1, reason: 'at $at ms');
+        }
+        flight.addAll([
+          for (final frame in tester.renderObjectList<RenderBox>(
+            find.byType(ProofFrame),
+          ))
+            frame.localToGlobal(Offset.zero).dy,
+        ]);
+      }
+      expect(find.text('Upload proof'), findsNothing);
+      expect(find.text('Your proof'), findsOneWidget);
+      final to = tester.getTopLeft(find.byType(ProofFrame)).dy;
+      expect(flight.where((y) => y > from + 1 && y < to - 1), isNotEmpty);
+    });
+
     testWidgets('play: the frame flies from the thumbnail to the player', (
       tester,
     ) async {
