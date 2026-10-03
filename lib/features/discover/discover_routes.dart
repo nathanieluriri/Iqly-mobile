@@ -6,6 +6,7 @@ import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/dock.dart';
 import '../../ui/top_bar.dart';
+import '../profile/profile_routes.dart';
 import '../submissions/my_submissions_screen.dart';
 import 'app_shell.dart';
 import 'brief_detail_screen.dart';
@@ -14,8 +15,8 @@ import 'home_screen.dart';
 import 'saved_briefs_screen.dart';
 
 /// The four dock tabs as a StatefulShellRoute, so each tab keeps its stack
-/// and scroll. Wallet and Profile are placeholders until their rows replace
-/// the branch builders.
+/// and scroll. Wallet is a placeholder until its row replaces the branch
+/// builder.
 RouteBase appShellRoute(GlobalKey<NavigatorState> rootKey) =>
     StatefulShellRoute.indexedStack(
       pageBuilder: (context, state, shell) => _dissolve(
@@ -62,9 +63,7 @@ RouteBase appShellRoute(GlobalKey<NavigatorState> rootKey) =>
         StatefulShellBranch(
           routes: [_tab(Routes.wallet, const _TabPlaceholder('Wallet'))],
         ),
-        StatefulShellBranch(
-          routes: [_tab(Routes.profile, const _TabPlaceholder('Profile'))],
-        ),
+        StatefulShellBranch(routes: [profileTab]),
       ],
     );
 

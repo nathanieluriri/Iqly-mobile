@@ -153,6 +153,16 @@ class OnboardingDraftNotifier extends Notifier<OnboardingDraft> {
     _save(_profile(interests: next));
   }
 
+  /// Profile's Your details edits the same answers.
+  void setProfile(OnboardingProfile profile) =>
+      _save(state.copyWith(profile: profile));
+
+  /// Sign out and account deletion leave nothing of the answers on the device.
+  void clear() {
+    state = const OnboardingDraft();
+    ref.read(sharedPreferencesProvider).remove(_key);
+  }
+
   void visit(OnboardingStep step) {
     if (state.lastStep == step && !state.deferred) return;
     _save(state.copyWith(lastStep: step, deferred: false));

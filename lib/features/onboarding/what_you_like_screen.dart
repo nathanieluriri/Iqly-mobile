@@ -51,20 +51,37 @@ class WhatYouLikeScreen extends ConsumerWidget {
       onNext: () => context.go(Routes.onboardingDone),
       nextEnabled: interests.length >= OnboardingDraft.minInterests,
       nextLabel: 'Finish',
-      child: Wrap(
-        spacing: IqSpace.s2,
-        runSpacing: IqSpace.s2,
-        children: [
-          for (final option in Reference.interests)
-            IqChip(
-              label: interestChipLabels[option.value] ?? option.label,
-              state: interests.contains(option.value)
-                  ? IqChipState.selected
-                  : IqChipState.standard,
-              onChanged: (_) => draft.toggleInterest(option.value),
-            ),
-        ],
-      ),
+      child: InterestChips(selected: interests, onToggle: draft.toggleInterest),
+    );
+  }
+}
+
+/// The 13 interest chips, shared with Profile's interests sheet.
+class InterestChips extends StatelessWidget {
+  const InterestChips({
+    super.key,
+    required this.selected,
+    required this.onToggle,
+  });
+
+  final List<String> selected;
+  final ValueChanged<String> onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: IqSpace.s2,
+      runSpacing: IqSpace.s2,
+      children: [
+        for (final option in Reference.interests)
+          IqChip(
+            label: interestChipLabels[option.value] ?? option.label,
+            state: selected.contains(option.value)
+                ? IqChipState.selected
+                : IqChipState.standard,
+            onChanged: (_) => onToggle(option.value),
+          ),
+      ],
     );
   }
 }
