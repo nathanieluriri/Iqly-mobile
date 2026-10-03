@@ -9,8 +9,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Renders a screen at the Figma frame size with the OS status bar (54) and
 /// home indicator (34) as safe-area insets, animations off. [keyboard] raises
 /// a system keyboard of that height. [prepare] seeds providers before the
-/// first frame and [overrides] replace providers such as the repository;
-/// [act] drives the screen into the frame's state.
+/// first frame; [act] drives the screen into the frame's state. [overrides]
+/// replace providers such as the repository or swap services (a zero-delay
+/// auth, say).
 Future<void> expectScreenGolden(
   WidgetTester tester,
   String name,

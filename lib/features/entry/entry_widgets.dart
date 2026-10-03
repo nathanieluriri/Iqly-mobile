@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../theme/theme.dart';
 import '../../ui/button.dart';
@@ -18,34 +19,113 @@ void goBack(BuildContext context, String fallback) {
   }
 }
 
-/// A text field's controller and focus, listened to as one.
+/// A text field's controller, focus and error, listened to as one. The
+/// error goes the moment the text changes.
 class EntryInput {
+  // The caret starts at the end so a programmatic focus shows no selection
+  // handle, as a tap would not either.
   EntryInput([String text = ''])
-    : controller = TextEditingController(text: text);
+    : controller = TextEditingController.fromValue(
+        TextEditingValue(
+          text: text,
+          selection: TextSelection.collapsed(offset: text.length),
+        ),
+      ),
+      _text = text {
+    controller.addListener(_onEdit);
+  }
 
   final TextEditingController controller;
   final FocusNode focus = FocusNode();
+  final _error = ValueNotifier<String?>(null);
+  final _fails = ValueNotifier<int>(0);
+  String _text;
 
-  Listenable get changes => Listenable.merge([controller, focus]);
+  Listenable get changes =>
+      Listenable.merge([controller, focus, _error, _fails]);
   String get text => controller.text.trim();
+  String? get error => _error.value;
+
+  /// Failed submits so far; [Shake] replays on each.
+  int get fails => _fails.value;
+
+  /// A failed submit: [message] under the field, a shake and a buzz.
+  void fail(String message) {
+    _error.value = message;
+    _fails.value++;
+    errorHaptic();
+  }
+
+  void _onEdit() {
+    if (controller.text == _text) return;
+    _text = controller.text;
+    _error.value = null;
+  }
 
   void dispose() {
     controller.dispose();
     focus.dispose();
+    _error.dispose();
+    _fails.dispose();
   }
 }
 
-/// Field state as the B0 frames draw it: Active while focused, Valid once
-/// a good value is left behind, Error when the screen says so.
-IqFieldState? fieldStateFor(
-  EntryInput input, {
-  required bool valid,
-  bool error = false,
-}) {
-  if (error) return IqFieldState.error;
+/// Field state as the B0 frames draw it: Error while the input holds one,
+/// Active while focused, Valid once a good value is left behind.
+IqFieldState? fieldStateFor(EntryInput input, {required bool valid}) {
+  if (input.error != null) return IqFieldState.error;
   if (input.focus.hasFocus) return IqFieldState.active;
   if (valid) return IqFieldState.valid;
   return null;
+}
+
+/// A Large Field bound to an [EntryInput]. Valid draws no check, as on the
+/// B0 frames; Error shows its icon and help, and the field shakes on each
+/// failed submit.
+class EntryField extends StatelessWidget {
+  const EntryField({
+    super.key,
+    required this.input,
+    required this.label,
+    this.valid = false,
+    this.obscureText = false,
+    this.keyboardType,
+    this.autofillHints,
+    this.textInputAction,
+    this.onSubmitted,
+  });
+
+  final EntryInput input;
+  final String label;
+  final bool valid;
+  final bool obscureText;
+  final TextInputType? keyboardType;
+  final Iterable<String>? autofillHints;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Shake(
+      trigger: input.fails,
+      child: IqField(
+        size: IqFieldSize.large,
+        label: label,
+        value: '',
+        help: input.error ?? '',
+        state: fieldStateFor(input, valid: valid),
+        showStatus: input.error != null,
+        showNote: false,
+        controller: input.controller,
+        focusNode: input.focus,
+        obscureText: obscureText,
+        keyboardType: keyboardType,
+        autofillHints: autofillHints,
+        textInputAction: textInputAction,
+        onSubmitted: onSubmitted,
+      ),
+    );
+  }
 }
 
 /// The B0 step layout: Page top bar, content from 24 below it, and the

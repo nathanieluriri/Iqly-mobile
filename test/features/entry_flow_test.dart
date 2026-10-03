@@ -1,12 +1,8 @@
-import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:iqly_mobile/app.dart';
 import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/data/auth.dart';
-import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/device.dart';
-import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
 import 'package:iqly_mobile/features/entry/forgot_password_screen.dart';
 import 'package:iqly_mobile/features/entry/landing_screen.dart';
@@ -19,20 +15,10 @@ import 'package:iqly_mobile/features/onboarding/done_screen.dart';
 import 'package:iqly_mobile/features/onboarding/welcome_screen.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/box_field.dart';
-import 'package:iqly_mobile/ui/next_fab.dart';
 import 'package:iqly_mobile/ui/provider_button.dart';
 import 'package:iqly_mobile/ui/tip_card.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-class _Auth extends DemoAuthService {
-  _Auth({required this.oauthNew}) : super(delay: Duration.zero);
-
-  final bool oauthNew;
-
-  @override
-  Future<AuthResult> continueWith(AuthProvider provider) async =>
-      AuthResult.success(newAccount: oauthNew);
-}
+import 'entry_harness.dart';
 
 Future<ProviderContainer> _boot(
   WidgetTester tester, {
@@ -40,47 +26,18 @@ Future<ProviderContainer> _boot(
   String? start,
   bool oauthNew = true,
   DemoDeviceService? device,
-}) async {
-  tester.view.physicalSize = const Size(390, 844);
-  tester.view.devicePixelRatio = 1;
-  tester.platformDispatcher.accessibilityFeaturesTestValue =
-      const FakeAccessibilityFeatures(disableAnimations: true);
-  addTearDown(tester.view.reset);
-  addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
-  SharedPreferences.setMockInitialValues(prefs);
-  final shared = await SharedPreferences.getInstance();
-  final container = ProviderContainer(
-    overrides: [
-      sharedPreferencesProvider.overrideWithValue(shared),
-      authServiceProvider.overrideWithValue(_Auth(oauthNew: oauthNew)),
-      deviceServiceProvider.overrideWithValue(
-        device ?? DemoDeviceService(delay: Duration.zero),
-      ),
-      repositoryProvider.overrideWithValue(DemoRepository(DemoData())),
-    ],
-  );
-  addTearDown(container.dispose);
-  await tester.pumpWidget(
-    UncontrolledProviderScope(container: container, child: const IqlyApp()),
-  );
-  if (start == null) {
-    await tester.pump(const Duration(seconds: 3));
-  } else {
-    container.read(routerProvider).go(start);
-  }
-  await tester.pumpAndSettle();
-  return container;
-}
+}) => bootApp(
+  tester,
+  prefs: prefs,
+  start: start,
+  device: device,
+  auth: DemoAuthService(delay: Duration.zero, socialAccountExists: !oauthNew),
+);
 
-Future<void> _next(WidgetTester tester) async {
-  await tester.tap(find.byType(IqNextFab));
-  await tester.pumpAndSettle();
-}
+Future<void> _next(WidgetTester tester) => tapNext(tester);
 
-Future<void> _typeInto(WidgetTester tester, int index, String text) async {
-  await tester.enterText(find.byType(EditableText).at(index), text);
-  await tester.pump();
-}
+Future<void> _typeInto(WidgetTester tester, int index, String text) =>
+    typeInto(tester, index, text);
 
 void main() {
   testWidgets('a new email signs up through name and password', (tester) async {
@@ -139,7 +96,7 @@ void main() {
     await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();
     expect(find.byType(SignInScreen), findsOneWidget);
-    await _typeInto(tester, 1, 'password');
+    await _typeInto(tester, 1, DemoAuthService.password);
     await _next(tester);
     expect(find.byType(HomeScreen), findsOneWidget);
     expect(find.byType(IqTipCard), findsNothing);

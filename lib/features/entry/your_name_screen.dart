@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../router.dart';
 import '../../theme/theme.dart';
-import '../../ui/field.dart';
 import '../../ui/icon.dart';
 import '../../ui/step_mark.dart';
 import 'entry_state.dart';
@@ -49,16 +48,11 @@ class _YourNameScreenState extends ConsumerState<YourNameScreen> {
     context.push(Routes.createPassword);
   }
 
-  IqField _field(EntryInput input, String label, {required bool last}) =>
-      IqField(
-        size: IqFieldSize.large,
+  Widget _field(EntryInput input, String label, {required bool last}) =>
+      EntryField(
+        input: input,
         label: label,
-        value: '',
-        state: fieldStateFor(input, valid: input.text.isNotEmpty),
-        showStatus: false,
-        showNote: false,
-        controller: input.controller,
-        focusNode: input.focus,
+        valid: input.text.isNotEmpty,
         keyboardType: TextInputType.name,
         autofillHints: [
           last ? AutofillHints.familyName : AutofillHints.givenName,

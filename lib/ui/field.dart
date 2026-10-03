@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 import 'pressable.dart';
@@ -26,7 +27,9 @@ enum IqFieldSize { standard, large }
 /// Screens hide the status icon and the note on some Valid instances (B0
 /// Your name, Sign in): [showStatus] and [showNote] carry those overrides.
 /// A new picker value crossfades in (200 ms ease-out, none under reduced
-/// motion).
+/// motion). Turning to Error wipes the err stroke in left to right (240 ms)
+/// and the help line rises in (160 ms); the screen adds the shake
+/// (lib/core/motion).
 class IqField extends StatefulWidget {
   const IqField({
     super.key,
@@ -251,17 +254,30 @@ class _IqFieldState extends State<IqField> {
                         : IqColors.line,
                   ),
                 ),
-                if (state == IqFieldState.active || state == IqFieldState.error)
-                  Positioned(
+                if (state == IqFieldState.active)
+                  const Positioned(
+                    key: ValueKey('stroke-active'),
                     left: 0,
                     right: 0,
                     top: 1.14,
                     height: 4,
                     child: IqVector(
                       'assets/vectors/field-stroke.svg',
-                      color: state == IqFieldState.error
-                          ? IqColors.err
-                          : IqColors.accent,
+                      color: IqColors.accent,
+                    ),
+                  ),
+                if (state == IqFieldState.error)
+                  const Positioned(
+                    key: ValueKey('stroke-error'),
+                    left: 0,
+                    right: 0,
+                    top: 1.14,
+                    height: 4,
+                    child: Wipe(
+                      child: IqVector(
+                        'assets/vectors/field-stroke.svg',
+                        color: IqColors.err,
+                      ),
                     ),
                   ),
               ],
@@ -269,14 +285,22 @@ class _IqFieldState extends State<IqField> {
           ),
           if (showHelp) ...[
             const SizedBox(height: IqSpace.s1p5),
-            Text(
-              state == IqFieldState.valid ? widget.note : widget.help,
-              style: IqText.small.copyWith(
-                color: state == IqFieldState.valid
-                    ? IqColors.ok
-                    : IqColors.errStrong,
+            if (state == IqFieldState.valid)
+              Text(
+                widget.note,
+                style: IqText.small.copyWith(color: IqColors.ok),
+              )
+            else
+              Reveal(
+                key: ValueKey(widget.help),
+                child: Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    widget.help,
+                    style: IqText.small.copyWith(color: IqColors.errStrong),
+                  ),
+                ),
               ),
-            ),
           ],
         ],
       ),
