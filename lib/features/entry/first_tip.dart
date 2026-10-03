@@ -9,11 +9,25 @@ import '../../core/session.dart';
 import '../../core/transitions.dart';
 import '../../ui/tip_card.dart';
 
+/// Home's feed is on screen: how long its arrival still waits, null until
+/// the feed lands. The first tip follows it (spec 3.8).
+final firstTipCueProvider =
+    NotifierProvider.autoDispose<FirstTipCue, Duration?>(FirstTipCue.new);
+
+class FirstTipCue extends Notifier<Duration?> {
+  @override
+  Duration? build() => null;
+
+  /// The feed has landed and starts arriving [after] from now.
+  void cue(Duration after) => state ??= after;
+}
+
 /// B0 Home first tip (227:11321): wrap any Discover screen in it. Until
 /// the session has seen the tip, Discover sits under a 60% ink scrim with
-/// the TipCard, which arrive once Home has (spec 3.8); "OK, got it" is the
-/// only way out, marks it seen and sends both away (card 160 ms, scrim 200
-/// ms, ease-in) while the screen beneath takes taps at once.
+/// the TipCard, which arrive once Home's feed has landed and arrived, 600 ms
+/// after it starts (spec 3.8; Figma shows the tip over a loaded feed); "OK,
+/// got it" is the only way out, marks it seen and sends both away (card 160
+/// ms, scrim 200 ms, ease-in) while the screen beneath takes taps at once.
 ///
 /// Brief over Figma: Figma draws the status bar's dark glyphs above the
 /// scrim; the status bar turns light while the scrim is up, so it reads on
@@ -32,14 +46,16 @@ class FirstTipOverlay extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final seen = ref.watch(sessionProvider.select((s) => s.firstTipSeen));
+    final cue = ref.watch(firstTipCueProvider);
+    final shown = !seen && cue != null;
     return Stack(
       children: [
-        ExcludeSemantics(excluding: !seen, child: child),
+        ExcludeSemantics(excluding: shown, child: child),
         Positioned.fill(
           child: IqOverlay(
-            shown: !seen,
+            shown: shown,
             scrim: IqScrim.tip,
-            delay: IqDurations.tipWait,
+            delay: IqDurations.tipWait + (cue ?? Duration.zero),
             statusBar: SystemUiOverlayStyle.light,
             top: (constraints) {
               final free = math.max(0.0, constraints.maxHeight - _cardHeight);

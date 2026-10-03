@@ -24,6 +24,7 @@ import '../../ui/pull_indicator.dart';
 import '../../ui/section_title.dart';
 import '../../ui/skeleton.dart';
 import '../../ui/ticket_card.dart';
+import '../entry/first_tip.dart';
 import '../onboarding/setup_nudge.dart';
 import '../withdrawals/payout_arrival.dart';
 import 'app_shell.dart';
@@ -73,6 +74,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   bool _steady = false;
   bool _buzzed = false;
   bool _retrying = false;
+  bool _built = false;
+  bool _landed = false;
   bool? _nudge;
   IqPullIndicatorState? _closingAs;
   Timer? _doneTimer;
@@ -217,6 +220,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ref.read(discoverFeedProvider.notifier).retry();
   }
 
+  /// The feed is on screen, arriving [after] from now: the first tip may
+  /// follow (spec 3.8). Told after the frame, as it lands mid-build.
+  void _land(Duration after) {
+    if (_landed) return;
+    _landed = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(firstTipCueProvider.notifier).cue(after);
+    });
+  }
+
   FeedView _view(FeedData data) => buildFeed(
     briefs: data.briefs,
     filters: ref.read(discoverFiltersProvider),
@@ -283,6 +296,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
     final nudge = _nudge ??= !onboardingDone;
     final payout = ref.watch(recentPayoutProvider);
+    final loading = (data == null && !failed) || proposalsPending;
+    if (!_built) {
+      _built = true;
+      if (!loading) _land(Duration.zero);
+    }
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -344,9 +362,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                             ),
                           LoadingGate.builder(
                             key: const ValueKey('gate'),
-                            loading:
-                                (data == null && !failed) || proposalsPending,
-                            onOpen: (after) => _arrivals.play(after: after),
+                            loading: loading,
+                            onOpen: (after) {
+                              _arrivals.play(after: after);
+                              _land(after);
+                            },
                             builder: (context, phase, skeletonOpacity) =>
                                 _body(phase, skeletonOpacity, data, nudge),
                           ),

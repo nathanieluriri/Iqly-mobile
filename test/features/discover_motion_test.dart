@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/motion.dart';
+import 'package:iqly_mobile/core/transitions.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/repository.dart';
@@ -92,6 +93,36 @@ ScrollPosition _feed(WidgetTester tester) => tester
 double _top(WidgetTester tester, Finder finder) => tester.getTopLeft(finder).dy;
 
 Finder get _chips => find.byType(IqChip).first;
+
+/// How far the first tip's scrim is in; 0 while it is not up.
+double _tipScrim(WidgetTester tester) {
+  final scrim = find.byWidgetPredicate(
+    (w) => w is ColoredBox && w.color == IqScrim.tip,
+  );
+  if (scrim.evaluate().isEmpty) return 0;
+  return tester
+      .widget<FadeTransition>(
+        find.ancestor(of: scrim, matching: find.byType(FadeTransition)).first,
+      )
+      .opacity
+      .value;
+}
+
+/// Whether an item of the feed is still on its way in.
+bool _arriving(WidgetTester tester) {
+  var arriving = false;
+  for (final item in find.byType(ArriveItem).evaluate()) {
+    item.visitChildren(
+      (cue) => cue.visitChildren((move) {
+        final widget = move.widget;
+        if (widget is FadeTransition && widget.opacity.value < 1) {
+          arriving = true;
+        }
+      }),
+    );
+  }
+  return arriving;
+}
 
 double _indicatorOpacity(WidgetTester tester) => tester
     .widget<Opacity>(
@@ -444,6 +475,64 @@ void main() {
       );
     },
   );
+
+  testWidgets('the first tip waits for the feed to land and arrive (227:11321 '
+      'shows it over a loaded feed)', (tester) async {
+    final repository = _Controlled(holdFirst: true);
+    await pumpApp(
+      tester,
+      Routes.home,
+      repository: repository,
+      prefs: signedInPrefs(firstTipSeen: false),
+      reducedMotion: false,
+      settle: false,
+    );
+    const frame = Duration(microseconds: 16667);
+    var now = Duration.zero;
+    Duration? landed;
+    Duration? tip;
+    while (now < const Duration(seconds: 3)) {
+      // The prototype's 1.2 s first load.
+      if (now >= _ms * 1200 && !repository.first.isCompleted) {
+        repository.first.complete(repository.data.briefs);
+      }
+      await tester.pump(frame);
+      now += frame;
+      if (landed == null && find.text('Closing soon').evaluate().isNotEmpty) {
+        landed = now;
+      }
+      if (tip == null && _tipScrim(tester) > 0) {
+        tip = now;
+        expect(find.byType(IqSkeleton), findsNothing);
+        expect(_arriving(tester), isFalse);
+      }
+    }
+    expect(landed, isNotNull);
+    expect(tip, isNotNull);
+    expect(tip! - landed!, greaterThanOrEqualTo(IqDurations.tipWait));
+    expect(find.byType(IqTipCard), findsOneWidget);
+  });
+
+  testWidgets('reduced motion: the tip still waits for the feed', (
+    tester,
+  ) async {
+    final repository = _Controlled(holdFirst: true);
+    await pumpApp(
+      tester,
+      Routes.home,
+      repository: repository,
+      prefs: signedInPrefs(firstTipSeen: false),
+      settle: false,
+    );
+    await tester.pump(_ms * 300);
+    await tester.pump(_ms * 600);
+    expect(find.byType(IqSkeleton), findsWidgets);
+    expect(find.byType(IqTipCard), findsNothing);
+    repository.first.complete(repository.data.briefs);
+    await tester.pumpAndSettle();
+    expect(find.byType(IqSkeleton), findsNothing);
+    expect(find.byType(IqTipCard), findsOneWidget);
+  });
 
   testWidgets('reduced motion: the tip fades in and out in place, 150', (
     tester,
