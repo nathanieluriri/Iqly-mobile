@@ -112,7 +112,7 @@ class BriefTicket extends ConsumerWidget {
       meta: ticketMeta(brief),
       initial: businessInitial(brief),
       reward: rewardPool(brief.rewardPoolKobo),
-      rule: brief.winnerRule,
+      rule: brief.winnerRule ?? '',
       showRule: false,
       spots: spotsLeftLabel(brief),
       showSpotsMarker: brief.spotsLeft != null,

@@ -93,6 +93,7 @@ class DemoData {
       interest: 'marketing_advertising',
       spotsLeft: 12,
       spotsTotal: 40,
+      winnerRule: 'Winners split the pool.',
     ),
     Brief(
       id: 'c6',
@@ -189,7 +190,7 @@ class DemoData {
       id: 'c13',
       title: 'Make school fee payments less stressful',
       body: 'Parents pay fees in three trips to the bank. Design a flow that takes one.',
-      tier: Tier.standard,
+      tier: Tier.advanced,
       category: Category.productDesign,
       rewardPoolKobo: 55000000,
       status: BriefStatus.live,

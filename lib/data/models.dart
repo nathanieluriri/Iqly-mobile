@@ -60,7 +60,7 @@ class Brief {
     this.interest,
     this.spotsLeft,
     this.spotsTotal,
-    this.winnerRule = 'Winners split the pool.',
+    this.winnerRule,
   });
 
   final String id;
@@ -82,8 +82,8 @@ class Brief {
   final int? spotsLeft;
   final int? spotsTotal;
 
-  /// Illustrative winner rule shown on brief detail.
-  final String winnerRule;
+  /// How the pool is split, when the business set a rule. Null shows none.
+  final String? winnerRule;
 
   bool get isLive => status == BriefStatus.live;
 
@@ -120,7 +120,7 @@ class Brief {
       interest: json['interest'] as String?,
       spotsLeft: json['spotsLeft'] as int?,
       spotsTotal: json['spotsTotal'] as int?,
-      winnerRule: json['winnerRule'] as String? ?? 'Winners split the pool.',
+      winnerRule: json['winnerRule'] as String?,
     );
   }
 }

@@ -272,6 +272,19 @@ void main() {
     expect(find.text('adaeze@example.com'), findsOneWidget);
   });
 
+  testWidgets('Adjust interests at the end of Discover opens Your details', (
+    tester,
+  ) async {
+    await pumpProfileApp(tester, Routes.home);
+    await tester.scrollUntilVisible(
+      find.text('Adjust interests'),
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await _tap(tester, find.text('Adjust interests'));
+    expect(find.byType(YourDetailsScreen), findsOneWidget);
+  });
+
   testWidgets('Sign out forgets the account and lands on the landing', (
     tester,
   ) async {
