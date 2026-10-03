@@ -1,0 +1,559 @@
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/data/activations_service.dart';
+import 'package:iqly_mobile/features/activations/activations_routes.dart';
+import 'package:iqly_mobile/features/activations/activations_widgets.dart';
+import 'package:iqly_mobile/router.dart';
+import 'package:iqly_mobile/ui/balance_hero.dart';
+import 'package:iqly_mobile/ui/claim_stamp.dart';
+import 'package:iqly_mobile/ui/pressable.dart';
+import 'package:iqly_mobile/ui/proof_tile.dart';
+import 'package:iqly_mobile/ui/step_row.dart';
+import 'package:iqly_mobile/ui/tilt.dart';
+import 'package:iqly_mobile/ui/video_preview.dart';
+
+import '../golden/golden.dart' show loadAppFonts;
+import '../golden/screens/activations_harness.dart';
+import 'entry_harness.dart' show recordHaptics;
+
+const _success = 'HapticFeedbackType.successNotification';
+const _commit = 'HapticFeedbackType.lightImpact';
+
+/// Pumps [ms] of frames 10 ms apart, as a device draws them, calling [each]
+/// after every frame with the time since the first.
+Future<void> _run(
+  WidgetTester tester,
+  int ms, [
+  void Function(int at)? each,
+]) async {
+  for (var at = 10; at <= ms; at += 10) {
+    await tester.pump(const Duration(milliseconds: 10));
+    each?.call(at);
+  }
+}
+
+Finder _button(String label) =>
+    find.byWidgetPredicate((w) => w is IqPressable && w.semanticLabel == label);
+
+Finder _ticket(String id) => find.byKey(ValueKey(id), skipOffstage: false);
+
+/// The ticket's own entrance: its fade, then its rise.
+double _ticketOpacity(WidgetTester tester, String id) => tester
+    .widget<FadeTransition>(
+      find
+          .descendant(
+            of: _ticket(id),
+            matching: find.byType(FadeTransition, skipOffstage: false),
+          )
+          .first,
+    )
+    .opacity
+    .value;
+
+double _ticketRise(WidgetTester tester, String id) => tester
+    .widget<Transform>(
+      find
+          .descendant(
+            of: _ticket(id),
+            matching: find.byType(Transform, skipOffstage: false),
+          )
+          .first,
+    )
+    .transform
+    .getTranslation()
+    .y;
+
+/// A StateDissolve layer, keyed by its state ('_Layout.credited', 'tile').
+Finder _layerOf(String key) => find.byWidgetPredicate(
+  (w) =>
+      w is FadeTransition &&
+      w.key is ValueKey &&
+      '${(w.key! as ValueKey).value}' == key,
+);
+
+double _layer(WidgetTester tester, String key) =>
+    tester.widget<FadeTransition>(_layerOf(key)).opacity.value;
+
+double _stampOpacity(WidgetTester tester) => tester
+    .widget<Opacity>(
+      find
+          .descendant(
+            of: find.byType(IqClaimStamp),
+            matching: find.byType(Opacity),
+          )
+          .first,
+    )
+    .opacity;
+
+double _stampScale(WidgetTester tester) => tester
+    .widget<Transform>(
+      find
+          .descendant(
+            of: find.byType(IqClaimStamp),
+            matching: find.byType(Transform),
+          )
+          .first,
+    )
+    .transform
+    .getMaxScaleOnAxis();
+
+double _stampDegrees(WidgetTester tester) => tester
+    .widget<IqTilt>(
+      find.descendant(
+        of: find.byType(IqClaimStamp),
+        matching: find.byType(IqTilt),
+      ),
+    )
+    .degrees;
+
+List<IqStepRowState> _steps(WidgetTester tester) => [
+  for (final row in tester.widgetList<IqStepRow>(find.byType(IqStepRow)))
+    row.state,
+];
+
+IqBalanceHero _hero(WidgetTester tester) =>
+    tester.widget<IqBalanceHero>(find.byType(IqBalanceHero));
+
+bool _between(double value) => value > 0 && value < 1;
+
+DemoActivationsService _stuck() => instantActivations(
+  now: Figma.friday,
+  seed: Figma.world(Figma.friday, kudiBox: Figma.step1),
+);
+
+void main() {
+  setUpAll(loadAppFonts);
+
+  final thursday = Figma.thursday;
+  final friday = Figma.friday;
+
+  group('the list', () {
+    testWidgets('waits 300 ms on paper, then holds the skeleton 600', (
+      tester,
+    ) async {
+      await pumpActivations(
+        tester,
+        Routes.activations,
+        now: thursday,
+        reducedMotion: false,
+        settle: false,
+        service: DemoActivationsService(
+          seed: Figma.world(thursday),
+          clock: () => thursday,
+          load: const Duration(milliseconds: 500),
+          delay: Duration.zero,
+          step: null,
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 290));
+      expect(find.text('LOADING…'), findsNothing);
+      await tester.pump(const Duration(milliseconds: 20));
+      expect(find.text('LOADING…'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('LOADING…'), findsOneWidget, reason: 'held 600');
+      expect(find.text('SHORT TASKS FROM BUSINESSES'), findsNothing);
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump();
+      expect(find.text('SHORT TASKS FROM BUSINESSES'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(find.text('LOADING…'), findsNothing);
+    });
+
+    testWidgets('data inside 300 ms comes straight in; tickets arrive 40 ms '
+        'a slot apart, fading as they rise 12', (tester) async {
+      await pumpActivations(
+        tester,
+        Routes.activations,
+        now: thursday,
+        reducedMotion: false,
+        settle: false,
+      );
+      expect(find.text('LOADING…'), findsNothing);
+      final starts = <String, int>{};
+      final rises = <(double, double)>[];
+      await _run(tester, 600, (at) {
+        for (final id in ['a1', 'a2', 'a3']) {
+          if (_ticketOpacity(tester, id) > 0) starts.putIfAbsent(id, () => at);
+        }
+        final opacity = _ticketOpacity(tester, 'a1');
+        if (_between(opacity)) {
+          rises.add((opacity, _ticketRise(tester, 'a1')));
+        }
+      });
+      // The Hero sits in reading slot 2, Kudi Box in 4 and Unibooks in 5.
+      expect(starts['a1'], inInclusiveRange(80, 100));
+      expect(starts['a2']! - starts['a1']!, 80);
+      expect(starts['a3']! - starts['a2']!, 40);
+      expect(rises, isNotEmpty);
+      for (final (opacity, rise) in rises) {
+        expect(rise, closeTo(12 * (1 - opacity), 0.01));
+      }
+      for (final id in ['a1', 'a2', 'a3']) {
+        expect(_ticketOpacity(tester, id), 1);
+        expect(_ticketRise(tester, id), 0);
+      }
+    });
+  });
+
+  group('one activation', () {
+    testWidgets('Start dissolves the offer into just started over 300 ms', (
+      tester,
+    ) async {
+      final haptics = recordHaptics(tester);
+      await pumpActivations(
+        tester,
+        activationPath('a2'),
+        now: thursday,
+        reducedMotion: false,
+      );
+      await tester.tap(find.text('Start activation'));
+      await tester.pump();
+      expect(haptics, [_commit]);
+      await _run(tester, 150);
+      expect(_between(_layer(tester, '_Layout.offer')), isTrue);
+      expect(_between(_layer(tester, '_Layout.steps')), isTrue);
+      await _run(tester, 200);
+      expect(find.text('Start activation'), findsNothing);
+      expect(_layer(tester, '_Layout.steps'), 1);
+    });
+
+    testWidgets('a confirmed step pops to Done, the next goes Active 120 ms '
+        'later; paid, the stamp lands at +120 with the success haptic and '
+        'the wallet rolls at +400', (tester) async {
+      final haptics = recordHaptics(tester);
+      await pumpActivations(
+        tester,
+        activationPath('a2'),
+        now: thursday,
+        reducedMotion: false,
+        service: instantActivations(
+          now: thursday,
+          step: const Duration(seconds: 4),
+        ),
+      );
+      await tester.tap(find.text('Start activation'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(_steps(tester), [
+        IqStepRowState.todo,
+        IqStepRowState.todo,
+        IqStepRowState.todo,
+      ]);
+
+      await tester.pump(const Duration(milliseconds: 3600));
+      expect(_steps(tester), [
+        IqStepRowState.done,
+        IqStepRowState.todo,
+        IqStepRowState.todo,
+      ]);
+      expect(find.text('Step 1 of 3 confirmed'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 130));
+      expect(_steps(tester), [
+        IqStepRowState.done,
+        IqStepRowState.active,
+        IqStepRowState.todo,
+      ]);
+      expect(haptics, [_commit], reason: 'confirmations are passive');
+
+      await tester.pump(const Duration(milliseconds: 3870));
+      expect(find.text('Your reward'), findsOneWidget);
+      await _run(tester, 60);
+      expect(_stampOpacity(tester), 0);
+      expect(haptics, [_commit]);
+      expect(_hero(tester).amount, '₦12,500');
+
+      await _run(tester, 100);
+      expect(haptics, [_commit, _success]);
+      expect(_between(_stampOpacity(tester)), isTrue);
+      expect(_stampScale(tester), greaterThan(1));
+      expect(_hero(tester).amount, '₦12,500');
+
+      await _run(tester, 300);
+      expect(_stampOpacity(tester), 1);
+      expect(_stampScale(tester), closeTo(1, 0.001));
+      expect(_stampDegrees(tester), closeTo(IqClaimStamp.tilt, 0.001));
+      expect(_hero(tester).amount, '₦14,000');
+      expect(_hero(tester).earned, '₦64,000.00');
+      await tester.pump(const Duration(milliseconds: 500));
+    });
+
+    testWidgets('reduced motion: a 150 ms crossfade to the reward, the stamp '
+        'fades in at rest, the balance is new at once', (tester) async {
+      final haptics = recordHaptics(tester);
+      await pumpActivations(
+        tester,
+        activationPath('a2'),
+        now: thursday,
+        service: instantActivations(
+          now: thursday,
+          seed: Figma.world(thursday, kudiBox: Figma.step1),
+        ),
+      );
+      await tester.tap(find.text('Verify your BVN in the app'));
+      await tester.pump();
+      final layer = <double>[];
+      final stamp = <double>[];
+      await _run(tester, 600, (at) {
+        if (_layerOf('_Layout.credited').evaluate().isEmpty) return;
+        layer.add(_layer(tester, '_Layout.credited'));
+        expect(_hero(tester).amount, '₦14,000');
+        stamp.add(_stampOpacity(tester));
+        expect(_stampScale(tester), 1);
+        expect(_stampDegrees(tester), IqClaimStamp.tilt);
+      });
+      final fading = layer.where(_between).length;
+      expect(fading, inInclusiveRange(13, 16), reason: '150 ms of frames');
+      expect(layer.last, 1);
+      expect(find.text('Verify your BVN in the app'), findsNothing);
+      expect(stamp.where(_between), isNotEmpty);
+      expect(stamp.last, 1);
+      expect(haptics, [_success]);
+    });
+  });
+
+  group('proof', () {
+    testWidgets('a pick morphs the tile into the polaroid over 320 ms', (
+      tester,
+    ) async {
+      await pumpActivations(
+        tester,
+        proofPath('a2'),
+        now: friday,
+        service: _stuck(),
+        reducedMotion: false,
+        settle: false,
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+      final tile = tester.getSize(find.byType(IqProofTile)).height;
+      await tester.tap(find.byType(IqProofTile));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 160));
+      expect(find.byType(IqProofTile), findsOneWidget);
+      expect(find.byType(IqVideoPreview), findsOneWidget);
+      final slot = find.ancestor(
+        of: find.byType(IqVideoPreview),
+        matching: find.byType(AnimatedSize),
+      );
+      final preview = tester.getSize(find.byType(IqVideoPreview)).height;
+      expect(tester.getSize(slot).height, inExclusiveRange(tile, preview));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.byType(IqProofTile), findsNothing);
+      expect(tester.getSize(slot).height, closeTo(preview, 0.5));
+    });
+
+    testWidgets('Remove recording tilts the polaroid 3° as it fades, then '
+        'the tile rises in', (tester) async {
+      await pumpActivations(
+        tester,
+        proofPath('a2'),
+        now: friday,
+        service: _stuck(),
+        reducedMotion: false,
+        settle: false,
+      );
+      await tester.tap(find.byType(IqProofTile));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.tap(_button('Remove'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.text('Remove recording'));
+      final tilts = <double>[];
+      final tiles = <(double, double)>[];
+      await _run(tester, 600, (at) {
+        final polaroid = find.ancestor(
+          of: find.byType(IqVideoPreview),
+          matching: find.byType(Transform),
+        );
+        if (polaroid.evaluate().isNotEmpty) {
+          final turn = tester.widget<Transform>(polaroid.first).transform;
+          tilts.add(
+            math.atan2(turn.entry(1, 0), turn.entry(0, 0)) * 180 / math.pi,
+          );
+        }
+        final tile = find.byType(IqProofTile);
+        if (tile.evaluate().isEmpty) return;
+        tiles.add((
+          tester
+              .widget<FadeTransition>(
+                find
+                    .ancestor(of: tile, matching: find.byType(FadeTransition))
+                    .first,
+              )
+              .opacity
+              .value,
+          tester
+              .widget<Transform>(
+                find.ancestor(of: tile, matching: find.byType(Transform)).first,
+              )
+              .transform
+              .getTranslation()
+              .y,
+        ));
+      });
+      expect(tilts.where((d) => d > 0 && d < 3), isNotEmpty);
+      expect(tilts.every((d) => d >= 0 && d <= 3), isTrue);
+      expect(find.byType(IqVideoPreview), findsNothing);
+      expect(tiles.first.$1, 0, reason: 'the tile waits for the polaroid');
+      final rising = tiles.where((t) => _between(t.$1));
+      expect(rising, isNotEmpty);
+      for (final (opacity, rise) in rising) {
+        expect(rise, closeTo(8 * (1 - opacity), 0.01));
+      }
+      expect(tiles.last, (1.0, 0.0));
+    });
+
+    testWidgets('reduced motion: the tile and the polaroid crossfade in '
+        'place over 150 ms, nothing morphs, tilts or rises', (tester) async {
+      await pumpActivations(
+        tester,
+        proofPath('a2'),
+        now: friday,
+        service: _stuck(),
+      );
+      await tester.tap(find.byType(IqProofTile));
+      await tester.pump();
+      final preview = <double>[];
+      await _run(tester, 300, (at) {
+        if (_layerOf('preview').evaluate().isEmpty) return;
+        preview.add(_layer(tester, 'preview'));
+        expect(
+          find.ancestor(
+            of: find.byType(IqVideoPreview),
+            matching: find.byType(AnimatedSize),
+          ),
+          findsNothing,
+        );
+      });
+      expect(preview.where(_between).length, inInclusiveRange(13, 16));
+      expect(preview.last, 1);
+      expect(find.byType(IqProofTile), findsNothing);
+
+      await tester.tap(_button('Remove'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove recording'));
+      final tile = <double>[];
+      await _run(tester, 600, (at) {
+        expect(
+          find.ancestor(
+            of: find.byType(IqVideoPreview),
+            matching: find.byWidgetPredicate(
+              (w) => w is Transform && w.transform.entry(1, 0) != 0,
+            ),
+          ),
+          findsNothing,
+        );
+        expect(
+          find.ancestor(
+            of: find.byType(IqProofTile),
+            matching: find.byWidgetPredicate(
+              (w) => w is Transform && w.transform.getTranslation().y != 0,
+            ),
+          ),
+          findsNothing,
+        );
+        if (_layerOf('tile').evaluate().isNotEmpty) {
+          tile.add(_layer(tester, 'tile'));
+        }
+      });
+      expect(tile.where(_between), isNotEmpty);
+      expect(tile.last, 1);
+      expect(find.byType(IqVideoPreview), findsNothing);
+      expect(find.byType(IqProofTile), findsOneWidget);
+    });
+
+    testWidgets('sent: Your proof is already in place under the leaving '
+        'page, and its stamp lands as it shows', (tester) async {
+      final haptics = recordHaptics(tester);
+      await pumpActivations(
+        tester,
+        proofPath('a2'),
+        now: friday,
+        service: _stuck(),
+        reducedMotion: false,
+        settle: false,
+      );
+      await tester.tap(find.byType(IqProofTile));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      haptics.clear();
+      await tester.tap(find.text('Send proof'));
+      await tester.pump();
+      await tester.pump();
+      expect(haptics, [_commit, _success]);
+      await _run(tester, 100);
+      expect(find.text('Upload proof of step 2'), findsNothing);
+      expect(find.text('Your proof'), findsOneWidget);
+      expect(_stampOpacity(tester), 0);
+      final stamp = <(double, double)>[];
+      await _run(
+        tester,
+        500,
+        (at) => stamp.add((_stampOpacity(tester), _stampScale(tester))),
+      );
+      expect(stamp.where((s) => _between(s.$1) && s.$2 > 1), isNotEmpty);
+      expect(stamp.last.$1, 1);
+      expect(stamp.last.$2, closeTo(1, 0.001));
+    });
+
+    testWidgets('play: the frame flies from the thumbnail to the player', (
+      tester,
+    ) async {
+      await pumpActivations(
+        tester,
+        activationPath('a2'),
+        now: friday,
+        reducedMotion: false,
+        settle: false,
+        service: instantActivations(
+          now: friday,
+          seed: Figma.world(friday, kudiBox: Figma.proofSent),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.tap(_button('Play'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 150));
+      final heights = [
+        for (final box in tester.renderObjectList<RenderBox>(
+          find.byType(ProofFrame),
+        ))
+          box.size.height,
+      ];
+      expect(
+        heights.any((h) => h > 201 && h < 560),
+        isTrue,
+        reason: '$heights',
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+    });
+
+    testWidgets('reduced motion: the player crossfades in, no flight', (
+      tester,
+    ) async {
+      await pumpActivations(
+        tester,
+        activationPath('a2'),
+        now: friday,
+        service: instantActivations(
+          now: friday,
+          seed: Figma.world(friday, kudiBox: Figma.proofSent),
+        ),
+      );
+      await tester.tap(_button('Play'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 75));
+      final heights = [
+        for (final box in tester.renderObjectList<RenderBox>(
+          find.byType(ProofFrame, skipOffstage: false),
+        ))
+          box.size.height,
+      ];
+      expect(heights.where((h) => h > 201 && h < 500), isEmpty);
+      await tester.pumpAndSettle();
+    });
+  });
+}
