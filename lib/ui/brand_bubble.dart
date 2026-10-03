@@ -1,8 +1,7 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../core/motion.dart';
+import '../core/transitions.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 import 'pressable.dart';
@@ -18,10 +17,11 @@ enum IqBrandBubbleState { newPolls, done }
 /// Motion (spec 5.28, 5.24): the ring and avatar press to .96 (120 ms, back
 /// in 160). Turning Done plays once: the ring and avatar cross to grey over
 /// 200 ms, the count badge pops out (150 ms ease-in) and the check badge
-/// pops in from +120 (220 ms). A new count rolls. A change made while the
-/// bubble is out of view (Discover under the Polls pages) waits until it is
-/// back and the page on top has left. Reduced motion: the new look at once,
-/// with no press scale.
+/// pops in from +120 (220 ms). A new count rolls. A change that lands
+/// while the bubble is hidden, or while a page stands over it or is still
+/// on its way out (Discover as the Polls page pops), waits until it shows
+/// with nothing over it, then plays once. Reduced motion: the new look at
+/// once, with no press scale.
 class IqBrandBubble extends StatefulWidget {
   const IqBrandBubble({
     super.key,
@@ -66,8 +66,7 @@ class _IqBrandBubbleState extends State<IqBrandBubble>
   );
   late IqBrandBubbleState _shown = widget.state;
   late String _count = widget.count;
-  bool _missed = false;
-  Timer? _wait;
+  bool _waiting = false;
 
   static Interval _span(Duration from, Duration length, Curve curve) {
     final total = _length.inMicroseconds;
@@ -95,24 +94,21 @@ class _IqBrandBubbleState extends State<IqBrandBubble>
     if (widget.state == _shown && (!counting || widget.count == _count)) {
       return;
     }
-    if (!TickerMode.valuesOf(context).enabled) {
-      _wait?.cancel();
-      _wait = null;
-      _missed = true;
-      return;
-    }
-    if (!_missed) {
-      _show();
-      return;
-    }
-    _wait ??= Timer(motion(context, IqDurations.screenBack), () {
-      if (mounted) setState(_show);
+    if (_waiting || !TickerMode.valuesOf(context).enabled) return;
+    _waiting = true;
+    var now = true;
+    whenUncovered(context, () {
+      _waiting = false;
+      if (now) {
+        _show();
+      } else if (mounted) {
+        setState(_catchUp);
+      }
     });
+    now = false;
   }
 
   void _show() {
-    _wait = null;
-    _missed = false;
     if (widget.state == IqBrandBubbleState.newPolls) _count = widget.count;
     if (widget.state == _shown) return;
     _shown = widget.state;
@@ -128,7 +124,6 @@ class _IqBrandBubbleState extends State<IqBrandBubble>
 
   @override
   void dispose() {
-    _wait?.cancel();
     _done.dispose();
     super.dispose();
   }

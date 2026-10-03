@@ -125,6 +125,51 @@ void whenArrived(BuildContext context, VoidCallback action) {
   wait();
 }
 
+/// Runs [action] once no page stands over the one around [context]: at once
+/// when none does, else as soon as the last page above has gone, so a
+/// change that lands while a page is still on its way out over this one
+/// (or arrives at the start of a pop, as a paused provider's does) plays
+/// where it is seen (spec 5.28, 7.5). Never runs once [context] is gone.
+void whenUncovered(BuildContext context, VoidCallback action) {
+  final above = _pageAbove(context);
+  if (above == null) {
+    action();
+    return;
+  }
+  late final AnimationStatusListener listener;
+  listener = (status) {
+    if (!status.isDismissed) return;
+    above.removeStatusListener(listener);
+    if (context.mounted) whenUncovered(context, action);
+  };
+  above.addStatusListener(listener);
+}
+
+/// The move of the nearest page standing over the one around [context], or
+/// still coming or going over it, through every navigator it sits in.
+Animation<double>? _pageAbove(BuildContext context) {
+  for (
+    var page = context.getInheritedWidgetOfExactType<_PageScope>();
+    page != null;
+    page = page.route.navigator?.context
+        .getInheritedWidgetOfExactType<_PageScope>()
+  ) {
+    final above = page.route.secondaryAnimation;
+    if (above != null && !above.isDismissed) return above;
+  }
+  return null;
+}
+
+/// Lets what a page holds find its route without depending on its state.
+class _PageScope extends InheritedWidget {
+  const _PageScope({required this.route, required super.child});
+
+  final ModalRoute<dynamic> route;
+
+  @override
+  bool updateShouldNotify(_PageScope old) => route != old.route;
+}
+
 enum _Move {
   push(IqDurations.screen, IqDurations.screenBack),
   back(IqDurations.screenBack, IqDurations.screenBack),
@@ -302,7 +347,10 @@ class _IqPageRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
         PulseScope(
           child: _HeldInsets(
             route: this,
-            child: (settings as _IqPage<T>).child,
+            child: _PageScope(
+              route: this,
+              child: (settings as _IqPage<T>).child,
+            ),
           ),
         ),
       ),
@@ -670,7 +718,10 @@ class IqSheetRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
             alignment: Alignment.bottomCenter,
             child: _SheetMotion(
               route: this,
-              child: _SheetDrag(route: this, child: sheet),
+              child: _SheetDrag(
+                route: this,
+                child: _PageScope(route: this, child: sheet),
+              ),
             ),
           ),
         ),

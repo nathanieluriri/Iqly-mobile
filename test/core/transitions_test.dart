@@ -380,6 +380,31 @@ void main() {
     }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
   });
 
+  group('whenUncovered', () {
+    testWidgets('runs at once with nothing over the page, else once the page '
+        'above has gone', (tester) async {
+      final router = await _pump(tester);
+      final a = tester.element(find.byKey(const ValueKey('a')));
+      var ran = 0;
+      whenUncovered(a, () => ran++);
+      expect(ran, 1);
+
+      router.push('/b');
+      await tester.pump();
+      await tester.pump(_ms * 150);
+      whenUncovered(a, () => ran++);
+      await tester.pumpAndSettle();
+      expect(ran, 1);
+
+      router.pop();
+      await tester.pump();
+      await tester.pump(_ms * 200);
+      expect(ran, 1);
+      await tester.pump(_ms * 41);
+      expect(ran, 2);
+    });
+  });
+
   group('keyboard', () {
     double foot(WidgetTester tester, String page) =>
         tester.getTopLeft(find.byKey(ValueKey('$page-foot'))).dy;
