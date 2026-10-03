@@ -128,9 +128,8 @@ void main() {
     Widget option(IqPollOptionState state) =>
         _app(IqPollOption(state: state, width: 324, onTap: () {}));
 
-    testWidgets('a pick fills ink over 120 ms as its check pops', (
-      tester,
-    ) async {
+    testWidgets('a pick fills ink over 120 ms as the check pops and the label '
+        'eases right', (tester) async {
       await tester.pumpWidget(option(IqPollOptionState.standard));
       expect(_check, findsNothing);
       await tester.pumpWidget(option(IqPollOptionState.selected));
@@ -145,8 +144,19 @@ void main() {
         find.ancestor(of: _check, matching: find.byType(Transform)).first,
       );
       expect(pop.transform.entry(0, 0), inExclusiveRange(0.6, 1));
+      final label = find.text('Zobo and ginger');
+      expect(label, findsOneWidget);
+      final inset =
+          tester.getTopLeft(label).dx -
+          tester.getTopLeft(find.byType(IqPollOption)).dx;
+      expect(inset, inExclusiveRange(18, 46));
       await tester.pump(const Duration(milliseconds: 60));
       expect(fade().opacity.value, 1);
+      expect(
+        tester.getTopLeft(label).dx -
+            tester.getTopLeft(find.byType(IqPollOption)).dx,
+        46,
+      );
       await tester.pumpAndSettle();
     });
 
