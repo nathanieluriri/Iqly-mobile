@@ -274,7 +274,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         _inset(
           IqListRow(
             label: 'Activations',
-            description: '${activations.closingToday} closes today',
+            description: activations.closingToday == 1
+                ? '1 closes today'
+                : '${activations.closingToday} close today',
             showDescription: activations.closingToday > 0,
             icon: IqIcons.timer,
             divider: false,
@@ -286,6 +288,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   List<Widget> _feed(FeedData data, FeedView view) {
     final filters = ref.read(discoverFiltersProvider);
+    if (view.isEmpty && filters.narrowed) {
+      return [
+        ..._proposals(),
+        _inset(
+          const _EmptyText(
+            illustration: IqIllustrations.trophy,
+            title: 'No briefs match these filters',
+          ),
+        ),
+        _inset(
+          IqButton(
+            label: 'Clear filters',
+            kind: IqButtonKind.ghost,
+            showIcon: false,
+            width: double.infinity,
+            onTap: () => ref
+                .read(discoverFiltersProvider.notifier)
+                .apply(const DiscoverFilters()),
+          ),
+        ),
+      ];
+    }
     if (view.isEmpty) {
       return [
         ..._proposals(),
@@ -352,13 +376,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         _inset(
           Text(
             'Loading more'.toUpperCase(),
+            textAlign: TextAlign.center,
             style: IqText.mono.copyWith(color: IqColors.fg3),
           ),
         ),
       ] else if (!view.hasMore) ...[
         _inset(
           Text(
-            'That’s all ${view.total} ${filters.status.label.toLowerCase()} briefs',
+            view.total == 1
+                ? 'That’s the only ${filters.status.label.toLowerCase()} brief'
+                : 'That’s all ${view.total} ${filters.status.label.toLowerCase()} briefs',
             textAlign: TextAlign.center,
             style: IqText.body.copyWith(color: IqColors.fg2),
           ),
@@ -396,14 +423,10 @@ List<Widget> gappedRow(Iterable<Widget> items) {
 /// The empty and failed feed: an optional illustration, a card title and
 /// one line.
 class _EmptyText extends StatelessWidget {
-  const _EmptyText({
-    required this.title,
-    required this.body,
-    this.illustration,
-  });
+  const _EmptyText({required this.title, this.body, this.illustration});
 
   final String title;
-  final String body;
+  final String? body;
   final IqIllustrations? illustration;
 
   @override
@@ -424,15 +447,17 @@ class _EmptyText extends StatelessWidget {
               style: IqText.cardTitle.copyWith(color: IqColors.fg),
             ),
           ),
-          const SizedBox(height: IqSpace.s2),
-          SizedBox(
-            width: double.infinity,
-            child: Text(
-              body,
-              textAlign: TextAlign.center,
-              style: IqText.body.copyWith(color: IqColors.fg2),
+          if (body case final body?) ...[
+            const SizedBox(height: IqSpace.s2),
+            SizedBox(
+              width: double.infinity,
+              child: Text(
+                body,
+                textAlign: TextAlign.center,
+                style: IqText.body.copyWith(color: IqColors.fg2),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

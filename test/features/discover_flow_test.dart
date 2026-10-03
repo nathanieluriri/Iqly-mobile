@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/features/discover/brief_detail_screen.dart';
 import 'package:iqly_mobile/features/discover/discover_state.dart';
 import 'package:iqly_mobile/features/discover/filters_sheet.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
 import 'package:iqly_mobile/features/discover/saved_briefs_screen.dart';
 import 'package:iqly_mobile/router.dart';
+import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/bookmark.dart';
 import 'package:iqly_mobile/ui/section_title.dart';
 import 'package:iqly_mobile/ui/switch.dart';
@@ -125,6 +127,46 @@ void main() {
     await _tap(tester, find.bySemanticsLabel(RegExp('Notifications')));
     expect(find.text('Notifications'), findsOneWidget);
     semantics.dispose();
+  });
+
+  testWidgets('Discover: filters that match nothing say so and clear', (
+    tester,
+  ) async {
+    final container = await pumpApp(tester, Routes.home);
+
+    await _scrollTo(tester, find.text('More briefs'));
+    final more = find.byWidgetPredicate(
+      (w) => w is IqSectionTitle && w.title == 'More briefs',
+    );
+    await tester.tapAt(tester.getTopRight(more) + const Offset(-24, 16));
+    await tester.pumpAndSettle();
+    await _tap(tester, find.text('Standard and Advanced'));
+    await _tap(tester, find.text('Advanced').last);
+    await _tap(tester, find.text('All categories'));
+    await _tap(tester, find.text('Technology').last);
+    final show = tester.widget<IqButton>(
+      find.widgetWithText(IqButton, 'No briefs match'),
+    );
+    expect(show.disabled, isTrue);
+    await _tap(tester, find.text('Clear filters'));
+    expect(find.byType(FiltersSheet), findsNothing);
+
+    container
+        .read(discoverFiltersProvider.notifier)
+        .apply(
+          const DiscoverFilters(
+            tier: Tier.advanced,
+            category: Category.technology,
+          ),
+        );
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, 2000));
+    await tester.pumpAndSettle();
+    expect(find.text('No briefs match these filters'), findsOneWidget);
+    expect(find.text('No open briefs right now'), findsNothing);
+    await _tap(tester, find.text('Clear filters'));
+    expect(find.text('No briefs match these filters'), findsNothing);
+    expect(find.text('Closing soon'), findsOneWidget);
   });
 
   testWidgets('Discover: failed load, Try again', (tester) async {
