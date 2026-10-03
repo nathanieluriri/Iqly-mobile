@@ -34,12 +34,17 @@ import 'help_widgets.dart';
 /// as resolved closes the ticket and goes back to the activation (B9
 /// Reward credited); View wallet opens the Wallet tab.
 ///
-/// Motion (MOTION-SPEC §7.7, Figma 168:1080): sent from the request, the
-/// message arrives at +120 and its attachment line 120 after it; support
-/// types (the dots hold the pulse) until its bubble arrives; the tag
-/// crosses to Support replied; the updated balance arrives and its changed
-/// digits roll from the old figures at +400. Resolving crosses the tag to
-/// Resolved before leaving. A thread opened later shows still.
+/// Motion (MOTION-SPEC §7.7, §5.17, Figma 168:1080): sent from the request,
+/// the message arrives at +120 and its attachment line 120 after it. Each
+/// part that lands while the thread is open opens its space first (240 ms
+/// ease-out, everything below easing down with it) and then arrives: the
+/// typing bubble, the person's own replies, and support's reply, which
+/// takes the typing bubble's place while the dots keep the pulse and
+/// arrives at +240 as the tag crosses to Support replied; the updated
+/// balance then appears at +360 and, when the reply credited the reward,
+/// its changed digits roll from the old figures at +640. Resolving crosses
+/// the tag to Resolved before leaving. A thread opened later shows still;
+/// reduced motion cuts the space open and fades the parts in.
 class HelpThreadScreen extends ConsumerStatefulWidget {
   const HelpThreadScreen({super.key, required this.id, this.entry});
 
@@ -53,13 +58,26 @@ class HelpThreadScreen extends ConsumerStatefulWidget {
 class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
   static final _time = DateFormat('EEE, h:mm a');
 
+  /// A part landing in view opens its space over this, then arrives.
+  static const _open = IqDurations.mark;
+
   final _reply = TextEditingController();
   late final bool _sent = widget.entry == HelpThreadEntry.sent;
   int? _shownMessages;
+  bool? _typingShown;
+  bool _typingArrives = false;
+  bool? _balanceShown;
+  bool _balanceArrives = false;
   bool? _creditShown;
   bool _rolled = true;
+
+  /// Support's reply that took the typing bubble's place, and whether the
+  /// bubble still holds it while its space opens.
+  int? _heldReply;
+  bool _holding = false;
   bool _resolving = false;
   bool _replying = false;
+  Timer? _hold;
   Timer? _roll;
   Timer? _leave;
 
@@ -71,6 +89,7 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
 
   @override
   void dispose() {
+    _hold?.cancel();
     _roll?.cancel();
     _leave?.cancel();
     _reply.dispose();
@@ -80,14 +99,38 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
   static String _at(DateTime at) =>
       _time.format(at).replaceAll('AM', 'am').replaceAll('PM', 'pm');
 
-  void _noteCredit(HelpTicket ticket) {
+  /// Notes what lands while the thread is open, so it can open its space
+  /// and arrive; what was there when it opened shows still.
+  void _note(HelpTicket ticket, WalletData? wallet) {
+    final first = _shownMessages == null;
+    _shownMessages ??= _sent ? 0 : ticket.messages.length;
+    final moving = !MediaQuery.disableAnimationsOf(context);
+
+    final typing = ticket.supportTyping;
+    if (!first && typing && _typingShown != true) _typingArrives = true;
+    final replied =
+        ticket.messages.isNotEmpty &&
+        ticket.messages.last.author == HelpAuthor.support;
+    if (moving && _typingShown == true && !typing && replied) {
+      _heldReply = ticket.messages.length - 1;
+      _holding = true;
+      _hold?.cancel();
+      _hold = Timer(_open, () {
+        if (mounted) setState(() => _holding = false);
+      });
+    }
+    _typingShown = typing;
+
+    final balance = wallet != null && _award(ticket, wallet) != null;
+    if (!first && balance && _balanceShown != true) _balanceArrives = true;
+    _balanceShown = balance;
+
     final credited = ticket.credit != null;
     final shown = _creditShown;
     _creditShown = credited;
-    if (shown == null || shown || !credited) return;
-    if (MediaQuery.disableAnimationsOf(context)) return;
+    if (shown == null || shown || !credited || !moving) return;
     _rolled = false;
-    _roll = Timer(IqDurations.handoff, () {
+    _roll = Timer(_open + IqDurations.handoff, () {
       if (mounted) setState(() => _rolled = true);
     });
   }
@@ -131,11 +174,14 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
       helpTicketsProvider.select((tickets) => tickets[widget.id]),
     );
     final wallet = ref.watch(walletProvider).value;
-    if (ticket != null) {
-      _noteCredit(ticket);
-      _shownMessages ??= _sent ? 0 : ticket.messages.length;
-    }
+    if (ticket != null) _note(ticket, wallet);
     final shownMessages = _shownMessages ?? 0;
+    final thread = ticket == null
+        ? null
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: _thread(ticket, shownMessages, wallet),
+          );
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
@@ -152,7 +198,7 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
                   onBack: () => leave(context),
                 ),
                 Expanded(
-                  child: ticket == null
+                  child: thread == null
                       ? const SizedBox.shrink()
                       : SingleChildScrollView(
                           padding: const EdgeInsets.fromLTRB(
@@ -164,7 +210,17 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              ..._thread(ticket, shownMessages, wallet),
+                              // AnimatedSize cannot run at zero duration, so
+                              // reduced motion goes without it.
+                              if (MediaQuery.disableAnimationsOf(context))
+                                thread
+                              else
+                                AnimatedSize(
+                                  duration: _open,
+                                  curve: IqCurves.easeOut,
+                                  alignment: Alignment.topCenter,
+                                  child: thread,
+                                ),
                               const SizedBox(height: IqSpace.s3),
                               IqField(
                                 label: 'Reply',
@@ -218,6 +274,8 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
   }
 
   List<Widget> _thread(HelpTicket ticket, int shown, WalletData? wallet) {
+    final open = motion(context, _open);
+    final held = _holding ? _heldReply : null;
     final parts = <Widget>[
       Padding(
         padding: const EdgeInsets.symmetric(vertical: IqSpace.s2),
@@ -225,7 +283,9 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             IqTicketTag(
-              kind: switch (ticket.status) {
+              kind: switch (held == null
+                  ? ticket.status
+                  : HelpTicketStatus.open) {
                 HelpTicketStatus.open => IqTicketTagKind.open,
                 HelpTicketStatus.replied => IqTicketTagKind.replied,
                 HelpTicketStatus.resolved => IqTicketTagKind.resolved,
@@ -241,9 +301,14 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
       ),
     ];
     for (final (i, message) in ticket.messages.indexed) {
+      if (i == held) continue;
       final arriving = i >= shown;
       final first = _sent && i == 0;
-      final delay = first ? IqDurations.chain : Duration.zero;
+      final delay = first
+          ? IqDurations.chain
+          : i == _heldReply
+          ? Duration.zero
+          : open;
       parts.add(
         KeyedSubtree(
           key: ValueKey('message-$i'),
@@ -274,8 +339,28 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
         );
       }
     }
-    if (ticket.supportTyping) {
-      parts.add(const Appear(key: ValueKey('typing'), child: TypingBubble()));
+    if (ticket.supportTyping || held != null) {
+      final slot = Stack(
+        children: [
+          if (held != null)
+            Opacity(
+              opacity: 0,
+              child: _message(
+                ticket.messages[held],
+                arriving: false,
+                delay: Duration.zero,
+              ),
+            ),
+          const TypingBubble(key: ValueKey('dots')),
+        ],
+      );
+      parts.add(
+        Appear(
+          key: const ValueKey('typing'),
+          delay: _typingArrives ? open : Duration.zero,
+          child: slot,
+        ),
+      );
     }
     final award = _award(ticket, wallet);
     if (award != null && wallet != null) {
@@ -323,7 +408,7 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
 
   /// UPDATED BALANCE: the wallet after the credit, footing to the wallet's
   /// totals. When the credit lands on screen the hero shows the figures
-  /// before it and rolls the changed digits at +400.
+  /// before it and rolls the changed digits once it has appeared.
   List<Widget> _balance(LedgerEntry credit, WalletData wallet) {
     final ledger = [
       for (final l in wallet.ledger)
@@ -345,18 +430,11 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
       'Updated balance'.toUpperCase(),
       style: IqText.mono.copyWith(color: IqColors.fg3),
     );
-    if (_rolled && _roll == null) return [label, hero];
+    if (!_balanceArrives) return [label, hero];
+    final at = _open + IqDurations.chain;
     return [
-      Appear(
-        key: const ValueKey('balance-label'),
-        delay: IqDurations.chain,
-        child: label,
-      ),
-      Appear(
-        key: const ValueKey('balance'),
-        delay: IqDurations.chain,
-        child: hero,
-      ),
+      Appear(key: const ValueKey('balance-label'), delay: at, child: label),
+      Appear(key: const ValueKey('balance'), delay: at, child: hero),
     ];
   }
 }
