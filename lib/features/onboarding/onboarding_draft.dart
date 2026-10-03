@@ -5,8 +5,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/session.dart';
 import '../../data/models.dart';
 import '../../data/onboarding_service.dart';
+import '../../data/reference_data.dart';
 import '../../data/repository.dart';
 import '../../router.dart';
+
+/// [city] as it is spelled in [state]'s list, or null when the list does not
+/// have it (a custom city).
+String? listedCity(String? state, String city) {
+  final name = city.trim().toLowerCase();
+  if (state == null || name.isEmpty) return null;
+  return Reference.cities[state]
+      ?.where((c) => c.toLowerCase() == name)
+      .firstOrNull;
+}
 
 /// The screens of first run, in order. [label] is what Resume shows after
 /// "Next:".
@@ -123,7 +134,12 @@ class OnboardingDraftNotifier extends Notifier<OnboardingDraft> {
 
   void setOccupation(String value) => _save(_profile(occupation: value));
 
-  void setState(String value) => _save(_profile(state: value));
+  /// A new state keeps the city only if that state's list has it.
+  void setState(String value) {
+    if (value == _p.state) return;
+    final city = listedCity(value, _p.city);
+    _save(_profile(state: value, city: city ?? ''));
+  }
 
   void setCity(String value) => _save(_profile(city: value));
 

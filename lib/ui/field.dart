@@ -25,6 +25,8 @@ enum IqFieldSize { standard, large }
 /// Figma over brief: the Active label is Color/primary, the Error label Color/err-strong.
 /// Screens hide the status icon and the note on some Valid instances (B0
 /// Your name, Sign in): [showStatus] and [showNote] carry those overrides.
+/// A new picker value crossfades in (200 ms ease-out, none under reduced
+/// motion).
 class IqField extends StatefulWidget {
   const IqField({
     super.key,
@@ -162,13 +164,10 @@ class _IqFieldState extends State<IqField> {
               hintStyle: valueStyle.copyWith(color: IqColors.fg3),
             ),
           )
-        : Text(
-            state == IqFieldState.empty
+        : _PickerValue(
+            text: state == IqFieldState.empty
                 ? widget.pickerPlaceholder
                 : widget.pickerValue,
-            maxLines: 1,
-            softWrap: false,
-            overflow: TextOverflow.ellipsis,
             style: valueStyle.copyWith(
               color: state == IqFieldState.empty ? IqColors.fg3 : IqColors.fg,
             ),
@@ -298,6 +297,38 @@ class _IqFieldState extends State<IqField> {
       semanticLabel:
           '${widget.pickerLabel}, ${state == IqFieldState.empty ? widget.pickerPlaceholder : widget.pickerValue}',
       builder: (context, pressed) => body,
+    );
+  }
+}
+
+class _PickerValue extends StatelessWidget {
+  const _PickerValue({required this.text, required this.style});
+
+  final String text;
+  final TextStyle style;
+
+  static const duration = Duration(milliseconds: 200);
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : duration,
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeOut,
+      layoutBuilder: (current, previous) => Stack(
+        alignment: AlignmentDirectional.centerStart,
+        children: [...previous, ?current],
+      ),
+      child: Text(
+        text,
+        key: ValueKey((text, style.color)),
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.ellipsis,
+        style: style,
+      ),
     );
   }
 }

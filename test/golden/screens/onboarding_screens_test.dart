@@ -8,7 +8,6 @@ import 'package:iqly_mobile/features/onboarding/welcome_screen.dart';
 import 'package:iqly_mobile/features/onboarding/what_you_like_screen.dart';
 import 'package:iqly_mobile/features/onboarding/where_you_live_screen.dart';
 import 'package:iqly_mobile/features/onboarding/where_you_studied_screen.dart';
-import 'package:iqly_mobile/theme/theme.dart';
 
 import '../golden.dart';
 import 'onboarding_harness.dart';
@@ -56,17 +55,7 @@ void main() {
 
   testWidgets('188:8340 Step 2 University search', (tester) async {
     final prefs = await onboardingPrefs(draft: sampleWhereYouStudied);
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: buildTheme(),
-        debugShowCheckedModeBanner: false,
-        home: onboardingFrame(prefs, const WhereYouStudiedScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
+    await pumpOnboardingScreen(tester, prefs, const WhereYouStudiedScreen());
     await tester.tap(find.text('Search universities'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'Lag');
@@ -76,6 +65,30 @@ void main() {
     await expectLater(
       find.byType(MaterialApp),
       matchesGoldenFile('goldens/onboarding_university_search.png'),
+    );
+  });
+
+  testWidgets('City sheet over Where you are', (tester) async {
+    final prefs = await onboardingPrefs(draft: sampleWhereYouLive);
+    await pumpOnboardingScreen(tester, prefs, const WhereYouLiveScreen());
+    await tester.tap(find.text('Ikeja'));
+    await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/onboarding_city_sheet.png'),
+    );
+  });
+
+  testWidgets('City sheet with a name the list does not have', (tester) async {
+    final prefs = await onboardingPrefs(draft: sampleWhereYouLive);
+    await pumpOnboardingScreen(tester, prefs, const WhereYouLiveScreen());
+    await tester.tap(find.text('Ikeja'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Ilupeju');
+    await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/onboarding_city_sheet_add_mine.png'),
     );
   });
 

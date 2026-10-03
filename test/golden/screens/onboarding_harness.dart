@@ -2,7 +2,9 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/session.dart';
+import 'package:iqly_mobile/theme/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Seeds the autosaved draft (and session flags) the frame shows.
@@ -36,6 +38,25 @@ Widget onboardingFrame(SharedPreferences prefs, Widget screen) {
       },
     ),
   );
+}
+
+/// Pumps [screen] at 390 x 844 for goldens that open a sheet over it first.
+Future<void> pumpOnboardingScreen(
+  WidgetTester tester,
+  SharedPreferences prefs,
+  Widget screen,
+) async {
+  tester.view.physicalSize = const Size(390, 844);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: buildTheme(),
+      debugShowCheckedModeBanner: false,
+      home: onboardingFrame(prefs, screen),
+    ),
+  );
+  await tester.pumpAndSettle();
 }
 
 final sampleAboutYou = {'occupation': 'student', 'lastStep': 'aboutYou'};

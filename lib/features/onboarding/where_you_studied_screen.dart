@@ -25,7 +25,7 @@ class WhereYouStudiedScreen extends ConsumerWidget {
     final university = profile.university;
 
     Future<void> pickEducation() async {
-      final picked = await showOnboardingSheet(
+      final picked = await showOnboardingSheet<String>(
         context,
         (context) => OptionSheet(
           title: 'Education',
@@ -37,7 +37,7 @@ class WhereYouStudiedScreen extends ConsumerWidget {
     }
 
     Future<void> pickUniversity() async {
-      final picked = await showOnboardingSheet(
+      final picked = await showOnboardingSheet<String>(
         context,
         (context) =>
             UniversitySheet(selected: university, state: profile.state),
