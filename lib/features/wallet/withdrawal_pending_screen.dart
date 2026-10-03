@@ -174,10 +174,15 @@ class _Fact extends StatelessWidget {
 }
 
 /// Exp/Illustration Kind=Wallet arriving in its two layers (spec 5.29): the
-/// ink rises 16 and fades in over 320, the orange strap sweeps in from
-/// +160. Reduced motion: the illustration itself.
+/// ink rises 16 and fades in over 320, then the orange strap alone sweeps
+/// across, 240 from +160, under the ink as the art stacks them. Reduced
+/// motion: the illustration itself.
 class _WalletArrives extends StatelessWidget {
   const _WalletArrives();
+
+  /// The strap's extent in the art, so the sweep crosses the brush itself
+  /// rather than the whole 200 wide frame.
+  static const _strap = Rect.fromLTRB(73, 0, 143, IqIllustration.designHeight);
 
   @override
   Widget build(BuildContext context) {
@@ -190,14 +195,25 @@ class _WalletArrives extends StatelessWidget {
       height: IqIllustration.designHeight,
       child: Stack(
         children: [
-          Arrive(
+          Positioned.fromRect(
+            rect: _strap,
+            child: Wipe(
+              delay: IqDurations.stagger * 4,
+              child: OverflowBox(
+                alignment: Alignment.topLeft,
+                minWidth: IqIllustration.designWidth,
+                maxWidth: IqIllustration.designWidth,
+                child: Transform.translate(
+                  offset: Offset(-_strap.left, 0),
+                  child: const _Layer(kind, keep: 'accent'),
+                ),
+              ),
+            ),
+          ),
+          const Arrive(
             distance: IqTravel.riseHero,
             duration: IqDurations.morph,
             child: _Layer(kind, keep: 'ink'),
-          ),
-          Wipe(
-            delay: IqDurations.stagger * 4,
-            child: _Layer(kind, keep: 'accent'),
           ),
         ],
       ),
@@ -270,11 +286,14 @@ class _Layer extends StatelessWidget {
   }
 }
 
-/// Keeps one named layer of an illustration and clears the other.
+/// Keeps one layer of an illustration, [keep] "ink" or "accent", and clears
+/// the other. The accent is always one path named accent, while the ink can
+/// be a group whose paths have no id of their own, so the accent layer is
+/// that path alone and the ink layer is everything else.
 class _OnlyLayer extends ColorMapper {
-  const _OnlyLayer(this.id);
+  const _OnlyLayer(this.keep);
 
-  final String id;
+  final String keep;
 
   @override
   Color substitute(
@@ -282,11 +301,11 @@ class _OnlyLayer extends ColorMapper {
     String elementName,
     String attributeName,
     Color color,
-  ) => id == null || id == this.id ? color : Colors.transparent;
+  ) => (id == 'accent') == (keep == 'accent') ? color : Colors.transparent;
 
   @override
-  bool operator ==(Object other) => other is _OnlyLayer && other.id == id;
+  bool operator ==(Object other) => other is _OnlyLayer && other.keep == keep;
 
   @override
-  int get hashCode => id.hashCode;
+  int get hashCode => keep.hashCode;
 }
