@@ -49,3 +49,6 @@ app.*.map.json
 
 # Golden test failure output
 **/failures/
+
+# Preview films
+film/out/
