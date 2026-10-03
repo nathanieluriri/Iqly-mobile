@@ -287,7 +287,10 @@ class _IqPageRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
     return Semantics(
       scopesRoute: true,
       explicitChildNodes: true,
-      child: PulseScope(child: (settings as _IqPage<T>).child),
+      child: _heroes(
+        context,
+        PulseScope(child: (settings as _IqPage<T>).child),
+      ),
     );
   }
 
@@ -326,21 +329,23 @@ class _IqPageRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
     if (_move.slides && Theme.of(context).platform == TargetPlatform.iOS) {
       page = _BackSwipe(route: this, child: page);
     }
-    return HeroMode(
-      enabled: !reduced,
-      child: Transform.translate(
-        offset: Offset(outX, 0),
-        child: FadeTransition(
-          opacity: outFade,
-          child: Transform.translate(
-            offset: Offset(inX, 0),
-            child: FadeTransition(opacity: inFade, child: page),
-          ),
+    return Transform.translate(
+      offset: Offset(outX, 0),
+      child: FadeTransition(
+        opacity: outFade,
+        child: Transform.translate(
+          offset: Offset(inX, 0),
+          child: FadeTransition(opacity: inFade, child: page),
         ),
       ),
     );
   }
 }
+
+/// The hero controller looks for heroes from inside each page, below the
+/// route's transitions, so heroes are switched off for reduced motion here.
+Widget _heroes(BuildContext context, Widget page) =>
+    HeroMode(enabled: !MediaQuery.disableAnimationsOf(context), child: page);
 
 /// The iOS back swipe from the left edge (spec 3.2): the page follows the
 /// finger, then pops when dragged past half the width or flung right at a
@@ -575,12 +580,15 @@ class IqSheetRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
     return Semantics(
       scopesRoute: true,
       explicitChildNodes: true,
-      child: PulseScope(
-        child: Align(
-          alignment: Alignment.bottomCenter,
-          child: _SheetMotion(
-            route: this,
-            child: _SheetDrag(route: this, child: sheet),
+      child: _heroes(
+        context,
+        PulseScope(
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: _SheetMotion(
+              route: this,
+              child: _SheetDrag(route: this, child: sheet),
+            ),
           ),
         ),
       ),
@@ -912,31 +920,25 @@ class ChromeHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The hero controller looks for heroes from inside each page, below
-    // the route's transitions, so the switch has to sit here.
-    return HeroMode(
-      enabled: !MediaQuery.disableAnimationsOf(context),
-      child: Hero(
-        tag: tag,
-        curve: IqCurves.linear,
-        flightShuttleBuilder:
-            (context, animation, direction, fromHero, toHero) {
-              final from = (fromHero.widget as Hero).child;
-              final to = (toHero.widget as Hero).child;
-              final push = direction == HeroFlightDirection.push;
-              final shuttle = this.shuttle;
-              if (shuttle == null) return push ? to : from;
-              return shuttle(
-                context,
-                push ? animation : ReverseAnimation(animation),
-                from,
-                to,
-              );
-            },
-        placeholderBuilder: (context, size, child) =>
-            Opacity(opacity: 0, child: child),
-        child: child,
-      ),
+    return Hero(
+      tag: tag,
+      curve: IqCurves.linear,
+      flightShuttleBuilder: (context, animation, direction, fromHero, toHero) {
+        final from = (fromHero.widget as Hero).child;
+        final to = (toHero.widget as Hero).child;
+        final push = direction == HeroFlightDirection.push;
+        final shuttle = this.shuttle;
+        if (shuttle == null) return push ? to : from;
+        return shuttle(
+          context,
+          push ? animation : ReverseAnimation(animation),
+          from,
+          to,
+        );
+      },
+      placeholderBuilder: (context, size, child) =>
+          Opacity(opacity: 0, child: child),
+      child: child,
     );
   }
 }

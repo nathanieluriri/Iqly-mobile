@@ -81,18 +81,6 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
     super.didChangeDependencies();
     if (_focusAsked) return;
     _focusAsked = true;
-    _afterRise();
-  }
-
-  /// A pushed page draws its first frame offstage for hero flights, and its
-  /// animation reads as arrived during it, so the wait starts after it.
-  void _afterRise() {
-    if (ModalRoute.of(context)?.offstage ?? false) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _afterRise();
-      });
-      return;
-    }
     whenArrived(context, () {
       _arrived = true;
       _focusFirst();

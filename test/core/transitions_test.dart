@@ -68,6 +68,12 @@ Future<GoRouter> _pump(
   WidgetTester tester, {
   String initial = '/a',
   bool reduced = false,
+}) => _pumpWith(tester, _router(initial), reduced: reduced);
+
+Future<GoRouter> _pumpWith(
+  WidgetTester tester,
+  GoRouter router, {
+  bool reduced = false,
 }) async {
   tester.view.physicalSize = _size;
   tester.view.devicePixelRatio = 1;
@@ -77,7 +83,6 @@ Future<GoRouter> _pump(
         const FakeAccessibilityFeatures(disableAnimations: true);
     addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
   }
-  final router = _router(initial);
   addTearDown(router.dispose);
   await tester.pumpWidget(
     MaterialApp.router(theme: buildTheme(), routerConfig: router),
@@ -597,6 +602,67 @@ void main() {
       expect(_opacity(tester, 'card'), 1);
       await tester.pump(_ms);
       expect(tester.hasRunningAnimations, isFalse);
+    });
+  });
+
+  group('heroes', () {
+    Widget page(String name, Alignment at) => ColoredBox(
+      color: IqColors.bg,
+      child: Align(
+        alignment: at,
+        child: Hero(
+          tag: 'mark',
+          child: SizedBox(key: ValueKey('mark-$name'), width: 40, height: 40),
+        ),
+      ),
+    );
+
+    Future<GoRouter> heroes(WidgetTester tester, {required bool reduced}) =>
+        _pumpWith(
+          tester,
+          GoRouter(
+            initialLocation: '/one',
+            routes: [
+              GoRoute(
+                path: '/one',
+                pageBuilder: (c, s) =>
+                    pushPage(s, page('one', Alignment.topLeft)),
+              ),
+              GoRoute(
+                path: '/two',
+                pageBuilder: (c, s) =>
+                    pushPage(s, page('two', Alignment.bottomRight)),
+              ),
+            ],
+          ),
+          reduced: reduced,
+        );
+
+    bool flying(WidgetTester tester) =>
+        find.byKey(const ValueKey('mark-two')).evaluate().isNotEmpty &&
+        tester.getTopLeft(find.byKey(const ValueKey('mark-two'))) !=
+            const Offset(350, 804);
+
+    testWidgets('a shared element flies with the push', (tester) async {
+      final router = await heroes(tester, reduced: false);
+      router.push('/two');
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 100);
+      expect(flying(tester), isTrue);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('reduced motion: no flight, the element waits in place', (
+      tester,
+    ) async {
+      final router = await heroes(tester, reduced: true);
+      router.push('/two');
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 75);
+      expect(flying(tester), isFalse);
+      await tester.pumpAndSettle();
     });
   });
 }
