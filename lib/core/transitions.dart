@@ -542,8 +542,9 @@ void _settle(
   }
 }
 
-/// How many times its average speed [IqCurves.easeOut] sets off at: the
-/// cubic's slope at the origin, where its first control point sits.
+/// How many times its average speed [IqCurves.easeOut] sets off at: its
+/// first control point sits on the origin, so the second one sets the slope
+/// it leaves at.
 final double _easeOutLead = () {
   final ease = IqCurves.easeOut as Cubic;
   return ease.d / ease.c;
