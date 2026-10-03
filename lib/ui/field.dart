@@ -23,6 +23,8 @@ enum IqFieldSize { standard, large }
 /// Figma over brief: the mock caret is on Size=Large Active only (a focused field still shows the live cursor).
 /// Figma over brief: Picker Valid hides the help line.
 /// Figma over brief: the Active label is Color/primary, the Error label Color/err-strong.
+/// Screens hide the status icon and the note on some Valid instances (B0
+/// Your name, Sign in): [showStatus] and [showNote] carry those overrides.
 class IqField extends StatefulWidget {
   const IqField({
     super.key,
@@ -45,6 +47,10 @@ class IqField extends StatefulWidget {
     this.textInputAction,
     this.inputFormatters,
     this.autofocus = false,
+    this.obscureText = false,
+    this.autofillHints,
+    this.showStatus = true,
+    this.showNote = true,
   });
 
   final IqFieldKind kind;
@@ -66,6 +72,10 @@ class IqField extends StatefulWidget {
   final TextInputAction? textInputAction;
   final List<TextInputFormatter>? inputFormatters;
   final bool autofocus;
+  final bool obscureText;
+  final Iterable<String>? autofillHints;
+  final bool showStatus;
+  final bool showNote;
 
   @override
   State<IqField> createState() => _IqFieldState();
@@ -121,7 +131,8 @@ class _IqFieldState extends State<IqField> {
       _ => IqColors.fg3,
     };
     final showHelp =
-        state == IqFieldState.error || (state == IqFieldState.valid && _isText);
+        state == IqFieldState.error ||
+        (state == IqFieldState.valid && _isText && widget.showNote);
     final mockCaret =
         _large &&
         state == IqFieldState.active &&
@@ -137,6 +148,10 @@ class _IqFieldState extends State<IqField> {
             textInputAction: widget.textInputAction,
             inputFormatters: widget.inputFormatters,
             autofocus: widget.autofocus,
+            obscureText: widget.obscureText,
+            autocorrect: !widget.obscureText,
+            enableSuggestions: !widget.obscureText,
+            autofillHints: widget.autofillHints,
             maxLines: 1,
             style: valueStyle.copyWith(color: IqColors.fg),
             cursorColor: IqColors.brand,
@@ -187,11 +202,11 @@ class _IqFieldState extends State<IqField> {
                   ],
                 ),
               ),
-              if (state == IqFieldState.valid) ...[
+              if (state == IqFieldState.valid && widget.showStatus) ...[
                 const SizedBox(width: IqSpace.s3),
                 const IqIcon(IqIcons.success, size: 22, color: IqColors.ok),
               ],
-              if (state == IqFieldState.error) ...[
+              if (state == IqFieldState.error && widget.showStatus) ...[
                 const SizedBox(width: IqSpace.s3),
                 const IqIcon(IqIcons.error, size: 22, color: IqColors.err),
               ],
