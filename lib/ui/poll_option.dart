@@ -13,6 +13,10 @@ enum IqPollOptionState { standard, selected, result, chosen }
 /// with a check. Result and Chosen show the share bar, whose fill stops at
 /// [share] (0 to 1) with the Figma 2.4 point soft edge, and the rounded
 /// percentage. Figma State=Default is [IqPollOptionState.standard].
+///
+/// A new state crosses over the old one (MOTION-SPEC §5.27): a pick fills
+/// ink in 120 ms as its check pops; the result looks take 300, the Smart
+/// Animate of the B2 frames. A cut under reduced motion.
 class IqPollOption extends StatelessWidget {
   const IqPollOption({
     super.key,
@@ -43,62 +47,80 @@ class IqPollOption extends StatelessWidget {
       builder: (context, _) => SizedBox(
         width: width,
         height: height,
-        child: Stack(
-          children: [
-            ..._ground(),
-            Positioned.fill(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18),
-                child: Row(
-                  children: [
-                    if (state == IqPollOptionState.selected ||
-                        state == IqPollOptionState.chosen) ...[
-                      IqIcon(
-                        IqIcons.check,
-                        size: 18,
-                        color: state == IqPollOptionState.selected
-                            ? IqColors.primaryFg
-                            : IqColors.brand,
-                      ),
-                      const SizedBox(width: IqSpace.s2p5),
-                    ],
-                    Expanded(
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: switch (state) {
-                          IqPollOptionState.standard ||
-                          IqPollOptionState.result => IqText.body.copyWith(
-                            color: IqColors.fg,
-                          ),
-                          IqPollOptionState.selected =>
-                            IqText.bodyStrong.copyWith(
-                              color: IqColors.primaryFg,
-                            ),
-                          IqPollOptionState.chosen =>
-                            IqText.bodyStrong.copyWith(color: IqColors.fg),
-                        },
-                      ),
-                    ),
-                    if (!voting) ...[
-                      const SizedBox(width: IqSpace.s2p5),
-                      Text(
-                        '${(share * 100).round()}%',
-                        style: IqText.figureSmall.copyWith(
-                          color: state == IqPollOptionState.chosen
-                              ? IqColors.brand
-                              : IqColors.fg2,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ],
+        child: AnimatedSwitcher(
+          duration: motion(
+            context,
+            voting ? IqDurations.press : IqDurations.screen,
+          ),
+          switchInCurve: IqCurves.easeOut,
+          switchOutCurve: IqCurves.easeOut,
+          layoutBuilder: (current, previous) =>
+              Stack(fit: StackFit.expand, children: [...previous, ?current]),
+          child: KeyedSubtree(key: ValueKey(state), child: _face()),
         ),
       ),
+    );
+  }
+
+  Widget _face() {
+    final check = IqIcon(
+      IqIcons.check,
+      size: 18,
+      color: state == IqPollOptionState.selected
+          ? IqColors.primaryFg
+          : IqColors.brand,
+    );
+    final voting =
+        state == IqPollOptionState.standard ||
+        state == IqPollOptionState.selected;
+    return Stack(
+      children: [
+        ..._ground(),
+        Positioned.fill(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: Row(
+              children: [
+                if (state == IqPollOptionState.selected ||
+                    state == IqPollOptionState.chosen) ...[
+                  state == IqPollOptionState.selected
+                      ? Pop(child: check)
+                      : check,
+                  const SizedBox(width: IqSpace.s2p5),
+                ],
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: switch (state) {
+                      IqPollOptionState.standard || IqPollOptionState.result =>
+                        IqText.body.copyWith(color: IqColors.fg),
+                      IqPollOptionState.selected => IqText.bodyStrong.copyWith(
+                        color: IqColors.primaryFg,
+                      ),
+                      IqPollOptionState.chosen => IqText.bodyStrong.copyWith(
+                        color: IqColors.fg,
+                      ),
+                    },
+                  ),
+                ),
+                if (!voting) ...[
+                  const SizedBox(width: IqSpace.s2p5),
+                  Text(
+                    '${(share * 100).round()}%',
+                    style: IqText.figureSmall.copyWith(
+                      color: state == IqPollOptionState.chosen
+                          ? IqColors.brand
+                          : IqColors.fg2,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../core/motion.dart';
@@ -8,20 +10,23 @@ enum IqHighlightTone { orange, lilac, green, inverse }
 
 /// Exp/Highlight: a highlighter stroke behind the one figure that matters;
 /// Inverse is cream text over an orange brush underline for dark grounds.
-/// The marker wipes in left to right, 240 ms ease-out, once on appear.
-/// [style] takes the nested text style override (TicketCard uses Mob/Small
-/// strong).
+/// The marker wipes in left to right, 240 ms ease-out, once on appear, or
+/// [delay] later so a list row's band waits for its row (MOTION-SPEC
+/// §5.13). [style] takes the nested text style override (TicketCard uses
+/// Mob/Small strong).
 class IqHighlight extends StatefulWidget {
   const IqHighlight({
     super.key,
     this.text = '12 spots left',
     this.tone = IqHighlightTone.orange,
     this.style = IqText.bodyStrong,
+    this.delay = Duration.zero,
   });
 
   final String text;
   final IqHighlightTone tone;
   final TextStyle style;
+  final Duration delay;
 
   static const Duration wipe = IqDurations.mark;
 
@@ -39,6 +44,7 @@ class _IqHighlightState extends State<IqHighlight>
     CurveTween(curve: IqCurves.easeOut),
   );
   bool _started = false;
+  Timer? _wait;
 
   @override
   void didChangeDependencies() {
@@ -47,13 +53,16 @@ class _IqHighlightState extends State<IqHighlight>
     _started = true;
     if (MediaQuery.disableAnimationsOf(context)) {
       _wipe.value = 1;
-    } else {
+    } else if (widget.delay == Duration.zero) {
       _wipe.forward();
+    } else {
+      _wait = Timer(widget.delay, _wipe.forward);
     }
   }
 
   @override
   void dispose() {
+    _wait?.cancel();
     _wipe.dispose();
     super.dispose();
   }

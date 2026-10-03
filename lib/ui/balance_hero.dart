@@ -19,6 +19,9 @@ import 'button.dart';
 ///
 /// [figureBuilder] draws the four figures; a screen passes one to animate
 /// them (Figma has no motion here). Plain [Text] by default.
+///
+/// [showWithdraw] off drops the Withdraw button, as the B10 help thread's
+/// 146 pt instance does (the button is not a prop in Figma).
 class IqBalanceHero extends StatelessWidget {
   const IqBalanceHero({
     super.key,
@@ -29,6 +32,7 @@ class IqBalanceHero extends StatelessWidget {
     this.holdLabel = 'On hold · 1 pending',
     this.onWithdraw,
     this.figureBuilder,
+    this.showWithdraw = true,
   });
 
   final String amount;
@@ -38,6 +42,7 @@ class IqBalanceHero extends StatelessWidget {
   final String holdLabel;
   final VoidCallback? onWithdraw;
   final Widget Function(String text, TextStyle style)? figureBuilder;
+  final bool showWithdraw;
 
   Widget _figure(String text, TextStyle style) =>
       figureBuilder?.call(text, style) ?? Text(text, style: style);
@@ -107,13 +112,15 @@ class IqBalanceHero extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(height: IqSpace.s1p5),
-                  IqButton(
-                    label: 'Withdraw',
-                    kind: IqButtonKind.inverse,
-                    width: double.infinity,
-                    onTap: onWithdraw,
-                  ),
+                  if (showWithdraw) ...[
+                    const SizedBox(height: IqSpace.s1p5),
+                    IqButton(
+                      label: 'Withdraw',
+                      kind: IqButtonKind.inverse,
+                      width: double.infinity,
+                      onTap: onWithdraw,
+                    ),
+                  ],
                 ],
               ),
             ),

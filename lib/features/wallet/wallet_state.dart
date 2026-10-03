@@ -120,6 +120,14 @@ class WalletNotifier extends AsyncNotifier<WalletData> {
     if (data == null) return;
     state = AsyncData(change(data));
   }
+
+  /// An award the API put on the ledger (support credited an activation
+  /// reward). It lands once, however often it is reported.
+  void credit(LedgerEntry award) => _edit(
+    (data) => data.ledger.any((l) => l.id == award.id)
+        ? data
+        : data.copyWith(ledger: [award, ...data.ledger]),
+  );
 }
 
 /// No automatic retry: the failed state offers "Try again".

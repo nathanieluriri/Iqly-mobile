@@ -8,6 +8,7 @@ import '../../data/models.dart';
 import '../../data/reference_data.dart';
 import '../../data/repository.dart';
 import '../onboarding/onboarding_draft.dart';
+import '../polls/polls_state.dart';
 
 enum FeedSort {
   myInterests('My interests first'),
@@ -92,8 +93,12 @@ final feedInterestsProvider = Provider<List<String>>((ref) {
   ];
 });
 
+/// The bubbles follow the person's votes (lib/features/polls).
 final pollBrandsProvider = FutureProvider<List<PollBrand>>(
-  (ref) => ref.watch(repositoryProvider).pollBrands(),
+  (ref) async => [
+    for (final business in await ref.watch(pollsProvider.future))
+      business.brand,
+  ],
 );
 
 final activationsSummaryProvider = FutureProvider<ActivationsSummary>(
