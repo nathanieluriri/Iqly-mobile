@@ -123,7 +123,9 @@ class _YourDetailsScreenState extends ConsumerState<YourDetailsScreen> {
   );
 
   Future<T?> _pick<T>(_Field field, WidgetBuilder sheet) async {
-    FocusScope.of(context).unfocus();
+    // Unfocusing the field itself, not the page's scope, so the page does not
+    // hand the keyboard back to it when the sheet closes.
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() => _open = field);
     final picked = await showOnboardingSheet<T>(context, sheet);
     if (mounted) setState(() => _open = null);

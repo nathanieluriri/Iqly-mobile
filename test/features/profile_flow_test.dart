@@ -154,6 +154,33 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('Your details: closing a picker leaves the keyboard down, '
+      'picked or dismissed', (tester) async {
+    await pumpProfileApp(tester, Routes.yourDetails);
+    final phone = find.byType(EditableText);
+    bool typing() => tester.widget<EditableText>(phone).focusNode.hasFocus;
+
+    for (final pick in [true, false]) {
+      await tester.tap(phone);
+      await tester.pumpAndSettle();
+      expect(typing(), isTrue);
+      expect(tester.testTextInput.isVisible, isTrue);
+
+      await _tap(tester, find.text('GENDER'));
+      expect(typing(), isFalse);
+      expect(tester.testTextInput.isVisible, isFalse);
+      if (pick) {
+        await _tap(tester, find.text('Female'));
+      } else {
+        await tester.tapAt(const Offset(195, 60));
+        await tester.pumpAndSettle();
+      }
+      expect(find.text('Gender'), findsNothing);
+      expect(typing(), isFalse);
+      expect(tester.testTextInput.isVisible, isFalse);
+    }
+  });
+
   testWidgets('a save the account refuses shows the error; Save changes '
       'retries and returns', (tester) async {
     final service = TestProfileService()..fail = true;
