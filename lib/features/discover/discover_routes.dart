@@ -7,6 +7,7 @@ import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/dock.dart';
 import '../../ui/top_bar.dart';
+import '../activations/activations_routes.dart';
 import '../profile/profile_routes.dart';
 import '../submissions/my_submissions_screen.dart';
 import '../wallet/wallet_routes.dart';
@@ -78,7 +79,7 @@ final discoverRoutes = <RouteBase>[
   ),
   _push(Routes.notifications, const _PagePlaceholder('Notifications')),
   _push(Routes.polls, const _PagePlaceholder('Polls')),
-  _push(Routes.activations, const _PagePlaceholder('Activations')),
+  ...activationsRoutes,
 ];
 
 GoRoute _push(String path, Widget screen) => GoRoute(

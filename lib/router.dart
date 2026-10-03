@@ -56,6 +56,10 @@ abstract final class Routes {
 
   static String brief(String id) => '/briefs/$id';
   static String submitTo(String id) => '/briefs/$id/submit';
+  static const activation = '/activations/:id';
+  static const activationProof = '/activations/:id/proof';
+  static const proofPlayer = '/activations/:id/play';
+  static const help = '/help';
 }
 
 final routerProvider = Provider<GoRouter>((ref) => buildRouter());
