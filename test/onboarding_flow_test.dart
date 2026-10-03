@@ -95,8 +95,14 @@ void main() {
       ),
     );
     await _tap(tester, find.text('Lagos'));
-    await tester.enterText(find.byType(TextField), 'Ikeja');
-    await tester.pumpAndSettle();
+    expect(_fab(tester), IqNextFabState.disabled);
+    await _tap(tester, find.text('Select city'));
+    expect(find.byType(CitySheet), findsOneWidget);
+    expect(find.text('24 CITIES'), findsOneWidget);
+    await _tap(tester, find.text('Ikeja'));
+    await _tap(tester, find.text('Use this'));
+    expect(find.byType(CitySheet), findsNothing);
+    expect(find.text('Ikeja'), findsOneWidget);
     expect(_fab(tester), IqNextFabState.enabled);
     await _tap(tester, find.byType(IqNextFab));
 
@@ -121,6 +127,8 @@ void main() {
     expect(find.byType(DoneScreen), findsOneWidget);
     expect(find.text('Nice one, Adaeze'), findsOneWidget);
     expect(prefs.getBool('session.onboardingDone'), isTrue);
+    expect(service.saved?.state, 'Lagos');
+    expect(service.saved?.city, 'Ikeja');
     expect(service.saved?.university, 'University of Lagos');
     expect(service.saved?.interests, [
       'marketing_advertising',
@@ -179,5 +187,142 @@ void main() {
       await _tap(tester, find.text('Skip'));
     }
     expect(find.byType(DoneScreen), findsOneWidget);
+  });
+
+  group('city', () {
+    Future<SharedPreferences> openWhereYouLive(
+      WidgetTester tester,
+      Map<String, Object?> draft,
+    ) async {
+      final (prefs, _) = await _launch(
+        tester,
+        draft: {'occupation': 'student', 'lastStep': 'whereYouLive', ...draft},
+      );
+      await _tap(tester, find.text('Continue'));
+      expect(find.byType(WhereYouLiveScreen), findsOneWidget);
+      return prefs;
+    }
+
+    Map<String, Object?> saved(SharedPreferences prefs) =>
+        jsonDecode(prefs.getString('onboarding.draft')!)
+            as Map<String, Object?>;
+
+    Finder sheetList(Type sheet) => find.descendant(
+      of: find.descendant(
+        of: find.byType(sheet),
+        matching: find.byType(ListView),
+      ),
+      matching: find.byType(Scrollable),
+    );
+
+    testWidgets('with no state, CITY asks for the state, then the city', (
+      tester,
+    ) async {
+      final prefs = await openWhereYouLive(tester, {});
+      await _tap(tester, find.text('Select city'));
+      expect(find.byType(OptionSheet), findsOneWidget);
+      expect(find.text('State of residence'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Lagos'),
+        200,
+        scrollable: sheetList(OptionSheet),
+      );
+      await _tap(tester, find.text('Lagos'));
+      expect(saved(prefs)['state'], 'Lagos');
+
+      expect(find.byType(OptionSheet), findsNothing);
+      expect(find.byType(CitySheet), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Yaba'),
+        200,
+        scrollable: sheetList(CitySheet),
+      );
+      await _tap(tester, find.text('Yaba'));
+      await _tap(tester, find.text('Use this'));
+      expect(find.text('Lagos'), findsOneWidget);
+      expect(find.text('Yaba'), findsOneWidget);
+      expect(saved(prefs)['city'], 'Yaba');
+      expect(_fab(tester), IqNextFabState.enabled);
+    });
+
+    testWidgets('a city the list does not have is added as typed', (
+      tester,
+    ) async {
+      final prefs = await openWhereYouLive(tester, {'state': 'Lagos'});
+      await _tap(tester, find.text('Select city'));
+
+      await tester.enterText(find.byType(TextField), 'ikeja');
+      await tester.pumpAndSettle();
+      expect(find.text('1 MATCH'), findsOneWidget);
+      expect(find.text('Add mine'), findsNothing);
+
+      await tester.enterText(find.byType(TextField), ' Ilupeju ');
+      await tester.pumpAndSettle();
+      expect(find.text('No city found.'), findsOneWidget);
+      expect(find.textContaining('MATCH'), findsNothing);
+      await _tap(tester, find.text('Add mine'));
+
+      expect(find.byType(CitySheet), findsNothing);
+      expect(find.text('Ilupeju'), findsOneWidget);
+      expect(saved(prefs)['city'], 'Ilupeju');
+    });
+
+    testWidgets('a saved free-text city stays until the state changes', (
+      tester,
+    ) async {
+      final prefs = await openWhereYouLive(tester, {
+        'state': 'Lagos',
+        'city': 'Ilupeju',
+      });
+      expect(find.text('Ilupeju'), findsOneWidget);
+      expect(_fab(tester), IqNextFabState.enabled);
+
+      final inSheet = find.descendant(
+        of: find.byType(OptionSheet),
+        matching: find.text('Lagos'),
+      );
+      await _tap(tester, find.text('Lagos'));
+      await tester.scrollUntilVisible(
+        inSheet,
+        200,
+        scrollable: sheetList(OptionSheet),
+      );
+      await _tap(tester, inSheet);
+      expect(find.text('Ilupeju'), findsOneWidget);
+
+      await _tap(tester, find.text('Lagos'));
+      await tester.scrollUntilVisible(
+        find.text('Ogun'),
+        200,
+        scrollable: sheetList(OptionSheet),
+      );
+      await _tap(tester, find.text('Ogun'));
+      expect(find.text('Select city'), findsOneWidget);
+      expect(saved(prefs)['city'], '');
+      expect(_fab(tester), IqNextFabState.disabled);
+    });
+
+    testWidgets('reduced motion: the sheet and the values arrive in place', (
+      tester,
+    ) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      await openWhereYouLive(tester, {'state': 'Lagos'});
+      await tester.tap(find.text('Select city'));
+      await tester.pump();
+      expect(tester.getTopLeft(find.byType(CitySheet)).dy, 120);
+
+      await tester.tap(find.text('Ikeja'));
+      await tester.pump();
+      await tester.tap(find.text('Use this'));
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(CitySheet), findsNothing);
+      expect(find.text('Select city'), findsNothing);
+      expect(find.text('Ikeja'), findsOneWidget);
+    });
   });
 }
