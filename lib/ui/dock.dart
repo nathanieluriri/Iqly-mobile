@@ -20,8 +20,10 @@ enum IqDockActive {
 /// Exp/Dock: the floating tab dock, 358 wide, four equal tabs with labels
 /// always on. The lit tab is a lighter purple pill with an orange glyph and
 /// a white label; the others sit at 72%. The pill slides to the tapped tab,
-/// 200 ms ease-out, and a tab change gives the select haptic. Float it 16 pt
-/// above the home indicator.
+/// 200 ms ease-out, the colours cross over with it and the newly lit glyph
+/// grows from .85 (spec 3.6, build extension); a tab change gives the select
+/// haptic. A cut under reduced motion. Float it 16 pt above the home
+/// indicator.
 ///
 /// Figma over brief: the lit tab is a sidebar-accent pill, not an orange disc.
 /// Figma over its description: the lit label is primary-fg white, not cream.
@@ -133,10 +135,15 @@ class _Tab extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                IqIcon(
-                  item.icon,
-                  size: 24,
-                  color: Color.lerp(_rest, IqColors.accent, t)!,
+                Transform.scale(
+                  scale: lit
+                      ? IqScale.dockGlyph + (1 - IqScale.dockGlyph) * t
+                      : 1,
+                  child: IqIcon(
+                    item.icon,
+                    size: 24,
+                    color: Color.lerp(_rest, IqColors.accent, t)!,
+                  ),
                 ),
                 const SizedBox(height: IqSpace.s0p5),
                 Text(

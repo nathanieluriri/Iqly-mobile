@@ -1,23 +1,42 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iqly_mobile/core/deadline.dart';
+import 'package:iqly_mobile/core/motion.dart';
 import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/repository.dart';
-import 'package:iqly_mobile/features/wallet/wallet_motion.dart';
+import 'package:iqly_mobile/data/wallet_service.dart';
+import 'package:iqly_mobile/features/wallet/select_bank_screen.dart';
+import 'package:iqly_mobile/features/wallet/wallet_routes.dart';
 import 'package:iqly_mobile/features/wallet/wallet_state.dart';
+import 'package:iqly_mobile/features/wallet/withdraw_sheet.dart';
+import 'package:iqly_mobile/features/wallet/withdrawal_pending_screen.dart';
 import 'package:iqly_mobile/features/withdrawals/withdrawal_widgets.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/theme/theme.dart';
+import 'package:iqly_mobile/ui/activity_row.dart';
+import 'package:iqly_mobile/ui/balance_hero.dart';
+import 'package:iqly_mobile/ui/banner.dart';
+import 'package:iqly_mobile/ui/field.dart';
+import 'package:iqly_mobile/ui/highlight.dart';
+import 'package:iqly_mobile/ui/list_row.dart';
+import 'package:iqly_mobile/ui/receipt_card.dart';
 import 'package:iqly_mobile/ui/timeline_row.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../golden/screens/app_harness.dart';
 import '../golden/screens/wallet_harness.dart';
+import 'entry_harness.dart' show recordHaptics;
 
-const _box = SizedBox(width: 100, height: 20);
+const _ms = Duration(milliseconds: 1);
+const _commit = 'HapticFeedbackType.lightImpact';
+const _success = 'HapticFeedbackType.successNotification';
+
+double _eo(double t) => IqCurves.easeOut.transform(t);
 
 void _reduce(WidgetTester tester) {
   tester.platformDispatcher.accessibilityFeaturesTestValue =
@@ -25,25 +44,99 @@ void _reduce(WidgetTester tester) {
   addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
 }
 
-Future<void> _pump(WidgetTester tester, Widget child) => tester.pumpWidget(
-  MaterialApp(
-    home: Scaffold(body: Center(child: child)),
-  ),
-);
+/// The real router at [location], motion on unless [reduced], the clock at
+/// the Figma 9:41. It never settles (the BalanceHero wash loops), so tests
+/// read their key frames with pump.
+Future<(ProviderContainer, GoRouter)> _pumpApp(
+  WidgetTester tester,
+  String location, {
+  IqlyRepository? repository,
+  DemoWalletService? wallet,
+  bool reduced = false,
+}) async {
+  tester.view.physicalSize = const Size(390, 844);
+  tester.view.devicePixelRatio = 1;
+  tester.view.padding = const FakeViewPadding(top: 54, bottom: 34);
+  tester.view.viewPadding = const FakeViewPadding(top: 54, bottom: 34);
+  addTearDown(tester.view.reset);
+  if (reduced) _reduce(tester);
+  SharedPreferences.setMockInitialValues(signedInPrefs());
+  final prefs = await SharedPreferences.getInstance();
+  final container = ProviderContainer(
+    overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      repositoryProvider.overrideWithValue(repository ?? WalletRepository()),
+      clockProvider.overrideWithValue(() => figmaNow),
+      ...walletOverrides(wallet: wallet),
+    ],
+  );
+  addTearDown(container.dispose);
+  final router = buildRouter(initialLocation: location);
+  addTearDown(router.dispose);
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp.router(theme: buildTheme(), routerConfig: router),
+    ),
+  );
+  // The demo data lands on the next frame, as it would on a device.
+  await tester.pump();
+  return (container, router);
+}
 
-double _dy(WidgetTester tester, Finder of) => tester
-    .widget<Transform>(
-      find.descendant(of: of, matching: find.byType(Transform)).first,
-    )
-    .transform
-    .getTranslation()
-    .y;
+/// Pumps [total] as 16 ms frames, as a device draws them, so what starts
+/// once seen starts on time.
+Future<void> _frames(WidgetTester tester, Duration total) async {
+  const frame = Duration(milliseconds: 16);
+  var left = total;
+  while (left > Duration.zero) {
+    final step = left < frame ? left : frame;
+    await tester.pump(step);
+    left -= step;
+  }
+}
 
-double _opacity(WidgetTester tester, Finder of) => tester
-    .widget<Opacity>(
-      find.descendant(of: of, matching: find.byType(Opacity)).first,
+/// The product of the fades between [of] and the screen.
+double _opacity(WidgetTester tester, Finder of) {
+  var opacity = 1.0;
+  for (final widget in tester.widgetList(
+    find.ancestor(
+      of: of,
+      matching: find.byWidgetPredicate(
+        (w) => w is FadeTransition || w is Opacity,
+      ),
+    ),
+  )) {
+    opacity *= widget is FadeTransition
+        ? widget.opacity.value
+        : (widget as Opacity).opacity;
+  }
+  return opacity;
+}
+
+/// The arrive fade of the stagger slot [of] sits in.
+double _arrive(WidgetTester tester, Finder of) => tester
+    .widget<FadeTransition>(
+      find
+          .descendant(
+            of: find.ancestor(of: of, matching: find.byType(StaggerItem)).first,
+            matching: find.byType(FadeTransition),
+          )
+          .first,
     )
-    .opacity;
+    .opacity
+    .value;
+
+/// A ledger that answers when the test says so.
+class _HeldWalletRepository extends WalletRepository {
+  final answer = Completer<void>();
+
+  @override
+  Future<List<LedgerEntry>> ledger() async {
+    await answer.future;
+    return super.ledger();
+  }
+}
 
 Withdrawal _withdrawal({
   WithdrawalStatus status = WithdrawalStatus.pending,
@@ -61,314 +154,390 @@ Withdrawal _withdrawal({
 );
 
 void main() {
-  group('Cue', () {
-    Widget beat({Duration at = Duration.zero}) => Choreography(
-      length: WalletDurations.list,
-      child: Cue(at: at, child: _box),
-    );
+  group('Wallet', () {
+    testWidgets('the hero, the Activity title and the rows arrive 40 ms '
+        'apart, once', (tester) async {
+      await _pumpApp(tester, Routes.wallet);
+      final hero = find.byType(IqBalanceHero);
+      final title = find.text('Activity');
+      final row = find.byType(IqActivityRowWithdrawal).first;
+      expect(_arrive(tester, hero), 0);
+      await tester.pump(_ms * 130);
+      expect(_arrive(tester, hero), closeTo(_eo(130 / 260), 0.01));
+      expect(_arrive(tester, title), closeTo(_eo(90 / 260), 0.01));
+      expect(_arrive(tester, row), closeTo(_eo(50 / 260), 0.01));
+      await tester.pump(_ms * 331);
+      expect(_arrive(tester, row), 1);
 
-    testWidgets('arrive: fades in and rises 12 over 260 ease-out', (
+      await tester.tap(find.text('Discover'));
+      await tester.pump();
+      await tester.pump(_ms * 300);
+      await tester.tap(find.text('Wallet').last);
+      await tester.pump();
+      expect(_arrive(tester, hero), 1);
+      expect(_arrive(tester, row), 1);
+    });
+
+    testWidgets('reduced motion: everything fades in together, 150', (
       tester,
     ) async {
-      await _pump(tester, beat());
-      final cue = find.byType(Cue);
-      expect(_opacity(tester, cue), 0);
-      expect(_dy(tester, cue), 12);
-      await tester.pump(const Duration(milliseconds: 130));
-      expect(_opacity(tester, cue), inExclusiveRange(0.5, 1));
-      expect(_dy(tester, cue), inExclusiveRange(0, 6));
-      await tester.pump(const Duration(milliseconds: 130));
-      expect(_opacity(tester, cue), 1);
-      expect(_dy(tester, cue), 0);
-      await tester.pumpAndSettle();
+      await _pumpApp(tester, Routes.wallet, reduced: true);
+      await tester.pump(_ms * 75);
+      final hero = find.byType(IqBalanceHero);
+      final row = find.byType(IqActivityRowWithdrawal).first;
+      expect(_arrive(tester, hero), closeTo(_eo(0.5), 0.01));
+      expect(_arrive(tester, row), closeTo(_eo(0.5), 0.01));
+      expect(tester.getTopLeft(hero).dy, 150);
+      await tester.pump(_ms * 76);
+      expect(_arrive(tester, row), 1);
     });
 
-    testWidgets('a later slot waits its 40 ms turns', (tester) async {
-      await _pump(tester, beat(at: WalletDurations.stagger * 5));
-      await tester.pump(const Duration(milliseconds: 190));
-      expect(_opacity(tester, find.byType(Cue)), 0);
-      await tester.pump(const Duration(milliseconds: 140));
-      expect(_opacity(tester, find.byType(Cue)), greaterThan(0));
-      await tester.pumpAndSettle();
-      expect(_opacity(tester, find.byType(Cue)), 1);
+    testWidgets('a slow first load: nothing for 300, the skeletons for at '
+        'least 600, then the wallet arrives over them', (tester) async {
+      final repository = _HeldWalletRepository();
+      await _pumpApp(tester, Routes.wallet, repository: repository);
+      await tester.pump(_ms * 299);
+      expect(find.byType(IqBanner), findsNothing);
+      expect(find.byType(IqBalanceHero), findsNothing);
+      await tester.pump(_ms);
+      expect(find.byType(IqBanner), findsOneWidget);
+      await tester.pump(_ms * 100);
+      repository.answer.complete();
+      await tester.pump();
+      await tester.pump(_ms * 499);
+      expect(find.byType(IqBalanceHero), findsNothing);
+      await tester.pump(_ms * 61);
+      expect(find.byType(IqBalanceHero), findsOneWidget);
+      expect(find.byType(IqBanner), findsOneWidget);
+      await tester.pump(_ms * 200);
+      expect(find.byType(IqBanner), findsNothing);
     });
 
-    testWidgets('slots past the sixth render in place', (tester) async {
-      await _pump(
-        tester,
-        Choreography(
-          length: WalletDurations.list,
-          child: Cue.arrive(6, const Text('seventh')),
-        ),
-      );
-      expect(find.byType(Cue), findsNothing);
-      expect(find.text('seventh'), findsOneWidget);
-    });
-
-    testWidgets('reduced motion: everything fades in together, no rise', (
+    testWidgets('failed: the banner slides down over the skeletons; Try '
+        'again slides it away, keeps them, and the wallet takes over', (
       tester,
     ) async {
-      _reduce(tester);
-      await _pump(tester, beat(at: WalletDurations.stagger * 4));
-      final fade = tester.widget<FadeTransition>(
-        find.descendant(
-          of: find.byType(Cue),
-          matching: find.byType(FadeTransition),
-        ),
-      );
+      final haptics = recordHaptics(tester);
+      final repository = FailingWalletRepository();
+      await _pumpApp(tester, Routes.wallet, repository: repository);
+      double banner() => tester
+          .widget<SizeTransition>(
+            find.descendant(
+              of: find.byType(IqBanner),
+              matching: find.byType(SizeTransition),
+            ),
+          )
+          .sizeFactor
+          .value;
+      expect(banner(), 0);
+      await tester.pump(_ms * 120);
+      expect(banner(), closeTo(_eo(0.5), 0.01));
+      await tester.pump(_ms * 700);
+      expect(banner(), 1);
+
+      repository.fail = false;
+      await tester.tap(find.text('Try again'));
+      await tester.pump();
+      await tester.pump(_ms * 90);
+      expect(banner(), closeTo(_eo(0.5), 0.01));
+      expect(find.byType(IqBalanceHero), findsNothing);
+      await tester.pump(_ms * 61);
+      expect(find.byType(IqBalanceHero), findsOneWidget);
+      await tester.pump(_ms * 200);
+      expect(find.byType(IqBanner), findsNothing);
+      expect(haptics, isEmpty);
+    });
+
+    testWidgets('a retry that fails again brings the banner back with the '
+        'error haptic', (tester) async {
+      final haptics = recordHaptics(tester);
+      final repository = FailingWalletRepository();
+      await _pumpApp(tester, Routes.wallet, repository: repository);
+      await tester.pump(_ms * 800);
+      await tester.tap(find.text('Try again'));
+      await tester.pump();
+      await tester.pump(_ms * 300);
       expect(
-        find.descendant(of: find.byType(Cue), matching: find.byType(Transform)),
+        find.text('Couldn’t load. Check your connection.'),
+        findsOneWidget,
+      );
+      expect(haptics, ['HapticFeedbackType.mediumImpact']);
+    });
+
+    testWidgets('Withdraw rises the sheet over its .5 scrim in 300 ease-out; '
+        'the amount takes the keyboard once it has risen', (tester) async {
+      final haptics = recordHaptics(tester);
+      await _pumpApp(tester, Routes.wallet);
+      await tester.pump(_ms * 500);
+      await tester.tap(find.text('Withdraw'));
+      await tester.pump();
+      expect(haptics, [_commit]);
+      double top() => tester.getTopLeft(find.byType(WithdrawSheet)).dy;
+      double scrim() => tester
+          .widget<ColoredBox>(
+            find
+                .descendant(
+                  of: find.byType(ModalBarrier),
+                  matching: find.byType(ColoredBox),
+                )
+                .last,
+          )
+          .color
+          .a;
+      bool amountFocused() => tester
+          .widget<EditableText>(
+            find.descendant(
+              of: find.byWidgetPredicate(
+                (w) => w is IqField && w.label == 'Amount',
+              ),
+              matching: find.byType(EditableText),
+            ),
+          )
+          .focusNode
+          .hasFocus;
+
+      await tester.pump(_ms * 150);
+      final mid = top();
+      expect(scrim(), closeTo(IqOpacity.sheetScrim * _eo(0.5), 0.01));
+      expect(amountFocused(), isFalse);
+      await tester.pump(_ms * 151);
+      final rest = top();
+      expect(mid, closeTo(rest + (844 - rest) * (1 - _eo(0.5)), 0.5));
+      expect(scrim(), closeTo(IqOpacity.sheetScrim, 0.01));
+      await tester.pump();
+      expect(amountFocused(), isTrue);
+    });
+
+    testWidgets('To pushes Select bank over the sheet, from 24 in 300', (
+      tester,
+    ) async {
+      await _pumpApp(tester, withdrawLocation(amountKobo: 500000));
+      await tester.pump(_ms * 500);
+      await tester.tap(find.text('Access Bank ••6789 · ADAEZE OKAFOR'));
+      await tester.pump();
+      await tester.pump(_ms * 150);
+      expect(
+        tester.getTopLeft(find.byType(SelectBankScreen)).dx,
+        closeTo(24 * (1 - _eo(0.5)), 0.5),
+      );
+      await tester.pump(_ms * 151);
+      expect(tester.getTopLeft(find.byType(SelectBankScreen)).dx, 0);
+    });
+
+    testWidgets('a withdrawal: commit and success, the sheet drops as the '
+        'pending moment pushes, its Highlight starts at +240', (tester) async {
+      final haptics = recordHaptics(tester);
+      await _pumpApp(tester, withdrawLocation(amountKobo: 500000));
+      await tester.pump(_ms * 500);
+      await tester.tap(find.text('Withdraw').last);
+      await tester.pump();
+      await tester.pump();
+      expect(haptics, [_commit, _success]);
+      expect(find.byType(WithdrawalPendingScreen), findsOneWidget);
+
+      final title = find.text('Withdrawal pending');
+      final highlight = find.byType(IqHighlight);
+      await tester.pump(_ms * 79);
+      expect(_opacity(tester, title), 0);
+      await tester.pump(_ms * 100);
+      expect(_opacity(tester, title), greaterThan(0));
+      final before = tester.element(highlight);
+      await tester.pump(_ms * 62);
+      expect(tester.element(highlight), isNot(same(before)));
+      expect(_opacity(tester, highlight), greaterThan(0));
+      expect(find.byType(WithdrawSheet), findsNothing);
+    });
+
+    testWidgets('back on the Wallet after a withdrawal: the figures and the '
+        'count roll once, the new row opens its slot, then arrives', (
+      tester,
+    ) async {
+      final (container, router) = await _pumpApp(tester, Routes.wallet);
+      await tester.pump(_ms * 500);
+      expect(find.text('₦12,500'), findsOneWidget);
+
+      router.push(Routes.withdraw);
+      await tester.pump();
+      await tester.pump(_ms * 500);
+      container
+          .read(walletProvider.notifier)
+          .add(RequestedWalletRepository.requested);
+      await tester.pump(_ms * 500);
+      expect(find.text('₦12,500'), findsOneWidget);
+
+      router.pop();
+      await tester.pump();
+      await tester.pump(_ms * 100);
+      expect(find.text('₦12,500'), findsOneWidget);
+      await tester.pump(_ms * 140);
+      await tester.pump(_ms * 80);
+      expect(find.text('₦12,500'), findsOneWidget);
+      expect(find.text('₦7,500'), findsOneWidget);
+      expect(find.text('5'), findsOneWidget);
+      expect(find.text('6'), findsOneWidget);
+
+      double slot() => tester
+          .widget<SizeTransition>(
+            find.ancestor(
+              of: find.text('Just now'),
+              matching: find.byType(SizeTransition),
+            ),
+          )
+          .sizeFactor
+          .value;
+      // The new row's slot opens from the frame after it turns up.
+      expect(slot(), 0);
+      await tester.pump(_ms * 120);
+      expect(slot(), closeTo(_eo(0.5), 0.01));
+      expect(find.text('₦7,500'), findsOneWidget);
+      expect(find.text('₦12,500'), findsNothing);
+      expect(find.text('ON HOLD · 2 PENDING'), findsOneWidget);
+      await tester.pump(_ms * 121);
+      expect(slot(), 1);
+      expect(_opacity(tester, find.text('Just now')), 0);
+      await tester.pump();
+      await tester.pump(_ms * 261);
+      expect(_opacity(tester, find.text('Just now')), 1);
+    });
+
+    testWidgets('reduced motion: the figures cut to the new value', (
+      tester,
+    ) async {
+      final (container, router) = await _pumpApp(
+        tester,
+        Routes.wallet,
+        reduced: true,
+      );
+      await tester.pumpAndSettle();
+      router.push(Routes.withdraw);
+      await tester.pumpAndSettle();
+      container
+          .read(walletProvider.notifier)
+          .add(RequestedWalletRepository.requested);
+      router.pop();
+      await tester.pump();
+      await tester.pump(_ms * 151);
+      await tester.pump();
+      expect(find.text('₦7,500'), findsOneWidget);
+      expect(find.text('₦12,500'), findsNothing);
+      await tester.pumpAndSettle();
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+  });
+
+  group('withdrawals', () {
+    testWidgets('tracker: the receipt arrives and draws its tear line, the '
+        'steps stand still and Awaiting approval breathes', (tester) async {
+      await _pumpApp(tester, withdrawalPath('w3'));
+      final receipt = find.byType(IqReceiptCard);
+      expect(_arrive(tester, receipt), 0);
+      await _frames(tester, _ms * 130);
+      expect(_arrive(tester, receipt), closeTo(_eo(0.5), 0.01));
+      expect(
+        find.ancestor(
+          of: find.byType(IqTimelineRow).first,
+          matching: find.byType(StaggerItem),
+        ),
         findsNothing,
       );
-      await tester.pump(const Duration(milliseconds: 75));
-      expect(fade.opacity.value, inExclusiveRange(0, 1));
-      await tester.pump(const Duration(milliseconds: 75));
-      expect(fade.opacity.value, 1);
-      await tester.pump(const Duration(milliseconds: 16));
-      expect(tester.hasRunningAnimations, isFalse);
-    });
-
-    testWidgets('a hidden tab waits to play until it is shown', (tester) async {
-      Widget app(bool shown) => MaterialApp(
-        home: TickerMode(enabled: shown, child: beat()),
-      );
-      await tester.pumpWidget(app(false));
-      await tester.pump(const Duration(seconds: 1));
-      expect(_opacity(tester, find.byType(Cue)), 0);
-      await tester.pumpWidget(app(true));
-      expect(_opacity(tester, find.byType(Cue)), 0);
-      await tester.pump(const Duration(milliseconds: 130));
-      expect(_opacity(tester, find.byType(Cue)), inExclusiveRange(0, 1));
-      await tester.pumpAndSettle();
-    });
-  });
-
-  group('RollingText', () {
-    Widget roll(String text) => RollingText(text, style: const TextStyle());
-
-    testWidgets('shows the first text plainly, then rolls the change', (
-      tester,
-    ) async {
-      await _pump(tester, roll('₦12,500'));
-      expect(find.text('₦12,500'), findsOneWidget);
-      expect(tester.hasRunningAnimations, isFalse);
-
-      await _pump(tester, roll('₦7,500'));
-      await tester.pump(const Duration(milliseconds: 80));
-      expect(find.text('₦'), findsOneWidget);
-      expect(find.text(',500'), findsOneWidget);
-      expect(find.text('1'), findsOneWidget);
-      expect(find.text('2'), findsOneWidget);
-      expect(find.text('7'), findsOneWidget);
-      await tester.pumpAndSettle();
-      expect(find.text('₦7,500'), findsOneWidget);
-      expect(find.text('7'), findsNothing);
-    });
-
-    testWidgets('waits while hidden and rolls when shown', (tester) async {
-      Widget app(String text, bool shown) => MaterialApp(
-        home: TickerMode(enabled: shown, child: roll(text)),
-      );
-      await tester.pumpWidget(app('₦12,500', true));
-      await tester.pumpWidget(app('₦7,500', false));
-      await tester.pump(const Duration(seconds: 1));
-      expect(find.text('₦12,500'), findsOneWidget);
-      await tester.pumpWidget(app('₦7,500', true));
-      await tester.pump(const Duration(milliseconds: 80));
-      expect(find.text('7'), findsOneWidget);
-      await tester.pumpAndSettle();
-      expect(find.text('₦7,500'), findsOneWidget);
-    });
-
-    testWidgets('reduced motion: a cut', (tester) async {
-      _reduce(tester);
-      await _pump(tester, roll('₦12,500'));
-      await _pump(tester, roll('₦7,500'));
-      await tester.pump();
-      expect(find.text('₦7,500'), findsOneWidget);
-      expect(tester.hasRunningAnimations, isFalse);
-    });
-  });
-
-  group('LoadingGate', () {
-    Widget gate(bool loading, {bool keep = false}) => LoadingGate(
-      loading: loading,
-      keepSkeleton: keep,
-      skeleton: const Text('skeleton'),
-      child: const Text('content'),
-    );
-
-    testWidgets('data inside 300 goes straight to the content', (tester) async {
-      await _pump(tester, gate(true));
-      expect(find.text('skeleton'), findsNothing);
-      await tester.pump(const Duration(milliseconds: 200));
-      await _pump(tester, gate(false));
-      expect(find.text('content'), findsOneWidget);
-      expect(find.text('skeleton'), findsNothing);
-      await tester.pump(const Duration(milliseconds: 400));
-      expect(find.text('skeleton'), findsNothing);
-    });
-
-    testWidgets('the skeleton shows after 300 and stays at least 600', (
-      tester,
-    ) async {
-      await _pump(tester, gate(true));
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(find.text('skeleton'), findsOneWidget);
-      await tester.pump(const Duration(milliseconds: 100));
-      await _pump(tester, gate(false));
-      expect(find.text('content'), findsNothing);
-      await tester.pump(const Duration(milliseconds: 500));
-      expect(find.text('content'), findsOneWidget);
-      expect(find.text('skeleton'), findsOneWidget);
-      await tester.pumpAndSettle();
-      expect(find.text('skeleton'), findsNothing);
-    });
-
-    testWidgets('a retry keeps the skeleton it already shows', (tester) async {
-      await _pump(tester, gate(false, keep: true));
-      await _pump(tester, gate(true, keep: true));
-      expect(find.text('skeleton'), findsOneWidget);
-      await tester.pump(const Duration(milliseconds: 600));
-      await _pump(tester, gate(false, keep: true));
-      await tester.pumpAndSettle();
-      expect(find.text('content'), findsOneWidget);
-    });
-  });
-
-  group('ExpandIn', () {
-    testWidgets('opens its slot, then the row arrives', (tester) async {
-      await _pump(tester, const ExpandIn(child: _box));
-      final size = tester.widget<SizeTransition>(find.byType(SizeTransition));
-      expect(size.sizeFactor.value, 0);
-      await tester.pump(const Duration(milliseconds: 240));
-      expect(size.sizeFactor.value, 1);
-      expect(_opacity(tester, find.byType(ExpandIn)), 0);
-      await tester.pump(const Duration(milliseconds: 130));
-      expect(_opacity(tester, find.byType(ExpandIn)), inExclusiveRange(0, 1));
-      await tester.pumpAndSettle();
-      expect(_opacity(tester, find.byType(ExpandIn)), 1);
-    });
-
-    testWidgets('reduced motion: it fades in', (tester) async {
-      _reduce(tester);
-      await _pump(tester, const ExpandIn(child: _box));
-      expect(find.byType(SizeTransition), findsNothing);
-      await tester.pumpAndSettle();
-      expect(tester.hasRunningAnimations, isFalse);
-    });
-  });
-
-  group('pages', () {
-    Future<GoRouter> app(WidgetTester tester) async {
-      final router = GoRouter(
-        routes: [
-          GoRoute(path: '/', builder: (context, state) => const Text('home')),
-          GoRoute(
-            path: '/push',
-            pageBuilder: (context, state) => walletPushPage<void>(
-              context,
-              state,
-              const SizedBox.expand(key: ValueKey('pushed')),
+      double ring() => tester
+          .widget<ScaleTransition>(
+            find.descendant(
+              of: find.widgetWithText(IqTimelineRow, 'Awaiting approval'),
+              matching: find.byType(ScaleTransition),
             ),
-          ),
-          GoRoute(
-            path: '/sheet',
-            pageBuilder: (context, state) => walletSheetPage<void>(
-              context,
-              state,
-              const SizedBox(
-                key: ValueKey('sheet'),
-                height: 400,
-                width: double.infinity,
+          )
+          .scale
+          .value;
+      await _frames(tester, _ms * 400);
+      expect(ring(), greaterThan(1));
+      final tear = tester.widget<ClipRect>(
+        find.descendant(of: receipt, matching: find.byType(ClipRect)).last,
+      );
+      expect(tear.clipBehavior, Clip.none);
+    });
+
+    testWidgets('a payout landing: the chain plays and the tag crossfades '
+        'to Completed, with no haptic', (tester) async {
+      final haptics = recordHaptics(tester);
+      await _pumpApp(
+        tester,
+        withdrawalPath('w3'),
+        wallet: instantWallet(payoutStep: const Duration(seconds: 1)),
+      );
+      for (var step = 0; step < 3; step++) {
+        await tester.pump(_ms * 1000);
+      }
+      await tester.pump(_ms * 75);
+      expect(find.text('Completed'), findsOneWidget);
+      expect(find.text('Pending'), findsOneWidget);
+      await tester.pump(_ms * 76);
+      expect(find.text('Pending'), findsNothing);
+      await tester.pump(_ms * 1500);
+      expect(
+        tester
+            .widget<IqTimelineRow>(
+              find.widgetWithText(IqTimelineRow, 'Arrived'),
+            )
+            .state,
+        IqTimelineRowState.done,
+      );
+      expect(haptics, isEmpty);
+    });
+
+    testWidgets('failed: the banner slides down, the failed step does not '
+        'breathe; Check bank details commits', (tester) async {
+      final haptics = recordHaptics(tester);
+      await _pumpApp(tester, withdrawalPath('w1'));
+      await tester.pump(_ms * 120);
+      expect(
+        tester
+            .widget<SizeTransition>(
+              find.descendant(
+                of: find.byType(IqBanner),
+                matching: find.byType(SizeTransition),
               ),
-            ),
-          ),
-        ],
+            )
+            .sizeFactor
+            .value,
+        closeTo(_eo(0.5), 0.01),
       );
-      addTearDown(router.dispose);
-      tester.view.physicalSize = const Size(390, 844);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
-      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
-      return router;
-    }
-
-    double left(WidgetTester tester) =>
-        tester.getTopLeft(find.byKey(const ValueKey('pushed'))).dx;
-
-    testWidgets('push: in from 24 over 300 ease-out, back over 240', (
-      tester,
-    ) async {
-      final router = await app(tester);
-      router.push('/push');
-      await tester.pump();
-      await tester.pump();
-      expect(left(tester), closeTo(24, .5));
-      await tester.pump(const Duration(milliseconds: 150));
+      await tester.pump(_ms * 600);
       expect(
-        left(tester),
-        closeTo(24 * (1 - WalletCurves.easeOut.transform(.5)), .5),
+        tester
+            .widget<ScaleTransition>(
+              find.descendant(
+                of: find.widgetWithText(IqTimelineRow, 'Failed at the bank'),
+                matching: find.byType(ScaleTransition),
+              ),
+            )
+            .scale
+            .value,
+        1,
       );
-      await tester.pump(const Duration(milliseconds: 150));
-      expect(left(tester), 0);
-      router.pop();
+      await tester.tap(find.text('Check bank details'));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 120));
-      expect(left(tester), greaterThan(0));
-      await tester.pump(const Duration(milliseconds: 240));
-      expect(find.byKey(const ValueKey('pushed')), findsNothing);
+      await tester.pump(_ms * 300);
+      expect(haptics, [_commit]);
+      expect(find.byType(SelectBankScreen), findsOneWidget);
     });
 
-    testWidgets('reduced motion: push crossfades in place over 150', (
-      tester,
-    ) async {
-      _reduce(tester);
-      final router = await app(tester);
-      router.push('/push');
-      await tester.pump();
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 75));
-      expect(left(tester), 0);
-      await tester.pump(const Duration(milliseconds: 75));
-      await tester.pump();
-      expect(tester.hasRunningAnimations, isFalse);
-    });
-
-    testWidgets('sheet: rises from the bottom edge over 300, drops on close', (
-      tester,
-    ) async {
-      final router = await app(tester);
-      router.push('/sheet');
-      await tester.pump();
-      await tester.pump();
-      double top() => tester.getTopLeft(find.byKey(const ValueKey('sheet'))).dy;
-      expect(top(), closeTo(844, .5));
-      await tester.pump(const Duration(milliseconds: 150));
-      expect(
-        top(),
-        closeTo(444 + 400 * (1 - WalletCurves.easeOut.transform(.5)), .5),
+    testWidgets('Home after payout: the payout row is the first to arrive, '
+        'no haptic', (tester) async {
+      final haptics = recordHaptics(tester);
+      await _pumpApp(
+        tester,
+        Routes.home,
+        repository: PaidOutWalletRepository(),
       );
-      await tester.pump(const Duration(milliseconds: 150));
-      expect(top(), 444);
-      router.pop();
+      final row = find.widgetWithText(IqListRow, '₦10,000.00 completed');
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(top(), greaterThan(444));
-      await tester.pump(const Duration(milliseconds: 200));
-      expect(find.byKey(const ValueKey('sheet')), findsNothing);
-    });
-
-    testWidgets('reduced motion: the sheet fades in place', (tester) async {
-      _reduce(tester);
-      final router = await app(tester);
-      router.push('/sheet');
-      await tester.pump();
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 75));
-      expect(tester.getTopLeft(find.byKey(const ValueKey('sheet'))).dy, 444);
-      await tester.pump(const Duration(milliseconds: 80));
-      expect(tester.hasRunningAnimations, isFalse);
+      expect(_opacity(tester, row), 0);
+      await _frames(tester, _ms * 160);
+      expect(_opacity(tester, row), inExclusiveRange(0.3, 0.9));
+      await _frames(tester, _ms * 300);
+      expect(_opacity(tester, row), 1);
+      expect(haptics, isEmpty);
     });
   });
 
@@ -388,34 +557,34 @@ void main() {
         .widget<IqTimelineRow>(find.widgetWithText(IqTimelineRow, title))
         .state;
 
-    testWidgets(
-      'a step completes, then the next dot takes the ring (ink + draw)',
-      (tester) async {
-        await tester.pumpWidget(timeline(_withdrawal()));
-        await tester.pump(const Duration(seconds: 1));
-        expect(state(tester, 'Awaiting approval'), IqTimelineRowState.current);
+    final chain = IqDurations.ink + IqDurations.mark;
 
-        await tester.pumpWidget(
-          timeline(
-            _withdrawal(
-              status: WithdrawalStatus.processing,
-              approvedAt: figmaNow,
-            ),
+    testWidgets('a step completes, then the next dot takes the ring once the '
+        'dot has inked and the line has drawn', (tester) async {
+      await tester.pumpWidget(timeline(_withdrawal()));
+      await tester.pump(_ms * 1000);
+      expect(state(tester, 'Awaiting approval'), IqTimelineRowState.current);
+
+      await tester.pumpWidget(
+        timeline(
+          _withdrawal(
+            status: WithdrawalStatus.processing,
+            approvedAt: figmaNow,
           ),
-        );
-        expect(state(tester, 'Approved by iQLY'), IqTimelineRowState.done);
-        expect(state(tester, 'Sent to your bank'), IqTimelineRowState.upcoming);
-        await tester.pump(const Duration(milliseconds: 400));
-        expect(state(tester, 'Sent to your bank'), IqTimelineRowState.upcoming);
-        await tester.pump(const Duration(milliseconds: 40));
-        expect(state(tester, 'Sent to your bank'), IqTimelineRowState.current);
-        await tester.pump(const Duration(seconds: 2));
-      },
-    );
+        ),
+      );
+      expect(state(tester, 'Approved by iQLY'), IqTimelineRowState.done);
+      expect(state(tester, 'Sent to your bank'), IqTimelineRowState.upcoming);
+      await tester.pump(chain - _ms);
+      expect(state(tester, 'Sent to your bank'), IqTimelineRowState.upcoming);
+      await tester.pump(_ms);
+      expect(state(tester, 'Sent to your bank'), IqTimelineRowState.current);
+      await tester.pump(_ms * 2000);
+    });
 
     testWidgets('steps that land together go one by one', (tester) async {
       await tester.pumpWidget(timeline(_withdrawal()));
-      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(_ms * 1000);
       await tester.pumpWidget(
         timeline(
           _withdrawal(
@@ -427,12 +596,12 @@ void main() {
         ),
       );
       expect(state(tester, 'Sent to your bank'), IqTimelineRowState.upcoming);
-      await tester.pump(const Duration(milliseconds: 440));
+      await tester.pump(chain + _ms * 20);
       expect(state(tester, 'Sent to your bank'), IqTimelineRowState.done);
       expect(state(tester, 'Arrived'), IqTimelineRowState.upcoming);
-      await tester.pump(const Duration(milliseconds: 440));
+      await tester.pump(chain + _ms * 20);
       expect(state(tester, 'Arrived'), IqTimelineRowState.done);
-      await tester.pump(const Duration(seconds: 2));
+      await tester.pump(_ms * 2000);
     });
 
     testWidgets('reduced motion: the new state at once', (tester) async {
@@ -458,59 +627,9 @@ void main() {
       await tester.pumpWidget(
         timeline(_withdrawal(status: WithdrawalStatus.failed)),
       );
-      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(_ms * 1000);
       expect(state(tester, 'Failed at the bank'), IqTimelineRowState.current);
       expect(tester.hasRunningAnimations, isFalse);
     });
-  });
-
-  testWidgets('the Wallet rolls a change it did not see, once back in view', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    SharedPreferences.setMockInitialValues(signedInPrefs());
-    final prefs = await SharedPreferences.getInstance();
-    final container = ProviderContainer(
-      overrides: [
-        sharedPreferencesProvider.overrideWithValue(prefs),
-        repositoryProvider.overrideWithValue(WalletRepository()),
-        clockProvider.overrideWithValue(() => figmaNow),
-        ...walletOverrides(),
-      ],
-    );
-    addTearDown(container.dispose);
-    final router = buildRouter(initialLocation: Routes.wallet);
-    addTearDown(router.dispose);
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp.router(theme: buildTheme(), routerConfig: router),
-      ),
-    );
-    await tester.pump(const Duration(seconds: 1));
-    expect(find.text('₦12,500'), findsOneWidget);
-
-    router.push(Routes.withdraw);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-    container
-        .read(walletProvider.notifier)
-        .add(RequestedWalletRepository.requested);
-    await tester.pump(const Duration(milliseconds: 500));
-    expect(find.text('₦12,500'), findsOneWidget);
-
-    router.pop();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
-    expect(find.text('₦12,500'), findsOneWidget);
-    await tester.pump(const Duration(milliseconds: 200));
-    await tester.pump(const Duration(milliseconds: 60));
-    expect(find.text('7'), findsOneWidget);
-    expect(find.text(',500'), findsWidgets);
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('₦7,500'), findsOneWidget);
-    expect(find.text('ON HOLD · 2 PENDING'), findsOneWidget);
   });
 }

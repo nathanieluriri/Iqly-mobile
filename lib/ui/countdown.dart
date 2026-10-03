@@ -153,9 +153,11 @@ class _IqCountdownState extends State<IqCountdown>
                         top: -1,
                         width: 20,
                         height: 20,
-                        child: AnimatedBuilder(
-                          animation: Listenable.merge([pulse, _breath]),
-                          builder: (context, _) => _halo(look),
+                        child: RepaintBoundary(
+                          child: AnimatedBuilder(
+                            animation: Listenable.merge([pulse, _breath]),
+                            builder: (context, _) => _halo(look),
+                          ),
                         ),
                       ),
                       const IqIcon(

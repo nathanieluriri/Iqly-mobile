@@ -21,6 +21,8 @@ enum IqActivationTicketKind { hero, list, started, full, closed }
 /// each kind. [onTap] opens the ticket (scales .98, 120 ms); [onAction] is
 /// the button. Enters with a fade and 12 px rise, 260 ms ease-out, after
 /// [enterDelay] (stagger lists 40 ms apart); reduced motion fades only.
+/// [showOf] carries the taken count, which the paper masters show and the
+/// B8 screens' instances leave out.
 ///
 /// Figma over its note: no stub, perforation or arrow; the reward sits in
 /// the footer beside an Exp/Button.
@@ -39,6 +41,7 @@ class IqActivationTicket extends StatefulWidget {
     this.spotsLeft,
     this.spotsTotal = 500,
     this.spotsTone,
+    this.showOf,
     this.onTap,
     this.onAction,
     this.enterDelay = Duration.zero,
@@ -54,6 +57,7 @@ class IqActivationTicket extends StatefulWidget {
   final int? spotsLeft;
   final int spotsTotal;
   final IqSpotsStampTone? spotsTone;
+  final bool? showOf;
   final VoidCallback? onTap;
   final VoidCallback? onAction;
   final Duration enterDelay;
@@ -186,7 +190,7 @@ class _IqActivationTicketState extends State<IqActivationTicket>
             left: widget.spotsLeft ?? look.spotsLeft,
             total: widget.spotsTotal,
             tone: widget.spotsTone ?? look.spots,
-            showOf: !hero,
+            showOf: widget.showOf ?? !hero,
             onInk: hero,
           ),
           const SizedBox(height: IqSpace.s3),

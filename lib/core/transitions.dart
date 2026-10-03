@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../theme/theme.dart';
@@ -49,6 +50,17 @@ Page<T> handoffPage<T>(GoRouterState state, Widget child) =>
 /// 200 ms while the page beneath stays still; a cut under reduced motion.
 Page<T> lensPage<T>(GoRouterState state, Widget child) =>
     _IqPage<T>(state, child, _Move.lens);
+
+/// A route over the same chrome with no transition at all (spec 3.7, the
+/// Saved lens): the chrome reads as still and the page fades its own
+/// content in.
+Page<T> stillPage<T>(GoRouterState state, Widget child) => NoTransitionPage<T>(
+  key: state.pageKey,
+  name: state.name ?? state.path,
+  arguments: _arguments(state),
+  restorationId: state.pageKey.value,
+  child: PulseScope(child: child),
+);
 
 /// A sheet hosted as a route page (spec 3.3), on [scrim].
 Page<T> sheetPage<T>(
@@ -796,6 +808,7 @@ class Dissolve extends StatelessWidget {
 /// from .96 over 280. When [shown] turns off the card drops 8 and fades in
 /// 160 as the scrim goes in 200, and the screen beneath takes taps at once.
 /// Reduced motion fades both in and out in 150. [top] places the card.
+/// [statusBar] styles the status bar while the scrim is at least half in.
 class IqOverlay extends StatefulWidget {
   const IqOverlay({
     super.key,
@@ -804,6 +817,7 @@ class IqOverlay extends StatefulWidget {
     required this.card,
     required this.top,
     this.delay = Duration.zero,
+    this.statusBar,
   });
 
   final bool shown;
@@ -811,6 +825,7 @@ class IqOverlay extends StatefulWidget {
   final Widget card;
   final double Function(BoxConstraints constraints) top;
   final Duration delay;
+  final SystemUiOverlayStyle? statusBar;
 
   @override
   State<IqOverlay> createState() => _IqOverlayState();
@@ -918,6 +933,7 @@ class _IqOverlayState extends State<IqOverlay> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     if (!widget.shown && _out.isCompleted) return const SizedBox.shrink();
     final both = Listenable.merge([_in, _out]);
+    final scrim = _Product(_scrimIn, ReverseAnimation(_scrimGone));
     return IgnorePointer(
       ignoring: !widget.shown,
       child: Material(
@@ -926,12 +942,16 @@ class _IqOverlayState extends State<IqOverlay> with TickerProviderStateMixin {
           builder: (context, constraints) => Stack(
             children: [
               Positioned.fill(
-                child: FadeTransition(
-                  opacity: _Product(_scrimIn, ReverseAnimation(_scrimGone)),
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {},
-                    child: ColoredBox(color: widget.scrim),
+                child: _ScrimStatusBar(
+                  style: widget.statusBar,
+                  opacity: scrim,
+                  child: FadeTransition(
+                    opacity: scrim,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {},
+                      child: ColoredBox(color: widget.scrim),
+                    ),
                   ),
                 ),
               ),
@@ -969,6 +989,26 @@ class _IqOverlayState extends State<IqOverlay> with TickerProviderStateMixin {
         ),
       ),
     );
+  }
+}
+
+/// Puts [style] on the status bar while the scrim is at least half in.
+class _ScrimStatusBar extends AnimatedWidget {
+  const _ScrimStatusBar({
+    required this.style,
+    required Animation<double> opacity,
+    required this.child,
+  }) : super(listenable: opacity);
+
+  final SystemUiOverlayStyle? style;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = this.style;
+    final up = (listenable as Animation<double>).value >= 0.5;
+    if (style == null || !up) return child;
+    return AnnotatedRegion<SystemUiOverlayStyle>(value: style, child: child);
   }
 }
 

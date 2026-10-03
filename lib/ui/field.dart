@@ -30,7 +30,8 @@ enum IqFieldSize { standard, large }
 /// motion). Turning Active wipes the accent brush in left to right (240 ms,
 /// MOTION-SPEC §5.8), as turning to Error does the err stroke; the error
 /// help line rises in (160 ms); the screen adds the shake
-/// (lib/core/motion).
+/// (lib/core/motion). A Text field takes several lines through [maxLines]
+/// (the B10 help message; Figma draws that one as a plain frame).
 class IqField extends StatefulWidget {
   const IqField({
     super.key,
@@ -57,6 +58,8 @@ class IqField extends StatefulWidget {
     this.autofillHints,
     this.showStatus = true,
     this.showNote = true,
+    this.maxLines = 1,
+    this.minLines,
   });
 
   final IqFieldKind kind;
@@ -82,6 +85,8 @@ class IqField extends StatefulWidget {
   final Iterable<String>? autofillHints;
   final bool showStatus;
   final bool showNote;
+  final int? maxLines;
+  final int? minLines;
 
   @override
   State<IqField> createState() => _IqFieldState();
@@ -158,7 +163,8 @@ class _IqFieldState extends State<IqField> {
             autocorrect: !widget.obscureText,
             enableSuggestions: !widget.obscureText,
             autofillHints: widget.autofillHints,
-            maxLines: 1,
+            maxLines: widget.maxLines,
+            minLines: widget.minLines,
             style: valueStyle.copyWith(color: IqColors.fg),
             cursorColor: IqColors.brand,
             cursorWidth: 2,

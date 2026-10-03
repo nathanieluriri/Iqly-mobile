@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'demo_data.dart';
 import 'models.dart';
+import 'notifications_service.dart';
 
 /// Why briefs are being loaded. The Discover feed loads cold, pull to
 /// refresh skips any cache and [nextPage] is the page the feed asks for as
@@ -144,7 +145,8 @@ final repositoryProvider = Provider<IqlyRepository>(
   (ref) => DemoRepository(DemoData(), latency: DemoLatency.prototype),
 );
 
-/// The bell's unread count, shared by every tab's top bar.
+/// The bell's unread count, shared by every tab's top bar. It clears once
+/// the feed has been seen.
 final unreadNotificationsProvider = FutureProvider<int>(
-  (ref) => ref.watch(repositoryProvider).unreadNotifications(),
+  (ref) => ref.watch(notificationsServiceProvider).unseen(),
 );

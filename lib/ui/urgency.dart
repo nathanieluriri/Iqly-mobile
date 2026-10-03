@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/deadline.dart';
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 
@@ -24,7 +25,12 @@ enum IqUrgencyTone {
 }
 
 /// Exp/Urgency: the deadline chip, a clock and the brief's own deadline
-/// words on a pill that hugs its text.
+/// words on a pill that hugs its text. New words roll their changed
+/// characters (160 ms); a tone change crossfades the fill and ink once over
+/// 400 ms. It never pulses: the Countdown is the clock that pulses (spec
+/// 5.14). A cut under reduced motion.
+///
+/// Version B guidance (Figma 166:1011): the 400 ms tone change.
 class IqUrgency extends StatelessWidget {
   const IqUrgency({
     super.key,
@@ -37,41 +43,39 @@ class IqUrgency extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (fill, ink, iconInk) = switch (tone) {
-      IqUrgencyTone.hot => (IqColors.accent, IqColors.brand, IqColors.brand),
-      IqUrgencyTone.warm => (
-        IqColors.accentSoft,
-        IqColors.brand,
-        IqColors.brand,
-      ),
-      IqUrgencyTone.calm => (IqColors.panel, IqColors.fg2, IqColors.fg2),
-      IqUrgencyTone.closed => (
-        IqColors.fg3,
-        IqColors.primaryFg,
-        IqColors.primaryFg,
-      ),
+    final (fill, ink) = switch (tone) {
+      IqUrgencyTone.hot => (IqColors.accent, IqColors.brand),
+      IqUrgencyTone.warm => (IqColors.accentSoft, IqColors.brand),
+      IqUrgencyTone.calm => (IqColors.panel, IqColors.fg2),
+      IqUrgencyTone.closed => (IqColors.fg3, IqColors.primaryFg),
     };
-    return Container(
+    final duration = motion(context, IqDurations.tone);
+    return AnimatedContainer(
+      duration: duration,
+      curve: IqCurves.easeOut,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: fill,
         borderRadius: BorderRadius.circular(IqRadius.full),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IqIcon(IqIcons.clock, size: 14, color: iconInk),
-          const SizedBox(width: 5),
-          Flexible(
-            child: Text(
-              text,
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.ellipsis,
-              style: IqText.smallStrong.copyWith(color: ink),
+      child: TweenAnimationBuilder<Color?>(
+        tween: ColorTween(end: ink),
+        duration: duration,
+        curve: IqCurves.easeOut,
+        builder: (context, ink, _) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IqIcon(IqIcons.clock, size: 14, color: ink!),
+            const SizedBox(width: 5),
+            Flexible(
+              child: RollingText(
+                text,
+                overflow: TextOverflow.ellipsis,
+                style: IqText.smallStrong.copyWith(color: ink),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
