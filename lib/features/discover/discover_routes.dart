@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../router.dart';
-import '../../theme/theme.dart';
 import '../../ui/dock.dart';
-import '../../ui/top_bar.dart';
+import '../activations/activations_routes.dart';
 import '../notifications/notifications_routes.dart';
 import '../polls/polls_routes.dart';
 import '../profile/profile_routes.dart';
@@ -81,7 +79,7 @@ final discoverRoutes = <RouteBase>[
   ),
   ...notificationsRoutes,
   ...pollsRoutes,
-  _push(Routes.activations, const _PagePlaceholder('Activations')),
+  ...activationsRoutes,
 ];
 
 GoRoute _push(String path, Widget screen) => GoRoute(
@@ -95,28 +93,5 @@ void leave(BuildContext context) {
     context.pop();
   } else {
     context.go(Routes.home, extra: NavDirection.back);
-  }
-}
-
-class _PagePlaceholder extends StatelessWidget {
-  const _PagePlaceholder(this.title);
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      resizeToAvoidBottomInset: false,
-      backgroundColor: IqColors.bg,
-      body: SafeArea(
-        child: CenteredContent(
-          child: IqTopBar(
-            variant: IqTopBarVariant.page,
-            title: title,
-            onBack: () => leave(context),
-          ),
-        ),
-      ),
-    );
   }
 }

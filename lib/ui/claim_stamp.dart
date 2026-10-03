@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../core/motion.dart';
@@ -20,6 +22,11 @@ enum IqClaimStampKind {
 /// dot like the Countdown Hot halo while it holds the screen's pulse.
 /// Reduced motion: a 150 ms crossfade.
 ///
+/// With [landAfter] the stamp also lands the first time it is seen, that
+/// long after, fading in as it lands: a screen that opens on the change
+/// (Proof submitted, Reward credited; MOTION-SPEC §5.30). Under reduced
+/// motion it fades in over 150 ms instead.
+///
 /// Figma over its note: Checking carries an 8 px brand dot, not a clock.
 /// Figma over brief: Credited reads PAID TO WALLET, Rejected NOT APPROVED.
 class IqClaimStamp extends StatefulWidget {
@@ -27,10 +34,12 @@ class IqClaimStamp extends StatefulWidget {
     super.key,
     this.kind = IqClaimStampKind.pending,
     this.label,
+    this.landAfter,
   });
 
   final IqClaimStampKind kind;
   final String? label;
+  final Duration? landAfter;
 
   static const double tilt = 2;
   static const Duration land = IqDurations.mark;
@@ -52,11 +61,16 @@ class IqClaimStamp extends StatefulWidget {
 
 class _IqClaimStampState extends State<IqClaimStamp>
     with TickerProviderStateMixin, PulseLoop {
+  // Preserved so the reduced motion fade in keeps its 150 ms when the
+  // platform turns animations off.
   late final AnimationController _land = AnimationController(
     vsync: this,
     duration: IqClaimStamp.land,
-    value: 1,
+    value: widget.landAfter == null ? 1 : 0,
+    animationBehavior: AnimationBehavior.preserve,
   );
+  late bool _appearing = widget.landAfter != null;
+  Timer? _appear;
   @override
   late final AnimationController pulse = AnimationController(
     vsync: this,
@@ -74,6 +88,9 @@ class _IqClaimStampState extends State<IqClaimStamp>
     begin: 1.15,
     end: 1,
   ).chain(CurveTween(curve: IqCurves.easeOut));
+  static final _appearOpacity = CurveTween(
+    curve: const Interval(0, 0.5, curve: IqCurves.easeOut),
+  );
   static final _angle = TweenSequence<double>([
     TweenSequenceItem(
       tween: Tween(
@@ -102,13 +119,30 @@ class _IqClaimStampState extends State<IqClaimStamp>
   void didUpdateWidget(IqClaimStamp oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.kind != widget.kind) {
-      if (!_reduced) _land.forward(from: 0);
+      if (!_reduced && !_appearing) {
+        _land
+          ..duration = IqClaimStamp.land
+          ..forward(from: 0);
+      }
       syncPulse();
     }
   }
 
+  void _seen() {
+    if (_appear != null) return;
+    _appear = Timer(widget.landAfter!, () {
+      if (!mounted) return;
+      _land
+        ..duration = _reduced ? IqClaimStamp.fade : IqClaimStamp.land
+        ..forward(from: 0).whenCompleteOrCancel(() {
+          if (mounted) setState(() => _appearing = false);
+        });
+    });
+  }
+
   @override
   void dispose() {
+    _appear?.cancel();
     _land.dispose();
     pulse.dispose();
     super.dispose();
@@ -117,23 +151,37 @@ class _IqClaimStampState extends State<IqClaimStamp>
   @override
   Widget build(BuildContext context) {
     final stamp = _stamp(widget.kind);
-    return Padding(
-      padding: const EdgeInsets.all(3),
-      child: AnimatedBuilder(
-        animation: _land,
-        builder: (context, child) => IqTilt(
-          degrees: _angle.transform(_land.value),
+    Widget landing = AnimatedBuilder(
+      animation: _land,
+      builder: (context, child) {
+        final t = _land.value;
+        final still = _reduced && _appearing;
+        final Widget tilted = IqTilt(
+          degrees: still ? IqClaimStamp.tilt : _angle.transform(t),
           child: Transform.scale(
-            scale: _scale.transform(_land.value),
+            scale: still ? 1 : _scale.transform(t),
             child: child,
           ),
-        ),
-        child: AnimatedSwitcher(
-          duration: _reduced ? IqClaimStamp.fade : Duration.zero,
-          child: KeyedSubtree(key: ValueKey(widget.kind), child: stamp),
-        ),
+        );
+        if (widget.landAfter == null) return tilted;
+        return Opacity(
+          opacity: !_appearing
+              ? 1
+              : still
+              ? t
+              : _appearOpacity.transform(t),
+          child: tilted,
+        );
+      },
+      child: AnimatedSwitcher(
+        duration: _reduced ? IqClaimStamp.fade : Duration.zero,
+        child: KeyedSubtree(key: ValueKey(widget.kind), child: stamp),
       ),
     );
+    if (widget.landAfter != null) {
+      landing = FirstSeen(onSeen: _seen, child: landing);
+    }
+    return Padding(padding: const EdgeInsets.all(3), child: landing);
   }
 
   Widget _stamp(IqClaimStampKind kind) {

@@ -88,7 +88,8 @@ class HelpRequest {
 
 /// The B10 thread (141:5818, 141:5876). The person asks about their Kudi Box
 /// activation, whose B8 reward is ₦1,500; support confirms the three steps
-/// and credits it as ledger award l4. On the DemoData wallet (available
+/// and credits it on the same ledger row the activation's own payout uses,
+/// so the reward counts once whichever confirms it. On the DemoData wallet (available
 /// ₦12,500.00, one ₦10,000.00 withdrawal on hold, earned ₦62,500.00) that
 /// gives the frame's updated balance: ₦14,000.00 available, ₦10,000.00 on
 /// hold, ₦64,000.00 earned.
@@ -97,7 +98,7 @@ abstract final class DemoHelp {
 
   static const rewardKobo = 150000;
 
-  static const creditId = 'l4';
+  static const creditId = 'activation-a2';
 
   static const recording = HelpAttachment(
     name: 'kudi-box-wallet.mp4',

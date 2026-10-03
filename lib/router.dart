@@ -59,6 +59,9 @@ abstract final class Routes {
   static String submitTo(String id) => '/briefs/$id/submit';
   static const share = '/submissions/:id/result/share';
   static const leaderboard = '/submissions/:id/result/leaderboard';
+  static const activation = '/activations/:id';
+  static const activationProof = '/activations/:id/proof';
+  static const proofPlayer = '/activations/:id/play';
   static const help = '/help';
 }
 

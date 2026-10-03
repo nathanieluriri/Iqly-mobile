@@ -21,6 +21,8 @@ enum IqVideoPreviewState { ready, uploading, failed }
 /// anything is deleted. Upload to ready pops the play sticker in (.6 to 1,
 /// 220 ms ease-out) and slides the duration stamp up 6 px. Reduced motion:
 /// fades only.
+/// [showRemove] false drops the remove sticker once the recording is sent
+/// (B9 · Proof · submitted shows an empty disc there).
 ///
 /// Figma over its note: the master's duration stamp sits below the clipped
 /// thumbnail, so it is hidden by default; [showDuration] places it bottom
@@ -37,6 +39,7 @@ class IqVideoPreview extends StatefulWidget {
     this.meta,
     this.progress = 0.64,
     this.thumbnail,
+    this.showRemove = true,
     this.onPlay,
     this.onRemove,
     this.onRetry,
@@ -49,6 +52,7 @@ class IqVideoPreview extends StatefulWidget {
   final String? meta;
   final double progress;
   final Widget? thumbnail;
+  final bool showRemove;
   final VoidCallback? onPlay;
   final VoidCallback? onRemove;
   final VoidCallback? onRetry;
@@ -219,34 +223,35 @@ class _IqVideoPreviewState extends State<IqVideoPreview>
             // Figma's 310, 12 is the tilted frame's origin; this is its
             // circle measured from the thumbnail's top right corner.
             // 44 pt hit area around the 36 px sticker.
-            Positioned(
-              top: 6,
-              right: 4,
-              width: 44,
-              height: 44,
-              child: IqPressable(
-                onTap: widget.onRemove,
-                semanticLabel: 'Remove',
-                builder: (context, pressed) => Transform.rotate(
-                  angle: -6 * math.pi / 180,
-                  child: Container(
-                    margin: const EdgeInsets.all(4),
-                    width: 36,
-                    height: 36,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: pressed ? IqColors.brandDark : IqColors.brand,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const IqIcon(
-                      IqIcons.close,
-                      size: 18,
-                      color: IqColors.primaryFg,
+            if (widget.showRemove)
+              Positioned(
+                top: 6,
+                right: 4,
+                width: 44,
+                height: 44,
+                child: IqPressable(
+                  onTap: widget.onRemove,
+                  semanticLabel: 'Remove',
+                  builder: (context, pressed) => Transform.rotate(
+                    angle: -6 * math.pi / 180,
+                    child: Container(
+                      margin: const EdgeInsets.all(4),
+                      width: 36,
+                      height: 36,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: pressed ? IqColors.brandDark : IqColors.brand,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const IqIcon(
+                        IqIcons.close,
+                        size: 18,
+                        color: IqColors.primaryFg,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),

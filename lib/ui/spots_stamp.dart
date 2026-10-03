@@ -141,30 +141,35 @@ class _IqSpotsStampState extends State<IqSpotsStamp>
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: IqSpace.s1p5),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Transform.translate(
-                          offset: Offset(0, IqTravel.dip * bump),
-                          child: _marker(look, count, wipe.value),
-                        ),
-                        const SizedBox(width: IqSpace.s2),
-                        Text(
-                          word,
-                          maxLines: 1,
-                          softWrap: false,
-                          style: IqText.bodyStrong.copyWith(
-                            color: widget.onInk
-                                ? IqColors.primaryFg
-                                : look.wordInk,
+                  // The words give way (ellipsis) before the row overflows
+                  // at large text sizes; the figure never does.
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: IqSpace.s1p5),
+                      child: Row(
+                        children: [
+                          Transform.translate(
+                            offset: Offset(0, IqTravel.dip * bump),
+                            child: _marker(look, count, wipe.value),
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: IqSpace.s2),
+                          Flexible(
+                            child: Text(
+                              word,
+                              maxLines: 1,
+                              softWrap: false,
+                              overflow: TextOverflow.ellipsis,
+                              style: IqText.bodyStrong.copyWith(
+                                color: widget.onInk
+                                    ? IqColors.primaryFg
+                                    : look.wordInk,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  const Spacer(),
                   if (widget.showOf)
                     Text(
                       '$taken / ${widget.total} taken'.toUpperCase(),

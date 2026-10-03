@@ -14,6 +14,7 @@ import 'package:iqly_mobile/features/notifications/notifications_state.dart';
 import 'package:iqly_mobile/features/polls/polls_state.dart';
 import 'package:iqly_mobile/features/wallet/wallet_state.dart';
 import 'package:iqly_mobile/ui/notification.dart';
+import 'package:iqly_mobile/features/activations/activations_state.dart';
 
 import '../golden/screens/app_harness.dart';
 
@@ -299,5 +300,9 @@ void main() {
         .value!
         .firstWhere((b) => b.id == 'unibooks');
     expect(unibooks.brand.unanswered, 0);
+  });
+
+  test('support credits the Kudi Box reward on the activation payout row', () {
+    expect(DemoHelp.creditId, ActivationsNotifier.creditId('a2'));
   });
 }
