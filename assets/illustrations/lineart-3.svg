@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="280" height="280" viewBox="0 0 280 280" fill="none"><path id="hand" d="M84 268C76 230 88 198 116 184C112 170 124 164 130 178C132 154 152 152 152 176C158 152 180 154 176 178C186 164 204 172 196 190C206 214 206 240 200 268" stroke="#2D0048" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+<path id="stem" d="M152 176C150 146 148 116 152 84" stroke="#2D0048" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+<path id="leaf-left" d="M150 106.5C124 104.5 108 86.5 108 64.5C130 64.5 148 80.5 150 106.5Z" stroke="#2D0048" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+<path id="leaf-right" d="M152 81.4995C154 57.4995 172 43.4995 194 45.4995C192 69.4995 176 83.4995 152 81.4995Z" stroke="#2D0048" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+<circle id="sun" cx="224" cy="41.0004" r="17.6" fill="#F58028" />
+<path id="spark-1" opacity="0.4" d="M250 22L262 10" stroke="#F58028" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+<path id="spark-2" opacity="0.4" d="M254 46L270 44" stroke="#F58028" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+<path id="spark-3" opacity="0.4" d="M196 18L186 6" stroke="#F58028" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

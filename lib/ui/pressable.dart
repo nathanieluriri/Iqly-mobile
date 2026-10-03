@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 /// Tap target that reports its pressed state to [builder] so components can
-/// draw their own Pressed variant. No Material ripple.
+/// draw their own Pressed variant. No Material ripple. Focusable, and Enter
+/// or Space activates it like a tap.
 class IqPressable extends StatefulWidget {
   const IqPressable({
     super.key,
@@ -36,13 +37,21 @@ class _IqPressableState extends State<IqPressable> {
       button: true,
       enabled: active,
       label: widget.semanticLabel,
-      child: GestureDetector(
-        behavior: widget.behavior,
-        onTapDown: active ? (_) => _set(true) : null,
-        onTapUp: active ? (_) => _set(false) : null,
-        onTapCancel: active ? () => _set(false) : null,
-        onTap: active ? widget.onTap : null,
-        child: widget.builder(context, _pressed && active),
+      child: FocusableActionDetector(
+        enabled: active,
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) => widget.onTap?.call(),
+          ),
+        },
+        child: GestureDetector(
+          behavior: widget.behavior,
+          onTapDown: active ? (_) => _set(true) : null,
+          onTapUp: active ? (_) => _set(false) : null,
+          onTapCancel: active ? () => _set(false) : null,
+          onTap: active ? widget.onTap : null,
+          child: widget.builder(context, _pressed && active),
+        ),
       ),
     );
   }

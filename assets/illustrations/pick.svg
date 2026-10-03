@@ -1,0 +1,3 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="160" viewBox="0 3.5 200 160" overflow="visible" fill="none"><path id="ink" d="M100 143.5C60 113.5 40 93.5005 40 69.5005C40 49.5005 55 35.5005 72 35.5005C86 35.5005 96 43.5005 100 55.5005C104 43.5005 114 35.5005 128 35.5005C145 35.5005 160 49.5005 160 69.5005C160 93.5005 142 111.5 108 137.5" stroke="#2D0048" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" />
+<path id="accent" d="M150 23.5005L160 11.5005M164 37.5005L178 35.5005M134 15.5005L136 3.50049" stroke="#F58028" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

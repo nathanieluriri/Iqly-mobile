@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="340" viewBox="0 0 320 340" fill="none"><path id="top" d="M40 340C44 268 72 220 128 214C184 208 216 250 222 340H40Z" fill="#7D1B9F" />
+<path id="stripe" d="M60 250C110 244 170 244 214 250" stroke="#FEF3C7" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+<path id="stripe_2" d="M60 278C110 272 170 272 214 278" stroke="#FEF3C7" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+<path id="stripe_3" d="M60 306C110 300 170 300 214 306" stroke="#FEF3C7" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+<rect id="neck" x="112" y="156" width="38" height="62" rx="12" fill="#F58028" />
+<ellipse id="head" cx="130" cy="118" rx="44" ry="52" fill="#F58028" />
+<path id="hair" d="M84 112C82 70.0002 108 50.0002 140 54.0002C172 58.0002 184 86.0002 178 112C164 98.0002 148 94.0002 132 96.0002C114 98.0002 98 104 84 112Z" fill="#0A0A0A" />
+<path id="mouth" d="M166 134C172 140 172 150 164 154" stroke="#0A0A0A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+<path id="megaphone" d="M186 128L290 86V184L186 152V128Z" fill="#0A0A0A" />
+<rect id="mouthpiece" x="172" y="122" width="20" height="36" rx="6" fill="#0A0A0A" />
+<rect id="handle" x="226" y="176" width="14" height="34" rx="5" fill="#0A0A0A" />
+<path id="arm" d="M196 256C206 230 212 206 222 192" stroke="#F58028" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" />
+<ellipse id="hand" cx="226" cy="188" rx="16" ry="14" fill="#F58028" />
+<path id="spark" d="M300 70L318 56" stroke="#F58028" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+<path id="spark_2" d="M304 108H320" stroke="#F58028" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+<path id="spark_3" d="M300 146L316 160" stroke="#F58028" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+</svg>
