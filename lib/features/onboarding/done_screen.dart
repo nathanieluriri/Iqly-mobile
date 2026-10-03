@@ -40,8 +40,9 @@ final startHereBriefsProvider = FutureProvider<List<Brief>>((ref) async {
 /// B11 · Done (188:8490). Reaching it finishes first run: the answers go to
 /// the profile and the session stops offering the setup nudge.
 ///
-/// The Rocket is drawn 150 x 120 at (120, 78), as its layer is; the Figma
-/// PNG shows the instance unscaled.
+/// The Rocket's layer is 150 x 120 at (120, 78), but its vectors do not
+/// scale with the instance, so Figma draws the art at its own 200 x 160 from
+/// that corner; the screen draws it the same way.
 ///
 /// Motion (MOTION-SPEC 5.32): the Rocket rises in at 0, its flame lights
 /// at +200 and flickers twice, and it lifts 4 and settles at +320; eyebrow
@@ -98,10 +99,18 @@ class _DoneScreenState extends ConsumerState<DoneScreen> {
         height: 171,
         child: Align(
           alignment: Alignment.topCenter,
-          child: IqIllustration(
-            IqIllustrations.rocket,
+          child: SizedBox(
             width: 150,
-            entrance: heroEntrance(context),
+            height: 120,
+            child: OverflowBox(
+              alignment: Alignment.topLeft,
+              maxWidth: IqIllustration.designWidth,
+              maxHeight: IqIllustration.designHeight,
+              child: IqIllustration(
+                IqIllustrations.rocket,
+                entrance: heroEntrance(context),
+              ),
+            ),
           ),
         ),
       ),
