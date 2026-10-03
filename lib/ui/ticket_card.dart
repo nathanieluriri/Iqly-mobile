@@ -32,6 +32,7 @@ class IqTicketCard extends StatelessWidget {
     this.showRule = true,
     this.showBookmark = false,
     this.spots = '12 spots left',
+    this.showSpotsMarker = true,
     this.urgency = 'Closes in 6h',
     this.urgencyTone,
     this.bookmarkState = IqBookmarkState.off,
@@ -48,6 +49,10 @@ class IqTicketCard extends StatelessWidget {
   final bool showRule;
   final bool showBookmark;
   final String? spots;
+
+  /// Off for open capacity: Discover screens hide the Highlight marker
+  /// behind "No limit".
+  final bool showSpotsMarker;
   final String urgency;
 
   /// Defaults to Hot on Hero and Warm on List, as in Figma.
@@ -225,11 +230,28 @@ class IqTicketCard extends StatelessWidget {
               Positioned(
                 left: hero ? 201 : 256,
                 top: hero ? 148 : 96,
-                child: IqHighlight(
-                  text: spots!,
-                  tone: hero ? IqHighlightTone.inverse : IqHighlightTone.orange,
-                  style: IqText.smallStrong,
-                ),
+                child: showSpotsMarker
+                    ? IqHighlight(
+                        text: spots!,
+                        tone: hero
+                            ? IqHighlightTone.inverse
+                            : IqHighlightTone.orange,
+                        style: IqText.smallStrong,
+                      )
+                    : Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: IqSpace.s1,
+                          vertical: 1,
+                        ),
+                        child: Text(
+                          spots!,
+                          maxLines: 1,
+                          softWrap: false,
+                          style: IqText.smallStrong.copyWith(
+                            color: hero ? IqColors.primaryFg : IqColors.brand,
+                          ),
+                        ),
+                      ),
               ),
             if (showBookmark)
               Positioned(
