@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +7,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/money.dart';
+import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -12,14 +15,13 @@ import '../../ui/button.dart';
 import '../../ui/highlight.dart';
 import '../../ui/illustration.dart';
 import '../../ui/top_bar.dart';
-import 'wallet_motion.dart';
 import 'wallet_state.dart';
 
 /// B5 · Withdrawal pending (38:147), a moment: the Wallet illustration
 /// arrives (ink rises 16 over 320, the strap sweeps in from +160), the
 /// title appears at +80, the amount line at +120 with its Highlight wiping
 /// from +240, AVAILABLE AFTER at +160. The success haptic plays as the
-/// sheet hands over (MOTION-SPEC §7.1).
+/// sheet hands over (spec 7.1, 5.29).
 ///
 /// Figma: the Page bar has no back button, and "Back to wallet" is the
 /// only way on; AVAILABLE AFTER is what is available once this one is on
@@ -50,75 +52,59 @@ class WithdrawalPendingScreen extends ConsumerWidget {
                 Expanded(
                   child: withdrawal == null || data == null
                       ? const SizedBox.shrink()
-                      : Choreography(
-                          length: WalletDurations.moment,
-                          child: Center(
-                            child: SingleChildScrollView(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: IqSpace.s4,
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  const Center(child: _WalletArrives()),
-                                  const SizedBox(height: IqSpace.s4),
-                                  Cue(
-                                    at: WalletDurations.stagger * 2,
-                                    length: WalletDurations.appear,
-                                    rise: WalletTravel.rise,
-                                    child: Text(
-                                      'Withdrawal pending',
-                                      textAlign: TextAlign.center,
-                                      style: IqText.title.copyWith(
-                                        color: IqColors.fg,
-                                      ),
+                      : Center(
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: IqSpace.s4,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                const Center(child: _WalletArrives()),
+                                const SizedBox(height: IqSpace.s4),
+                                Appear(
+                                  delay: IqDurations.stagger * 2,
+                                  child: Text(
+                                    'Withdrawal pending',
+                                    textAlign: TextAlign.center,
+                                    style: IqText.title.copyWith(
+                                      color: IqColors.fg,
                                     ),
                                   ),
-                                  const SizedBox(height: IqSpace.s4),
-                                  Cue(
-                                    at: WalletDurations.stagger * 3,
-                                    length: WalletDurations.appear,
-                                    rise: WalletTravel.rise,
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Cue(
-                                          at: WalletDurations.mark,
-                                          length: WalletDurations.mark,
-                                          rise: 0,
-                                          fade: false,
-                                          remount: true,
-                                          child: IqHighlight(
-                                            text: naira(withdrawal.amountKobo),
+                                ),
+                                const SizedBox(height: IqSpace.s4),
+                                Appear(
+                                  delay: IqDurations.stagger * 3,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      _FreshAt(
+                                        at: IqDurations.mark,
+                                        child: IqHighlight(
+                                          text: naira(withdrawal.amountKobo),
+                                        ),
+                                      ),
+                                      const SizedBox(width: IqSpace.s2),
+                                      Flexible(
+                                        child: Text(
+                                          'to ${withdrawal.destination ?? ''}',
+                                          style: IqText.body.copyWith(
+                                            color: IqColors.fg2,
                                           ),
                                         ),
-                                        const SizedBox(width: IqSpace.s2),
-                                        Flexible(
-                                          child: Text(
-                                            'to ${withdrawal.destination ?? ''}',
-                                            style: IqText.body.copyWith(
-                                              color: IqColors.fg2,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: IqSpace.s4),
-                                  Cue(
-                                    at: WalletDurations.stagger * 4,
-                                    length: WalletDurations.appear,
-                                    rise: WalletTravel.rise,
-                                    child: _Fact(
-                                      label: 'Available after',
-                                      value: naira(
-                                        data.totals.withdrawableKobo,
                                       ),
-                                    ),
+                                    ],
                                   ),
-                                ],
-                              ),
+                                ),
+                                const SizedBox(height: IqSpace.s4),
+                                Appear(
+                                  delay: IqDurations.stagger * 4,
+                                  child: _Fact(
+                                    label: 'Available after',
+                                    value: naira(data.totals.withdrawableKobo),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -187,9 +173,9 @@ class _Fact extends StatelessWidget {
   }
 }
 
-/// Exp/Illustration Kind=Wallet arriving in its two layers (MOTION-SPEC
-/// §5.29): the ink rises 16 and fades in over 320, the orange strap sweeps
-/// in from +160. Reduced motion: the illustration itself.
+/// Exp/Illustration Kind=Wallet arriving in its two layers (spec 5.29): the
+/// ink rises 16 and fades in over 320, the orange strap sweeps in from
+/// +160. Reduced motion: the illustration itself.
 class _WalletArrives extends StatelessWidget {
   const _WalletArrives();
 
@@ -204,17 +190,64 @@ class _WalletArrives extends StatelessWidget {
       height: IqIllustration.designHeight,
       child: Stack(
         children: [
-          Cue(
-            length: WalletDurations.morph,
-            rise: WalletTravel.riseHero,
+          Arrive(
+            distance: IqTravel.riseHero,
+            duration: IqDurations.morph,
             child: _Layer(kind, keep: 'ink'),
           ),
-          CueWipe(
-            at: WalletDurations.stagger * 4,
+          Wipe(
+            delay: IqDurations.stagger * 4,
             child: _Layer(kind, keep: 'accent'),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Builds [child] afresh at [at], so a part that moves on its own (the
+/// Highlight's wipe) starts then; until then it holds its place unseen.
+class _FreshAt extends StatefulWidget {
+  const _FreshAt({required this.at, required this.child});
+
+  final Duration at;
+  final Widget child;
+
+  @override
+  State<_FreshAt> createState() => _FreshAtState();
+}
+
+class _FreshAtState extends State<_FreshAt> {
+  Timer? _timer;
+  bool _fresh = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_fresh || _timer != null) return;
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _fresh = true;
+      return;
+    }
+    _timer = Timer(widget.at, () {
+      if (mounted) setState(() => _fresh = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_fresh) {
+      return KeyedSubtree(key: const ValueKey(true), child: widget.child);
+    }
+    return Opacity(
+      opacity: 0,
+      child: KeyedSubtree(key: const ValueKey(false), child: widget.child),
     );
   }
 }

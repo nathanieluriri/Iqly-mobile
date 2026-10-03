@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -619,6 +620,53 @@ class _PopState extends _EntranceState<Pop> {
   }
 }
 
+/// Fades [child] in as it rises [distance] into place over [duration],
+/// ease-out: one element's arrive (spec 2.5, 12 over 260), or an
+/// illustration's ink (16 over 320, spec 5.29). Fades only, 150 ms, under
+/// reduced motion.
+class Arrive extends _Entrance {
+  const Arrive({
+    super.key,
+    required super.child,
+    super.delay,
+    super.whenSeen,
+    this.distance = IqTravel.riseCard,
+    this.duration = IqDurations.enter,
+  });
+
+  final double distance;
+  final Duration duration;
+
+  @override
+  State<Arrive> createState() => _ArriveState();
+}
+
+class _ArriveState extends _EntranceState<Arrive> {
+  @override
+  Duration get length => widget.duration;
+
+  @override
+  bool get fadesWhenReduced => true;
+
+  @override
+  Widget buildMove(BuildContext context, Animation<double> progress) {
+    return FadeTransition(
+      opacity: progress,
+      child: AnimatedBuilder(
+        animation: progress,
+        child: widget.child,
+        builder: (context, child) => Transform.translate(
+          offset: Offset(
+            0,
+            reduced ? 0 : widget.distance * (1 - progress.value),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
 /// The two ways a list comes in (spec 2.5).
 enum StaggerMove {
   /// Fade and rise 12, for data that lands after its page.
@@ -1079,6 +1127,170 @@ class _CollapseState extends State<Collapse> with TickerProviderStateMixin {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A first load on the kit's clock (spec 2.6): nothing for the first
+/// 300 ms, then [skeleton], held at least 600 once shown; when [loading]
+/// ends the skeleton fades out in 150 ms ease-in and [child] comes in 60 ms
+/// later, so its own arrive plays over it. Data inside the first 300 ms
+/// brings [child] at once. [skeletonNow] shows the skeleton without the
+/// wait (a failed load that already draws it). Under reduced motion the
+/// skeleton and the content cross in 150. It fills its parent.
+class LoadingGate extends StatefulWidget {
+  const LoadingGate({
+    super.key,
+    required this.loading,
+    required this.skeleton,
+    required this.child,
+    this.skeletonNow = false,
+  });
+
+  final bool loading;
+  final Widget skeleton;
+  final Widget child;
+  final bool skeletonNow;
+
+  @override
+  State<LoadingGate> createState() => _LoadingGateState();
+}
+
+enum _GatePhase { waiting, skeleton, leaving, content }
+
+class _LoadingGateState extends State<LoadingGate>
+    with SingleTickerProviderStateMixin {
+  static const _lag = Duration(milliseconds: 60);
+
+  late final AnimationController _out = AnimationController(
+    vsync: this,
+    duration: IqDurations.crossfade,
+    animationBehavior: AnimationBehavior.preserve,
+  )..addStatusListener(_onOut);
+  late final Animation<double> _skeletonOpacity = _out.drive(
+    Tween<double>(begin: 1, end: 0).chain(CurveTween(curve: IqCurves.easeIn)),
+  );
+  _GatePhase _phase = _GatePhase.content;
+  bool _childIn = true;
+  bool _held = false;
+  bool _reduced = false;
+  Timer? _wait;
+  Timer? _hold;
+  Timer? _lagTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.loading) _load();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduced = MediaQuery.disableAnimationsOf(context);
+  }
+
+  @override
+  void didUpdateWidget(LoadingGate old) {
+    super.didUpdateWidget(old);
+    if (widget.loading && !old.loading) {
+      _load();
+      return;
+    }
+    if (widget.skeletonNow &&
+        !old.skeletonNow &&
+        _phase == _GatePhase.waiting) {
+      _showSkeleton();
+    }
+    if (!widget.loading && old.loading) {
+      if (_phase == _GatePhase.waiting) {
+        _wait?.cancel();
+        _phase = _GatePhase.content;
+        _childIn = true;
+      } else if (_phase == _GatePhase.skeleton && _held) {
+        _leave();
+      }
+    }
+  }
+
+  void _load() {
+    _lagTimer?.cancel();
+    _out.value = 0;
+    _childIn = false;
+    if (widget.skeletonNow) {
+      _showSkeleton();
+      return;
+    }
+    _phase = _GatePhase.waiting;
+    _wait?.cancel();
+    _wait = Timer(IqDurations.skeletonDelay, () {
+      if (mounted && widget.loading) setState(_showSkeleton);
+    });
+  }
+
+  void _showSkeleton() {
+    _wait?.cancel();
+    _phase = _GatePhase.skeleton;
+    _held = false;
+    _hold?.cancel();
+    _hold = Timer(IqDurations.skeletonMin, () {
+      _held = true;
+      if (mounted && !widget.loading) setState(_leave);
+    });
+  }
+
+  void _leave() {
+    _phase = _GatePhase.leaving;
+    _out.forward(from: 0);
+    if (_reduced) {
+      _childIn = true;
+      return;
+    }
+    _lagTimer = Timer(_lag, () {
+      if (mounted) setState(() => _childIn = true);
+    });
+  }
+
+  void _onOut(AnimationStatus status) {
+    if (!status.isCompleted || !mounted) return;
+    setState(() {
+      _phase = _GatePhase.content;
+      _childIn = true;
+    });
+  }
+
+  @override
+  void dispose() {
+    _wait?.cancel();
+    _hold?.cancel();
+    _lagTimer?.cancel();
+    _out.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final leaving = _phase == _GatePhase.leaving;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (_childIn)
+          KeyedSubtree(key: const ValueKey('content'), child: widget.child),
+        if (_phase == _GatePhase.skeleton || leaving)
+          KeyedSubtree(
+            key: const ValueKey('skeleton'),
+            child: IgnorePointer(
+              ignoring: leaving,
+              child: ExcludeSemantics(
+                excluding: leaving,
+                child: FadeTransition(
+                  opacity: _skeletonOpacity,
+                  child: widget.skeleton,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

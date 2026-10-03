@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/deadline.dart';
+import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../data/models.dart';
 import '../../router.dart';
@@ -11,7 +12,6 @@ import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/button.dart';
 import '../../ui/top_bar.dart';
-import '../wallet/wallet_motion.dart';
 import '../wallet/wallet_routes.dart';
 import 'withdrawal_screen.dart';
 import 'withdrawal_widgets.dart';
@@ -21,6 +21,10 @@ import 'withdrawal_widgets.dart';
 /// "Failed at the bank". Check bank details opens Select bank; the pick
 /// opens the Withdraw sheet with the same amount, to the same bank or
 /// another one.
+///
+/// Motion (spec 7.9): the banner slides down, the receipt arrives and
+/// draws its tear line, and the failed step on err never breathes (a
+/// failure does not pulse). Check bank details pushes Select bank.
 ///
 /// Figma over the row note: there is no separate Retry button; Check bank
 /// details is the retry. The banner adds "Nothing left your wallet." to
@@ -63,8 +67,7 @@ class WithdrawalFailedScreen extends ConsumerWidget {
                   onBack: () => leaveWithdrawal(context),
                 ),
                 Expanded(
-                  child: Choreography(
-                    length: WalletDurations.list,
+                  child: Stagger(
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.all(IqSpace.s4),
                       child: Column(
@@ -78,9 +81,9 @@ class WithdrawalFailedScreen extends ConsumerWidget {
                           const SizedBox(height: IqSpace.s3),
                           WithdrawalAmount(withdrawal: withdrawal),
                           const SizedBox(height: IqSpace.s3),
-                          Cue.arrive(
-                            0,
-                            WithdrawalReceipt(
+                          StaggerItem(
+                            index: 0,
+                            child: WithdrawalReceipt(
                               withdrawal: withdrawal,
                               now: now,
                               showStatus: false,

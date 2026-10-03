@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 
@@ -10,6 +11,11 @@ enum IqReceiptCardTone { ok, warn, err }
 /// Exp/ReceiptCard: the withdrawal receipt with amount, destination, Paystack
 /// reference, date and a status tag, and a dashed tear line at the foot.
 /// Share receipt exports this card.
+///
+/// Motion (spec 5.31, build extension): the list it sits in brings it in;
+/// the dashed tear line draws left to right, 240 ms ease-out, 120 ms after
+/// the card is first seen, and a new status crossfades its tag, 150. The
+/// tear line is drawn at once under reduced motion.
 ///
 /// Figma over brief: only the Completed tone is drawn; the tone is picked from the status word.
 /// Figma over brief: the status tag has radius 6 (a tag), not a full pill.
@@ -91,20 +97,32 @@ class IqReceiptCard extends StatelessWidget {
                       if (showStatus) ...[
                         const SizedBox(width: 30),
                         Flexible(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: IqSpace.s2,
-                              vertical: 3,
+                          child: AnimatedSwitcher(
+                            duration: IqDurations.crossfade,
+                            switchInCurve: IqCurves.easeOut,
+                            switchOutCurve: IqCurves.easeOut,
+                            layoutBuilder: (current, previous) => Stack(
+                              alignment: Alignment.centerLeft,
+                              children: [...previous, ?current],
                             ),
-                            decoration: BoxDecoration(
-                              color: fill,
-                              borderRadius: BorderRadius.circular(IqRadius.sm),
-                            ),
-                            child: Text(
-                              status,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: IqText.smallStrong.copyWith(color: ink),
+                            child: Container(
+                              key: ValueKey(status),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: IqSpace.s2,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: fill,
+                                borderRadius: BorderRadius.circular(
+                                  IqRadius.sm,
+                                ),
+                              ),
+                              child: Text(
+                                status,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: IqText.smallStrong.copyWith(color: ink),
+                              ),
                             ),
                           ),
                         ),
@@ -146,7 +164,11 @@ class IqReceiptCard extends StatelessWidget {
             right: IqSpace.s5 - 1,
             bottom: 10.25,
             height: 1.5,
-            child: CustomPaint(painter: _TearPainter()),
+            child: Wipe(
+              whenSeen: true,
+              delay: IqDurations.chain,
+              child: CustomPaint(painter: _TearPainter()),
+            ),
           ),
         ],
       ),

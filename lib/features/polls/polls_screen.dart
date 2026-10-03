@@ -15,7 +15,6 @@ import '../../ui/section_title.dart';
 import '../../ui/skeleton.dart';
 import '../../ui/top_bar.dart';
 import '../discover/discover_routes.dart';
-import '../wallet/wallet_motion.dart' show LoadingGate;
 import 'polls_routes.dart';
 import 'polls_state.dart';
 

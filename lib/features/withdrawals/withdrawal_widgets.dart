@@ -3,12 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../core/money.dart';
+import '../../core/motion.dart';
 import '../../data/models.dart';
 import '../../theme/theme.dart';
 import '../../ui/receipt_card.dart';
 import '../../ui/timeline_row.dart';
 import '../wallet/wallet_format.dart';
-import '../wallet/wallet_motion.dart';
 
 /// The B14 hero amount (Mob/Figure).
 class WithdrawalAmount extends StatelessWidget {
@@ -24,8 +24,8 @@ class WithdrawalAmount extends StatelessWidget {
 }
 
 /// Exp/ReceiptCard for a withdrawal. The hero amount above owns the Amount
-/// row; [showStatus] false is the failed receipt, which draws no tag. A
-/// status change crossfades the card (only the tag differs), 150.
+/// row; [showStatus] false is the failed receipt, which draws no tag. The
+/// card crossfades its tag when the status changes.
 class WithdrawalReceipt extends StatelessWidget {
   const WithdrawalReceipt({
     super.key,
@@ -40,21 +40,14 @@ class WithdrawalReceipt extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final status = capitalized(withdrawal.statusWord);
-    return AnimatedSwitcher(
-      duration: walletMotion(context, WalletDurations.crossfade),
-      switchInCurve: WalletCurves.easeOut,
-      switchOutCurve: WalletCurves.easeOut,
-      child: IqReceiptCard(
-        key: ValueKey(status),
-        amount: naira(withdrawal.amountKobo),
-        to: withdrawal.destination ?? '',
-        reference: withdrawal.reference ?? '',
-        date: withdrawalTime(withdrawal.createdAt, now),
-        status: status,
-        showAmount: false,
-        showStatus: showStatus,
-      ),
+    return IqReceiptCard(
+      amount: naira(withdrawal.amountKobo),
+      to: withdrawal.destination ?? '',
+      reference: withdrawal.reference ?? '',
+      date: withdrawalTime(withdrawal.createdAt, now),
+      status: capitalized(withdrawal.statusWord),
+      showAmount: false,
+      showStatus: showStatus,
     );
   }
 }
@@ -87,9 +80,10 @@ class _Step {
 /// bank".
 ///
 /// A step that completes while the screen is open plays the TimelineRow
-/// chain (MOTION-SPEC §5.30): its dot inks and its line draws down, and only
-/// then does the next dot take the ring; several at once go one by one.
-/// Reduced motion: the new state at once. Rows settle in with the page.
+/// chain (spec 5.30): its dot inks and its line draws down, and only then
+/// does the next dot take the ring; several at once go one by one. No
+/// haptic: the person is only watching. Reduced motion: the new state at
+/// once. The rows come with the page.
 class WithdrawalTimeline extends StatefulWidget {
   const WithdrawalTimeline({
     super.key,
@@ -126,7 +120,7 @@ class _WithdrawalTimelineState extends State<WithdrawalTimeline> {
   void _advance() {
     _done++;
     _ringWaits = true;
-    _next = Timer(WalletDurations.ink + WalletDurations.mark, () {
+    _next = Timer(IqDurations.ink + IqDurations.mark, () {
       _next = null;
       if (!mounted) return;
       setState(() => _ringWaits = false);
@@ -200,16 +194,13 @@ class _WithdrawalTimelineState extends State<WithdrawalTimeline> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final (i, step) in steps.indexed)
-          Cue.settle(
-            i + 1,
-            IqTimelineRow(
-              state: step.state,
-              title: step.title,
-              meta: step.meta,
-              showLine: step.line,
-              failed: failed && step.state == IqTimelineRowState.current,
-            ),
+        for (final step in steps)
+          IqTimelineRow(
+            state: step.state,
+            title: step.title,
+            meta: step.meta,
+            showLine: step.line,
+            failed: failed && step.state == IqTimelineRowState.current,
           ),
       ],
     );
