@@ -245,12 +245,14 @@ class _Form extends StatelessWidget {
                 ? AnswerStep(
                     key: const ValueKey(SubmitStep.answer),
                     brief: brief,
+                    flow: flow,
                     settle: !flow.back,
                   )
                 : QuestionsStep(
                     key: const ValueKey(SubmitStep.questions),
                     briefId: brief.id,
                     form: form,
+                    flow: flow,
                   ),
           ),
         ),
