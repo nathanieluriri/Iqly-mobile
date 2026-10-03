@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 
@@ -18,7 +19,7 @@ class IqTicketTag extends StatelessWidget {
   final IqTicketTagKind kind;
   final String? label;
 
-  static const Duration fade = Duration(milliseconds: 150);
+  static const Duration fade = IqDurations.crossfade;
 
   static String defaultLabel(IqTicketTagKind kind) => switch (kind) {
     IqTicketTagKind.open => 'Open',
@@ -38,7 +39,7 @@ class IqTicketTag extends StatelessWidget {
       IqTicketTagKind.resolved => (IqColors.okSoft, IqColors.ok, IqIcons.check),
     };
     return AnimatedSwitcher(
-      duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : fade,
+      duration: motion(context, fade),
       child: Container(
         key: ValueKey(kind),
         padding: const EdgeInsets.fromLTRB(IqSpace.s2p5, 5, IqSpace.s3, 5),

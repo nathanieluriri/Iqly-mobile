@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 
 enum IqSpotsStampTone {
@@ -53,9 +54,9 @@ class IqSpotsStamp extends StatefulWidget {
   final bool showOf;
   final bool onInk;
 
-  static const Duration fill = Duration(milliseconds: 600);
-  static const Duration wipe = Duration(milliseconds: 240);
-  static const Duration dip = Duration(milliseconds: 200);
+  static const Duration fill = IqDurations.fill;
+  static const Duration wipe = IqDurations.mark;
+  static const Duration dip = IqDurations.swap;
 
   @override
   State<IqSpotsStamp> createState() => _IqSpotsStampState();
@@ -74,6 +75,12 @@ class _IqSpotsStampState extends State<IqSpotsStamp>
   late final AnimationController _dip = AnimationController(
     vsync: this,
     duration: IqSpotsStamp.dip,
+  );
+  late final Animation<double> _grow = _fill.drive(
+    CurveTween(curve: IqCurves.easeOut),
+  );
+  late final Animation<double> _reveal = _wipe.drive(
+    CurveTween(curve: IqCurves.easeOut),
   );
   bool _started = false;
 
@@ -118,8 +125,8 @@ class _IqSpotsStampState extends State<IqSpotsStamp>
     final look = _SpotsLook.of(widget.tone);
     final word = widget.word ?? look.word;
     final taken = widget.total - widget.left;
-    final grow = CurvedAnimation(parent: _fill, curve: Curves.easeOut);
-    final wipe = CurvedAnimation(parent: _wipe, curve: Curves.easeOut);
+    final grow = _grow;
+    final wipe = _reveal;
     return AnimatedBuilder(
       animation: Listenable.merge([grow, wipe, _dip]),
       builder: (context, _) {
@@ -140,7 +147,7 @@ class _IqSpotsStampState extends State<IqSpotsStamp>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Transform.translate(
-                          offset: Offset(0, 2 * bump),
+                          offset: Offset(0, IqTravel.dip * bump),
                           child: _marker(look, count, wipe.value),
                         ),
                         const SizedBox(width: IqSpace.s2),

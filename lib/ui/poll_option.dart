@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 import 'pressable.dart';
@@ -8,10 +9,10 @@ import 'vector.dart';
 enum IqPollOptionState { standard, selected, result, chosen }
 
 /// Exp/PollOption: one answer on a poll. Before voting it is a brush outline
-/// pill ([onTap] picks it); Selected is filled ink with a check. Result and
-/// Chosen show the share bar, whose fill stops at [share] (0 to 1) with the
-/// Figma 2.4 point soft edge, and the rounded percentage. Figma
-/// State=Default is [IqPollOptionState.standard].
+/// pill ([onTap] picks it, with the select haptic); Selected is filled ink
+/// with a check. Result and Chosen show the share bar, whose fill stops at
+/// [share] (0 to 1) with the Figma 2.4 point soft edge, and the rounded
+/// percentage. Figma State=Default is [IqPollOptionState.standard].
 class IqPollOption extends StatelessWidget {
   const IqPollOption({
     super.key,
@@ -38,6 +39,7 @@ class IqPollOption extends StatelessWidget {
         state == IqPollOptionState.selected;
     return IqPressable(
       onTap: voting ? onTap : null,
+      haptic: IqHaptics.select,
       builder: (context, _) => SizedBox(
         width: width,
         height: height,

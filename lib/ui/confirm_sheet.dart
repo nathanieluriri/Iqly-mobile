@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
+import '../core/transitions.dart';
 import '../theme/theme.dart';
 import 'button.dart';
 
@@ -117,9 +119,12 @@ class IqConfirmSheet extends StatelessWidget {
 }
 
 /// Shows [IqConfirmSheet] over an ink scrim and resolves to true when the
-/// destructive action is confirmed. The sheet rises 280 ms ease-out while
-/// the scrim fades to .5; on confirm the button sinks (the sticker press)
-/// before the sheet drops 200 ms ease-in. Reduced motion fades in place.
+/// destructive action is confirmed (spec 3.8). The sheet rises 280 ms
+/// ease-out as the scrim fades to .5 and follows a drag down; Remove gives
+/// the destructive haptic and the button sinks for 100 ms before the sheet
+/// drops (200 ms), the button held down; Keep it drops it at once. From the
+/// choice on, the sheet ignores taps, drags and the scrim. Reduced motion
+/// fades in place.
 Future<bool> showIqConfirmSheet(
   BuildContext context, {
   String title = 'Remove this recording?',
@@ -129,14 +134,20 @@ Future<bool> showIqConfirmSheet(
   String cancelLabel = 'Keep it',
 }) async {
   final result = await Navigator.of(context).push<bool>(
-    _ConfirmSheetRoute(
-      builder: (context) => _ConfirmSheetBody(
-        title: title,
-        body: body,
-        confirmLabel: confirmLabel,
-        cancelLabel: cancelLabel,
+    IqSheetRoute<bool>(
+      scrim: IqScrim.sheet,
+      rise: IqDurations.sheetConfirm,
+      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+      builder: (context) => MediaQuery.removePadding(
+        context: context,
+        removeTop: true,
+        child: _ConfirmSheetBody(
+          title: title,
+          body: body,
+          confirmLabel: confirmLabel,
+          cancelLabel: cancelLabel,
+        ),
       ),
-      label: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     ),
   );
   return result ?? false;
@@ -159,104 +170,56 @@ class _ConfirmSheetBody extends StatefulWidget {
   State<_ConfirmSheetBody> createState() => _ConfirmSheetBodyState();
 }
 
-class _ConfirmSheetBodyState extends State<_ConfirmSheetBody> {
+class _ConfirmSheetBodyState extends State<_ConfirmSheetBody>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _sink = AnimationController(vsync: this);
   bool _closing = false;
+  bool _dropping = false;
 
-  // One pop only: a second tap during the sink delay or the exit animation
-  // would otherwise pop the route underneath.
-  void _close(bool result, Duration delay) {
+  // One pop only: a second tap during the sink or the drop would otherwise
+  // pop the route underneath.
+  void _close(bool result) {
     if (_closing) return;
-    _closing = true;
+    setState(() => _closing = true);
     final route = ModalRoute.of(context);
-    if (route is _ConfirmSheetRoute) route.lock();
-    Future.delayed(delay, () {
-      if (mounted && route != null && route.isCurrent) {
-        Navigator.of(context).pop(result);
-      }
-    });
+    if (route is IqSheetRoute) route.lock();
+    void drop() {
+      if (!mounted || route == null || !route.isCurrent) return;
+      // Freezes the sunk button while the sheet drops.
+      setState(() => _dropping = true);
+      Navigator.of(context).pop(result);
+    }
+
+    final sink = result ? motion(context, IqDurations.sink) : Duration.zero;
+    if (sink == Duration.zero) {
+      drop();
+    } else {
+      _sink.duration = sink;
+      _sink.forward().then((_) => drop());
+    }
+  }
+
+  @override
+  void dispose() {
+    _sink.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return IqConfirmSheet(
-      title: widget.title,
-      body: widget.body,
-      confirmLabel: widget.confirmLabel,
-      cancelLabel: widget.cancelLabel,
-      onConfirm: () => _close(
-        true,
-        MediaQuery.disableAnimationsOf(context)
-            ? Duration.zero
-            : const Duration(milliseconds: 100),
-      ),
-      onCancel: () => _close(false, Duration.zero),
-    );
-  }
-}
-
-class _ConfirmSheetRoute extends PopupRoute<bool> {
-  _ConfirmSheetRoute({required this.builder, required this.label});
-
-  final WidgetBuilder builder;
-  final String label;
-  bool _locked = false;
-
-  void lock() {
-    if (_locked) return;
-    _locked = true;
-    changedInternalState();
-  }
-
-  @override
-  Color? get barrierColor => IqColors.brand.withValues(alpha: 0.5);
-
-  @override
-  bool get barrierDismissible => !_locked;
-
-  @override
-  String? get barrierLabel => label;
-
-  @override
-  Duration get transitionDuration => const Duration(milliseconds: 280);
-
-  @override
-  Duration get reverseTransitionDuration => const Duration(milliseconds: 200);
-
-  @override
-  Widget buildPage(
-    BuildContext context,
-    Animation<double> animation,
-    Animation<double> secondaryAnimation,
-  ) {
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: MediaQuery.removePadding(
-        context: context,
-        removeTop: true,
-        child: Builder(builder: builder),
-      ),
-    );
-  }
-
-  @override
-  Widget buildTransitions(
-    BuildContext context,
-    Animation<double> animation,
-    Animation<double> secondaryAnimation,
-    Widget child,
-  ) {
-    if (MediaQuery.disableAnimationsOf(context)) {
-      return FadeTransition(opacity: animation, child: child);
-    }
-    return SlideTransition(
-      position: Tween(begin: const Offset(0, 1), end: Offset.zero).animate(
-        CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOut,
-          reverseCurve: Curves.easeIn,
+    return IgnorePointer(
+      ignoring: _closing,
+      child: TickerMode(
+        enabled: !_dropping,
+        child: IqConfirmSheet(
+          title: widget.title,
+          body: widget.body,
+          confirmLabel: widget.confirmLabel,
+          cancelLabel: widget.cancelLabel,
+          onConfirm: () => _close(true),
+          onCancel: () => _close(false),
         ),
       ),
-      child: child,
     );
   }
 }

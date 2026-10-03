@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 import 'pressable.dart';
@@ -12,7 +13,8 @@ enum IqBookmarkTone { paper, ink }
 /// Exp/Bookmark: save a brief. A 44 x 44 tap target around the 22 px brush
 /// bookmark. Paper on light cards, Ink on the dark hero ticket. On is the
 /// orange marker fill under an orange outline (saved, not a warning) and
-/// is the same in both tones. Tapping flips [state] through [onChanged].
+/// is the same in both tones. Tapping flips [state] through [onChanged]
+/// with the select haptic.
 ///
 /// Figma over brief: the bookmark icon is stroked and recoloured via its stroke.
 /// Figma over brief: the Ink outline is Color/sidebar-fg.
@@ -36,6 +38,7 @@ class IqBookmark extends StatelessWidget {
       toggled: on,
       child: IqPressable(
         semanticLabel: on ? 'Saved' : 'Save',
+        haptic: IqHaptics.select,
         onTap: onChanged == null
             ? null
             : () => onChanged(on ? IqBookmarkState.off : IqBookmarkState.on),

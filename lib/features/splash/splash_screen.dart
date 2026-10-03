@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/motion.dart';
 import '../../core/session.dart';
+import '../../core/transitions.dart';
 import '../../router.dart';
 import '../onboarding/onboarding_draft.dart';
 import '../../theme/theme.dart';
@@ -23,23 +27,16 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   SplashPhase _phase = SplashPhase.dark;
   Duration _duration = Duration.zero;
   bool _started = false;
+  Timer? _hold;
 
   /// Each step: the phase to enter, how long the previous phase holds, and
   /// how long the Smart Animate transition takes.
   static const _timeline = [
-    (
-      SplashPhase.spark,
-      Duration(milliseconds: 300),
-      Duration(milliseconds: 500),
-    ),
-    (SplashPhase.lit, Duration(milliseconds: 400), Duration(milliseconds: 700)),
-    (
-      SplashPhase.settled,
-      Duration(milliseconds: 500),
-      Duration(milliseconds: 600),
-    ),
+    (SplashPhase.spark, IqSplashTiming.darkHold, IqSplashTiming.toSpark),
+    (SplashPhase.lit, IqSplashTiming.sparkHold, IqSplashTiming.toLit),
+    (SplashPhase.settled, IqSplashTiming.litHold, IqSplashTiming.toSettled),
   ];
-  static const _settledHold = Duration(milliseconds: 600);
+  static const _settledHold = IqSplashTiming.settledHold;
 
   @override
   void didChangeDependencies() {
@@ -53,8 +50,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     if (reducedMotion) {
       await _wait(_timeline.first.$2);
       if (!mounted) return;
-      _go(SplashPhase.settled, const Duration(milliseconds: 400));
-      await _wait(const Duration(milliseconds: 400));
+      _go(SplashPhase.settled, IqSplashTiming.settleInPlace);
+      await _wait(IqSplashTiming.settleInPlace);
     } else {
       for (final (phase, hold, move) in _timeline) {
         await _wait(hold);
@@ -66,9 +63,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     await _wait(_settledHold);
     if (!mounted) return;
     final session = ref.read(sessionProvider);
-    if (!session.signedIn) return context.go(Routes.landing);
+    if (!session.signedIn) {
+      return context.go(Routes.landing, extra: Arrival.splash);
+    }
     final draft = ref.read(onboardingDraftProvider);
-    context.go(onboardingLaunchRoute(session, draft) ?? Routes.home);
+    context.go(
+      onboardingLaunchRoute(session, draft) ?? Routes.home,
+      extra: Arrival.splash,
+    );
   }
 
   void _go(SplashPhase phase, Duration duration) {
@@ -78,12 +80,24 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     });
   }
 
-  Future<void> _wait(Duration d) => Future<void>.delayed(d);
+  /// A hold that ends with the screen: the timeline stops when the splash
+  /// is replaced mid-way.
+  Future<void> _wait(Duration d) {
+    final done = Completer<void>();
+    _hold = Timer(d, done.complete);
+    return done.future;
+  }
+
+  @override
+  void dispose() {
+    _hold?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final pose = _Pose.of(_phase, MediaQuery.sizeOf(context));
-    const curve = Curves.easeInOut;
+    const curve = IqCurves.easeInOut;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
@@ -232,7 +246,7 @@ class _Progress extends StatelessWidget {
         alignment: Alignment.centerLeft,
         child: AnimatedFractionallySizedBox(
           duration: duration,
-          curve: Curves.easeInOut,
+          curve: IqCurves.easeInOut,
           widthFactor: fraction,
           heightFactor: 1,
           child: DecoratedBox(

@@ -113,6 +113,7 @@ class _LandingScreenState extends ConsumerState<LandingScreen> {
     }
     await completeSignIn(ref, newAccount: result.newAccount);
     if (!mounted) return;
+    if (result.newAccount) IqHaptics.success.play();
     context.go(result.newAccount ? Routes.onboarding : Routes.home);
   }
 
@@ -149,7 +150,7 @@ class _LandingScreenState extends ConsumerState<LandingScreen> {
   Widget _body(BuildContext context, bool focused) {
     final motion = MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
-        : const Duration(milliseconds: 250);
+        : IqDurations.screen;
     final failed = _showFailure && !focused;
     // The two groups sit at the top and bottom of at least a screen's
     // height and scroll when they do not fit. No intrinsic sizing: the
@@ -174,7 +175,7 @@ class _LandingScreenState extends ConsumerState<LandingScreen> {
   }
 
   List<Widget> _top(bool focused, bool failed, Duration motion) {
-    const curve = Curves.easeOut;
+    const curve = IqCurves.easeOut;
     final provider = _failedProvider;
     final reduced = motion == Duration.zero;
     return [
@@ -198,7 +199,7 @@ class _LandingScreenState extends ConsumerState<LandingScreen> {
             : failed
             ? IqBanner.enter
             : IqBanner.exit,
-        curve: failed ? Curves.easeOut : Curves.easeIn,
+        curve: failed ? IqCurves.easeOut : IqCurves.easeIn,
         height: failed ? IqSpace.s3 : 0,
       ),
       SvgPicture.asset(
@@ -309,7 +310,7 @@ class _LandingScreenState extends ConsumerState<LandingScreen> {
     if (motion == Duration.zero) return child;
     return AnimatedSize(
       duration: motion,
-      curve: Curves.easeOut,
+      curve: IqCurves.easeOut,
       alignment: Alignment.bottomCenter,
       child: child,
     );

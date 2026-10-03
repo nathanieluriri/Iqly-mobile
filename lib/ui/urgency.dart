@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/deadline.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 
@@ -16,8 +17,8 @@ enum IqUrgencyTone {
       return IqUrgencyTone.closed;
     }
     if (remaining == null) return IqUrgencyTone.calm;
-    if (remaining < const Duration(hours: 24)) return IqUrgencyTone.hot;
-    if (remaining < const Duration(days: 7)) return IqUrgencyTone.warm;
+    if (remaining < DeadlineRules.urgencyHot) return IqUrgencyTone.hot;
+    if (remaining < DeadlineRules.urgencyWarm) return IqUrgencyTone.warm;
     return IqUrgencyTone.calm;
   }
 }

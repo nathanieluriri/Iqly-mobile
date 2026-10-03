@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 import 'pressable.dart';
@@ -40,13 +41,9 @@ class IqShareTarget extends StatelessWidget {
 
   static const double width = 72;
   static const double tile = 56;
-  static const Duration pressDuration = Duration(milliseconds: 100);
 
   @override
   Widget build(BuildContext context) {
-    final duration = MediaQuery.disableAnimationsOf(context)
-        ? Duration.zero
-        : pressDuration;
     final mark = kind.mark;
     return IqPressable(
       onTap: onTap,
@@ -56,8 +53,8 @@ class IqShareTarget extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             AnimatedContainer(
-              duration: duration,
-              curve: Curves.easeOut,
+              duration: pressMotion(context, pressed),
+              curve: IqCurves.easeOut,
               width: tile,
               height: tile,
               alignment: Alignment.center,

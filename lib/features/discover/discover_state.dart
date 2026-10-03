@@ -250,7 +250,7 @@ class FeedView {
 }
 
 abstract final class FeedRules {
-  static const closingSoonWithin = Duration(days: 3);
+  static const closingSoonWithin = DeadlineRules.closingSoon;
 }
 
 List<Brief> filterBriefs(List<Brief> briefs, DiscoverFilters filters) =>

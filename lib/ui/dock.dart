@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 import 'pressable.dart';
@@ -19,7 +20,8 @@ enum IqDockActive {
 /// Exp/Dock: the floating tab dock, 358 wide, four equal tabs with labels
 /// always on. The lit tab is a lighter purple pill with an orange glyph and
 /// a white label; the others sit at 72%. The pill slides to the tapped tab,
-/// 200 ms ease-out. Float it 16 pt above the home indicator.
+/// 200 ms ease-out, and a tab change gives the select haptic. Float it 16 pt
+/// above the home indicator.
 ///
 /// Figma over brief: the lit tab is a sidebar-accent pill, not an orange disc.
 /// Figma over its description: the lit label is primary-fg white, not cream.
@@ -35,13 +37,11 @@ class IqDock extends StatelessWidget {
 
   static const double width = 358;
   static const double height = 64;
-  static const Duration slide = Duration(milliseconds: 200);
+  static const Duration slide = IqDurations.swap;
 
   @override
   Widget build(BuildContext context) {
-    final duration = MediaQuery.disableAnimationsOf(context)
-        ? Duration.zero
-        : slide;
+    final duration = motion(context, slide);
     return Container(
       width: width,
       height: height,
@@ -60,7 +60,7 @@ class IqDock extends StatelessWidget {
             children: [
               AnimatedPositioned(
                 duration: duration,
-                curve: Curves.easeOut,
+                curve: IqCurves.easeOut,
                 left: active.index * (tab + gap),
                 top: 0,
                 bottom: 0,
@@ -120,10 +120,11 @@ class _Tab extends StatelessWidget {
       child: IqPressable(
         onTap: onTap,
         semanticLabel: item.label,
+        haptic: lit ? null : IqHaptics.select,
         builder: (context, pressed) => TweenAnimationBuilder<double>(
           tween: Tween(end: lit ? 1 : 0),
           duration: duration,
-          curve: Curves.easeOut,
+          curve: IqCurves.easeOut,
           builder: (context, t, _) => Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: IqSpace.s1,

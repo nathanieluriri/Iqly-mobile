@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/transitions.dart';
 import '../../data/reference_data.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -27,7 +28,7 @@ class AboutYouScreen extends ConsumerWidget {
       icon: IqIcons.profile,
       saved: occupation != null,
       title: 'What do you do?',
-      onBack: () => context.go(Routes.onboarding),
+      onBack: () => context.go(Routes.onboarding, extra: NavDirection.back),
       onSkip: next,
       onNext: next,
       nextEnabled: occupation != null,

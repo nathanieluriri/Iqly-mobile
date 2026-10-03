@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/motion.dart';
+import 'package:iqly_mobile/theme/theme.dart';
+import 'package:iqly_mobile/ui/countdown.dart';
 
 const _box = SizedBox(width: 100, height: 20);
 
@@ -94,4 +97,518 @@ void main() {
       expect(fade(tester).opacity, 1);
     });
   });
+
+  group('tokens', () {
+    test('the curves are the Figma easings', () {
+      for (final (curve, x1, y1, x2, y2) in [
+        (IqCurves.easeOut, 0.0, 0.0, 0.58, 1.0),
+        (IqCurves.easeIn, 0.42, 0.0, 1.0, 1.0),
+        (IqCurves.easeInOut, 0.42, 0.0, 0.58, 1.0),
+      ]) {
+        final cubic = curve as Cubic;
+        expect([cubic.a, cubic.b, cubic.c, cubic.d], [x1, y1, x2, y2]);
+      }
+      expect(IqCurves.stamp.transform(0.7), greaterThan(1));
+    });
+
+    test('exits run about three quarters of their entrance', () {
+      expect(IqDurations.screenBack.inMilliseconds, 240);
+      expect(IqDurations.screen.inMilliseconds, 300);
+      expect(ErrorMotion.shake, IqDurations.mark);
+      expect(ErrorMotion.reveal, IqDurations.tick);
+    });
+
+    testWidgets('motion() and pressMotion() follow reduced motion', (
+      tester,
+    ) async {
+      late Duration full, cut, fade, down, up, rmDown, rmUp;
+      await tester.pumpWidget(
+        Builder(
+          builder: (context) {
+            full = motion(context, IqDurations.swap);
+            down = pressMotion(context, true);
+            up = pressMotion(context, false);
+            return MediaQuery(
+              data: const MediaQueryData(disableAnimations: true),
+              child: Builder(
+                builder: (context) {
+                  cut = motion(context, IqDurations.swap);
+                  fade = motion(context, IqDurations.swap, fade: true);
+                  rmDown = pressMotion(context, true);
+                  rmUp = pressMotion(context, false);
+                  return const SizedBox();
+                },
+              ),
+            );
+          },
+        ),
+      );
+      expect(full, IqDurations.swap);
+      expect(cut, Duration.zero);
+      expect(fade, IqDurations.crossfade);
+      expect((down, up), (IqDurations.press, IqDurations.release));
+      expect((rmDown, rmUp), (IqDurations.press, Duration.zero));
+    });
+  });
+
+  group('haptics', () {
+    List<String> record(WidgetTester tester) {
+      final played = <String>[];
+      final messenger = tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'HapticFeedback.vibrate') {
+          played.add(call.arguments as String);
+        }
+        return null;
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      return played;
+    }
+
+    testWidgets('commit, select, destructive, success and error', (
+      tester,
+    ) async {
+      final played = record(tester);
+      for (final haptic in IqHaptics.values) {
+        await haptic.play();
+      }
+      expect(played, [
+        'HapticFeedbackType.selectionClick',
+        'HapticFeedbackType.lightImpact',
+        'HapticFeedbackType.mediumImpact',
+        'HapticFeedbackType.successNotification',
+        'HapticFeedbackType.mediumImpact',
+      ]);
+    });
+
+    testWidgets('errors use the error notification on iOS', (tester) async {
+      final played = record(tester);
+      await errorHaptic();
+      expect(played, ['HapticFeedbackType.errorNotification']);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+  });
+
+  group('entrances', () {
+    double opacityOf(WidgetTester tester, Type type) => tester
+        .widget<FadeTransition>(
+          find
+              .descendant(
+                of: find.byType(type),
+                matching: find.byType(FadeTransition),
+              )
+              .first,
+        )
+        .opacity
+        .value;
+
+    Matrix4 transformOf(WidgetTester tester, Type type) => tester
+        .widget<Transform>(
+          find
+              .descendant(
+                of: find.byType(type),
+                matching: find.byType(Transform),
+              )
+              .first,
+        )
+        .transform;
+
+    testWidgets('Appear fades in as it rises 8, 220 ms', (tester) async {
+      await _pump(tester, const Appear(child: _box));
+      expect(opacityOf(tester, Appear), 0);
+      expect(transformOf(tester, Appear).getTranslation().y, 8);
+      await tester.pump(const Duration(milliseconds: 110));
+      expect(opacityOf(tester, Appear), closeTo(_eo(0.5), 0.01));
+      expect(
+        transformOf(tester, Appear).getTranslation().y,
+        closeTo(8 * (1 - _eo(0.5)), 0.01),
+      );
+      await tester.pump(const Duration(milliseconds: 110));
+      expect(opacityOf(tester, Appear), 1);
+      expect(transformOf(tester, Appear).getTranslation().y, 0);
+    });
+
+    testWidgets('Appear waits for its delay', (tester) async {
+      await _pump(
+        tester,
+        const Appear(delay: Duration(milliseconds: 100), child: _box),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(opacityOf(tester, Appear), 0);
+      await tester.pump(const Duration(milliseconds: 110));
+      expect(opacityOf(tester, Appear), closeTo(_eo(0.5), 0.01));
+    });
+
+    testWidgets('reduced motion: Appear only fades, 150 ms', (tester) async {
+      await _pump(tester, const Appear(child: _box), reduced: true);
+      await tester.pump(const Duration(milliseconds: 75));
+      expect(opacityOf(tester, Appear), closeTo(_eo(0.5), 0.01));
+      expect(transformOf(tester, Appear).getTranslation().y, 0);
+      await tester.pump(const Duration(milliseconds: 76));
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+
+    testWidgets('Pop grows from .6 as it fades in', (tester) async {
+      await _pump(tester, const Pop(child: _box));
+      expect(transformOf(tester, Pop).entry(0, 0), closeTo(0.6, 0.001));
+      await tester.pump(const Duration(milliseconds: 220));
+      expect(transformOf(tester, Pop).entry(0, 0), 1);
+      expect(opacityOf(tester, Pop), 1);
+    });
+
+    testWidgets('a vertical Wipe draws top to bottom', (tester) async {
+      await _pump(
+        tester,
+        const Wipe(
+          axis: Axis.vertical,
+          duration: IqDurations.tick,
+          child: _box,
+        ),
+      );
+      ClipRect clip() => tester.widget<ClipRect>(
+        find.descendant(of: find.byType(Wipe), matching: find.byType(ClipRect)),
+      );
+      expect(clip().clipper!.getClip(const Size(100, 20)).height, 0);
+      await tester.pump(const Duration(milliseconds: 80));
+      expect(
+        clip().clipper!.getClip(const Size(100, 20)).height,
+        closeTo(20 * _eo(0.5), 0.01),
+      );
+      await tester.pump(const Duration(milliseconds: 81));
+      expect(clip().clipBehavior, Clip.none);
+    });
+  });
+
+  group('Stagger', () {
+    Widget list({bool play = true, StaggerMove move = StaggerMove.arrive}) =>
+        Stagger(
+          play: play,
+          move: move,
+          child: Column(
+            children: [
+              for (var i = 0; i < 8; i++)
+                StaggerItem(
+                  index: i,
+                  child: SizedBox(key: ValueKey(i), width: 100, height: 10),
+                ),
+            ],
+          ),
+        );
+
+    double rise(WidgetTester tester, int i) =>
+        tester.getTopLeft(find.byKey(ValueKey(i))).dy - i * 10;
+
+    double fade(WidgetTester tester, int i) => tester
+        .widgetList<FadeTransition>(
+          find.ancestor(
+            of: find.byKey(ValueKey(i)),
+            matching: find.byType(FadeTransition),
+          ),
+        )
+        .fold(1.0, (o, w) => o * w.opacity.value);
+
+    testWidgets('items arrive 40 ms apart and the seventh stands still', (
+      tester,
+    ) async {
+      await _pumpTop(tester, list());
+      expect(rise(tester, 0), closeTo(12, 0.01));
+      expect(fade(tester, 0), 0);
+      expect(rise(tester, 6), 0);
+      expect(fade(tester, 6), 1);
+      await tester.pump(const Duration(milliseconds: 170));
+      expect(fade(tester, 0), closeTo(_eo(170 / 260), 0.01));
+      expect(fade(tester, 2), closeTo(_eo(90 / 260), 0.01));
+      expect(rise(tester, 5), closeTo(12, 0.01));
+      await tester.pump(const Duration(milliseconds: 290));
+      for (var i = 0; i < 8; i++) {
+        expect(rise(tester, i), 0);
+        expect(fade(tester, i), 1);
+      }
+    });
+
+    testWidgets('settle only rises 8, and a list not playing stands still', (
+      tester,
+    ) async {
+      await _pumpTop(tester, list(move: StaggerMove.settle));
+      expect(rise(tester, 0), closeTo(8, 0.01));
+      expect(fade(tester, 0), 1);
+      await _pumpTop(tester, list(play: false), key: 2);
+      expect(rise(tester, 0), 0);
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+
+    testWidgets('reduced motion: everything fades in together, 150', (
+      tester,
+    ) async {
+      await _pumpTop(tester, list(), reduced: true);
+      await tester.pump(const Duration(milliseconds: 75));
+      expect(fade(tester, 0), closeTo(_eo(0.5), 0.01));
+      expect(fade(tester, 5), closeTo(_eo(0.5), 0.01));
+      expect(rise(tester, 5), 0);
+    });
+  });
+
+  group('RollingText', () {
+    Widget figure(String text, {bool reduced = false}) => MediaQuery(
+      data: MediaQueryData(disableAnimations: reduced),
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(child: RollingText(text, style: IqText.figureSmall)),
+      ),
+    );
+
+    testWidgets('only the changed digits roll, 160 ms', (tester) async {
+      await tester.pumpWidget(figure('5h 40m'));
+      expect(tester.hasRunningAnimations, isFalse);
+      await tester.pumpWidget(figure('5h 39m'));
+      await tester.pump(const Duration(milliseconds: 80));
+      expect(find.text('5h 40m'), findsOneWidget);
+      expect(find.text('5h 39m'), findsOneWidget);
+      final leaving = tester.widget<Transform>(
+        find
+            .ancestor(of: find.text('5h 40m'), matching: find.byType(Transform))
+            .first,
+      );
+      expect(
+        leaving.transform.getTranslation().y,
+        closeTo(-6 * _eo(0.5), 0.01),
+      );
+      await tester.pump(const Duration(milliseconds: 81));
+      await tester.pump();
+      expect(find.text('5h 40m'), findsNothing);
+      expect(find.byType(RichText), findsOneWidget);
+    });
+
+    testWidgets('reduced motion: a cut', (tester) async {
+      await tester.pumpWidget(figure('5h 40m', reduced: true));
+      await tester.pumpWidget(figure('5h 39m', reduced: true));
+      await tester.pump();
+      expect(find.text('5h 40m'), findsNothing);
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+  });
+
+  group('CountUp', () {
+    testWidgets('counts up over 600 ms at the final width', (tester) async {
+      await _pump(tester, CountUp(value: 188, style: IqText.figure));
+      final width = tester.getSize(find.byType(CountUp)).width;
+      expect(find.text('0'), findsOneWidget);
+      // It starts once seen, on the frame after the first.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('${(188 * _eo(0.5)).round()}'), findsOneWidget);
+      expect(tester.getSize(find.byType(CountUp)).width, width);
+      await tester.pump(const Duration(milliseconds: 301));
+      expect(find.text('188'), findsOneWidget);
+      expect(tester.getSize(find.byType(CountUp)).width, width);
+    });
+
+    testWidgets('reduced motion: the final figure at once', (tester) async {
+      await _pump(
+        tester,
+        CountUp(value: 188, style: IqText.figure),
+        reduced: true,
+      );
+      expect(find.text('188'), findsOneWidget);
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+  });
+
+  group('Collapse', () {
+    Widget fold({required bool open, bool reduced = false}) => MediaQuery(
+      data: MediaQueryData(disableAnimations: reduced),
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: Collapse(open: open, child: _box),
+        ),
+      ),
+    );
+
+    double height(WidgetTester tester) =>
+        tester.getSize(find.byType(Collapse)).height;
+
+    testWidgets('folds away in 200 ease-in and unfolds in 240', (tester) async {
+      await tester.pumpWidget(fold(open: true));
+      expect(height(tester), 20);
+      await tester.pumpWidget(fold(open: false));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(height(tester), closeTo(20 * (1 - _ei(0.5)), 0.01));
+      await tester.pump(const Duration(milliseconds: 101));
+      expect(height(tester), 0);
+      await tester.pumpWidget(fold(open: true));
+      await tester.pump(const Duration(milliseconds: 120));
+      expect(height(tester), closeTo(20 * _eo(0.5), 0.01));
+      await tester.pumpAndSettle();
+      expect(height(tester), 20);
+    });
+
+    testWidgets('reduced motion: a cut', (tester) async {
+      await tester.pumpWidget(fold(open: true, reduced: true));
+      await tester.pumpWidget(fold(open: false, reduced: true));
+      await tester.pump();
+      expect(height(tester), 0);
+    });
+  });
+
+  group('FadeThrough', () {
+    Widget swap(String name) => MaterialApp(
+      home: FadeThrough(
+        child: SizedBox(key: ValueKey(name), width: 100, height: 20),
+      ),
+    );
+
+    double fade(WidgetTester tester, String name) => tester
+        .widget<FadeTransition>(
+          find
+              .ancestor(
+                of: find.byKey(ValueKey(name)),
+                matching: find.byType(FadeTransition),
+              )
+              .first,
+        )
+        .opacity
+        .value;
+
+    testWidgets('out by 40%, in from 20%, 200 ms', (tester) async {
+      await tester.pumpWidget(swap('old'));
+      await tester.pumpWidget(swap('new'));
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(
+        fade(tester, 'old'),
+        closeTo(1 - FadeThroughCurves.outgoing.transform(0.25), 0.01),
+      );
+      expect(
+        fade(tester, 'new'),
+        closeTo(FadeThroughCurves.incoming.transform(0.25), 0.01),
+      );
+      await tester.pump(const Duration(milliseconds: 30));
+      expect(fade(tester, 'old'), closeTo(0, 0.001));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('old')), findsNothing);
+      expect(fade(tester, 'new'), 1);
+    });
+  });
+
+  group('FirstSeen', () {
+    testWidgets('fires once, when half the child scrolls into view', (
+      tester,
+    ) async {
+      var seen = 0;
+      final visible = <bool>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ListView(
+            children: [
+              const SizedBox(height: 700),
+              FirstSeen(
+                onSeen: () => seen++,
+                onVisible: visible.add,
+                child: const SizedBox(height: 100),
+              ),
+              const SizedBox(height: 1000),
+            ],
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(seen, 0);
+      expect(visible, [false]);
+      tester
+          .state<ScrollableState>(find.byType(Scrollable))
+          .position
+          .jumpTo(300);
+      await tester.pump();
+      await tester.pump();
+      expect(seen, 1);
+      expect(visible, [false, true]);
+      tester.state<ScrollableState>(find.byType(Scrollable)).position.jumpTo(0);
+      await tester.pump();
+      await tester.pump();
+      tester
+          .state<ScrollableState>(find.byType(Scrollable))
+          .position
+          .jumpTo(300);
+      await tester.pump();
+      await tester.pump();
+      expect(seen, 1);
+      expect(visible, [false, true, false, true]);
+    });
+  });
+
+  group('PulseScope', () {
+    Color halo(WidgetTester tester, int index) {
+      final box = tester.widget<DecoratedBox>(
+        find
+            .descendant(
+              of: find.byType(IqCountdown).at(index),
+              matching: find.byWidgetPredicate(
+                (w) =>
+                    w is DecoratedBox &&
+                    w.decoration is BoxDecoration &&
+                    (w.decoration as BoxDecoration).shape == BoxShape.circle,
+              ),
+            )
+            .first,
+      );
+      return (box.decoration as BoxDecoration).color!;
+    }
+
+    testWidgets('two Hot countdowns: only one pulses', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: PulseScope(
+            child: Column(children: [IqCountdown(), IqCountdown()]),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      final first = halo(tester, 0);
+      final second = halo(tester, 1);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(halo(tester, 0), isNot(first));
+      expect(halo(tester, 1), second);
+      expect(second.a, closeTo(IqOpacity.haloStill, 0.01));
+    });
+
+    testWidgets('loops stop under reduced motion and with tickers off', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(home: Center(child: IqCountdown())),
+      );
+      await tester.pump(const Duration(seconds: 1));
+      expect(tester.hasRunningAnimations, isTrue);
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: TickerMode(enabled: false, child: Center(child: IqCountdown())),
+        ),
+      );
+      await tester.pump(const Duration(seconds: 1));
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+  });
+}
+
+double _eo(double t) => IqCurves.easeOut.transform(t);
+double _ei(double t) => IqCurves.easeIn.transform(t);
+
+Future<void> _pumpTop(
+  WidgetTester tester,
+  Widget child, {
+  bool reduced = false,
+  int key = 1,
+}) {
+  return tester.pumpWidget(
+    MediaQuery(
+      key: ValueKey('top $key'),
+      data: MediaQueryData(disableAnimations: reduced),
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: Align(alignment: Alignment.topLeft, child: child),
+      ),
+    ),
+  );
 }

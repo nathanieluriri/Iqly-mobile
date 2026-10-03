@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
+import '../../core/transitions.dart';
 import '../../theme/theme.dart';
 import '../../ui/button.dart';
 import '../../ui/field.dart';
@@ -15,7 +16,7 @@ void goBack(BuildContext context, String fallback) {
   if (context.canPop()) {
     context.pop();
   } else {
-    context.go(fallback);
+    context.go(fallback, extra: NavDirection.back);
   }
 }
 
@@ -262,8 +263,9 @@ class EntryButtons extends StatelessWidget {
   }
 }
 
-/// A Mob/Button text action on a 44 pt strip. The design sets it as an 18 pt
-/// line; [linkSlack] is how far the strip reaches above and below it.
+/// A Mob/Button text action on a 44 pt strip, dimming to .6 while pressed.
+/// The design sets it as an 18 pt line; [linkSlack] is how far the strip
+/// reaches above and below it.
 class EntryLink extends StatelessWidget {
   const EntryLink({super.key, required this.label, required this.onTap});
 
@@ -281,12 +283,15 @@ class EntryLink extends StatelessWidget {
         height: 44,
         child: Align(
           widthFactor: 1,
-          child: Text(
-            label,
-            maxLines: 1,
-            softWrap: false,
-            overflow: TextOverflow.ellipsis,
-            style: IqText.button.copyWith(color: IqColors.brand),
+          child: PressDim(
+            pressed: pressed,
+            child: Text(
+              label,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              style: IqText.button.copyWith(color: IqColors.brand),
+            ),
           ),
         ),
       ),

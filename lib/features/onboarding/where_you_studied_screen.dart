@@ -52,7 +52,8 @@ class WhereYouStudiedScreen extends ConsumerWidget {
       icon: IqIcons.bank,
       saved: education != null || university != null,
       title: 'Where did you study?',
-      onBack: () => goToStep(context, ref, OnboardingStep.whereYouLive),
+      onBack: () =>
+          goToStep(context, ref, OnboardingStep.whereYouLive, back: true),
       onSkip: () => goToStep(context, ref, OnboardingStep.whatYouLike),
       onNext: () => goToStep(context, ref, OnboardingStep.whatYouLike),
       nextEnabled: education != null,
