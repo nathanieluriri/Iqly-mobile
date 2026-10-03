@@ -174,7 +174,12 @@ class _IqVideoPreviewState extends State<IqVideoPreview>
       height: 200,
       child: heroTag == null
           ? thumbnail
-          : Hero(tag: heroTag, flightShuttleBuilder: _flight, child: thumbnail),
+          : Hero(
+              tag: heroTag,
+              curve: IqCurves.easeInOut,
+              flightShuttleBuilder: _flight,
+              child: thumbnail,
+            ),
     );
   }
 
