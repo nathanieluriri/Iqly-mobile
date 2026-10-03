@@ -151,6 +151,26 @@ void main() {
       );
     });
 
+    for (final reduced in [false, true]) {
+      testWidgets('the box keeps its keyboard through the focus'
+          '${reduced ? ' (reduced motion)' : ''}', (tester) async {
+        await _pump(tester, reduced: reduced);
+        await tester.tap(find.byType(IqBoxField));
+        await tester.pump();
+        final field = tester.state<EditableTextState>(
+          find.byType(EditableText),
+        );
+        for (var i = 0; i < 40; i++) {
+          await tester.pump(_ms * 16);
+          expect(tester.testTextInput.isVisible, isTrue);
+          expect(tester.state(find.byType(EditableText)), same(field));
+        }
+        expect(_apple, findsNothing);
+        await tester.enterText(find.byType(EditableText), 'adaeze@');
+        expect(find.text('adaeze@'), findsOneWidget);
+      });
+    }
+
     testWidgets('unfocus: Continue fades in 90, the rows come back over 120', (
       tester,
     ) async {
