@@ -641,6 +641,10 @@ class _IqSheetPage<T> extends Page<T> {
 /// its scrim fades in, drops in 200 ms when it closes, and follows a drag
 /// down (past half its height or a 700 px/s fling closes it). It fades in
 /// place under reduced motion. The page beneath stays put.
+///
+/// The rise moves the route's page from outside it, as a page route's
+/// slide does, so a hero flying into the sheet heads straight for where it
+/// comes to rest (spec 4.4).
 class IqSheetRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
   IqSheetRoute({
     this.builder,
@@ -664,6 +668,7 @@ class IqSheetRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
 
   bool _locked = false;
   bool _dragging = false;
+  final _box = GlobalKey();
 
   AnimationController get _sheet => controller!;
 
@@ -718,12 +723,10 @@ class IqSheetRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
         PulseScope(
           child: Align(
             alignment: Alignment.bottomCenter,
-            child: _SheetMotion(
+            child: _SheetDrag(
+              key: _box,
               route: this,
-              child: _SheetDrag(
-                route: this,
-                child: _PageScope(route: this, child: sheet),
-              ),
+              child: _PageScope(route: this, child: sheet),
             ),
           ),
         ),
@@ -737,24 +740,13 @@ class IqSheetRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
     Animation<double> animation,
     Animation<double> secondaryAnimation,
     Widget child,
-  ) => child;
-}
-
-class _SheetMotion extends AnimatedWidget {
-  _SheetMotion({required this.route, required this.child})
-    : super(listenable: route.animation!);
-
-  final IqSheetRoute<dynamic> route;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = route.animation!.value;
-    final dragging = route._dragging;
-    final fading = MediaQuery.disableAnimationsOf(context) && !dragging;
-    final up = dragging ? t : IqCurves.easeOut.transform(t);
-    return FractionalTranslation(
-      translation: Offset(0, fading ? 0 : 1 - up),
+  ) {
+    final t = animation.value;
+    final fading = MediaQuery.disableAnimationsOf(context) && !_dragging;
+    final up = _dragging ? t : IqCurves.easeOut.transform(t);
+    return _SheetLift(
+      sheet: _box,
+      drop: fading ? 0 : 1 - up,
       child: Opacity(
         opacity: fading ? IqCurves.easeOut.transform(t) : 1,
         child: child,
@@ -763,8 +755,70 @@ class _SheetMotion extends AnimatedWidget {
   }
 }
 
+/// Lowers the sheet at the foot of [child], a page that fills the screen,
+/// by [drop] times the height of the [sheet] box.
+class _SheetLift extends SingleChildRenderObjectWidget {
+  const _SheetLift({
+    required this.sheet,
+    required this.drop,
+    required super.child,
+  });
+
+  final GlobalKey sheet;
+  final double drop;
+
+  @override
+  _RenderSheetLift createRenderObject(BuildContext context) =>
+      _RenderSheetLift(sheet, drop);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderSheetLift lift) =>
+      lift.drop = drop;
+}
+
+class _RenderSheetLift extends RenderProxyBox {
+  _RenderSheetLift(this._sheet, this._drop);
+
+  final GlobalKey _sheet;
+  double _drop;
+
+  /// The shift last painted, so taps and transforms between frames match
+  /// what is on screen; the sheet's height is only safe to read at paint.
+  Offset _shift = Offset.zero;
+
+  set drop(double value) {
+    if (value == _drop) return;
+    _drop = value;
+    markNeedsPaint();
+    markNeedsSemanticsUpdate();
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final sheet = _sheet.currentContext?.findRenderObject();
+    final height = sheet is RenderBox && sheet.hasSize
+        ? sheet.size.height
+        : size.height;
+    _shift = Offset(0, _drop * height);
+    super.paint(context, offset + _shift);
+  }
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      result.addWithPaintOffset(
+        offset: _shift,
+        position: position,
+        hitTest: (result, position) =>
+            super.hitTestChildren(result, position: position),
+      );
+
+  @override
+  void applyPaintTransform(RenderBox child, Matrix4 transform) =>
+      transform.translateByDouble(_shift.dx, _shift.dy, 0, 1);
+}
+
 class _SheetDrag extends StatefulWidget {
-  const _SheetDrag({required this.route, required this.child});
+  const _SheetDrag({super.key, required this.route, required this.child});
 
   final IqSheetRoute<dynamic> route;
   final Widget child;
