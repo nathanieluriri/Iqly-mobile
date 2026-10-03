@@ -33,9 +33,9 @@ const verifyHelp = 'Could not verify account. Check the number and bank.';
 /// It rises on the .5 scrim (spec 3.3) and the field that owns the keyboard
 /// takes focus once it has risen. The thread moves on its own (spec 5.26):
 /// Ready on open draws its line, each step grows or shortens it. A
-/// withdrawal drops the sheet with the keypad, and Withdrawal pending
-/// pushes once it is down, unless the Wallet has been left meanwhile (spec
-/// 7.1); under reduced motion the two fades cross.
+/// withdrawal drops the sheet with the keypad; once it is down the success
+/// haptic plays and, unless the Wallet has been left meanwhile, Withdrawal
+/// pending pushes (spec 7.1). Under reduced motion the two fades cross.
 ///
 /// Figma over the brief: the saved bank is a Picker labelled "To" with no
 /// Verified line; another bank adds the ACCOUNT NUMBER field with the Valid
@@ -223,13 +223,13 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
       return;
     }
     ref.read(walletProvider.notifier).add(withdrawal);
-    IqHaptics.success.play();
     final router = GoRouter.of(context);
     final sheet = ModalRoute.of(context);
     final reduced = MediaQuery.disableAnimationsOf(context);
     router.pop();
     final under = router.state.uri;
     if (!reduced && sheet != null) await sheet.completed;
+    IqHaptics.success.play();
     if (router.state.uri == under) {
       router.push(withdrawalPendingPath(withdrawal.id));
     }

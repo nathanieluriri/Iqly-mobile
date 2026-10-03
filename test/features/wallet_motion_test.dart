@@ -327,9 +327,9 @@ void main() {
       expect(tester.getTopLeft(find.byType(SelectBankScreen)).dx, 0);
     });
 
-    testWidgets('a withdrawal: commit and success, the sheet drops with the '
-        'keypad, then the pending moment pushes and its Highlight starts at '
-        '+240 (spec 7.1)', (tester) async {
+    testWidgets('a withdrawal: the commit haptic, the sheet drops with the '
+        'keypad, then the pending moment pushes with the success haptic and '
+        'its Highlight starts at +240 (spec 7.1)', (tester) async {
       final haptics = recordHaptics(tester);
       await _pumpApp(tester, withdrawLocation(amountKobo: 500000));
       await tester.pump(_ms * 500);
@@ -339,7 +339,7 @@ void main() {
       await tester.tap(find.text('Withdraw').last);
       await tester.pump();
       await tester.pump();
-      expect(haptics, [_commit, _success]);
+      expect(haptics, [_commit]);
       expect(tester.testTextInput.isVisible, isFalse);
 
       // Only the sheet moves: 200 ease-in, the pending moment waiting.
@@ -348,13 +348,16 @@ void main() {
       expect(tester.getTopLeft(sheet).dy, greaterThan(rest));
       expect(pending, findsNothing);
       var waited = 100;
-      while (pending.evaluate().isEmpty && waited < 400) {
+      while (haptics.length == 1 && waited < 400) {
+        expect(pending, findsNothing);
         await tester.pump(_ms * 10);
         waited += 10;
-        if (pending.evaluate().isEmpty) continue;
-        expect(sheet, findsNothing);
       }
+      expect(haptics, [_commit, _success]);
+      expect(sheet, findsNothing);
       expect(waited, inInclusiveRange(200, 240));
+      await tester.pump();
+      expect(pending, findsOneWidget);
 
       final page = find.byType(WithdrawalPendingScreen);
       final title = find.text('Withdrawal pending');
@@ -372,7 +375,8 @@ void main() {
     });
 
     testWidgets('reduced motion: the pending moment fades in as the sheet '
-        'fades out', (tester) async {
+        'fades out, with the success haptic', (tester) async {
+      final haptics = recordHaptics(tester);
       await _pumpApp(
         tester,
         withdrawLocation(amountKobo: 500000),
@@ -383,6 +387,7 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(find.byType(WithdrawalPendingScreen), findsOneWidget);
+      expect(haptics, [_commit, _success]);
       await tester.pump(_ms * 151);
       await tester.pump();
       expect(find.byType(WithdrawSheet), findsNothing);
