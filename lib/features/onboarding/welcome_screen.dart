@@ -17,7 +17,7 @@ class WelcomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final firstName = ref.watch(onboardingUserProvider).value?.firstName;
+    final firstName = ref.watch(greetingNameProvider);
     return OnboardingHeroScaffold(
       hero: const Padding(
         padding: EdgeInsets.only(top: IqSpace.s2),

@@ -59,6 +59,7 @@ class OnboardingStepScaffold extends StatelessWidget {
         value: SystemUiOverlayStyle.dark,
         child: Scaffold(
           backgroundColor: IqColors.bg,
+          resizeToAvoidBottomInset: false,
           body: SafeArea(
             child: CenteredContent(
               child: Column(
@@ -246,6 +247,7 @@ class OnboardingHeroScaffold extends StatelessWidget {
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
         backgroundColor: IqColors.bg,
+        resizeToAvoidBottomInset: false,
         body: SafeArea(
           child: CenteredContent(
             child: Column(

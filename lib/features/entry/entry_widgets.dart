@@ -137,6 +137,7 @@ class EntryScaffold extends StatelessWidget {
     required this.children,
     this.title = '',
     this.action,
+    this.hasFields = true,
   });
 
   final VoidCallback onBack;
@@ -144,13 +145,17 @@ class EntryScaffold extends StatelessWidget {
   final String title;
   final Widget? action;
 
+  /// Screens without fields keep their layout while the previous screen's
+  /// keyboard slides away over them.
+  final bool hasFields;
+
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
         backgroundColor: IqColors.bg,
-        resizeToAvoidBottomInset: true,
+        resizeToAvoidBottomInset: hasFields,
         body: SafeArea(
           child: CenteredContent(
             child: Column(

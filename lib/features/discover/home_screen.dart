@@ -133,6 +133,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         : DateFormat('H:mm').format(data!.refreshedAt!);
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: IqColors.bg,
       body: SafeArea(
         bottom: false,

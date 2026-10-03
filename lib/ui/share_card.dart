@@ -7,6 +7,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../theme/theme.dart';
 import 'illustration.dart';
+import 'brand_logo.dart';
 
 /// Exp/ShareCard: the winner celebration card on dark paper, official logo,
 /// orange marker under the figure and the brush trophy. Give it a GlobalKey
@@ -80,10 +81,9 @@ class IqShareCard extends StatelessWidget {
                 children: [
                   Align(
                     alignment: Alignment.centerLeft,
-                    child: SvgPicture.asset(
-                      'assets/brand/iqly-logo-cream.svg',
+                    child: const IqBrandLogo(
+                      tone: IqBrandTone.onDark,
                       height: 28,
-                      semanticsLabel: 'iQLY',
                     ),
                   ),
                   const SizedBox(height: IqSpace.s4),

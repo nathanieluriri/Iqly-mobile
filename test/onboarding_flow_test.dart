@@ -98,7 +98,7 @@ void main() {
     expect(_fab(tester), IqNextFabState.disabled);
     await _tap(tester, find.text('Select city'));
     expect(find.byType(CitySheet), findsOneWidget);
-    expect(find.text('24 CITIES'), findsOneWidget);
+    expect(find.text('28 CITIES'), findsOneWidget);
     await _tap(tester, find.text('Ikeja'));
     await _tap(tester, find.text('Use this'));
     expect(find.byType(CitySheet), findsNothing);

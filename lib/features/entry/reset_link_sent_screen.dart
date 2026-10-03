@@ -41,6 +41,7 @@ class _ResetLinkSentScreenState extends ConsumerState<ResetLinkSentScreen> {
   Widget build(BuildContext context) {
     final email = ref.watch(entryDraftProvider.select((d) => d.email));
     return EntryScaffold(
+      hasFields: false,
       onBack: () => goBack(context, Routes.forgotPassword),
       action: EntryButtons(
         primary: 'Open email app',

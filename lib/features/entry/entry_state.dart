@@ -45,7 +45,11 @@ const minPasswordLength = 8;
 /// another install, so it lands on Discover without either.
 Future<void> completeSignIn(WidgetRef ref, {required bool newAccount}) async {
   final session = ref.read(sessionProvider.notifier);
+  final typedName = ref.read(entryDraftProvider).firstName.trim();
   await session.setSignedIn(true);
+  await session.setFirstName(
+    newAccount && typedName.isNotEmpty ? typedName : null,
+  );
   if (!newAccount) {
     await session.setOnboardingDone(true);
     await session.setFirstTipSeen(true);
