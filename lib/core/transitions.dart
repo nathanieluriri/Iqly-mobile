@@ -1,7 +1,9 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
@@ -1168,6 +1170,132 @@ class _InFlight extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => child;
+}
+
+/// The lens switch (spec 3.7): [cross] lays what the [child] last drew
+/// below a line (the lens chips' bottom edge) over whatever comes next and
+/// fades it out over 200 ms, so the new content reads as fading in,
+/// ease-out, while the chrome above the line holds still. A card on both
+/// lenses draws the same under and over, so it stays steady, and nothing
+/// blanks between the two. A cut under reduced motion.
+class LensCrossfade extends StatefulWidget {
+  const LensCrossfade({super.key, required this.child});
+
+  final Widget child;
+
+  /// Crosses what the nearest [LensCrossfade] around [context] shows below
+  /// the bottom edge of [line] into what it shows next.
+  static void cross(BuildContext context, {required BuildContext line}) =>
+      context.findAncestorStateOfType<_LensCrossfadeState>()?._cross(line);
+
+  @override
+  State<LensCrossfade> createState() => _LensCrossfadeState();
+}
+
+class _LensCrossfadeState extends State<LensCrossfade>
+    with SingleTickerProviderStateMixin {
+  final _content = GlobalKey();
+  late final AnimationController _fade = AnimationController(
+    vsync: this,
+    duration: IqDurations.swap,
+  )..addStatusListener(_onFade);
+  late final Animation<double> _was = ReverseAnimation(
+    _fade.drive(CurveTween(curve: IqCurves.easeOut)),
+  );
+  ui.Image? _image;
+  double _line = 0;
+
+  void _onFade(AnimationStatus status) {
+    if (status.isCompleted && mounted) setState(_drop);
+  }
+
+  void _drop() {
+    _image?.dispose();
+    _image = null;
+  }
+
+  void _cross(BuildContext line) {
+    if (MediaQuery.disableAnimationsOf(context)) return;
+    if (_fade.isAnimating && _fade.value == 0) return;
+    final content = _content.currentContext?.findRenderObject();
+    final edge = line.findRenderObject();
+    if (content is! _RenderLastFrame ||
+        edge is! RenderBox ||
+        !edge.attached ||
+        !edge.hasSize) {
+      return;
+    }
+    final image = content.take(MediaQuery.devicePixelRatioOf(context));
+    if (image == null) return;
+    setState(() {
+      _drop();
+      _image = image;
+      _line = edge
+          .localToGlobal(edge.size.bottomLeft(Offset.zero), ancestor: content)
+          .dy;
+    });
+    _fade.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _fade.dispose();
+    _drop();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final image = _image;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _LastFrame(key: _content, child: widget.child),
+        if (image != null)
+          IgnorePointer(
+            child: ClipRect(
+              clipper: _Below(_line),
+              child: FadeTransition(
+                opacity: _was,
+                child: RawImage(image: image, fit: BoxFit.fill),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// A repaint boundary that can hand over the last frame it drew.
+class _LastFrame extends SingleChildRenderObjectWidget {
+  const _LastFrame({super.key, required super.child});
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderLastFrame();
+}
+
+class _RenderLastFrame extends RenderProxyBox {
+  @override
+  bool get isRepaintBoundary => true;
+
+  /// The last frame drawn here, [ratio] pixels to the point.
+  ui.Image? take(double ratio) {
+    final layer = this.layer;
+    if (layer is! OffsetLayer || !attached || !hasSize) return null;
+    return layer.toImageSync(Offset.zero & size, pixelRatio: ratio);
+  }
+}
+
+class _Below extends CustomClipper<Rect> {
+  const _Below(this.top);
+
+  final double top;
+
+  @override
+  Rect getClip(Size size) => Rect.fromLTRB(0, top, size.width, size.height);
+
+  @override
+  bool shouldReclip(_Below old) => old.top != top;
 }
 
 /// Same screen, new state (spec 3.4): [child], told apart by its key,

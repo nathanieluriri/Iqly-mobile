@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/motion.dart';
+import '../../core/transitions.dart';
 import '../../theme/theme.dart';
 import '../../ui/dock.dart';
 import '../entry/first_tip.dart';
@@ -94,7 +95,7 @@ class AppShell extends ConsumerWidget {
           color: IqColors.bg,
           child: Stack(
             children: [
-              Positioned.fill(child: child),
+              Positioned.fill(child: LensCrossfade(child: child)),
               Positioned(
                 left: 0,
                 right: 0,
