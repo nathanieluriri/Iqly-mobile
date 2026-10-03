@@ -38,6 +38,7 @@ class LeaderboardScreen extends ConsumerWidget {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         backgroundColor: IqColors.bg,
         body: SafeArea(
           child: CenteredContent(

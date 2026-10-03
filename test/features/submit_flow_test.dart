@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/core/responsive.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/submit_data.dart';
 import 'package:iqly_mobile/data/submit_service.dart';
@@ -446,6 +447,50 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     await forgetSubmitDrafts(prefs);
     expect(prefs.getKeys(), {'session.signedIn'});
+  });
+
+  testWidgets('B3: the steps make room for the keyboard, Continue above it', (
+    tester,
+  ) async {
+    await pumpApp(
+      tester,
+      Routes.submitTo('c5'),
+      prefs: submitDraftPrefs(
+        title: SubmitCopy.title,
+        answer: SubmitCopy.answer,
+      ),
+      overrides: instantSubmit(),
+    );
+    await tester.tap(_answer());
+    await tester.pumpAndSettle();
+    tester.view.padding = const FakeViewPadding(top: 54);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 336);
+    await tester.pumpAndSettle();
+    const keyboardTop = 844.0 - 336;
+    expect(tester.getRect(find.text('Continue')).bottom, lessThan(keyboardTop));
+    expect(tester.getRect(_answer()).top, lessThan(keyboardTop));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('B3: the sent moment holds still while the keyboard leaves', (
+    tester,
+  ) async {
+    await pumpApp(
+      tester,
+      Routes.submitTo('c9'),
+      prefs: submitDraftPrefs(
+        briefId: 'c9',
+        title: 'Show the IMEI check',
+        answer: 'A free IMEI and theft check on every phone.',
+      ),
+      overrides: instantSubmit(),
+    );
+    await _tap(tester, find.text('Send response'));
+    final content = find.byType(CenteredContent).first;
+    final height = tester.getSize(content).height;
+    tester.view.viewInsets = const FakeViewPadding(bottom: 336);
+    await tester.pump();
+    expect(tester.getSize(content).height, height);
   });
 }
 

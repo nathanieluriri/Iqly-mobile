@@ -153,6 +153,9 @@ class _SubmitScreenState extends ConsumerState<SubmitScreen> {
       body = const SizedBox.shrink(key: ValueKey('loading'));
     }
 
+    // Only the steps have fields; the moment and the blocked notice hold
+    // still while a keyboard leaves.
+    final typing = body is _Form;
     return PopScope(
       canPop: flow.step == SubmitStep.answer,
       onPopInvokedWithResult: (didPop, _) {
@@ -161,6 +164,7 @@ class _SubmitScreenState extends ConsumerState<SubmitScreen> {
       child: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.dark,
         child: Scaffold(
+          resizeToAvoidBottomInset: typing,
           backgroundColor: IqColors.bg,
           body: SafeArea(
             child: CenteredContent(

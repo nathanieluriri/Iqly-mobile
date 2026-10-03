@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/core/responsive.dart';
 import 'package:iqly_mobile/data/outcomes_data.dart';
 import 'package:iqly_mobile/data/outcomes_service.dart';
 import 'package:iqly_mobile/data/share_service.dart';
@@ -357,6 +358,23 @@ void main() {
       await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
       semantics.dispose();
+    });
+  }
+
+  for (final (name, location) in [
+    ('winner', resultPath('s2')),
+    ('not selected', resultPath('s5')),
+    ('leaderboard', leaderboardPath('s2')),
+  ]) {
+    testWidgets('B13 $name holds its layout while a keyboard leaves', (
+      tester,
+    ) async {
+      await pumpApp(tester, location);
+      final content = find.byType(CenteredContent).first;
+      final height = tester.getSize(content).height;
+      tester.view.viewInsets = const FakeViewPadding(bottom: 336);
+      await tester.pump();
+      expect(tester.getSize(content).height, height);
     });
   }
 }
