@@ -109,7 +109,6 @@ class _IqActivationTicketState extends State<IqActivationTicket>
       ),
       child: IqPressable(
         onTap: widget.onTap,
-        semanticLabel: widget.title,
         builder: (context, pressed) => AnimatedScale(
           scale: pressed ? 0.98 : 1,
           duration: _reduced ? Duration.zero : IqActivationTicket.press,
@@ -147,9 +146,11 @@ class _IqActivationTicketState extends State<IqActivationTicket>
                   color: look.tile,
                   shape: BoxShape.circle,
                 ),
-                child: Text(
-                  initial,
-                  style: IqText.label.copyWith(color: look.tileInk),
+                child: ExcludeSemantics(
+                  child: Text(
+                    initial,
+                    style: IqText.label.copyWith(color: look.tileInk),
+                  ),
                 ),
               ),
               const SizedBox(width: IqSpace.s2),

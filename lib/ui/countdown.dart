@@ -124,7 +124,12 @@ class _IqCountdownState extends State<IqCountdown>
         ),
       ),
       child: Container(
-        padding: const EdgeInsets.fromLTRB(10, 6, 14, 6),
+        padding: const EdgeInsets.fromLTRB(
+          IqSpace.s2p5,
+          IqSpace.s1p5,
+          14,
+          IqSpace.s1p5,
+        ),
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: look.fill,

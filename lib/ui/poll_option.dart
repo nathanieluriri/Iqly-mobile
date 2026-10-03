@@ -38,7 +38,6 @@ class IqPollOption extends StatelessWidget {
         state == IqPollOptionState.selected;
     return IqPressable(
       onTap: voting ? onTap : null,
-      semanticLabel: label,
       builder: (context, _) => SizedBox(
         width: width,
         height: height,
@@ -59,7 +58,7 @@ class IqPollOption extends StatelessWidget {
                             ? IqColors.primaryFg
                             : IqColors.brand,
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: IqSpace.s2p5),
                     ],
                     Expanded(
                       child: Text(
@@ -81,7 +80,7 @@ class IqPollOption extends StatelessWidget {
                       ),
                     ),
                     if (!voting) ...[
-                      const SizedBox(width: 10),
+                      const SizedBox(width: IqSpace.s2p5),
                       Text(
                         '${(share * 100).round()}%',
                         style: IqText.figureSmall.copyWith(

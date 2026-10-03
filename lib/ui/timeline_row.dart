@@ -224,7 +224,8 @@ class _ThreadPainter extends CustomPainter {
     final paint = Paint()
       ..color = dashed ? IqColors.brandLine2 : IqColors.brand
       ..strokeWidth = 1.5;
-    final x = size.width / 2;
+    // Aligns the 1.5 px stroke's left edge to a pixel so one column is solid.
+    final x = (size.width / 2).floorToDouble() - 0.25;
     final end = size.height * reveal;
     if (!dashed) {
       canvas.drawLine(Offset(x, 0), Offset(x, end), paint);

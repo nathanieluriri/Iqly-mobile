@@ -41,7 +41,7 @@ class IqTicketTag extends StatelessWidget {
       duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : fade,
       child: Container(
         key: ValueKey(kind),
-        padding: const EdgeInsets.fromLTRB(10, 5, 12, 5),
+        padding: const EdgeInsets.fromLTRB(IqSpace.s2p5, 5, IqSpace.s3, 5),
         decoration: BoxDecoration(
           color: fill,
           borderRadius: BorderRadius.circular(IqRadius.full),

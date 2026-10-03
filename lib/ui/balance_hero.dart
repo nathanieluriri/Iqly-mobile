@@ -10,9 +10,9 @@ import 'button.dart';
 /// must foot: earned = withdrawn + on hold + available. [holdLabel] carries
 /// the pending count (a plain text layer in Figma).
 ///
-/// The iQLY Ink Wash is a WebGPU shader in Figma; here it is an ember and
-/// paper wash in token colours, masked to the same top-right flare and
-/// drifting slowly (still under reduced motion).
+/// The iQLY Ink Wash is a WebGPU fbm shader in Figma that Flutter cannot run
+/// without a shader asset; here it is an approximation in ember pools masked
+/// to the same top-right flare, drifting slowly (still under reduced motion).
 ///
 /// Figma over brief: the Inverse Withdraw button keeps its orange sticker.
 class IqBalanceHero extends StatelessWidget {
@@ -176,15 +176,15 @@ class _InkWashState extends State<_InkWash>
     super.dispose();
   }
 
-  // Ember and paper pools as (x, y, radius, phase) in the 358 x 164 wash.
+  // Ember pools as (x, y, radius, alpha, phase) in the 358 x 164 wash.
   static const _ember = [
-    (322.0, 30.0, 110.0, 0.0),
-    (270.0, 70.0, 72.0, 1.7),
-    (344.0, 118.0, 80.0, 3.1),
-    (232.0, 20.0, 60.0, 4.4),
-    (300.0, 150.0, 56.0, 5.6),
+    (322.0, 30.0, 104.0, 0.8, 0.0),
+    (270.0, 62.0, 64.0, 0.55, 1.7),
+    (346.0, 100.0, 60.0, 0.7, 3.1),
+    (236.0, 18.0, 52.0, 0.45, 4.4),
+    (300.0, 8.0, 36.0, 0.6, 2.2),
+    (352.0, 52.0, 30.0, 0.5, 5.0),
   ];
-  static const _paper = [(304.0, 54.0, 26.0, 2.2), (340.0, 10.0, 22.0, 5.0)];
 
   @override
   Widget build(BuildContext context) {
@@ -211,12 +211,8 @@ class _InkWashState extends State<_InkWash>
               animation: _drift,
               builder: (context, _) {
                 final t = _drift.value * 2 * math.pi;
-                Widget pool(
-                  (double, double, double, double) p,
-                  Color color,
-                  double alpha,
-                ) {
-                  final (x, y, r, phase) = p;
+                Widget pool((double, double, double, double, double) p) {
+                  final (x, y, r, alpha, phase) = p;
                   final dx = 10 * math.sin(t + phase);
                   final dy = 6 * math.cos(t * 2 + phase);
                   return Positioned(
@@ -228,9 +224,9 @@ class _InkWashState extends State<_InkWash>
                       decoration: BoxDecoration(
                         gradient: RadialGradient(
                           colors: [
-                            color.withValues(alpha: alpha),
-                            color.withValues(alpha: alpha * 0.7),
-                            color.withValues(alpha: 0),
+                            IqColors.accent.withValues(alpha: alpha),
+                            IqColors.accent.withValues(alpha: alpha * 0.6),
+                            IqColors.accent.withValues(alpha: 0),
                           ],
                           stops: const [0, 0.55, 1],
                         ),
@@ -247,14 +243,24 @@ class _InkWashState extends State<_InkWash>
                       right: 0,
                       top: 0,
                       height: 164,
-                      child: Stack(
-                        clipBehavior: Clip.hardEdge,
-                        children: [
-                          for (final p in _ember)
-                            pool(p, IqColors.accent, 0.95),
-                          for (final p in _paper)
-                            pool(p, IqColors.sidebarFg, 0.25),
-                        ],
+                      // Fades out before the wash box ends so no pool shows a
+                      // clipped edge.
+                      child: ShaderMask(
+                        blendMode: BlendMode.dstIn,
+                        shaderCallback: (rect) => LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            IqColors.sidebarFg,
+                            IqColors.sidebarFg,
+                            IqColors.sidebarFg.withValues(alpha: 0),
+                          ],
+                          stops: const [0, 0.55, 1],
+                        ).createShader(rect),
+                        child: Stack(
+                          clipBehavior: Clip.hardEdge,
+                          children: [for (final p in _ember) pool(p)],
+                        ),
                       ),
                     ),
                   ],

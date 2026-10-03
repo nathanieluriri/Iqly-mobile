@@ -32,7 +32,6 @@ class IqBrandBubble extends StatelessWidget {
     final fresh = state == IqBrandBubbleState.newPolls;
     return IqPressable(
       onTap: onTap,
-      semanticLabel: name,
       builder: (context, _) => SizedBox(
         width: 88,
         child: Column(
@@ -65,10 +64,12 @@ class IqBrandBubble extends StatelessWidget {
                         color: fresh ? IqColors.accentSoft : IqColors.panel,
                         shape: BoxShape.circle,
                       ),
-                      child: Text(
-                        initial,
-                        style: IqText.title.copyWith(
-                          color: fresh ? IqColors.accentStrong : IqColors.fg3,
+                      child: ExcludeSemantics(
+                        child: Text(
+                          initial,
+                          style: IqText.title.copyWith(
+                            color: fresh ? IqColors.accentStrong : IqColors.fg3,
+                          ),
                         ),
                       ),
                     ),

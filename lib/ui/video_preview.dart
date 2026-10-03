@@ -21,8 +21,9 @@ enum IqVideoPreviewState { ready, uploading, failed }
 /// 220 ms ease-out) and slides the duration stamp up 6 px. Reduced motion:
 /// fades only.
 ///
-/// Figma over its note: the duration stamp sits below the clipped thumbnail
-/// in the master; it is placed bottom left, 12 px in, as the note intends.
+/// Figma over its note: the master's duration stamp sits below the clipped
+/// thumbnail, so it is hidden by default; [showDuration] places it bottom
+/// left, 12 px in, as the note intends (the owner to choose).
 /// Figma over brief: Retry uses Color/primary.
 /// Figma over the icon rule: the close icon is 18 px and the arrow 14 px.
 class IqVideoPreview extends StatefulWidget {
@@ -31,6 +32,7 @@ class IqVideoPreview extends StatefulWidget {
     this.state = IqVideoPreviewState.ready,
     this.name = 'kudi-box-signup.mp4',
     this.duration = '0:42',
+    this.showDuration = false,
     this.meta,
     this.progress = 0.64,
     this.thumbnail,
@@ -42,6 +44,7 @@ class IqVideoPreview extends StatefulWidget {
   final IqVideoPreviewState state;
   final String name;
   final String duration;
+  final bool showDuration;
   final String? meta;
   final double progress;
   final Widget? thumbnail;
@@ -175,7 +178,7 @@ class _IqVideoPreviewState extends State<IqVideoPreview>
                 ),
               ),
             ),
-            if (state == IqVideoPreviewState.ready)
+            if (state == IqVideoPreviewState.ready && widget.showDuration)
               Positioned(
                 left: IqSpace.s3,
                 bottom: IqSpace.s3,
@@ -206,15 +209,19 @@ class _IqVideoPreviewState extends State<IqVideoPreview>
               ),
             // Figma's 310, 12 is the tilted frame's origin; this is its
             // circle measured from the thumbnail's top right corner.
+            // 44 pt hit area around the 36 px sticker.
             Positioned(
-              top: 10,
-              right: 8,
+              top: 6,
+              right: 4,
+              width: 44,
+              height: 44,
               child: IqPressable(
                 onTap: widget.onRemove,
                 semanticLabel: 'Remove',
                 builder: (context, pressed) => Transform.rotate(
                   angle: -6 * math.pi / 180,
                   child: Container(
+                    margin: const EdgeInsets.all(4),
                     width: 36,
                     height: 36,
                     alignment: Alignment.center,
@@ -301,25 +308,27 @@ class _IqVideoPreviewState extends State<IqVideoPreview>
             const SizedBox(width: IqSpace.s3),
             IqPressable(
               onTap: widget.onRetry,
-              semanticLabel: 'Retry',
-              builder: (context, pressed) => Opacity(
-                opacity: pressed ? 0.7 : 1,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Retry',
-                      style: IqText.smallStrong.copyWith(
+              builder: (context, pressed) => ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                child: Opacity(
+                  opacity: pressed ? 0.7 : 1,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Retry',
+                        style: IqText.smallStrong.copyWith(
+                          color: IqColors.primary,
+                        ),
+                      ),
+                      const SizedBox(width: IqSpace.s1),
+                      const IqIcon(
+                        IqIcons.forward,
+                        size: 14,
                         color: IqColors.primary,
                       ),
-                    ),
-                    const SizedBox(width: IqSpace.s1),
-                    const IqIcon(
-                      IqIcons.forward,
-                      size: 14,
-                      color: IqColors.primary,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

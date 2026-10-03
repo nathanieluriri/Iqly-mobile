@@ -147,7 +147,6 @@ class _ActivityRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return IqPressable(
       onTap: onTap,
-      semanticLabel: '$type $amount',
       builder: (context, _) => ColoredBox(
         color: IqColors.card,
         child: Stack(

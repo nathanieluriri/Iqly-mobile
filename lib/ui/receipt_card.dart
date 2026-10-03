@@ -59,7 +59,12 @@ class IqReceiptCard extends StatelessWidget {
       child: Stack(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+            padding: const EdgeInsets.fromLTRB(
+              IqSpace.s5,
+              IqSpace.s5,
+              IqSpace.s5,
+              IqSpace.s6,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,

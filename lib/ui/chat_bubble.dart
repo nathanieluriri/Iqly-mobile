@@ -99,7 +99,7 @@ class _IqChatBubbleState extends State<IqChatBubble>
         IqChatBubble.arrive,
       ),
     );
-    const r = Radius.circular(18);
+    const r = Radius.circular(IqRadius.xl2);
     const tail = Radius.circular(4);
     final bubble = Container(
       width: 300,
@@ -132,7 +132,7 @@ class _IqChatBubbleState extends State<IqChatBubble>
             ),
           ),
           if (widget.showAttachment) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: IqSpace.s2p5),
             FadeTransition(
               opacity: attachmentIn,
               child: widget.attachment ?? const IqVideoPreview(),

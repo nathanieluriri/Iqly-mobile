@@ -77,7 +77,6 @@ class IqNotification extends StatelessWidget {
     };
     return IqPressable(
       onTap: onTap,
-      semanticLabel: headline ?? text,
       builder: (context, _) => ColoredBox(
         color: IqColors.card,
         child: Stack(

@@ -50,7 +50,6 @@ class IqShareTarget extends StatelessWidget {
     final mark = kind.mark;
     return IqPressable(
       onTap: onTap,
-      semanticLabel: kind.label,
       builder: (context, pressed) => SizedBox(
         width: width,
         child: Column(

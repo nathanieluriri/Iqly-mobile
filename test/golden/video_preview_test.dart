@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/ui/pressable.dart';
 import 'package:iqly_mobile/ui/video_preview.dart';
 
 import 'golden.dart';
@@ -24,6 +25,15 @@ void main() {
     });
   }
 
+  testWidgets('ready state with the duration stamp', (tester) async {
+    await expectComponentGolden(
+      tester,
+      'video_preview_ready_duration',
+      const SizedBox(width: 358, child: IqVideoPreview(showDuration: true)),
+      size: const Size(358, 267),
+    );
+  });
+
   testWidgets('play, remove and retry call back', (tester) async {
     var plays = 0;
     var removes = 0;
@@ -47,6 +57,10 @@ void main() {
     await tester.pumpWidget(preview(IqVideoPreviewState.failed));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Retry'));
+    final retry = tester.getSize(
+      find.ancestor(of: find.text('Retry'), matching: find.byType(IqPressable)),
+    );
+    expect(retry.width >= 44 && retry.height >= 44, isTrue);
     await tester.tap(find.bySemanticsLabel('Play'));
     expect((plays, removes, retries), (1, 1, 1));
   });
@@ -55,7 +69,10 @@ void main() {
     Widget preview(IqVideoPreviewState state) => Directionality(
       textDirection: TextDirection.ltr,
       child: Center(
-        child: SizedBox(width: 358, child: IqVideoPreview(state: state)),
+        child: SizedBox(
+          width: 358,
+          child: IqVideoPreview(state: state, showDuration: true),
+        ),
       ),
     );
     await tester.pumpWidget(preview(IqVideoPreviewState.uploading));
