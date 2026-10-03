@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -26,6 +27,7 @@ import 'package:iqly_mobile/ui/highlight.dart';
 import 'package:iqly_mobile/ui/list_row.dart';
 import 'package:iqly_mobile/ui/receipt_card.dart';
 import 'package:iqly_mobile/ui/timeline_row.dart';
+import 'package:iqly_mobile/ui/top_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../golden/screens/app_harness.dart';
@@ -37,6 +39,7 @@ const _commit = 'HapticFeedbackType.lightImpact';
 const _success = 'HapticFeedbackType.successNotification';
 
 double _eo(double t) => IqCurves.easeOut.transform(t);
+double _ei(double t) => IqCurves.easeIn.transform(t);
 
 void _reduce(WidgetTester tester) {
   tester.platformDispatcher.accessibilityFeaturesTestValue =
@@ -558,6 +561,49 @@ void main() {
       await tester.pump(_ms * 300);
       expect(haptics, [_commit]);
       expect(find.byType(SelectBankScreen), findsOneWidget);
+    });
+
+    testWidgets('failed to Select bank and back: the back button holds while '
+        'the titles cross (spec 4.3)', (tester) async {
+      await _pumpApp(tester, withdrawalPath('w1'));
+      await tester.pump(_ms * 800);
+      final bar = tester.getTopLeft(find.byType(IqTopBar));
+
+      await tester.tap(find.text('Check bank details'));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 60);
+      expect(tester.getTopLeft(find.byType(IqTopBar).last), bar);
+      expect(
+        _opacity(tester, find.text('Withdrawal').last),
+        closeTo(1 - _ei(0.5), 0.02),
+      );
+      expect(
+        tester
+            .renderObject<RenderParagraph>(find.text('Withdrawal').last)
+            .text
+            .style
+            ?.decoration,
+        isNull,
+      );
+      await tester.pump(_ms * 60);
+      expect(_opacity(tester, find.text('Withdrawal').last), closeTo(0, 0.001));
+      await tester.pump(_ms * 300);
+      expect(find.byType(SelectBankScreen), findsOneWidget);
+      expect(tester.getTopLeft(find.byType(IqTopBar)), bar);
+
+      await tester.tap(find.bySemanticsLabel('Back'));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 48);
+      expect(tester.getTopLeft(find.byType(IqTopBar).last), bar);
+      expect(
+        _opacity(tester, find.text('Select bank').last),
+        closeTo(1 - _ei(0.5), 0.02),
+      );
+      await tester.pump(_ms * 300);
+      expect(find.byType(SelectBankScreen), findsNothing);
+      expect(find.text('Withdrawal'), findsOneWidget);
     });
 
     testWidgets('Home after payout: the payout row is the first to arrive, '
