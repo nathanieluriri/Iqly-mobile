@@ -476,7 +476,7 @@ void main() {
 
   group('moments', () {
     testWidgets('Done: eyebrow at +80, title at +120, Start here at +200, '
-        'the first ticket at +240; the Rocket sits 150 x 120 at (120, 78)', (
+        'the first ticket at +240; the Rocket draws 200 x 160 from (120, 78)', (
       tester,
     ) async {
       await _open(
@@ -505,7 +505,7 @@ void main() {
       }
       expect(
         tester.getRect(find.byType(IqIllustration)),
-        const Rect.fromLTWH(120, 78, 150, 120),
+        const Rect.fromLTWH(120, 78, 200, 160),
       );
     });
 
@@ -528,7 +528,7 @@ void main() {
       expect(_opacity(tester, find.text('Start here')), 1);
       expect(
         tester.getRect(find.byType(IqIllustration)),
-        const Rect.fromLTWH(120, 78, 150, 120),
+        const Rect.fromLTWH(120, 78, 200, 160),
       );
     });
 
