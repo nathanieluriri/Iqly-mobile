@@ -13,6 +13,7 @@ import '../../data/repository.dart';
 import '../discover/discover_state.dart';
 import '../onboarding/onboarding_draft.dart';
 import '../onboarding/what_you_like_screen.dart';
+import '../submit/submit_state.dart';
 
 /// The first-run answers Your details shows and edits: the onboarding draft,
 /// with the account's own values where first run left a gap (skipped, or a
@@ -177,6 +178,7 @@ Future<void> forgetAccount(WidgetRef ref) async {
   final session = ref.read(sessionProvider.notifier);
   ref.read(detailsSaveProvider.notifier).reset();
   ref.read(onboardingDraftProvider.notifier).clear();
+  await forgetSubmitDrafts(ref.read(sharedPreferencesProvider));
   await ref.read(accountDetailsProvider.notifier).clear();
   await session.setFirstTipSeen(false);
   await session.setOnboardingDone(false);
