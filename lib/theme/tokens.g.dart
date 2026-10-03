@@ -161,7 +161,13 @@ abstract final class IqRadius {
 }
 
 abstract final class IqFonts {
-  static const bricolage = 'Bricolage Grotesque';
+  /// Figma sets Bricolage at an automatic optical size, so each Mob size
+  /// has its own instance (tool/gen_fonts.py).
+  static const bricolage34 = 'Bricolage Grotesque 34pt';
+  static const bricolage22 = 'Bricolage Grotesque 22pt';
+  static const bricolage17 = 'Bricolage Grotesque 17pt';
+  static const bricolage30 = 'Bricolage Grotesque 30pt';
+  static const bricolage28 = 'Bricolage Grotesque 28pt';
   static const jakarta = 'Plus Jakarta Sans';
   static const geistMono = 'Geist Mono';
 }
@@ -169,35 +175,35 @@ abstract final class IqFonts {
 /// The Mob/* ramp from Figma. Sizes are logical pixels.
 abstract final class IqText {
   static const display = TextStyle(
-    fontFamily: IqFonts.bricolage,
+    fontFamily: IqFonts.bricolage34,
     fontSize: 34,
     fontWeight: FontWeight.w800,
     height: 1,
     letterSpacing: -1.02,
   );
   static const title = TextStyle(
-    fontFamily: IqFonts.bricolage,
+    fontFamily: IqFonts.bricolage22,
     fontSize: 22,
     fontWeight: FontWeight.w700,
     height: 1.1,
     letterSpacing: -0.44,
   );
   static const cardTitle = TextStyle(
-    fontFamily: IqFonts.bricolage,
+    fontFamily: IqFonts.bricolage17,
     fontSize: 17,
     fontWeight: FontWeight.w700,
     height: 1.18,
     letterSpacing: -0.255,
   );
   static const figure = TextStyle(
-    fontFamily: IqFonts.bricolage,
+    fontFamily: IqFonts.bricolage30,
     fontSize: 30,
     fontWeight: FontWeight.w800,
     height: 1,
     letterSpacing: -0.75,
   );
   static const figureSmall = TextStyle(
-    fontFamily: IqFonts.bricolage,
+    fontFamily: IqFonts.bricolage17,
     fontSize: 17,
     fontWeight: FontWeight.w700,
     height: 1.1,
@@ -258,7 +264,7 @@ abstract final class IqText {
 
   /// Quiet headline for the landing and interstitials. Lighter than Mob/Display.
   static const headline = TextStyle(
-    fontFamily: IqFonts.bricolage,
+    fontFamily: IqFonts.bricolage28,
     fontSize: 28,
     fontWeight: FontWeight.w500,
     height: 1.2143,

@@ -214,3 +214,11 @@ String? onboardingLaunchRoute(SessionState session, OnboardingDraft draft) {
 final onboardingUserProvider = FutureProvider<User>(
   (ref) => ref.watch(repositoryProvider).user(),
 );
+
+/// The first name Welcome and Done greet: the one typed at sign-up on this
+/// device, else the account's.
+final greetingNameProvider = Provider<String?>(
+  (ref) =>
+      ref.watch(sessionProvider.select((s) => s.firstName)) ??
+      ref.watch(onboardingUserProvider).value?.firstName,
+);

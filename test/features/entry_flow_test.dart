@@ -70,8 +70,10 @@ void main() {
     await _typeInto(tester, 0, 'longenough');
     await _next(tester);
     expect(find.byType(WelcomeScreen), findsOneWidget);
+    expect(find.text('Three quick steps, Tolu'), findsOneWidget);
     expect(c.read(sessionProvider).signedIn, isTrue);
     expect(c.read(sessionProvider).onboardingDone, isFalse);
+    expect(c.read(sessionProvider).firstName, 'Tolu');
   });
 
   testWidgets('a known email signs in, through a password reset', (
@@ -114,10 +116,12 @@ void main() {
   });
 
   testWidgets('Apple: a new account goes to onboarding', (tester) async {
-    await _boot(tester);
+    final c = await _boot(tester, prefs: {'session.firstName': 'Tolu'});
     await tester.tap(find.byType(IqProviderButton).first);
     await tester.pumpAndSettle();
     expect(find.byType(WelcomeScreen), findsOneWidget);
+    expect(find.text('Three quick steps, Adaeze'), findsOneWidget);
+    expect(c.read(sessionProvider).firstName, isNull);
   });
 
   testWidgets('Google: a known account goes to Discover', (tester) async {
