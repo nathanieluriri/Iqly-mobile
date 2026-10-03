@@ -180,5 +180,6 @@ Future<void> forgetAccount(WidgetRef ref) async {
   await ref.read(accountDetailsProvider.notifier).clear();
   await session.setFirstTipSeen(false);
   await session.setOnboardingDone(false);
+  await session.setFirstName(null);
   await session.setSignedIn(false);
 }

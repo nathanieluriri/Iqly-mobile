@@ -282,6 +282,7 @@ void main() {
         ...signedInPrefs(),
         'onboarding.draft': '{"state":"Lagos","city":"Ikeja"}',
         'profile.details': '{"phone":"+234 801 234 5678"}',
+        'session.firstName': 'Tolu',
       },
     );
     await _tap(tester, find.text('Sign out'));
@@ -291,6 +292,7 @@ void main() {
     expect(session.signedIn, isFalse);
     expect(session.onboardingDone, isFalse);
     expect(session.firstTipSeen, isFalse);
+    expect(session.firstName, isNull);
     final prefs = container.read(sharedPreferencesProvider);
     expect(prefs.getString('onboarding.draft'), isNull);
     expect(prefs.getString('profile.details'), isNull);
