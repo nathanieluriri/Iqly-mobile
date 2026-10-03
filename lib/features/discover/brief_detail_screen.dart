@@ -60,6 +60,7 @@ class BriefDetailScreen extends ConsumerWidget {
         resizeToAvoidBottomInset: false,
         backgroundColor: IqColors.bg,
         body: SafeArea(
+          maintainBottomViewPadding: true,
           child: CenteredContent(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,

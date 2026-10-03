@@ -167,6 +167,7 @@ class _SubmitScreenState extends ConsumerState<SubmitScreen> {
           resizeToAvoidBottomInset: typing,
           backgroundColor: IqColors.bg,
           body: SafeArea(
+            maintainBottomViewPadding: !typing,
             child: CenteredContent(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,

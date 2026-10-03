@@ -56,9 +56,10 @@ void scrollToTopOnRetap(
 
 /// The signed-in app: four tabs over the floating Exp/Dock. The dock sits 8
 /// above the home indicator on a paper band (Figma dock-area 738 to 810;
-/// the content frame clips at the dock's top). The first tip covers the
-/// whole shell, dock too. Tapping the lit tab while its stack is at the
-/// root ([atRoot]) scrolls that tab's list to the top.
+/// the content frame clips at the dock's top), measured from the view
+/// padding so a keyboard passing over it never moves it. The first tip
+/// covers the whole shell, dock too. Tapping the lit tab while its stack is
+/// at the root ([atRoot]) scrolls that tab's list to the top.
 class AppShell extends ConsumerWidget {
   const AppShell({
     super.key,
@@ -77,14 +78,14 @@ class AppShell extends ConsumerWidget {
 
   /// Bottom padding a tab's scroll view needs to clear the dock.
   static double contentInset(BuildContext context) =>
-      MediaQuery.paddingOf(context).bottom +
+      MediaQuery.viewPaddingOf(context).bottom +
       dockGap +
       IqDock.height +
       IqSpace.s3;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bottom = MediaQuery.paddingOf(context).bottom;
+    final bottom = MediaQuery.viewPaddingOf(context).bottom;
     final onTab = this.onTab;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,

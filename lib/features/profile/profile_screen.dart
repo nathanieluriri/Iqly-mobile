@@ -120,6 +120,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
         backgroundColor: IqColors.bg,
+        resizeToAvoidBottomInset: false,
         body: SafeArea(
           bottom: false,
           child: CenteredContent(

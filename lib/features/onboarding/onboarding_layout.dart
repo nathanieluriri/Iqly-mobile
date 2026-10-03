@@ -88,6 +88,7 @@ class _OnboardingStepScaffoldState extends State<OnboardingStepScaffold> {
           backgroundColor: IqColors.bg,
           resizeToAvoidBottomInset: false,
           body: SafeArea(
+            maintainBottomViewPadding: true,
             child: CenteredContent(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -345,6 +346,7 @@ class OnboardingHeroScaffold extends StatelessWidget {
         backgroundColor: IqColors.bg,
         resizeToAvoidBottomInset: false,
         body: SafeArea(
+          maintainBottomViewPadding: true,
           child: CenteredContent(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
