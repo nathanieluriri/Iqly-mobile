@@ -120,6 +120,53 @@ double _ei(double t) => IqCurves.easeIn.transform(t);
 
 const _ms = Duration(milliseconds: 1);
 
+/// One 60 Hz frame.
+const _frame = Duration(microseconds: 16667);
+
+/// A thumb that moves [by] from [from] at an even speed over [frames]
+/// frames and lifts with its last move, as the films drag; [track] reads
+/// the moving thing after every frame until it stops or [settle] frames
+/// pass. Returns the thumb's travel per frame and [track]'s readings from
+/// the frame the thumb lifts.
+Future<(double, List<double>)> _thumb(
+  WidgetTester tester, {
+  required Offset from,
+  required Offset by,
+  required int frames,
+  required double? Function() track,
+  int settle = 60,
+}) async {
+  var at = Duration.zero;
+  final gesture = await tester.createGesture();
+  await gesture.down(from, timeStamp: at);
+  await tester.pump(_frame);
+  for (var i = 1; i <= frames; i++) {
+    at += _frame;
+    await gesture.moveTo(from + by * (i / frames), timeStamp: at);
+    if (i == frames) await gesture.up(timeStamp: at);
+    await tester.pump(_frame);
+  }
+  final after = <double>[];
+  for (var i = 0; i < settle; i++) {
+    final now = track();
+    if (now == null) break;
+    after.add(now);
+    await tester.pump(_frame);
+  }
+  return (by.distance / frames, after);
+}
+
+/// The largest step between consecutive readings.
+double _fastest(List<double> track) {
+  var fastest = 0.0;
+  for (var i = 1; i < track.length; i++) {
+    fastest = (track[i] - track[i - 1]).abs() > fastest
+        ? (track[i] - track[i - 1]).abs()
+        : fastest;
+  }
+  return fastest;
+}
+
 void main() {
   group('push', () {
     testWidgets('slides 24 in as it fades, the page beneath slides away', (
@@ -243,6 +290,47 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('b')), findsNothing);
       expect(_dx(tester, 'a'), 0);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('iOS: a thumb that lifts mid-swipe carries the page on at '
+        'its own speed, never faster', (tester) async {
+      final router = await _pump(tester);
+      router.push('/b');
+      await tester.pumpAndSettle();
+      final page = find.byKey(const ValueKey('b'));
+      // The films' swipe: from the edge across 62% in 0.4 s, about 600
+      // pt/s, lifting as it moves.
+      final (thumb, track) = await _thumb(
+        tester,
+        from: const Offset(6, 460),
+        by: const Offset(390 * 0.62, 0),
+        frames: 24,
+        track: () => page.evaluate().isEmpty ? null : _dx(tester, 'b'),
+      );
+      expect(track, isNotEmpty);
+      expect(_fastest(track), lessThanOrEqualTo(thumb * 1.02));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/a');
+      expect(find.byKey(const ValueKey('b')), findsNothing);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('iOS: a quick flick settles no faster than the remaining '
+        'share of 240', (tester) async {
+      final router = await _pump(tester);
+      router.push('/b');
+      await tester.pumpAndSettle();
+      final page = find.byKey(const ValueKey('b'));
+      final (_, track) = await _thumb(
+        tester,
+        from: const Offset(6, 460),
+        by: const Offset(390 * 0.5, 0),
+        frames: 4,
+        track: () => page.evaluate().isEmpty ? null : _dx(tester, 'b'),
+      );
+      // Half the width left: at least 120 ms, so at least 7 frames to go.
+      expect(track.length, greaterThanOrEqualTo(7));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/a');
     }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 
     testWidgets('iOS: a short swipe settles back', (tester) async {
@@ -400,6 +488,28 @@ void main() {
       await close.moveBy(const Offset(0, 240));
       await tester.pump();
       await close.up();
+      await tester.pumpAndSettle();
+      expect(find.byType(_Sheet), findsNothing);
+      expect(router.state.uri.path, '/a');
+    });
+
+    testWidgets('a drag that lifts past half carries the sheet down at the '
+        'finger\'s speed, never faster', (tester) async {
+      final router = await _pump(tester);
+      router.push('/sheet');
+      await tester.pumpAndSettle();
+      const top = 844 - _sheetHeight;
+      final sheet = find.byKey(const ValueKey('sheet'));
+      // 300 down in 0.5 s, 600 px/s: under the 700 px/s fling.
+      final (finger, track) = await _thumb(
+        tester,
+        from: const Offset(195, top + 40),
+        by: const Offset(0, 300),
+        frames: 30,
+        track: () => sheet.evaluate().isEmpty ? null : _dy(tester, 'sheet'),
+      );
+      expect(track, isNotEmpty);
+      expect(_fastest(track), lessThanOrEqualTo(finger * 1.02));
       await tester.pumpAndSettle();
       expect(find.byType(_Sheet), findsNothing);
       expect(router.state.uri.path, '/a');

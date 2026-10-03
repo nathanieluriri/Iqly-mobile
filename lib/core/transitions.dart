@@ -349,8 +349,9 @@ Widget _heroes(BuildContext context, Widget page) =>
 
 /// The iOS back swipe from the left edge (spec 3.2): the page follows the
 /// finger, then pops when dragged past half the width or flung right at a
-/// width a second, or settles back, over what is left of 240 ms. Under
-/// reduced motion it still follows the finger and ends with a cut.
+/// width a second, or settles back, carrying on at the finger's speed (see
+/// [_settle]). Under reduced motion it still follows the finger and ends
+/// with a cut.
 class _BackSwipe extends StatefulWidget {
   const _BackSwipe({required this.route, required this.child});
 
@@ -397,6 +398,7 @@ class _BackSwipeState extends State<_BackSwipe> {
 
   void _cancel() => _finish(0);
 
+  /// [velocity] in widths a second, rightwards.
   void _finish(double velocity) {
     final navigator = _navigator;
     if (navigator == null) return;
@@ -412,7 +414,13 @@ class _BackSwipeState extends State<_BackSwipe> {
       pop = controller.value < 0.5;
     }
     if (pop && route.isCurrent) navigator.pop();
-    _settle(controller, pop ? 0 : 1, IqDurations.screenBack, _reduced);
+    _settle(
+      controller,
+      pop ? 0 : 1,
+      IqDurations.screenBack,
+      _reduced,
+      speed: pop ? velocity : -velocity,
+    );
     _whenSettled(controller, navigator.didStopUserGesture);
   }
 
@@ -449,23 +457,44 @@ class _BackSwipeState extends State<_BackSwipe> {
   }
 }
 
-/// Sends a route's [controller] to [target] after a gesture: over the
-/// remaining share of [full] ease-out, or at once under reduced motion.
+/// Sends a route's [controller] to [target] when the finger lets go, ease-out
+/// from the [speed] it let go at (controller units a second, towards
+/// [target]), so the move carries on at the finger's pace rather than
+/// speeding up. A finger slower than a whole move a second settles at that
+/// pace; the settle never takes less than the remaining share of [full]
+/// (spec 3.2, 3.3) nor more than twice [full]. At once under reduced motion.
 void _settle(
   AnimationController controller,
   double target,
   Duration full,
-  bool reduced,
-) {
+  bool reduced, {
+  required double speed,
+}) {
   final left = (controller.value - target).abs();
   if (reduced || left == 0) {
     controller.value = target;
-  } else if (target == 0) {
-    controller.animateBack(0, duration: full * left, curve: IqCurves.easeOut);
+    return;
+  }
+  final carry =
+      left * _easeOutLead / math.max(speed, 1) * Duration.microsecondsPerSecond;
+  final length = Duration(
+    microseconds: carry
+        .clamp(left * full.inMicroseconds, 2.0 * full.inMicroseconds)
+        .round(),
+  );
+  if (target == 0) {
+    controller.animateBack(0, duration: length, curve: IqCurves.easeOut);
   } else {
-    controller.animateTo(1, duration: full * left, curve: IqCurves.easeOut);
+    controller.animateTo(1, duration: length, curve: IqCurves.easeOut);
   }
 }
+
+/// How many times its average speed [IqCurves.easeOut] sets off at: the
+/// cubic's slope at the origin, where its first control point sits.
+final double _easeOutLead = () {
+  final ease = IqCurves.easeOut as Cubic;
+  return ease.d / ease.c;
+}();
 
 void _whenSettled(AnimationController controller, VoidCallback done) {
   if (!controller.isAnimating) {
@@ -670,6 +699,7 @@ class _SheetDragState extends State<_SheetDrag> {
 
   void _cancel() => _finish(0);
 
+  /// [velocity] in px a second, downwards.
   void _finish(double velocity) {
     final navigator = _navigator;
     if (navigator == null) return;
@@ -678,7 +708,14 @@ class _SheetDragState extends State<_SheetDrag> {
     final sheet = route._sheet;
     final close = !route.isActive || velocity >= _fling || sheet.value < 0.5;
     if (close && route.isCurrent) navigator.pop();
-    _settle(sheet, close ? 0 : 1, IqDurations.swap, _reduced);
+    final down = velocity / context.size!.height;
+    _settle(
+      sheet,
+      close ? 0 : 1,
+      IqDurations.swap,
+      _reduced,
+      speed: close ? down : -down,
+    );
     _whenSettled(sheet, () {
       route._dragging = false;
       navigator.didStopUserGesture();
