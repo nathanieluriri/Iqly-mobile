@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/money.dart';
@@ -13,8 +12,8 @@ import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/button.dart';
 import '../../ui/highlight.dart';
-import '../../ui/illustration.dart';
 import '../../ui/top_bar.dart';
+import 'wallet_arrives.dart';
 import 'wallet_state.dart';
 
 /// B5 · Withdrawal pending (38:147), a moment: the Wallet illustration
@@ -60,7 +59,7 @@ class WithdrawalPendingScreen extends ConsumerWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                const Center(child: _WalletArrives()),
+                                const Center(child: WalletArrives()),
                                 const SizedBox(height: IqSpace.s4),
                                 Appear(
                                   delay: IqDurations.stagger * 2,
@@ -173,34 +172,6 @@ class _Fact extends StatelessWidget {
   }
 }
 
-/// Exp/Illustration Kind=Wallet arriving in its two layers (spec 5.29): the
-/// ink rises 16 and fades in over 320, the orange strap sweeps in from
-/// +160. Reduced motion: the illustration itself.
-class _WalletArrives extends StatelessWidget {
-  const _WalletArrives();
-
-  @override
-  Widget build(BuildContext context) {
-    const kind = IqIllustrations.wallet;
-    if (MediaQuery.disableAnimationsOf(context)) {
-      return const IqIllustration(kind);
-    }
-    return SizedBox(
-      width: IqIllustration.designWidth,
-      height: IqIllustration.designHeight,
-      child: Stack(
-        children: [
-          Arrive.illustration(child: _Layer(kind, keep: 'ink')),
-          Wipe(
-            delay: IqDurations.stagger * 4,
-            child: _Layer(kind, keep: 'accent'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Builds [child] afresh at [at], so a part that moves on its own (the
 /// Highlight's wipe) starts then; until then it holds its place unseen.
 class _FreshAt extends StatefulWidget {
@@ -246,43 +217,4 @@ class _FreshAtState extends State<_FreshAt> {
       child: KeyedSubtree(key: const ValueKey(false), child: widget.child),
     );
   }
-}
-
-class _Layer extends StatelessWidget {
-  const _Layer(this.kind, {required this.keep});
-
-  final IqIllustrations kind;
-  final String keep;
-
-  @override
-  Widget build(BuildContext context) {
-    return SvgPicture.asset(
-      kind.asset,
-      width: IqIllustration.designWidth,
-      height: IqIllustration.designHeight,
-      excludeFromSemantics: true,
-      colorMapper: _OnlyLayer(keep),
-    );
-  }
-}
-
-/// Keeps one named layer of an illustration and clears the other.
-class _OnlyLayer extends ColorMapper {
-  const _OnlyLayer(this.id);
-
-  final String id;
-
-  @override
-  Color substitute(
-    String? id,
-    String elementName,
-    String attributeName,
-    Color color,
-  ) => id == null || id == this.id ? color : Colors.transparent;
-
-  @override
-  bool operator ==(Object other) => other is _OnlyLayer && other.id == id;
-
-  @override
-  int get hashCode => id.hashCode;
 }

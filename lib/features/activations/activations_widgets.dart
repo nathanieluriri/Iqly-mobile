@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/motion.dart';
 import '../../theme/theme.dart';
 import '../../ui/highlight.dart';
-import '../../ui/illustration.dart';
 
 /// The Mob/Mono fg3 label the activation frames put over each block.
 class Eyebrow extends StatelessWidget {
@@ -245,100 +243,4 @@ class ProofFrame extends StatelessWidget {
       ),
     );
   }
-}
-
-/// An Exp/Illustration arriving in its two layers (MOTION-SPEC §5.29): the
-/// ink fades in as it rises 16 over 320 ms ease-out; at +160 the accent
-/// sweep wipes in left to right (240). Reduced motion: the illustration,
-/// still.
-class IllustrationArrival extends StatefulWidget {
-  const IllustrationArrival(this.kind, {super.key});
-
-  final IqIllustrations kind;
-
-  @override
-  State<IllustrationArrival> createState() => _IllustrationArrivalState();
-}
-
-class _IllustrationArrivalState extends State<IllustrationArrival>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ink = AnimationController(
-    vsync: this,
-    duration: IqDurations.morph,
-  );
-  late final Animation<double> _rise = _ink.drive(
-    CurveTween(curve: IqCurves.easeOut),
-  );
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (MediaQuery.disableAnimationsOf(context)) {
-      _ink.value = 1;
-    } else if (_ink.isDismissed) {
-      _ink.forward();
-    }
-  }
-
-  @override
-  void dispose() {
-    _ink.dispose();
-    super.dispose();
-  }
-
-  Widget _layer(String keep) => SvgPicture.asset(
-    widget.kind.asset,
-    width: IqIllustration.designWidth,
-    height: IqIllustration.designHeight,
-    excludeFromSemantics: true,
-    colorMapper: _OnlyLayer(keep),
-  );
-
-  @override
-  Widget build(BuildContext context) {
-    if (MediaQuery.disableAnimationsOf(context)) {
-      return IqIllustration(widget.kind);
-    }
-    return SizedBox(
-      width: IqIllustration.designWidth,
-      height: IqIllustration.designHeight,
-      child: Stack(
-        children: [
-          FadeTransition(
-            opacity: _rise,
-            child: AnimatedBuilder(
-              animation: _rise,
-              child: _layer('ink'),
-              builder: (context, child) => Transform.translate(
-                offset: Offset(0, IqTravel.riseHero * (1 - _rise.value)),
-                child: child,
-              ),
-            ),
-          ),
-          Wipe(delay: IqDurations.tick, child: _layer('accent')),
-        ],
-      ),
-    );
-  }
-}
-
-/// Keeps one named layer of an illustration and clears the other.
-class _OnlyLayer extends ColorMapper {
-  const _OnlyLayer(this.id);
-
-  final String id;
-
-  @override
-  Color substitute(
-    String? id,
-    String elementName,
-    String attributeName,
-    Color color,
-  ) => id == null || id == this.id ? color : color.withValues(alpha: 0);
-
-  @override
-  bool operator ==(Object other) => other is _OnlyLayer && other.id == id;
-
-  @override
-  int get hashCode => id.hashCode;
 }
