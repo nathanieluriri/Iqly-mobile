@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/deadline.dart';
@@ -294,6 +295,35 @@ void main() {
       expect(find.byType(IqShareCard), findsOneWidget);
       expect(tester.getRect(find.byType(IqShareCard)).width, closeTo(358, .5));
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the card flies in the app’s text style, both ways', (
+      tester,
+    ) async {
+      await pumpApp(tester, resultPath('s2'), reducedMotion: false);
+      Finder flying() => find.byType(IqShareCard).last;
+      List<TextDecoration?> decorations() => [
+        for (final text in tester.renderObjectList<RenderParagraph>(
+          find.descendant(of: flying(), matching: find.byType(RichText)),
+        ))
+          text.text.style?.decoration,
+      ];
+
+      await tester.tap(find.text('Share your win'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(tester.getRect(flying()).width, inExclusiveRange(222, 358));
+      expect(decorations(), isNotEmpty);
+      expect(decorations(), everyElement(isNull));
+
+      await tester.pumpAndSettle();
+      await tester.tapAt(const Offset(195, 120));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(tester.getRect(flying()).width, inExclusiveRange(222, 358));
+      expect(decorations(), isNotEmpty);
+      expect(decorations(), everyElement(isNull));
+      await tester.pumpAndSettle();
     });
 
     testWidgets('reduced motion: no flight, the sheet fades in place', (
