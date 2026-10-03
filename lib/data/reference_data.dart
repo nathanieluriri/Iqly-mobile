@@ -238,6 +238,12 @@ abstract final class Reference {
     'Zamfara State University',
   ];
 
+  static const genders = [
+    RefOption('male', 'Male'),
+    RefOption('female', 'Female'),
+    RefOption('prefer_not_to_say', 'Prefer not to say'),
+  ];
+
   static const occupations = [
     RefOption('student', 'Student'),
     RefOption('entrepreneur', 'Entrepreneur'),
