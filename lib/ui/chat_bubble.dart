@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'tilt.dart';
 import 'video_preview.dart';
@@ -39,8 +40,8 @@ class IqChatBubble extends StatefulWidget {
   final Widget? attachment;
   final bool animate;
 
-  static const Duration arrive = Duration(milliseconds: 220);
-  static const Duration attachmentDelay = Duration(milliseconds: 120);
+  static const Duration arrive = IqDurations.appear;
+  static const Duration attachmentDelay = IqDurations.chain;
 
   @override
   State<IqChatBubble> createState() => _IqChatBubbleState();
@@ -54,6 +55,17 @@ class _IqChatBubbleState extends State<IqChatBubble>
         IqChatBubble.arrive +
         IqChatBubble.attachmentDelay +
         IqChatBubble.arrive,
+  );
+  late final Animation<double> _bubbleIn = _in.drive(
+    CurveTween(curve: _span(Duration.zero, IqChatBubble.arrive)),
+  );
+  late final Animation<double> _attachmentIn = _in.drive(
+    CurveTween(
+      curve: _span(
+        IqChatBubble.arrive + IqChatBubble.attachmentDelay,
+        IqChatBubble.arrive,
+      ),
+    ),
   );
   bool _started = false;
 
@@ -80,7 +92,7 @@ class _IqChatBubbleState extends State<IqChatBubble>
     return Interval(
       start.inMilliseconds / total,
       (start + length).inMilliseconds / total,
-      curve: Curves.easeOut,
+      curve: IqCurves.easeOut,
     );
   }
 
@@ -88,17 +100,8 @@ class _IqChatBubbleState extends State<IqChatBubble>
   Widget build(BuildContext context) {
     final you = widget.from == IqChatBubbleFrom.you;
     final reduced = MediaQuery.disableAnimationsOf(context);
-    final bubbleIn = CurvedAnimation(
-      parent: _in,
-      curve: _span(Duration.zero, IqChatBubble.arrive),
-    );
-    final attachmentIn = CurvedAnimation(
-      parent: _in,
-      curve: _span(
-        IqChatBubble.arrive + IqChatBubble.attachmentDelay,
-        IqChatBubble.arrive,
-      ),
-    );
+    final bubbleIn = _bubbleIn;
+    final attachmentIn = _attachmentIn;
     const r = Radius.circular(IqRadius.xl2);
     const tail = Radius.circular(4);
     final bubble = Container(
@@ -176,17 +179,19 @@ class _IqChatBubbleState extends State<IqChatBubble>
           ),
           const SizedBox(height: IqSpace.s1p5),
         ],
-        AnimatedBuilder(
-          animation: bubbleIn,
-          builder: (context, child) => Opacity(
-            opacity: bubbleIn.value,
-            child: Transform.scale(
-              scale: reduced ? 1 : 0.96 + 0.04 * bubbleIn.value,
+        FadeTransition(
+          opacity: bubbleIn,
+          child: AnimatedBuilder(
+            animation: bubbleIn,
+            builder: (context, child) => Transform.scale(
+              scale: reduced
+                  ? 1
+                  : IqScale.soft + (1 - IqScale.soft) * bubbleIn.value,
               alignment: you ? Alignment.bottomRight : Alignment.bottomLeft,
               child: child,
             ),
+            child: bubble,
           ),
-          child: bubble,
         ),
         const SizedBox(height: IqSpace.s1p5),
         Text(

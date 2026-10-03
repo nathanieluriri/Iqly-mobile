@@ -15,9 +15,9 @@ Future<void> _golden(
   IqlyRepository? repository,
 ]) async {
   await pumpApp(tester, location, repository: repository);
-  await expectLater(
+  await expectMatchesGolden(
     find.byType(MaterialApp),
-    matchesGoldenFile('goldens/submissions_$name.png'),
+    'goldens/submissions_$name.png',
   );
 }
 

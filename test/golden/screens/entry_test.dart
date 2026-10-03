@@ -95,9 +95,9 @@ void main() {
       Routes.home,
       prefs: signedInPrefs(firstTipSeen: false),
     );
-    await expectLater(
+    await expectMatchesGolden(
       find.byType(MaterialApp),
-      matchesGoldenFile('goldens/entry_home_first_tip.png'),
+      'goldens/entry_home_first_tip.png',
     );
   });
 

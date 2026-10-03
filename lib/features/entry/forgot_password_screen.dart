@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/motion.dart';
 import '../../data/auth.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -57,6 +58,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       return;
     }
     ref.read(entryDraftProvider.notifier).setEmail(email);
+    IqHaptics.success.play();
     context.push(Routes.resetLinkSent);
   }
 

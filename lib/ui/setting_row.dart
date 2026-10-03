@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'switch.dart';
 
 /// Exp/SettingRow: a preference row, label, one-line description and an
 /// Exp/Switch. The whole row is the tap target and flips [state] through
-/// [onChanged]. The divider is a 1 px line inset 16 on both sides.
+/// [onChanged] with the select haptic. The divider is a 1 px line inset 16
+/// on both sides.
 ///
 /// Figma over brief: the row is a white Color/card band with no radius.
 class IqSettingRow extends StatelessWidget {
@@ -34,11 +36,14 @@ class IqSettingRow extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: onChanged == null
             ? null
-            : () => onChanged(
-                state == IqSwitchState.on
-                    ? IqSwitchState.off
-                    : IqSwitchState.on,
-              ),
+            : () {
+                IqHaptics.select.play();
+                onChanged(
+                  state == IqSwitchState.on
+                      ? IqSwitchState.off
+                      : IqSwitchState.on,
+                );
+              },
         child: Container(
           color: IqColors.card,
           child: Stack(

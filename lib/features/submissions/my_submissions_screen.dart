@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/deadline.dart';
 import '../../core/responsive.dart';
+import '../../core/transitions.dart';
 import '../../data/repository.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -50,6 +51,7 @@ class MySubmissionsScreen extends ConsumerWidget {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         backgroundColor: IqColors.bg,
         body: SafeArea(
           bottom: false,
@@ -64,20 +66,7 @@ class MySubmissionsScreen extends ConsumerWidget {
                   showCount: unread > 0,
                   onBell: () => context.push(Routes.notifications),
                 ),
-                Expanded(
-                  child: AnimatedSwitcher(
-                    duration: MediaQuery.disableAnimationsOf(context)
-                        ? Duration.zero
-                        : const Duration(milliseconds: 300),
-                    switchInCurve: Curves.easeOut,
-                    switchOutCurve: Curves.easeOut,
-                    layoutBuilder: (current, previous) => Stack(
-                      alignment: Alignment.topCenter,
-                      children: [...previous, ?current],
-                    ),
-                    child: body,
-                  ),
-                ),
+                Expanded(child: Dissolve(child: body)),
               ],
             ),
           ),

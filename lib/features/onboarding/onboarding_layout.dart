@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/motion.dart';
 import '../../core/responsive.dart';
+import '../../core/transitions.dart';
 import '../../theme/theme.dart';
 import '../../ui/button.dart';
 import '../../ui/icon.dart';
@@ -12,9 +14,15 @@ import '../../ui/step_mark.dart';
 import '../../ui/top_bar.dart';
 import 'onboarding_draft.dart';
 
-void goToStep(BuildContext context, WidgetRef ref, OnboardingStep step) {
+/// Opens [step]; [back] plays the move as a step back.
+void goToStep(
+  BuildContext context,
+  WidgetRef ref,
+  OnboardingStep step, {
+  bool back = false,
+}) {
   ref.read(onboardingDraftProvider.notifier).visit(step);
-  context.go(step.route);
+  context.go(step.route, extra: back ? NavDirection.back : null);
 }
 
 /// One question per screen: back, the step mark with the autosave check, a
@@ -59,6 +67,7 @@ class OnboardingStepScaffold extends StatelessWidget {
         value: SystemUiOverlayStyle.dark,
         child: Scaffold(
           backgroundColor: IqColors.bg,
+          resizeToAvoidBottomInset: false,
           body: SafeArea(
             child: CenteredContent(
               child: Column(
@@ -150,14 +159,15 @@ class OnboardingStepScaffold extends StatelessWidget {
   }
 }
 
-/// Autosave is a check, never a sentence (brief section 0). It pops in, 0.6
-/// to 1 with a small overshoot, when the step first saves.
+/// Autosave is a check, never a sentence (brief section 0). It stamps in,
+/// 0.6 to 1 with a small overshoot (200 ms), when the step first saves, and
+/// fades out in 150 ease-in when the answer is cleared.
 class AutosaveCheck extends StatefulWidget {
   const AutosaveCheck({super.key, required this.saved});
 
   final bool saved;
 
-  static const duration = Duration(milliseconds: 200);
+  static const duration = IqDurations.swap;
 
   @override
   State<AutosaveCheck> createState() => _AutosaveCheckState();
@@ -170,16 +180,14 @@ class _AutosaveCheckState extends State<AutosaveCheck>
     duration: AutosaveCheck.duration,
     value: widget.saved ? 1 : 0,
   );
-  late final _overshoot = CurvedAnimation(
-    parent: _pop,
-    curve: Curves.easeOutBack,
-    reverseCurve: Curves.easeIn,
+  late final _scale = _pop.drive(
+    Tween<double>(
+      begin: IqScale.pop,
+      end: 1,
+    ).chain(CurveTween(curve: IqCurves.stamp)),
   );
-  late final _scale = Tween(begin: 0.6, end: 1.0).animate(_overshoot);
-  late final _opacity = CurvedAnimation(
-    parent: _pop,
-    curve: const Interval(0, 0.5, curve: Curves.easeOut),
-    reverseCurve: Curves.easeIn,
+  late final _opacity = _pop.drive(
+    CurveTween(curve: const Interval(0, 0.5, curve: IqCurves.easeOut)),
   );
 
   @override
@@ -190,15 +198,11 @@ class _AutosaveCheckState extends State<AutosaveCheck>
       _pop.value = widget.saved ? 1 : 0;
     } else if (widget.saved) {
       _pop.forward(from: 0);
-    } else {
-      _pop.reverse();
     }
   }
 
   @override
   void dispose() {
-    _overshoot.dispose();
-    _opacity.dispose();
     _pop.dispose();
     super.dispose();
   }
@@ -207,11 +211,18 @@ class _AutosaveCheckState extends State<AutosaveCheck>
   Widget build(BuildContext context) {
     return Semantics(
       label: widget.saved ? 'Saved' : null,
-      child: FadeTransition(
-        opacity: _opacity,
-        child: ScaleTransition(
-          scale: _scale,
-          child: const IqIcon(IqIcons.check, size: 20, color: IqColors.ok),
+      child: AnimatedOpacity(
+        opacity: widget.saved ? 1 : 0,
+        duration: widget.saved
+            ? Duration.zero
+            : motion(context, IqDurations.crossfade),
+        curve: IqCurves.easeIn,
+        child: FadeTransition(
+          opacity: _opacity,
+          child: ScaleTransition(
+            scale: _scale,
+            child: const IqIcon(IqIcons.check, size: 20, color: IqColors.ok),
+          ),
         ),
       ),
     );
@@ -246,6 +257,7 @@ class OnboardingHeroScaffold extends StatelessWidget {
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
         backgroundColor: IqColors.bg,
+        resizeToAvoidBottomInset: false,
         body: SafeArea(
           child: CenteredContent(
             child: Column(

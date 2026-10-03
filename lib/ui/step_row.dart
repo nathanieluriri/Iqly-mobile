@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'highlight.dart';
 import 'icon.dart';
@@ -36,9 +37,9 @@ class IqStepRow extends StatefulWidget {
   final bool showBody;
   final bool divider;
 
-  static const Duration pop = Duration(milliseconds: 200);
-  static const Duration check = Duration(milliseconds: 160);
-  static const Duration slide = Duration(milliseconds: 180);
+  static const Duration pop = IqDurations.swap;
+  static const Duration check = IqDurations.tick;
+  static const Duration slide = IqDurations.ink;
 
   @override
   State<IqStepRow> createState() => _IqStepRowState();
@@ -92,8 +93,8 @@ class _IqStepRowState extends State<IqStepRow> with TickerProviderStateMixin {
                 builder: (context, child) => Transform.scale(
                   scale:
                       1 +
-                      0.1 *
-                          Curves.easeOut.transform(
+                      (IqScale.bubblePop - 1) *
+                          IqCurves.easeOut.transform(
                             _pop.value < 0.5
                                 ? _pop.value * 2
                                 : 2 - _pop.value * 2,
@@ -134,7 +135,7 @@ class _IqStepRowState extends State<IqStepRow> with TickerProviderStateMixin {
     final state = widget.state;
     return AnimatedContainer(
       duration: reduced ? Duration.zero : IqStepRow.pop,
-      curve: Curves.easeOut,
+      curve: IqCurves.easeOut,
       width: 28,
       height: 28,
       alignment: Alignment.center,

@@ -60,7 +60,7 @@ class _DoneScreenState extends ConsumerState<DoneScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final firstName = ref.watch(onboardingUserProvider).value?.firstName;
+    final firstName = ref.watch(greetingNameProvider);
     final briefs = ref.watch(startHereBriefsProvider).value ?? const [];
     final now = DateTime.now();
     return OnboardingHeroScaffold(

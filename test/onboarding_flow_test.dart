@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/app.dart';
+import 'package:iqly_mobile/core/motion.dart';
 import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/onboarding_service.dart';
@@ -312,6 +313,8 @@ void main() {
       );
       await openWhereYouLive(tester, {'state': 'Lagos'});
       await tester.tap(find.text('Select city'));
+      // The sheet route's first frame lays out offstage for heroes.
+      await tester.pump();
       await tester.pump();
       expect(tester.getTopLeft(find.byType(CitySheet)).dy, 120);
 
@@ -319,7 +322,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('Use this'));
       await tester.pump();
-      await tester.pump();
+      await tester.pump(IqDurations.crossfade);
       expect(find.byType(CitySheet), findsNothing);
       expect(find.text('Select city'), findsNothing);
       expect(find.text('Ikeja'), findsOneWidget);

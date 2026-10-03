@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/motion.dart';
 import '../../data/reference_data.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -46,25 +47,49 @@ class WhatYouLikeScreen extends ConsumerWidget {
       saved: interests.isNotEmpty,
       title: 'What are you into?',
       caption: 'Pick at least ${OnboardingDraft.minInterests}',
-      onBack: () => goToStep(context, ref, OnboardingStep.whereYouStudied),
-      onSkip: () => context.go(Routes.onboardingDone),
-      onNext: () => context.go(Routes.onboardingDone),
+      onBack: () =>
+          goToStep(context, ref, OnboardingStep.whereYouStudied, back: true),
+      onSkip: () => _finish(context),
+      onNext: () => _finish(context),
       nextEnabled: interests.length >= OnboardingDraft.minInterests,
       nextLabel: 'Finish',
-      child: Wrap(
-        spacing: IqSpace.s2,
-        runSpacing: IqSpace.s2,
-        children: [
-          for (final option in Reference.interests)
-            IqChip(
-              label: interestChipLabels[option.value] ?? option.label,
-              state: interests.contains(option.value)
-                  ? IqChipState.selected
-                  : IqChipState.standard,
-              onChanged: (_) => draft.toggleInterest(option.value),
-            ),
-        ],
-      ),
+      child: InterestChips(selected: interests, onToggle: draft.toggleInterest),
     );
   }
+}
+
+/// The 13 interest chips, shared with Profile's interests sheet.
+class InterestChips extends StatelessWidget {
+  const InterestChips({
+    super.key,
+    required this.selected,
+    required this.onToggle,
+  });
+
+  final List<String> selected;
+  final ValueChanged<String> onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: IqSpace.s2,
+      runSpacing: IqSpace.s2,
+      children: [
+        for (final option in Reference.interests)
+          IqChip(
+            label: interestChipLabels[option.value] ?? option.label,
+            state: selected.contains(option.value)
+                ? IqChipState.selected
+                : IqChipState.standard,
+            onChanged: (_) => onToggle(option.value),
+          ),
+      ],
+    );
+  }
+}
+
+/// Finishing the steps lands the onboarding: the success haptic and Done.
+void _finish(BuildContext context) {
+  IqHaptics.success.play();
+  context.go(Routes.onboardingDone);
 }

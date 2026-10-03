@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 import 'pressable.dart';
@@ -19,8 +20,9 @@ enum IqProviderButtonKind {
 /// Exp/ProviderButton: a 358 x 56 sign-in pill. Apple and Google carry the
 /// official marks, never recoloured; Email is the house primary on the
 /// orange sticker. Labels are fixed per kind. Email presses like the
-/// primary Button (the pill drops onto its sticker, 120 ms); Apple and
-/// Google take the Secondary pressed fill. [width] defaults to 358.
+/// primary Button (the pill drops onto its sticker, 120 ms, with the commit
+/// haptic); Apple and Google take the Secondary pressed fill, 120 ms in and
+/// 160 out. [width] defaults to 358.
 ///
 /// Figma over brief: the Apple border is Color/fg (near black), not the ink brand.
 class IqProviderButton extends StatelessWidget {
@@ -43,15 +45,13 @@ class IqProviderButton extends StatelessWidget {
     return IqPressable(
       onTap: onTap,
       semanticLabel: kind.label,
+      haptic: kind == IqProviderButtonKind.email ? IqHaptics.commit : null,
       builder: (context, pressed) {
-        final duration = MediaQuery.disableAnimationsOf(context)
-            ? Duration.zero
-            : Sticker.duration;
         final email = kind == IqProviderButtonKind.email;
         final ink = email ? IqColors.card : IqColors.fg;
         final pill = AnimatedContainer(
-          duration: duration,
-          curve: Curves.easeOut,
+          duration: pressMotion(context, pressed),
+          curve: IqCurves.easeOut,
           decoration: BoxDecoration(
             color: switch (kind) {
               IqProviderButtonKind.email =>

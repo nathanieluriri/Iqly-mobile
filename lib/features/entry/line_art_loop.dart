@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/motion.dart';
 import '../../ui/illustration.dart';
 
 /// The landing loop (Exp/LineArt Frame 1 to 3): 0.6 s hold, 1.1 s move,
@@ -22,7 +23,7 @@ class _LineArtLoopState extends State<LineArtLoop>
 
   late final AnimationController _clock = AnimationController(
     vsync: this,
-    duration: Duration(milliseconds: (_total * 1000).round()),
+    duration: IqDurations.lineArt,
   );
 
   @override
@@ -51,7 +52,7 @@ class _LineArtLoopState extends State<LineArtLoop>
       if (t < end || i == _steps.length - 1) {
         final from = i ~/ 2;
         if (i.isEven) return _only(from);
-        final p = Curves.easeInOut.transform(
+        final p = IqCurves.easeInOut.transform(
           ((t - start) / _steps[i]).clamp(0.0, 1.0),
         );
         final to = (from + 1) % 3;

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/responsive.dart';
 import '../../data/models.dart';
@@ -12,28 +11,6 @@ import '../../ui/top_bar.dart';
 import '../onboarding/onboarding_sheets.dart';
 import 'discover_routes.dart';
 import 'discover_state.dart';
-
-/// The Filters sheet over Discover: an ink scrim at 50%, the card sheet
-/// sliding up 0.3 s ease-out (Figma Smart Animate).
-Page<void> filtersSheetPage(GoRouterState state) => CustomTransitionPage(
-  key: state.pageKey,
-  opaque: false,
-  barrierDismissible: true,
-  barrierColor: IqColors.brand.withValues(alpha: 0.5),
-  transitionDuration: const Duration(milliseconds: 300),
-  reverseTransitionDuration: const Duration(milliseconds: 300),
-  child: const Align(alignment: Alignment.bottomCenter, child: FiltersSheet()),
-  transitionsBuilder: (context, animation, secondaryAnimation, child) {
-    if (MediaQuery.disableAnimationsOf(context)) return child;
-    return SlideTransition(
-      position: Tween(
-        begin: const Offset(0, 1),
-        end: Offset.zero,
-      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
-      child: child,
-    );
-  },
-);
 
 /// B1 · Discover · Filters sheet (31:397) with the B12 Sort "My interests
 /// first" (192:9763). Changes apply on "Show N briefs"; "Clear filters"
@@ -184,8 +161,11 @@ class _FiltersSheetState extends ConsumerState<FiltersSheet> {
                 child: Column(
                   children: [
                     IqButton(
-                      label: 'Show $count ${count == 1 ? 'brief' : 'briefs'}',
+                      label: count == 0
+                          ? 'No briefs match'
+                          : 'Show $count ${count == 1 ? 'brief' : 'briefs'}',
                       width: double.infinity,
+                      disabled: count == 0,
                       onTap: () {
                         ref
                             .read(discoverFiltersProvider.notifier)

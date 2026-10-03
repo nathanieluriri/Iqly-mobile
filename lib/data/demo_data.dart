@@ -93,6 +93,7 @@ class DemoData {
       interest: 'marketing_advertising',
       spotsLeft: 12,
       spotsTotal: 40,
+      winnerRule: 'Winners split the pool.',
     ),
     Brief(
       id: 'c6',
@@ -189,7 +190,7 @@ class DemoData {
       id: 'c13',
       title: 'Make school fee payments less stressful',
       body: 'Parents pay fees in three trips to the bank. Design a flow that takes one.',
-      tier: Tier.standard,
+      tier: Tier.advanced,
       category: Category.productDesign,
       rewardPoolKobo: 55000000,
       status: BriefStatus.live,
@@ -283,24 +284,39 @@ class DemoData {
     ),
   ];
 
+  /// References, banks, step times and the failure reason come from the B14
+  /// receipts (demo.ts has amounts, statuses and dates only). At the Figma
+  /// 9:41 the pending one was requested today at 7:40 am and the failed one
+  /// 11 days ago at 2:05 pm, approved at 4:40 pm.
   late final List<Withdrawal> withdrawals = [
     Withdrawal(
       id: 'w3',
       amountKobo: 1000000,
       status: WithdrawalStatus.pending,
-      createdAt: at(0, -2),
+      createdAt: now.subtract(const Duration(hours: 2, minutes: 1)),
+      reference: 'IQ-WD-241003-9A2M',
+      bankName: savedBank.bankName,
+      accountNumber: savedBank.accountNumber,
     ),
     Withdrawal(
       id: 'w2',
       amountKobo: 4000000,
       status: WithdrawalStatus.completed,
       createdAt: at(-10),
+      reference: 'IQ-WD-240923-7F3K',
+      bankName: savedBank.bankName,
+      accountNumber: savedBank.accountNumber,
     ),
     Withdrawal(
       id: 'w1',
       amountKobo: 500000,
       status: WithdrawalStatus.failed,
-      createdAt: at(-11),
+      createdAt: at(-11).add(const Duration(hours: 4, minutes: 24)),
+      reference: 'IQ-WD-240922-3C7Q',
+      bankName: savedBank.bankName,
+      accountNumber: savedBank.accountNumber,
+      approvedAt: at(-11).add(const Duration(hours: 6, minutes: 59)),
+      failureReason: 'Account name didn’t match.',
     ),
   ];
 

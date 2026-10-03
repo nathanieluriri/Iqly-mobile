@@ -22,6 +22,7 @@ import '../../ui/section_title.dart';
 import '../../ui/skeleton.dart';
 import '../../ui/ticket_card.dart';
 import '../onboarding/setup_nudge.dart';
+import '../withdrawals/payout_arrival.dart';
 import 'app_shell.dart';
 import 'discover_state.dart';
 import 'discover_widgets.dart';
@@ -132,6 +133,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         : DateFormat('H:mm').format(data!.refreshedAt!);
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: IqColors.bg,
       body: SafeArea(
         bottom: false,
@@ -168,6 +170,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 ? FeedChip.forYou
                                 : FeedChip.all,
                           ),
+                          if (ref.watch(recentPayoutProvider)
+                              case final payout?)
+                            _inset(PayoutArrivalRow(payout: payout)),
                           ..._nudge(),
                           ...body,
                         ]),
@@ -273,7 +278,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         _inset(
           IqListRow(
             label: 'Activations',
-            description: '${activations.closingToday} closes today',
+            description: activations.closingToday == 1
+                ? '1 closes today'
+                : '${activations.closingToday} close today',
             showDescription: activations.closingToday > 0,
             icon: IqIcons.timer,
             divider: false,
@@ -285,6 +292,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   List<Widget> _feed(FeedData data, FeedView view) {
     final filters = ref.read(discoverFiltersProvider);
+    if (view.isEmpty && filters.narrowed) {
+      return [
+        ..._proposals(),
+        _inset(
+          const _EmptyText(
+            illustration: IqIllustrations.trophy,
+            title: 'No briefs match these filters',
+          ),
+        ),
+        _inset(
+          IqButton(
+            label: 'Clear filters',
+            kind: IqButtonKind.ghost,
+            showIcon: false,
+            width: double.infinity,
+            onTap: () => ref
+                .read(discoverFiltersProvider.notifier)
+                .apply(const DiscoverFilters()),
+          ),
+        ),
+      ];
+    }
     if (view.isEmpty) {
       return [
         ..._proposals(),
@@ -329,7 +358,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             count: '${group.total}',
             showLink: i == 0,
             link: 'Filter',
-            onSeeAll: () => context.go(Routes.profile),
+            onSeeAll: () => context.go(Routes.yourDetails),
           ),
         ),
         for (final brief in group.briefs) _ticket(BriefTicket(brief: brief)),
@@ -351,13 +380,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         _inset(
           Text(
             'Loading more'.toUpperCase(),
+            textAlign: TextAlign.center,
             style: IqText.mono.copyWith(color: IqColors.fg3),
           ),
         ),
       ] else if (!view.hasMore) ...[
         _inset(
           Text(
-            'That’s all ${view.total} ${filters.status.label.toLowerCase()} briefs',
+            view.total == 1
+                ? 'That’s the only ${filters.status.label.toLowerCase()} brief'
+                : 'That’s all ${view.total} ${filters.status.label.toLowerCase()} briefs',
             textAlign: TextAlign.center,
             style: IqText.body.copyWith(color: IqColors.fg2),
           ),
@@ -368,7 +400,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             kind: IqButtonKind.ghost,
             showIcon: false,
             width: double.infinity,
-            onTap: () => context.go(Routes.profile),
+            onTap: () => context.go(Routes.yourDetails),
           ),
         ),
       ],
@@ -395,14 +427,10 @@ List<Widget> gappedRow(Iterable<Widget> items) {
 /// The empty and failed feed: an optional illustration, a card title and
 /// one line.
 class _EmptyText extends StatelessWidget {
-  const _EmptyText({
-    required this.title,
-    required this.body,
-    this.illustration,
-  });
+  const _EmptyText({required this.title, this.body, this.illustration});
 
   final String title;
-  final String body;
+  final String? body;
   final IqIllustrations? illustration;
 
   @override
@@ -423,15 +451,17 @@ class _EmptyText extends StatelessWidget {
               style: IqText.cardTitle.copyWith(color: IqColors.fg),
             ),
           ),
-          const SizedBox(height: IqSpace.s2),
-          SizedBox(
-            width: double.infinity,
-            child: Text(
-              body,
-              textAlign: TextAlign.center,
-              style: IqText.body.copyWith(color: IqColors.fg2),
+          if (body case final body?) ...[
+            const SizedBox(height: IqSpace.s2),
+            SizedBox(
+              width: double.infinity,
+              child: Text(
+                body,
+                textAlign: TextAlign.center,
+                style: IqText.body.copyWith(color: IqColors.fg2),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

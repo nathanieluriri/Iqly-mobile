@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 import 'vector.dart';
@@ -33,8 +34,8 @@ class IqPullIndicator extends StatefulWidget {
 
   static const double height = 40;
   static const double fadeDistance = 64;
-  static const Duration turn = Duration(milliseconds: 900);
-  static const Duration doneHold = Duration(milliseconds: 800);
+  static const Duration turn = IqDurations.refreshTurn;
+  static const Duration doneHold = IqDurations.doneHold;
 
   @override
   State<IqPullIndicator> createState() => _IqPullIndicatorState();

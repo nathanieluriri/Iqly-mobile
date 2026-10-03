@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 import 'pressable.dart';
@@ -9,7 +10,8 @@ enum IqNextFabState { disabled, enabled }
 
 /// Exp/NextFab: the round next button for one-question screens, disabled
 /// until the field is valid. Enabled is the ink disc with the white brush
-/// chevron on the orange sticker; press drops the disc onto it (120 ms).
+/// chevron on the orange sticker; press drops the disc onto it (120 ms)
+/// with the commit haptic, and turning enabled peels the sticker out.
 class IqNextFab extends StatelessWidget {
   const IqNextFab({
     super.key,
@@ -31,6 +33,7 @@ class IqNextFab extends StatelessWidget {
       onTap: onTap,
       enabled: enabled,
       semanticLabel: semanticLabel,
+      haptic: IqHaptics.commit,
       builder: (context, pressed) => SizedBox.square(
         dimension: size,
         child: Sticker(

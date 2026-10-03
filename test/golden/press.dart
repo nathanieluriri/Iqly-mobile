@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/theme/theme.dart';
 import 'package:iqly_mobile/ui/pressable.dart';
 
+import 'golden.dart';
+
 /// Same frame as expectComponentGolden, captured while a finger is held on
 /// [target] (the first IqPressable by default), so the Pressed variant shows.
 Future<void> expectPressedComponentGolden(
@@ -38,10 +40,7 @@ Future<void> expectPressedComponentGolden(
     tester.getCenter(target ?? find.byType(IqPressable).first),
   );
   await tester.pumpAndSettle();
-  await expectLater(
-    find.byType(MaterialApp),
-    matchesGoldenFile('goldens/$name.png'),
-  );
+  await expectMatchesGolden(find.byType(MaterialApp), 'goldens/$name.png');
   await gesture.up();
   await tester.pumpAndSettle();
 }

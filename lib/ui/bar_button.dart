@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'pressable.dart';
 
@@ -43,10 +44,8 @@ class IqBarButton extends StatelessWidget {
         width: width,
         height: band + math.max(inset, homeIndicator),
         child: AnimatedContainer(
-          duration: MediaQuery.disableAnimationsOf(context)
-              ? Duration.zero
-              : const Duration(milliseconds: 120),
-          curve: Curves.easeOut,
+          duration: pressMotion(context, pressed),
+          curve: IqCurves.easeOut,
           color: pressed ? IqColors.brandDark : IqColors.brand,
           child: Stack(
             children: [

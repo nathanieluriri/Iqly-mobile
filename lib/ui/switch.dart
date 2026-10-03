@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 
 enum IqSwitchState { off, on }
 
 /// Exp/Switch: a 52 x 32 toggle. On is the ink track with the orange marker
 /// knob (a state, not a warning). Tapping reports the flipped state through
-/// [onChanged]; the knob travels 20 px and the fills cross over in 160 ms
-/// ease-out, a cut under reduced motion. Pair with Exp/SettingRow for the
-/// full-width 64 px target.
+/// [onChanged] with the select haptic; the knob travels 20 px and the fills
+/// cross over in 160 ms ease-out, a cut under reduced motion. Pair with
+/// Exp/SettingRow for the full-width 64 px target.
 ///
 /// Figma over brief: both knobs carry a 1.5 px Color/brand outline.
 /// Figma gives no timing; 160 ms follows the kit rule of 150 to 300 ms ease-out.
@@ -26,14 +27,12 @@ class IqSwitch extends StatelessWidget {
   /// Needed when the switch stands alone; Exp/SettingRow supplies its own.
   final String? semanticLabel;
 
-  static const Duration duration = Duration(milliseconds: 160);
+  static const Duration duration = IqDurations.tick;
 
   @override
   Widget build(BuildContext context) {
     final on = state == IqSwitchState.on;
-    final duration = MediaQuery.disableAnimationsOf(context)
-        ? Duration.zero
-        : IqSwitch.duration;
+    final duration = motion(context, IqSwitch.duration);
     final onChanged = this.onChanged;
     return Semantics(
       toggled: on,
@@ -43,10 +42,13 @@ class IqSwitch extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: onChanged == null
             ? null
-            : () => onChanged(on ? IqSwitchState.off : IqSwitchState.on),
+            : () {
+                IqHaptics.select.play();
+                onChanged(on ? IqSwitchState.off : IqSwitchState.on);
+              },
         child: AnimatedContainer(
           duration: duration,
-          curve: Curves.easeOut,
+          curve: IqCurves.easeOut,
           width: 52,
           height: 32,
           padding: const EdgeInsets.all(IqSpace.s1),
@@ -56,11 +58,11 @@ class IqSwitch extends StatelessWidget {
           ),
           child: AnimatedAlign(
             duration: duration,
-            curve: Curves.easeOut,
+            curve: IqCurves.easeOut,
             alignment: on ? Alignment.centerRight : Alignment.centerLeft,
             child: AnimatedContainer(
               duration: duration,
-              curve: Curves.easeOut,
+              curve: IqCurves.easeOut,
               width: 24,
               height: 24,
               decoration: BoxDecoration(

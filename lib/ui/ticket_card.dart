@@ -136,11 +136,8 @@ class IqTicketCard extends StatelessWidget {
                   ),
                   const SizedBox(width: IqSpace.s2),
                   Expanded(
-                    child: Text(
+                    child: _Meta(
                       meta,
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.ellipsis,
                       style: IqText.small.copyWith(
                         color: hero
                             ? IqColors.sidebarFg.withValues(alpha: 0.8)
@@ -280,4 +277,47 @@ class IqTicketCard extends StatelessWidget {
       color: hero ? IqColors.primaryFg.withValues(alpha: 0.8) : IqColors.fg3,
     ),
   );
+}
+
+/// "Business · Tier": a long business name gives way first, so the tier
+/// after the last separator shows in full. When the tier would leave the name
+/// less than 40 pt (large text), the whole line ellipsizes instead.
+class _Meta extends StatelessWidget {
+  const _Meta(this.text, {required this.style});
+
+  final String text;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    Text part(String value) => Text(
+      value,
+      maxLines: 1,
+      softWrap: false,
+      overflow: TextOverflow.ellipsis,
+      style: style,
+    );
+    final cut = text.lastIndexOf(' · ');
+    if (cut < 0) return part(text);
+    final tail = text.substring(cut);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final painter = TextPainter(
+          text: TextSpan(text: tail, style: style),
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+          maxLines: 1,
+        )..layout();
+        final fits = painter.width + 40 <= constraints.maxWidth;
+        painter.dispose();
+        if (!fits) return part(text);
+        return Row(
+          children: [
+            Flexible(child: part(text.substring(0, cut))),
+            part(tail),
+          ],
+        );
+      },
+    );
+  }
 }

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'button.dart';
 
@@ -15,6 +16,9 @@ import 'button.dart';
 /// to the same top-right flare, drifting slowly (still under reduced motion).
 ///
 /// Figma over brief: the Inverse Withdraw button keeps its orange sticker.
+///
+/// [figureBuilder] draws the four figures; a screen passes one to animate
+/// them (Figma has no motion here). Plain [Text] by default.
 class IqBalanceHero extends StatelessWidget {
   const IqBalanceHero({
     super.key,
@@ -24,6 +28,7 @@ class IqBalanceHero extends StatelessWidget {
     this.earned = '₦62,500.00',
     this.holdLabel = 'On hold · 1 pending',
     this.onWithdraw,
+    this.figureBuilder,
   });
 
   final String amount;
@@ -32,6 +37,10 @@ class IqBalanceHero extends StatelessWidget {
   final String earned;
   final String holdLabel;
   final VoidCallback? onWithdraw;
+  final Widget Function(String text, TextStyle style)? figureBuilder;
+
+  Widget _figure(String text, TextStyle style) =>
+      figureBuilder?.call(text, style) ?? Text(text, style: style);
 
   @override
   Widget build(BuildContext context) {
@@ -63,39 +72,37 @@ class IqBalanceHero extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.baseline,
                     textBaseline: TextBaseline.alphabetic,
                     children: [
-                      Text(
-                        amount,
-                        style: IqText.display.copyWith(
-                          color: IqColors.sidebarFg,
+                      Flexible(
+                        child: _figure(
+                          amount,
+                          IqText.display.copyWith(color: IqColors.sidebarFg),
                         ),
                       ),
                       const SizedBox(width: IqSpace.s0p5),
-                      Text(
+                      _figure(
                         decimals,
-                        style: IqText.figureSmall.copyWith(
-                          color: IqColors.sidebarFg,
-                        ),
+                        IqText.figureSmall.copyWith(color: IqColors.sidebarFg),
                       ),
                     ],
                   ),
                   const SizedBox(height: IqSpace.s1p5),
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: IqSpace.s1p5),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    // A Wrap so large text drops LIFETIME EARNED to a
+                    // second line instead of overflowing the card.
+                    child: Wrap(
+                      spacing: IqSpace.s6,
+                      runSpacing: IqSpace.s1p5,
                       children: [
                         _Stat(
                           label: holdLabel.toUpperCase(),
-                          value: onHold,
                           labelStyle: label,
-                          valueStyle: value,
+                          value: _figure(onHold, value),
                         ),
-                        const SizedBox(width: IqSpace.s6),
                         _Stat(
                           label: 'Lifetime earned'.toUpperCase(),
-                          value: earned,
                           labelStyle: label,
-                          valueStyle: value,
+                          value: _figure(earned, value),
                         ),
                       ],
                     ),
@@ -122,13 +129,11 @@ class _Stat extends StatelessWidget {
     required this.label,
     required this.value,
     required this.labelStyle,
-    required this.valueStyle,
   });
 
   final String label;
-  final String value;
+  final Widget value;
   final TextStyle labelStyle;
-  final TextStyle valueStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -138,7 +143,7 @@ class _Stat extends StatelessWidget {
       children: [
         Text(label, style: labelStyle),
         const SizedBox(height: IqSpace.s0p5),
-        Text(value, style: valueStyle),
+        value,
       ],
     );
   }
@@ -147,7 +152,7 @@ class _Stat extends StatelessWidget {
 class _InkWash extends StatefulWidget {
   const _InkWash();
 
-  static const Duration loop = Duration(seconds: 24);
+  static const Duration loop = IqDurations.inkWash;
 
   @override
   State<_InkWash> createState() => _InkWashState();

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/deadline.dart';
 import 'package:iqly_mobile/core/session.dart';
@@ -50,14 +51,16 @@ Map<String, Object> signedInPrefs({
 };
 
 /// Pumps the real router at [location] at 390 x 844 with the OS insets,
-/// animations off and the clock at [figmaNow]. Returns the container so a
-/// test can drive providers.
+/// animations off and the clock at [figmaNow]. [overrides] swap services
+/// (an instant wallet service, say). Returns the container so a test can
+/// drive providers.
 Future<ProviderContainer> pumpApp(
   WidgetTester tester,
   String location, {
   IqlyRepository? repository,
   Map<String, Object>? prefs,
   bool reducedMotion = true,
+  List<Override> overrides = const [],
 }) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
@@ -77,6 +80,7 @@ Future<ProviderContainer> pumpApp(
       sharedPreferencesProvider.overrideWithValue(shared),
       repositoryProvider.overrideWithValue(repository ?? ScriptedRepository()),
       clockProvider.overrideWithValue(() => figmaNow),
+      ...overrides,
     ],
   );
   addTearDown(container.dispose);

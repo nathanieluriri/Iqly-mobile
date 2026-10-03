@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/transitions.dart';
 import 'features/discover/discover_routes.dart';
 import 'features/entry/forgot_password_screen.dart';
 import 'features/entry/landing_screen.dart';
@@ -11,6 +12,7 @@ import 'features/entry/reset_link_sent_screen.dart';
 import 'features/entry/sign_in_screen.dart';
 import 'features/entry/your_name_screen.dart';
 import 'features/onboarding/onboarding_routes.dart';
+import 'features/profile/profile_routes.dart';
 import 'features/splash/splash_screen.dart';
 import 'features/submissions/submissions_routes.dart';
 
@@ -37,12 +39,20 @@ abstract final class Routes {
   static const submissionDetail = '/submissions/:id';
   static const result = '/submissions/:id/result';
   static const wallet = '/wallet';
+  static const withdraw = '/wallet/withdraw';
+  static const selectBank = '/wallet/select-bank';
+  static const withdrawal = '/wallet/withdrawals/:id';
+  static const withdrawalPending = '/wallet/withdrawals/:id/pending';
   static const profile = '/profile';
   static const notifications = '/notifications';
   static const briefDetail = '/briefs/:id';
   static const submit = '/briefs/:id/submit';
   static const polls = '/polls';
   static const activations = '/activations';
+  static const yourDetails = '/profile/details';
+  static const notificationPreferences = '/profile/notifications';
+  static const deleteAccount = '/profile/delete-account';
+  static const accountClosing = '/account-closing';
 
   static String brief(String id) => '/briefs/$id';
   static String submitTo(String id) => '/briefs/$id/submit';
@@ -58,58 +68,36 @@ GoRouter buildRouter({String initialLocation = Routes.splash}) {
     routes: [
       GoRoute(
         path: Routes.splash,
-        builder: (context, state) => const SplashScreen(),
+        pageBuilder: (context, state) =>
+            handoffPage(state, const SplashScreen()),
       ),
       GoRoute(
         path: Routes.landing,
         pageBuilder: (context, state) =>
-            _dissolve(state, const LandingScreen()),
+            handoffPage(state, const LandingScreen()),
       ),
       appShellRoute(rootKey),
       ...discoverRoutes,
       ..._entryRoutes,
       ...onboardingRoutes,
       ...submissionRoutes,
+      ...profileRoutes,
     ],
   );
 }
 
-/// The splash hands off with a 0.4 s ease-out dissolve (Figma prototype).
-CustomTransitionPage<void> _dissolve(GoRouterState state, Widget child) =>
-    CustomTransitionPage(
-      key: state.pageKey,
-      child: child,
-      transitionDuration: const Duration(milliseconds: 400),
-      transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-          FadeTransition(
-            opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
-            child: child,
-          ),
-    );
-
+/// The sign-up, sign-in and reset steps push; the notifications ask is a
+/// push from onboarding Done.
 final _entryRoutes = [
-  GoRoute(
-    path: Routes.yourName,
-    builder: (context, state) => const YourNameScreen(),
-  ),
-  GoRoute(
-    path: Routes.createPassword,
-    builder: (context, state) => const PasswordScreen(),
-  ),
-  GoRoute(
-    path: Routes.signIn,
-    builder: (context, state) => const SignInScreen(),
-  ),
-  GoRoute(
-    path: Routes.forgotPassword,
-    builder: (context, state) => const ForgotPasswordScreen(),
-  ),
-  GoRoute(
-    path: Routes.resetLinkSent,
-    builder: (context, state) => const ResetLinkSentScreen(),
-  ),
-  GoRoute(
-    path: Routes.notificationsAsk,
-    builder: (context, state) => const NotificationsAskScreen(),
-  ),
+  _push(Routes.yourName, const YourNameScreen()),
+  _push(Routes.createPassword, const PasswordScreen()),
+  _push(Routes.signIn, const SignInScreen()),
+  _push(Routes.forgotPassword, const ForgotPasswordScreen()),
+  _push(Routes.resetLinkSent, const ResetLinkSentScreen()),
+  _push(Routes.notificationsAsk, const NotificationsAskScreen()),
 ];
+
+GoRoute _push(String path, Widget screen) => GoRoute(
+  path: path,
+  pageBuilder: (context, state) => pushPage(state, screen),
+);
