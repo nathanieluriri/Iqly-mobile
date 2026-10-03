@@ -22,6 +22,7 @@ class IqListRow extends StatelessWidget {
     this.description = 'Phone, location, interests',
     this.showDescription = true,
     this.divider = true,
+    this.showChevron = true,
     this.icon,
     this.tone = IqListRowTone.standard,
     this.onTap,
@@ -31,6 +32,9 @@ class IqListRow extends StatelessWidget {
   final String description;
   final bool showDescription;
   final bool divider;
+
+  /// The chevron is a hidden nested layer in Figma (B11 Welcome), not a prop.
+  final bool showChevron;
   final IqIcons? icon;
   final IqListRowTone tone;
   final VoidCallback? onTap;
@@ -94,7 +98,7 @@ class IqListRow extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (!danger) ...[
+                  if (!danger && showChevron) ...[
                     const SizedBox(width: 14),
                     const IqIcon(
                       IqIcons.forward,
