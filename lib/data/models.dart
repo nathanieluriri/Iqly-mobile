@@ -99,10 +99,14 @@ class LedgerEntry {
     required this.type,
     required this.amountKobo,
     required this.createdAt,
+    this.submissionId,
   });
 
   final String id;
   final LedgerType type;
+
+  /// The winning submission an award pays out; null for withdrawals.
+  final String? submissionId;
 
   /// Signed: awards are positive, withdrawals negative.
   final int amountKobo;

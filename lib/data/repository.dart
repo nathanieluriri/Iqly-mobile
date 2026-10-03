@@ -14,6 +14,7 @@ abstract class IqlyRepository {
   Future<List<Withdrawal>> withdrawals();
   Future<List<Bank>> banks();
   Future<SavedBank?> savedBank();
+  Future<int> unreadNotifications();
 }
 
 class DemoRepository implements IqlyRepository {
@@ -45,6 +46,9 @@ class DemoRepository implements IqlyRepository {
 
   @override
   Future<SavedBank?> savedBank() async => DemoData.savedBank;
+
+  @override
+  Future<int> unreadNotifications() async => DemoData.unreadNotifications;
 }
 
 final repositoryProvider = Provider<IqlyRepository>(

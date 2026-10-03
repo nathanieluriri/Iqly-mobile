@@ -12,6 +12,8 @@ import 'features/entry/sign_in_screen.dart';
 import 'features/entry/your_name_screen.dart';
 import 'features/onboarding/onboarding_routes.dart';
 import 'features/splash/splash_screen.dart';
+import 'features/submissions/my_submissions_screen.dart';
+import 'features/submissions/submissions_routes.dart';
 
 abstract final class Routes {
   static const splash = '/splash';
@@ -30,6 +32,9 @@ abstract final class Routes {
   static const onboardingWhatYouLike = '/onboarding/what-you-like';
   static const onboardingResume = '/onboarding/resume';
   static const onboardingDone = '/onboarding/done';
+  static const submissions = '/submissions';
+  static const submissionDetail = '/submissions/:id';
+  static const result = '/submissions/:id/result';
 }
 
 final routerProvider = Provider<GoRouter>(
@@ -51,6 +56,14 @@ final routerProvider = Provider<GoRouter>(
       ),
       ..._entryRoutes,
       ...onboardingRoutes,
+      GoRoute(
+        path: Routes.submissions,
+        pageBuilder: (context, state) => NoTransitionPage<void>(
+          key: state.pageKey,
+          child: const MySubmissionsScreen(),
+        ),
+      ),
+      ...submissionRoutes,
     ],
   ),
 );
