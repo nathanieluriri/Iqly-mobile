@@ -13,7 +13,8 @@ import 'onboarding_sheets.dart';
 ///
 /// Owner over Figma: CITY is a picker over the city list (the brief's picker)
 /// where the frame draws a Text field. A city typed before the list existed,
-/// or added with "Add mine", shows as it was saved.
+/// or added with "Add my city", shows as it was saved. A picked value lands
+/// once its sheet has dropped (spec 6.13).
 class WhereYouLiveScreen extends ConsumerWidget {
   const WhereYouLiveScreen({super.key});
 
@@ -26,6 +27,7 @@ class WhereYouLiveScreen extends ConsumerWidget {
     Future<void> pickState() async {
       final picked = await showOnboardingSheet<String>(
         context,
+        hug: true,
         (context) => OptionSheet(
           title: 'State of residence',
           options: stateOptions,
@@ -51,6 +53,7 @@ class WhereYouLiveScreen extends ConsumerWidget {
       step: IqStepMarkStep.twoOfThree,
       icon: IqIcons.pin,
       saved: profile.state != null || city.isNotEmpty,
+      answer: (profile.state, city),
       title: 'Where do you live?',
       onBack: () => goToStep(context, ref, OnboardingStep.aboutYou, back: true),
       onSkip: () => goToStep(context, ref, OnboardingStep.whatYouLike),
