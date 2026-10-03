@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/theme/theme.dart';
@@ -8,12 +9,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Renders a screen at the Figma frame size with the OS status bar (54) and
 /// home indicator (34) as safe-area insets, animations off. [keyboard] raises
 /// a system keyboard of that height. [prepare] seeds providers before the
-/// first frame; [act] drives the screen into the frame's state.
+/// first frame; [act] drives the screen into the frame's state. [overrides]
+/// swap services (a zero-delay auth, say).
 Future<void> expectScreenGolden(
   WidgetTester tester,
   String name,
   Widget screen, {
   Map<String, Object> prefs = const {},
+  List<Override> overrides = const [],
   void Function(ProviderContainer container)? prepare,
   Future<void> Function(WidgetTester tester)? act,
   double keyboard = 0,
@@ -32,7 +35,10 @@ Future<void> expectScreenGolden(
   SharedPreferences.setMockInitialValues(prefs);
   final shared = await SharedPreferences.getInstance();
   final container = ProviderContainer(
-    overrides: [sharedPreferencesProvider.overrideWithValue(shared)],
+    overrides: [
+      sharedPreferencesProvider.overrideWithValue(shared),
+      ...overrides,
+    ],
   );
   addTearDown(container.dispose);
   prepare?.call(container);

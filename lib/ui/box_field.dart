@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 
 enum IqBoxFieldTone { ink, paper }
 
-enum IqBoxFieldState { empty, active }
+enum IqBoxFieldState { empty, active, error }
 
 /// Exp/BoxField: the outlined entry box on the landing (email). Wraps a real
 /// [TextField], text centred; [value] is the placeholder. [state] forces a
@@ -13,10 +14,15 @@ enum IqBoxFieldState { empty, active }
 ///
 /// Figma over brief: the set also has an Ink tone (white box, brand-fg2 text) and it is the default.
 /// Figma over brief: typed text keeps the placeholder colour, centred, and the outline is 2 px on Active (1.5 at rest).
+/// Not in Figma: the set has no Error variant. Error borrows the Field Error
+/// language: a 2 px err outline in place of the accent, and [help] 6 px below
+/// in Mob/Small err-strong (err-soft on the Ink tone's brand ground), centred
+/// like the value, rising in as the Field help does.
 class IqBoxField extends StatefulWidget {
   const IqBoxField({
     super.key,
     this.value = 'Enter your email',
+    this.help = '',
     this.tone = IqBoxFieldTone.ink,
     this.state,
     this.controller,
@@ -31,6 +37,7 @@ class IqBoxField extends StatefulWidget {
   });
 
   final String value;
+  final String help;
   final IqBoxFieldTone tone;
   final IqBoxFieldState? state;
   final TextEditingController? controller;
@@ -81,57 +88,83 @@ class _IqBoxFieldState extends State<IqBoxField> {
 
   @override
   Widget build(BuildContext context) {
-    final active =
-        (widget.state ??
-            (_focus.hasFocus
-                ? IqBoxFieldState.active
-                : IqBoxFieldState.empty)) ==
-        IqBoxFieldState.active;
+    final state =
+        widget.state ??
+        (_focus.hasFocus ? IqBoxFieldState.active : IqBoxFieldState.empty);
     final ink = widget.tone == IqBoxFieldTone.ink;
     final textColor = ink ? IqColors.brandFg2 : IqColors.fg3;
     final style = IqText.body.copyWith(color: textColor);
+    final box = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _focus.requestFocus(),
+      child: Container(
+        width: widget.width,
+        height: IqBoxField.height,
+        padding: const EdgeInsets.symmetric(horizontal: IqSpace.s5),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: ink ? IqColors.card : null,
+          borderRadius: BorderRadius.circular(IqBoxField.radius),
+          border: Border.all(
+            color: switch (state) {
+              IqBoxFieldState.active => IqColors.accent,
+              IqBoxFieldState.error => IqColors.err,
+              IqBoxFieldState.empty =>
+                ink ? IqColors.brandLine : IqColors.line2,
+            },
+            width: state == IqBoxFieldState.empty ? 1.5 : 2,
+          ),
+        ),
+        child: TextField(
+          controller: widget.controller,
+          focusNode: _focus,
+          onChanged: widget.onChanged,
+          onSubmitted: widget.onSubmitted,
+          keyboardType: widget.keyboardType,
+          textInputAction: widget.textInputAction,
+          inputFormatters: widget.inputFormatters,
+          autofocus: widget.autofocus,
+          autocorrect: false,
+          maxLines: 1,
+          textAlign: TextAlign.center,
+          style: style,
+          cursorColor: IqColors.brand,
+          cursorWidth: 2,
+          decoration: InputDecoration.collapsed(
+            hintText: widget.value,
+            hintStyle: style,
+          ),
+        ),
+      ),
+    );
+    // The box stays the first child either way, so the text field keeps its
+    // element (and the keyboard) when the help line comes and goes.
     return Material(
       type: MaterialType.transparency,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => _focus.requestFocus(),
-        child: Container(
-          width: widget.width,
-          height: IqBoxField.height,
-          padding: const EdgeInsets.symmetric(horizontal: IqSpace.s5),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: ink ? IqColors.card : null,
-            borderRadius: BorderRadius.circular(IqBoxField.radius),
-            border: Border.all(
-              color: active
-                  ? IqColors.accent
-                  : ink
-                  ? IqColors.brandLine
-                  : IqColors.line2,
-              width: active ? 2 : 1.5,
-            ),
-          ),
-          child: TextField(
-            controller: widget.controller,
-            focusNode: _focus,
-            onChanged: widget.onChanged,
-            onSubmitted: widget.onSubmitted,
-            keyboardType: widget.keyboardType,
-            textInputAction: widget.textInputAction,
-            inputFormatters: widget.inputFormatters,
-            autofocus: widget.autofocus,
-            autocorrect: false,
-            maxLines: 1,
-            textAlign: TextAlign.center,
-            style: style,
-            cursorColor: IqColors.brand,
-            cursorWidth: 2,
-            decoration: InputDecoration.collapsed(
-              hintText: widget.value,
-              hintStyle: style,
-            ),
-          ),
+      child: SizedBox(
+        width: widget.width,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            box,
+            if (state == IqBoxFieldState.error && widget.help.isNotEmpty) ...[
+              const SizedBox(height: IqSpace.s1p5),
+              Reveal(
+                key: ValueKey(widget.help),
+                child: Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    widget.help,
+                    textAlign: TextAlign.center,
+                    style: IqText.small.copyWith(
+                      color: ink ? IqColors.errSoft : IqColors.errStrong,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );

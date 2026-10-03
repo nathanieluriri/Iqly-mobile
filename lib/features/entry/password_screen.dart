@@ -5,9 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../data/auth.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
-import '../../ui/field.dart';
 import '../../ui/icon.dart';
 import '../../ui/step_mark.dart';
+import 'entry_copy.dart';
 import 'entry_state.dart';
 import 'entry_widgets.dart';
 import 'show_password.dart';
@@ -23,13 +23,11 @@ class PasswordScreen extends ConsumerStatefulWidget {
 class _PasswordScreenState extends ConsumerState<PasswordScreen> {
   final _password = EntryInput();
   bool _shown = false;
-  bool _tooShort = false;
   bool _busy = false;
 
   @override
   void initState() {
     super.initState();
-    _password.controller.addListener(_clearError);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _password.focus.requestFocus();
     });
@@ -41,18 +39,13 @@ class _PasswordScreenState extends ConsumerState<PasswordScreen> {
     super.dispose();
   }
 
-  void _clearError() {
-    if (_tooShort && _long) setState(() => _tooShort = false);
-  }
-
-  bool get _long => _password.controller.text.length >= minPasswordLength;
-
   Future<void> _next() async {
-    if (!_long) {
-      setState(() => _tooShort = true);
+    final password = _password.controller.text;
+    if (password.isEmpty || _busy) return;
+    if (password.length < minPasswordLength) {
+      _password.fail(ShippedCopy.shortPassword);
       return;
     }
-    if (_busy) return;
     _busy = true;
     final draft = ref.read(entryDraftProvider);
     final result = await ref
@@ -61,10 +54,19 @@ class _PasswordScreenState extends ConsumerState<PasswordScreen> {
           firstName: draft.firstName,
           lastName: draft.lastName,
           email: draft.email,
-          password: _password.controller.text,
+          password: password,
         );
     _busy = false;
-    if (!mounted || !result.ok) return;
+    if (!mounted) return;
+    final failure = result.failure;
+    if (failure == AuthFailure.emailTaken) {
+      context.go(Routes.signIn);
+      return;
+    }
+    if (failure != null) {
+      _password.fail(EntryCopy.signUp(failure));
+      return;
+    }
     await completeSignIn(ref, newAccount: true);
     if (mounted) context.go(Routes.onboarding);
   }
@@ -75,7 +77,10 @@ class _PasswordScreenState extends ConsumerState<PasswordScreen> {
       listenable: _password.changes,
       builder: (context, _) => EntryScaffold(
         onBack: () => goBack(context, Routes.yourName),
-        action: NextBar(enabled: _long, onTap: _next),
+        action: NextBar(
+          enabled: _password.controller.text.isNotEmpty,
+          onTap: _next,
+        ),
         children: [
           const Align(
             alignment: Alignment.centerLeft,
@@ -87,16 +92,10 @@ class _PasswordScreenState extends ConsumerState<PasswordScreen> {
           const SizedBox(height: IqSpace.s4),
           const EntryTitle('Create a password'),
           const SizedBox(height: IqSpace.s4),
-          IqField(
-            size: IqFieldSize.large,
+          EntryField(
+            input: _password,
             label: 'Password',
-            value: '',
-            help: 'At least 8 characters',
-            state: fieldStateFor(_password, valid: _long, error: _tooShort),
-            showStatus: false,
-            showNote: false,
-            controller: _password.controller,
-            focusNode: _password.focus,
+            valid: _password.controller.text.length >= minPasswordLength,
             obscureText: !_shown,
             keyboardType: TextInputType.visiblePassword,
             autofillHints: const [AutofillHints.newPassword],
@@ -107,10 +106,10 @@ class _PasswordScreenState extends ConsumerState<PasswordScreen> {
           Row(
             children: [
               Expanded(
-                child: _tooShort
+                child: _password.error == ShippedCopy.shortPassword
                     ? const SizedBox.shrink()
                     : Text(
-                        'At least 8 characters',
+                        ShippedCopy.shortPassword,
                         style: IqText.small.copyWith(color: IqColors.fg2),
                       ),
               ),

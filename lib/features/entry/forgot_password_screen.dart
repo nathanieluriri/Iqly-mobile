@@ -6,7 +6,7 @@ import '../../data/auth.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/button.dart';
-import '../../ui/field.dart';
+import 'entry_copy.dart';
 import 'entry_state.dart';
 import 'entry_widgets.dart';
 
@@ -42,12 +42,20 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
 
   Future<void> _send() async {
     final email = _email.text;
-    if (!isEmail(email) || _sending) return;
+    if (email.isEmpty || _sending) return;
+    if (!isEmail(email)) {
+      _email.fail(EntryCopy.badEmail);
+      return;
+    }
     setState(() => _sending = true);
     final result = await ref.read(authServiceProvider).sendResetLink(email);
     if (!mounted) return;
     setState(() => _sending = false);
-    if (!result.ok) return;
+    final failure = result.failure;
+    if (failure != null) {
+      _email.fail(EntryCopy.resetLink(failure));
+      return;
+    }
     ref.read(entryDraftProvider.notifier).setEmail(email);
     context.push(Routes.resetLinkSent);
   }
@@ -57,7 +65,6 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     return ListenableBuilder(
       listenable: _email.changes,
       builder: (context, _) {
-        final valid = isEmail(_email.text);
         return EntryScaffold(
           onBack: () => goBack(context, Routes.signIn),
           action: Padding(
@@ -71,7 +78,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
               label: 'Send reset link',
               showIcon: false,
               width: double.infinity,
-              disabled: !valid,
+              disabled: _email.text.isEmpty,
               loading: _sending,
               onTap: _send,
             ),
@@ -84,15 +91,10 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
               style: IqText.body.copyWith(color: IqColors.fg2),
             ),
             const SizedBox(height: IqSpace.s4),
-            IqField(
-              size: IqFieldSize.large,
+            EntryField(
+              input: _email,
               label: 'Email',
-              value: '',
-              state: fieldStateFor(_email, valid: valid),
-              showStatus: false,
-              showNote: false,
-              controller: _email.controller,
-              focusNode: _email.focus,
+              valid: isEmail(_email.text),
               keyboardType: TextInputType.emailAddress,
               autofillHints: const [AutofillHints.email],
               textInputAction: TextInputAction.send,
