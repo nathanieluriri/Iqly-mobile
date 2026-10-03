@@ -41,16 +41,19 @@ class SubmissionDetailScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                IqTopBar(
-                  variant: IqTopBarVariant.page,
-                  title: 'Submission',
-                  sharedChrome: true,
-                  onBack: () => context.canPop()
-                      ? context.pop()
-                      : context.go(
-                          Routes.submissions,
-                          extra: NavDirection.back,
-                        ),
+                ChromeHero(
+                  tag: ChromeTags.back,
+                  shuttle: IqTopBar.shuttle,
+                  child: IqTopBar(
+                    variant: IqTopBarVariant.page,
+                    title: 'Submission',
+                    onBack: () => context.canPop()
+                        ? context.pop()
+                        : context.go(
+                            Routes.submissions,
+                            extra: NavDirection.back,
+                          ),
+                  ),
                 ),
                 Expanded(
                   child: item == null

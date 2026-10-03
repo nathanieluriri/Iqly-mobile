@@ -20,9 +20,9 @@ enum IqTopBarVariant { home, page, sheet }
 /// panel while pressed (100 ms, back in 160); a new greeting crossfades in
 /// (150 ms); the unread count pops in (.6 to 1, 220 ms; no sooner than 200
 /// ms after the bar appears), rolls when it changes and pops out (150 ms
-/// ease-in) at zero. With [sharedChrome] on both Page bars of a push, the
-/// back button holds still and the title crossfades (out over the first
-/// 40%, in from 20% to 80%).
+/// ease-in) at zero. Across a push between two Page bars, each in a
+/// ChromeHero with [shuttle], the back button holds still while the titles
+/// cross.
 class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
   const IqTopBar({
     super.key,
@@ -39,7 +39,6 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
     this.onBack,
     this.onTrailing,
     this.onClose,
-    this.sharedChrome = false,
   });
 
   final IqTopBarVariant variant;
@@ -58,9 +57,54 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onTrailing;
   final VoidCallback? onClose;
 
-  /// Page bars that pass this hold their back button and title across a
-  /// push between them.
-  final bool sharedChrome;
+  /// A Page bar in flight between two pages, for a ChromeHero around the
+  /// bar (spec 4.3): the back button holds still while the old title leaves
+  /// over 0 to 120 ms ease-in and the new one comes in over 60 to 240
+  /// ease-out, [progress] running from the leaving page's bar, [from], to the
+  /// arriving page's, [to], whichever way the pages move.
+  static Widget shuttle(
+    BuildContext context,
+    Animation<double> progress,
+    Widget from,
+    Widget to,
+  ) {
+    if ((from as IqTopBar).title == (to as IqTopBar).title) return to;
+    return AnimatedBuilder(
+      animation: progress,
+      builder: (context, _) {
+        final now = IqDurations.screen * progress.value;
+        double span(Duration from, Duration to, Curve curve) => curve.transform(
+          ((now - from).inMicroseconds / (to - from).inMicroseconds).clamp(
+            0.0,
+            1.0,
+          ),
+        );
+        final out = span(
+          Duration.zero,
+          IqChromeTiming.titleOut,
+          IqCurves.easeIn,
+        );
+        final come = span(
+          IqChromeTiming.titleInAt,
+          IqChromeTiming.titleInEnd,
+          IqCurves.easeOut,
+        );
+        return Stack(
+          children: [
+            ClipRect(clipper: const _BarSide(back: true), child: to),
+            ClipRect(
+              clipper: const _BarSide(back: false),
+              child: Opacity(opacity: 1 - out, child: from),
+            ),
+            ClipRect(
+              clipper: const _BarSide(back: false),
+              child: Opacity(opacity: come, child: to),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Size get preferredSize => Size.fromHeight(switch (variant) {
@@ -136,34 +180,28 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
       child: Row(
         children: [
           if (showBack) ...[
-            _shared(
-              _ChromeHero.back,
-              _RoundButton(
-                onTap: onBack,
-                semanticLabel: 'Back',
-                fill: IqColors.card,
-                stroke: IqColors.line,
-                radius: 22,
-                child: const IqIcon(
-                  IqIcons.back,
-                  size: 22,
-                  color: IqColors.brand,
-                ),
+            _RoundButton(
+              onTap: onBack,
+              semanticLabel: 'Back',
+              fill: IqColors.card,
+              stroke: IqColors.line,
+              radius: 22,
+              child: const IqIcon(
+                IqIcons.back,
+                size: 22,
+                color: IqColors.brand,
               ),
             ),
             const SizedBox(width: IqSpace.s2),
           ],
           Expanded(
-            child: _shared(
-              _ChromeHero.title,
-              Text(
-                title,
-                maxLines: 1,
-                softWrap: false,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: IqText.cardTitle.copyWith(color: IqColors.brand),
-              ),
+            child: Text(
+              title,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: IqText.cardTitle.copyWith(color: IqColors.brand),
             ),
           ),
           const SizedBox(width: IqSpace.s2),
@@ -176,62 +214,6 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
             )
           else
             const SizedBox.square(dimension: 44),
-        ],
-      ),
-    );
-  }
-
-  Widget _shared(_ChromeHero hero, Widget child) {
-    if (!sharedChrome) return child;
-    return switch (hero) {
-      _ChromeHero.back => Hero(
-        tag: hero,
-        // The real button stays under the flight, unseen, so a back tap
-        // mid-push still lands.
-        placeholderBuilder: (context, size, child) =>
-            Opacity(opacity: 0, child: child),
-        child: child,
-      ),
-      _ChromeHero.title => Hero(
-        tag: hero,
-        flightShuttleBuilder: _crossfadeTitle,
-        child: child,
-      ),
-    };
-  }
-
-  static Widget _crossfadeTitle(
-    BuildContext flightContext,
-    Animation<double> animation,
-    HeroFlightDirection direction,
-    BuildContext fromContext,
-    BuildContext toContext,
-  ) {
-    final from = (fromContext.widget as Hero).child;
-    final to = (toContext.widget as Hero).child;
-    return Material(
-      type: MaterialType.transparency,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          FadeTransition(
-            opacity: animation.drive(
-              Tween<double>(begin: 1, end: 0).chain(
-                CurveTween(
-                  curve: const Interval(0, 0.4, curve: IqCurves.easeIn),
-                ),
-              ),
-            ),
-            child: Center(child: from),
-          ),
-          FadeTransition(
-            opacity: animation.drive(
-              CurveTween(
-                curve: const Interval(0.2, 0.8, curve: IqCurves.easeOut),
-              ),
-            ),
-            child: Center(child: to),
-          ),
         ],
       ),
     );
@@ -290,6 +272,24 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
       ],
     );
   }
+}
+
+/// The Page bar's back button side (12 padding, 44 button, 8 gap) or the
+/// rest of it.
+class _BarSide extends CustomClipper<Rect> {
+  const _BarSide({required this.back});
+
+  final bool back;
+
+  static const double _width = IqSpace.s3 + 44 + IqSpace.s2;
+
+  @override
+  Rect getClip(Size size) => back
+      ? Rect.fromLTRB(0, 0, _width, size.height)
+      : Rect.fromLTRB(_width, 0, size.width, size.height);
+
+  @override
+  bool shouldReclip(_BarSide old) => old.back != back;
 }
 
 class _RoundButton extends StatelessWidget {
@@ -457,6 +457,3 @@ class _CountBadge extends StatelessWidget {
     );
   }
 }
-
-/// The Page bar parts that hold still across a push (spec 4.3).
-enum _ChromeHero { back, title }
