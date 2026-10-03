@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/data/auth.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
 import 'package:iqly_mobile/features/entry/landing_screen.dart';
 import 'package:iqly_mobile/features/entry/sign_in_screen.dart';
@@ -6,10 +7,6 @@ import 'package:iqly_mobile/ui/box_field.dart';
 import 'package:iqly_mobile/ui/next_fab.dart';
 
 import '../harness.dart';
-
-/// DemoAuthService has no stored password and signs in with any; this is
-/// the one the film types.
-const _password = 'Adaeze2026';
 
 /// Fresh install, known email: the landing hands over to Sign in with the
 /// email filled, and the password lands on Discover.
@@ -23,10 +20,12 @@ void main() {
     await d.tap(find.text('Continue'));
 
     await d.arrive(find.byType(SignInScreen));
-    await d.type(_password);
+    await d.type(DemoAuthService.password);
     await d.hold(0.8);
     await d.tap(find.byType(IqNextFab), label: 'next');
 
-    await d.arrive(find.byType(HomeScreen), hold: 2);
+    await d.arrive(find.byType(HomeScreen));
+    await d.waitFor(find.text('Closing soon'));
+    await d.hold(2);
   });
 }

@@ -69,6 +69,10 @@ void film(
     final onError = FlutterError.onError;
     FlutterError.onError = d._report;
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    // flutter_test draws every shadow unblurred for steady goldens; films
+    // need the real falloff. The binding checks the flag as soon as the body
+    // ends, before any tear-down, so it is restored here.
+    debugDisableShadows = false;
     try {
       await d._open(prefs);
       await script(d);
@@ -77,6 +81,7 @@ void film(
       await d._abort();
       rethrow;
     } finally {
+      debugDisableShadows = true;
       debugDefaultTargetPlatformOverride = null;
       FlutterError.onError = onError;
     }
@@ -217,10 +222,39 @@ class Director {
     );
   }
 
-  /// Drags from the centre of [finder] by [dy] (negative scrolls content up),
-  /// resting before lifting so nothing flings.
-  Future<void> scroll(Finder finder, double dy, {double seconds = 0.45}) =>
-      _drag(_centreOf(finder, hitTest: false), dy, seconds);
+  /// Drags from [from] within [finder] by [dy] (negative scrolls content
+  /// up). A plain drag rests before lifting so nothing flings; with [fling]
+  /// the finger moves at an even speed and lifts while moving, so the list
+  /// carries on as iOS would.
+  Future<void> scroll(
+    Finder finder,
+    double dy, {
+    double seconds = 0.45,
+    Alignment from = Alignment.center,
+    bool fling = false,
+  }) {
+    final matches = finder.evaluate();
+    if (matches.length != 1) {
+      throw TestFailure(
+        '$name: expected one match for $finder at ${_t()}, '
+        'found ${matches.length}',
+      );
+    }
+    final box = matches.single.renderObject! as RenderBox;
+    final start = box.localToGlobal(from.alongSize(box.size));
+    return _drag(start, dy, seconds, fling: fling);
+  }
+
+  /// Presses delete [count] times, or until the focused field is empty.
+  Future<void> erase([int? count, double cps = 14]) async {
+    await _keyboardUp();
+    final per = math.max(3, (_fps / cps).round());
+    final key = _chrome.board.key('delete')!;
+    final n = count ?? _focusedValue().text.length;
+    for (var i = 0; i < n; i++) {
+      await _pressKey(key, per, _deleteBackward);
+    }
+  }
 
   /// Scrolls the open bottom sheet until [label] is in full view, then taps it.
   Future<void> pickFromSheet(String label) async {
@@ -265,6 +299,15 @@ class Director {
     final probe = (_screenOrigin.dy + _statusBarHeight / 2) * _pixelRatio;
     view.padding = FakeViewPadding(top: probe * 2);
     addTearDown(view.reset);
+    // A device answers platform calls such as the error haptic; the test
+    // engine has no handler for them.
+    final messenger = tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (_) async {
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
 
     SharedPreferences.setMockInitialValues(prefs);
     final shared = await SharedPreferences.getInstance();
@@ -330,12 +373,20 @@ class Director {
     await tester.pump(const Duration(seconds: 2));
   }
 
+  /// Ends the encode so the frames so far still make a playable film. ffmpeg
+  /// ignores SIGTERM while it waits on an open pipe, hence the closed stdin
+  /// and the SIGKILL fallback.
   Future<void> _abort() async {
     final ffmpeg = _ffmpeg;
     if (ffmpeg == null) return;
     await tester.runAsync(() async {
-      ffmpeg.kill();
-      await ffmpeg.exitCode;
+      try {
+        await _flushing;
+        await ffmpeg.stdin.close();
+        await ffmpeg.exitCode.timeout(const Duration(seconds: 30));
+      } catch (_) {
+        ffmpeg.kill(ProcessSignal.sigkill);
+      }
     });
   }
 
@@ -545,7 +596,12 @@ class Director {
       ..changed();
   }
 
-  Future<void> _drag(Offset from, double dy, double seconds) async {
+  Future<void> _drag(
+    Offset from,
+    double dy,
+    double seconds, {
+    bool fling = false,
+  }) async {
     if (_underKeyboard(from)) {
       throw TestFailure('$name: drag starts under the keyboard at ${_t()}');
     }
@@ -558,15 +614,22 @@ class Director {
     final gesture = await tester.createGesture();
     await gesture.down(from, timeStamp: _clock);
     final n = math.max(2, (seconds * _fps).round());
+    final curve = fling ? Curves.linear : Curves.easeInOut;
     for (var i = 1; i <= n; i++) {
-      final at = from + Offset(0, dy * Curves.easeInOut.transform(i / n));
+      final at = from + Offset(0, dy * curve.transform(i / n));
       await gesture.moveTo(at, timeStamp: _clock + _frameTime);
+      // A lifting finger's last move and its up land in the same frame. Lifted
+      // a frame later, the fling's first tick (elapsed zero) holds the list
+      // still for a frame.
+      if (fling && i == n) await gesture.up(timeStamp: _clock + _frameTime);
       touch.at = at - _screenOrigin;
       _chrome.changed();
       await _step();
     }
-    await frames(4);
-    await gesture.up(timeStamp: _clock);
+    if (!fling) {
+      await frames(4);
+      await gesture.up(timeStamp: _clock);
+    }
     for (var i = 1; i <= 8; i++) {
       touch.opacity = 1 - i / 8;
       _chrome.changed();
@@ -597,9 +660,7 @@ class Director {
     await frames(length - down);
   }
 
-  /// Sends the new editing state the way the iOS keyboard does: the whole
-  /// value, with [char] replacing the selection.
-  void _insert(String char) {
+  TextEditingValue _focusedValue() {
     final focused = find.byWidgetPredicate(
       (w) => w is EditableText && w.focusNode.hasFocus,
     );
@@ -607,15 +668,38 @@ class Director {
       throw TestFailure('$name: no focused field to type into at ${_t()}');
     }
     final value = tester.state<EditableTextState>(focused).textEditingValue;
-    final selection = value.selection.isValid
-        ? value.selection
-        : TextSelection.collapsed(offset: value.text.length);
+    return value.selection.isValid
+        ? value
+        : value.copyWith(
+            selection: TextSelection.collapsed(offset: value.text.length),
+          );
+  }
+
+  /// Sends the new editing state the way the iOS keyboard does: the whole
+  /// value, with [char] replacing the selection.
+  void _insert(String char) {
+    final value = _focusedValue();
+    final selection = value.selection;
     tester.testTextInput.updateEditingValue(
       TextEditingValue(
         text: value.text.replaceRange(selection.start, selection.end, char),
         selection: TextSelection.collapsed(
           offset: selection.start + char.length,
         ),
+      ),
+    );
+  }
+
+  void _deleteBackward() {
+    final value = _focusedValue();
+    final selection = value.selection;
+    final start = selection.isCollapsed
+        ? math.max(0, selection.start - 1)
+        : selection.start;
+    tester.testTextInput.updateEditingValue(
+      TextEditingValue(
+        text: value.text.replaceRange(start, selection.end, ''),
+        selection: TextSelection.collapsed(offset: start),
       ),
     );
   }

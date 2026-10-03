@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
 import 'package:iqly_mobile/features/entry/landing_screen.dart';
@@ -60,12 +59,12 @@ void main() {
     await d.pickFromSheet('Lagos');
     await d.gone(find.byType(OptionSheet));
     await d.hold(0.8);
-    await d.tap(find.byType(TextField), label: 'city');
-    await d.hold(0.4);
-    await d.type('Ikeja');
-    await d.hold(0.4);
-    await d.submit();
-    await d.settle();
+    await d.tap(find.text('Select city'));
+    await d.arrive(find.byType(CitySheet));
+    await d.tap(find.text('Ikeja'));
+    await d.hold(0.8);
+    await d.tap(find.text('Use this'));
+    await d.gone(find.byType(CitySheet));
     await d.hold(0.8);
     await d.tap(find.byType(IqNextFab), label: 'next');
 
@@ -98,6 +97,7 @@ void main() {
 
     await d.arrive(find.byType(HomeScreen), hold: 2);
     await d.tap(find.text('OK, got it'));
+    await d.waitFor(find.text('Closing soon'));
     await d.hold(2);
   });
 }

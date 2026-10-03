@@ -13,3 +13,5 @@ flutter test film/flows/forgot_password_film.dart   # the video only
 Output lands in `film/out/` (not committed): `<name>.mp4`, `<name>-sheet.png` (a frame every 0.5 s), `<name>-transitions/` (the second after each tap at 30 fps, cropped to the screen at 390 wide), `<name>.taps` (tap times) and `<name>.errors` (errors the app reported, with the time and screen).
 
 The status bar and home indicator are the Figma Mobile/StatusBar and Mobile/HomeIndicator exports in `assets/`.
+
+The status bar always reads 9:41, but the app keeps the machine clock, so the Discover greeting and the "Up to date" time follow the time of the render.
