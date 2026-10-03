@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/motion.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/icon.dart';
@@ -10,6 +11,11 @@ import 'entry_state.dart';
 import 'entry_widgets.dart';
 
 /// B0 Your name (227:10921).
+///
+/// Motion (MOTION-SPEC 6.4): the page pushes in from the landing as its
+/// title, FIRST NAME and LAST NAME settle 40 apart; the first empty field
+/// has focus from the first frame, so the keyboard stays up. On to Password
+/// the step mark morphs (2 to 3, profile to lock) and the next button holds.
 class YourNameScreen extends ConsumerStatefulWidget {
   const YourNameScreen({super.key});
 
@@ -27,10 +33,6 @@ class _YourNameScreenState extends ConsumerState<YourNameScreen> {
     final draft = ref.read(entryDraftProvider);
     _first = EntryInput(draft.firstName);
     _last = EntryInput(draft.lastName);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      (_first.text.isEmpty ? _first : _last).focus.requestFocus();
-    });
   }
 
   @override
@@ -53,6 +55,7 @@ class _YourNameScreenState extends ConsumerState<YourNameScreen> {
         input: input,
         label: label,
         valid: input.text.isNotEmpty,
+        autofocus: last ? _first.text.isNotEmpty : _first.text.isEmpty,
         keyboardType: TextInputType.name,
         autofillHints: [
           last ? AutofillHints.familyName : AutofillHints.givenName,
@@ -67,21 +70,22 @@ class _YourNameScreenState extends ConsumerState<YourNameScreen> {
       listenable: Listenable.merge([_first.changes, _last.changes]),
       builder: (context, _) => EntryScaffold(
         onBack: () => goBack(context, Routes.landing),
+        settle: true,
         action: NextBar(enabled: _ready, onTap: _next),
         children: [
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: IqStepMark(
-              step: IqStepMarkStep.twoOfThree,
-              icon: IqIcons.profile,
-            ),
+          const EntryStepMark(
+            step: IqStepMarkStep.twoOfThree,
+            icon: IqIcons.profile,
           ),
           const SizedBox(height: IqSpace.s4),
-          const EntryTitle('What’s your name?'),
+          const StaggerItem(index: 0, child: EntryTitle('What’s your name?')),
           const SizedBox(height: IqSpace.s4),
-          _field(_first, 'First name', last: false),
+          StaggerItem(
+            index: 1,
+            child: _field(_first, 'First name', last: false),
+          ),
           const SizedBox(height: IqSpace.s4),
-          _field(_last, 'Last name', last: true),
+          StaggerItem(index: 2, child: _field(_last, 'Last name', last: true)),
         ],
       ),
     );

@@ -19,6 +19,7 @@ import 'package:iqly_mobile/features/onboarding/welcome_screen.dart';
 import 'package:iqly_mobile/features/onboarding/what_you_like_screen.dart';
 import 'package:iqly_mobile/features/onboarding/where_you_live_screen.dart';
 import 'package:iqly_mobile/features/onboarding/where_you_studied_screen.dart';
+import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/next_fab.dart';
 import 'package:iqly_mobile/ui/tip_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -66,6 +67,9 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
 
 IqNextFabState _fab(WidgetTester tester) =>
     tester.widget<IqNextFab>(find.byType(IqNextFab)).state;
+
+bool _buttonOn(WidgetTester tester, String label) =>
+    !tester.widget<IqButton>(find.widgetWithText(IqButton, label)).disabled;
 
 void main() {
   setUp(() => EditableText.debugDeterministicCursor = true);
@@ -252,16 +256,18 @@ void main() {
       final prefs = await openWhereYouLive(tester, {'state': 'Lagos'});
       await _tap(tester, find.text('Select city'));
 
+      expect(_buttonOn(tester, 'Add my city'), isFalse);
       await tester.enterText(find.byType(TextField), 'ikeja');
       await tester.pumpAndSettle();
       expect(find.text('1 MATCH'), findsOneWidget);
-      expect(find.text('Add mine'), findsNothing);
+      expect(_buttonOn(tester, 'Add my city'), isFalse);
 
       await tester.enterText(find.byType(TextField), ' Ilupeju ');
       await tester.pumpAndSettle();
       expect(find.text('No city found.'), findsOneWidget);
       expect(find.textContaining('MATCH'), findsNothing);
-      await _tap(tester, find.text('Add mine'));
+      expect(_buttonOn(tester, 'Add my city'), isTrue);
+      await _tap(tester, find.text('Add my city'));
 
       expect(find.byType(CitySheet), findsNothing);
       expect(find.text('Ilupeju'), findsOneWidget);

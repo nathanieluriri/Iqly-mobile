@@ -12,6 +12,12 @@ import 'entry_state.dart';
 import 'entry_widgets.dart';
 
 /// B0 Forgot password (227:11157).
+///
+/// Motion (MOTION-SPEC 6.7): it pushes in with the back button holding and
+/// the Sign in title crossfading out, while the title, body and EMAIL
+/// settle 40 apart. Send reset link drops with the commit haptic and turns
+/// to a spinner while it sends; then the success haptic and the push to
+/// Reset link sent, the keyboard going down with it.
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key});
 
@@ -22,17 +28,13 @@ class ForgotPasswordScreen extends ConsumerStatefulWidget {
 
 class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   late final EntryInput _email;
+  late final bool _knownEmail = isEmail(_email.text);
   bool _sending = false;
 
   @override
   void initState() {
     super.initState();
     _email = EntryInput(ref.read(entryDraftProvider).email);
-    if (!isEmail(_email.text)) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _email.focus.requestFocus();
-      });
-    }
   }
 
   @override
@@ -59,6 +61,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     }
     ref.read(entryDraftProvider.notifier).setEmail(email);
     IqHaptics.success.play();
+    FocusManager.instance.primaryFocus?.unfocus();
     context.push(Routes.resetLinkSent);
   }
 
@@ -69,6 +72,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       builder: (context, _) {
         return EntryScaffold(
           onBack: () => goBack(context, Routes.signIn),
+          settle: true,
           action: Padding(
             padding: const EdgeInsets.fromLTRB(
               IqSpace.s4,
@@ -86,21 +90,31 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
             ),
           ),
           children: [
-            const EntryTitle('Forgot your password?'),
-            const SizedBox(height: IqSpace.s4),
-            Text(
-              'We’ll email you a link to reset it.',
-              style: IqText.body.copyWith(color: IqColors.fg2),
+            const StaggerItem(
+              index: 0,
+              child: EntryTitle('Forgot your password?'),
             ),
             const SizedBox(height: IqSpace.s4),
-            EntryField(
-              input: _email,
-              label: 'Email',
-              valid: isEmail(_email.text),
-              keyboardType: TextInputType.emailAddress,
-              autofillHints: const [AutofillHints.email],
-              textInputAction: TextInputAction.send,
-              onSubmitted: (_) => _send(),
+            StaggerItem(
+              index: 1,
+              child: Text(
+                'We’ll email you a link to reset it.',
+                style: IqText.body.copyWith(color: IqColors.fg2),
+              ),
+            ),
+            const SizedBox(height: IqSpace.s4),
+            StaggerItem(
+              index: 2,
+              child: EntryField(
+                input: _email,
+                label: 'Email',
+                valid: isEmail(_email.text),
+                autofocus: !_knownEmail,
+                keyboardType: TextInputType.emailAddress,
+                autofillHints: const [AutofillHints.email],
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => _send(),
+              ),
             ),
           ],
         );

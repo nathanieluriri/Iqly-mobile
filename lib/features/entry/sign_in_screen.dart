@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/motion.dart';
 import '../../data/auth.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -12,6 +13,11 @@ import 'show_password.dart';
 
 /// B0 Sign in with email (227:11109). A known email from the landing
 /// arrives filled in, with the password focused.
+///
+/// Motion (MOTION-SPEC 6.6): it pushes in as the title, EMAIL, PASSWORD and
+/// "Forgot your password?" settle 40 apart, the right field focused from
+/// the first frame. The next button works (a spinner) while signing in;
+/// success hands off to Discover with the keyboard going down.
 class SignInScreen extends ConsumerStatefulWidget {
   const SignInScreen({super.key});
 
@@ -29,11 +35,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   void initState() {
     super.initState();
     _email = EntryInput(ref.read(entryDraftProvider).email);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      (isEmail(_email.text) ? _password : _email).focus.requestFocus();
-    });
+    _knownEmail = isEmail(_email.text);
   }
+
+  late final bool _knownEmail;
 
   @override
   void dispose() {
@@ -51,19 +56,21 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       _email.fail(EntryCopy.badEmail);
       return;
     }
-    _busy = true;
+    setState(() => _busy = true);
     final result = await ref
         .read(authServiceProvider)
         .signIn(email: _email.text, password: _password.controller.text);
-    _busy = false;
     if (!mounted) return;
+    setState(() => _busy = false);
     final failure = result.failure;
     if (failure != null) {
       _password.fail(EntryCopy.signIn(failure));
       return;
     }
     await completeSignIn(ref, newAccount: false);
-    if (mounted) context.go(Routes.home);
+    if (!mounted) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    context.go(Routes.home);
   }
 
   void _forgot() {
@@ -78,45 +85,57 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       builder: (context, _) => EntryScaffold(
         title: 'Sign in with email',
         onBack: () => goBack(context, Routes.landing),
-        action: NextBar(enabled: _filled, onTap: _next),
+        settle: true,
+        action: NextBar(enabled: _filled, loading: _busy, onTap: _next),
         children: [
-          const EntryTitle('Sign in'),
+          const StaggerItem(index: 0, child: EntryTitle('Sign in')),
           const SizedBox(height: IqSpace.s4),
-          EntryField(
-            input: _email,
-            label: 'Email',
-            valid: isEmail(_email.text),
-            keyboardType: TextInputType.emailAddress,
-            autofillHints: const [AutofillHints.email],
-            textInputAction: TextInputAction.next,
-            onSubmitted: (_) => _password.focus.requestFocus(),
+          StaggerItem(
+            index: 1,
+            child: EntryField(
+              input: _email,
+              label: 'Email',
+              valid: isEmail(_email.text),
+              autofocus: !_knownEmail,
+              keyboardType: TextInputType.emailAddress,
+              autofillHints: const [AutofillHints.email],
+              textInputAction: TextInputAction.next,
+              onSubmitted: (_) => _password.focus.requestFocus(),
+            ),
           ),
           const SizedBox(height: IqSpace.s4),
-          EntryField(
-            input: _password,
-            label: 'Password',
-            valid: _password.controller.text.isNotEmpty,
-            obscureText: !_shown,
-            keyboardType: TextInputType.visiblePassword,
-            autofillHints: const [AutofillHints.password],
-            textInputAction: TextInputAction.done,
-            onSubmitted: (_) => _next(),
+          StaggerItem(
+            index: 2,
+            child: EntryField(
+              input: _password,
+              label: 'Password',
+              valid: _password.controller.text.isNotEmpty,
+              obscureText: !_shown,
+              autofocus: _knownEmail,
+              keyboardType: TextInputType.visiblePassword,
+              autofillHints: const [AutofillHints.password],
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _next(),
+            ),
           ),
           const SizedBox(height: IqSpace.s4 - EntryLink.linkSlack),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Flexible(
-                child: EntryLink(
-                  label: 'Forgot your password?',
-                  onTap: _forgot,
+          StaggerItem(
+            index: 3,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Flexible(
+                  child: EntryLink(
+                    label: 'Forgot your password?',
+                    onTap: _forgot,
+                  ),
                 ),
-              ),
-              ShowPassword(
-                shown: _shown,
-                onTap: () => setState(() => _shown = !_shown),
-              ),
-            ],
+                ShowPassword(
+                  shown: _shown,
+                  onTap: () => setState(() => _shown = !_shown),
+                ),
+              ],
+            ),
           ),
         ],
       ),

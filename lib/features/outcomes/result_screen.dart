@@ -143,25 +143,22 @@ class WinnerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final brief = data.item.brief;
-    return HeroMode(
-      enabled: !MediaQuery.disableAnimationsOf(context),
-      child: Hero(
-        tag: heroTag(data.item.id),
-        child: SizedBox(
-          width: width,
-          child: FittedBox(
-            fit: BoxFit.fitWidth,
-            alignment: Alignment.topCenter,
-            child: IqShareCard(
-              key: cardKey,
-              brand: data.shareEyebrow,
-              title: data.item.submission.title,
-              amount: data.amount,
-              brief: brief?.title ?? '',
-              name: data.name,
-              markerReveal: markerReveal,
-              accentReveal: accentReveal,
-            ),
+    return Hero(
+      tag: heroTag(data.item.id),
+      child: SizedBox(
+        width: width,
+        child: FittedBox(
+          fit: BoxFit.fitWidth,
+          alignment: Alignment.topCenter,
+          child: IqShareCard(
+            key: cardKey,
+            brand: data.shareEyebrow,
+            title: data.item.submission.title,
+            amount: data.amount,
+            brief: brief?.title ?? '',
+            name: data.name,
+            markerReveal: markerReveal,
+            accentReveal: accentReveal,
           ),
         ),
       ),
