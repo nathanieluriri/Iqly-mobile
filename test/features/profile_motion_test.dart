@@ -23,7 +23,6 @@ import 'entry_harness.dart';
 import 'phone_keyboard.dart';
 
 const _ms = Duration(milliseconds: 1);
-const _commit = 'HapticFeedbackType.lightImpact';
 const _success = 'HapticFeedbackType.successNotification';
 const _destructive = 'HapticFeedbackType.mediumImpact';
 const _error = 'HapticFeedbackType.mediumImpact';
@@ -246,7 +245,7 @@ void main() {
       expect(find.text(YourDetailsScreen.errorText), findsOneWidget);
       await tester.tap(find.text('Save changes'));
       await tester.pumpAndSettle();
-      expect(haptics, [_commit, _error]);
+      expect(haptics, [_error]);
       expect(find.byType(YourDetailsScreen), findsOneWidget);
     });
 
@@ -259,7 +258,7 @@ void main() {
       await tester.tap(find.text('Save changes'));
       await tester.pump();
       await tester.pump();
-      expect(haptics, [_commit, _success]);
+      expect(haptics, [_success]);
       double check() => tester
           .widget<ScaleTransition>(
             find.ancestor(

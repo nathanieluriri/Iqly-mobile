@@ -86,7 +86,7 @@ void main() {
       expect(find.text("What's your take?"), findsOneWidget);
       expect(tester.widget<IqField>(_field('Title')).state, IqFieldState.error);
       expect(find.text('5 more characters'), findsOneWidget);
-      expect(haptics, [_commit, _commit, _error]);
+      expect(haptics, [_commit, _error]);
 
       await _type(tester, _field('Title'), SubmitCopy.title);
       await _type(tester, _answer(), SubmitCopy.shortAnswer);
@@ -116,14 +116,14 @@ void main() {
       await _tap(tester, find.text('Send response'));
       expect(find.text('A few quick questions'), findsOneWidget);
       expect(find.text('Question 1 needs an answer'), findsOneWidget);
-      expect(haptics, [_commit, _error]);
+      expect(haptics, [_error]);
 
       await _tap(tester, find.text('Pidgin'));
       await _tap(tester, find.text(SubmitCopy.language));
       expect(_option(tester, SubmitCopy.language), IqPollOptionState.selected);
       expect(_option(tester, 'Pidgin'), IqPollOptionState.standard);
       expect(find.text('Question 2 needs an answer'), findsNWidgets(2));
-      expect(haptics.sublist(2), [_select, _select]);
+      expect(haptics.sublist(1), [_select, _select]);
 
       await _type(
         tester,
@@ -143,7 +143,7 @@ void main() {
       expect(find.text("You're"), findsOneWidget);
       expect(find.text('1 of 29'), findsOneWidget);
       expect(find.text('so far'), findsOneWidget);
-      expect(haptics, [_commit, _success]);
+      expect(haptics, [_success]);
       final request = service.requests.single;
       expect(request.briefId, 'c5');
       expect(request.title, SubmitCopy.title);
@@ -259,7 +259,7 @@ void main() {
     await _tap(tester, find.text('Send response'));
     expect(find.text("You've submitted to this brief."), findsOneWidget);
     expect(find.text("You're"), findsNothing);
-    expect(haptics, [_commit, _success]);
+    expect(haptics, [_success]);
   });
 
   testWidgets('B3: a short title says what is missing when it loses focus', (
@@ -326,7 +326,7 @@ void main() {
     await _tap(tester, find.text('Send response'));
     expect(find.text('Failed to submit'), findsOneWidget);
     expect(find.text('A few quick questions'), findsOneWidget);
-    expect(haptics, [_commit, _error]);
+    expect(haptics, [_error]);
     expect(await _draft(), isNotNull);
 
     service.offline = false;

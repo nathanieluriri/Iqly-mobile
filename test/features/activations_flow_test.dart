@@ -265,7 +265,7 @@ void main() {
       await tester.pump();
       haptics.clear();
       await _tap(tester, find.text('Send proof'));
-      expect(haptics, [_commit, _success]);
+      expect(haptics, [_success]);
       expect(find.byType(ProofScreen), findsNothing);
       expect(find.text('Your proof'), findsOneWidget);
       expect(find.text('CHECKING'), findsOneWidget);
@@ -376,7 +376,7 @@ void main() {
     await _tap(tester, find.byType(IqProofTile));
     await _tap(tester, find.text('Send proof'));
     expect(find.text('Couldn’t send. Check your connection.'), findsOneWidget);
-    expect(haptics, [_commit, _error]);
+    expect(haptics, [_error]);
     await _tap(tester, find.text('Try again'));
     expect(find.byType(ProofScreen), findsNothing);
     expect(find.text('CHECKING'), findsOneWidget);

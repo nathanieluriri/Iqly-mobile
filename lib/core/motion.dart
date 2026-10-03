@@ -378,6 +378,11 @@ Duration pressMotion(BuildContext context, bool pressed) {
 
 /// The haptic moments (spec 2.7). The platform setting decides whether they
 /// play; reduced motion does not change them.
+///
+/// A commit plays as its frame ends, so a result that lands in that frame
+/// (a refused email, Finish, Save changes with nothing left to send) plays
+/// in its place: two pulses in one frame read as one muddled tap. A result
+/// that comes in a later frame still follows its commit.
 enum IqHaptics {
   /// Chips, switches, option rows, bookmarks, dock tabs, poll picks.
   select,
@@ -394,17 +399,35 @@ enum IqHaptics {
   /// The user's action failed.
   error;
 
+  static Object? _commit;
+
   /// Plays it; an error is the iOS error pattern, a medium impact on Android.
-  Future<void> play() => switch (this) {
-    select => HapticFeedback.selectionClick(),
-    commit => HapticFeedback.lightImpact(),
-    destructive => HapticFeedback.mediumImpact(),
-    success => HapticFeedback.successNotification(),
-    error =>
-      defaultTargetPlatform == TargetPlatform.iOS
-          ? HapticFeedback.errorNotification()
-          : HapticFeedback.mediumImpact(),
-  };
+  Future<void> play() {
+    switch (this) {
+      case select:
+        return HapticFeedback.selectionClick();
+      case commit:
+        final mine = _commit = Object();
+        SchedulerBinding.instance
+          ..addPostFrameCallback((_) {
+            if (!identical(_commit, mine)) return;
+            _commit = null;
+            HapticFeedback.lightImpact();
+          })
+          ..ensureVisualUpdate();
+        return Future.value();
+      case destructive:
+        return HapticFeedback.mediumImpact();
+      case success:
+        _commit = null;
+        return HapticFeedback.successNotification();
+      case error:
+        _commit = null;
+        return defaultTargetPlatform == TargetPlatform.iOS
+            ? HapticFeedback.errorNotification()
+            : HapticFeedback.mediumImpact();
+    }
+  }
 }
 
 /// The kit's error language, shared so every row fails the same way: the

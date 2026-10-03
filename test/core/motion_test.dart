@@ -173,6 +173,7 @@ void main() {
       final played = record(tester);
       for (final haptic in IqHaptics.values) {
         await haptic.play();
+        await tester.pump(Duration.zero);
       }
       expect(played, [
         'HapticFeedbackType.selectionClick',
@@ -180,6 +181,37 @@ void main() {
         'HapticFeedbackType.mediumImpact',
         'HapticFeedbackType.successNotification',
         'HapticFeedbackType.mediumImpact',
+      ]);
+    });
+
+    testWidgets('a result that lands with its commit plays alone (spec 2.7)', (
+      tester,
+    ) async {
+      final played = record(tester);
+      IqHaptics.commit.play();
+      errorHaptic();
+      await tester.pump(Duration.zero);
+      expect(played, ['HapticFeedbackType.mediumImpact']);
+
+      IqHaptics.commit.play();
+      await Future<void>.value();
+      IqHaptics.success.play();
+      await tester.pump(Duration.zero);
+      expect(played, [
+        'HapticFeedbackType.mediumImpact',
+        'HapticFeedbackType.successNotification',
+      ]);
+    });
+
+    testWidgets('a result that comes later follows its commit', (tester) async {
+      final played = record(tester);
+      IqHaptics.commit.play();
+      await tester.pump(Duration.zero);
+      expect(played, ['HapticFeedbackType.lightImpact']);
+      IqHaptics.success.play();
+      expect(played, [
+        'HapticFeedbackType.lightImpact',
+        'HapticFeedbackType.successNotification',
       ]);
     });
 
