@@ -60,3 +60,10 @@ Targets: Android and iOS first, Windows kept responsive (no separate desktop des
 - Proposals that the API may lag behind (polls, activations, saved briefs, close reminders, business note, notification preferences, delete account) sit behind `Flags`.
 - Compare each screen against its Figma frame at 390 x 844 before calling it done.
 - Local checks before every push: `dart run tool/gen_tokens.dart --check`, `dart format lib test tool`, `flutter analyze`, `flutter test`.
+
+### Component conventions (lib/ui)
+- One file per Figma component, snake_case of the name without the Exp/ prefix (`button.dart`, `ticket_card.dart`, `activity_row.dart` holding both ActivityRow kinds). The widget is `Iq` + the Figma name (`IqButton`, `IqTicketCard`). Variant axes become enums named `Iq<Name><Axis>` (`IqButtonKind.primary`); boolean and text props become constructor parameters with the Figma names in camelCase (`showIcon`, `label`). Pressed is never a parameter: it comes from `IqPressable`. Disabled and Loading are parameters.
+- Sizes, paddings, gaps and radii are the Figma numbers, from `IqSpace` and `IqRadius` where a token matches and as plain doubles where the design uses a one-off size (52 pt pill, 26 radius). Text uses `IqText` styles only; uppercase mono labels call `toUpperCase()`.
+- Icons: `IqIcon(IqIcons.arrow, size: 20, color: IqColors.primaryFg)` from `lib/ui/icon.dart`; the SVGs in `assets/icons/` are single ink vectors recoloured with a srcIn colour filter. Decorative vectors (brush underlines, strokes, rings, markers) live flat in `assets/vectors/` as `<component>-<layer>.svg` and render through `IqVector`. Never draw a brush shape with Flutter paths.
+- Shared pieces: `IqPressable` (pressed state, no ripple), `Sticker` (the 4,4 accent sticker shadow with the 120 ms press drop), `IqVector`.
+- Each component gets a golden test in `test/golden/<name>_test.dart` using `expectComponentGolden`, one golden per variant that differs visibly, after `setUpAll(loadAppFonts)`. Compare the PNG with the Figma screenshot of the variant before calling the component done, and note any Figma-vs-brief difference in the file's doc comment.

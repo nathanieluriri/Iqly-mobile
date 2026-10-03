@@ -27,7 +27,10 @@ flutter:
 
   assets:
     - assets/brand/
+    - assets/icons/
+    - assets/illustrations/
     - assets/splash/
+    - assets/vectors/
 
   fonts:
     - family: Bricolage Grotesque
