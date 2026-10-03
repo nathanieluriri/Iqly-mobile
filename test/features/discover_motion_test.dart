@@ -10,10 +10,12 @@ import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/discover/brief_detail_screen.dart';
 import 'package:iqly_mobile/features/discover/discover_state.dart';
+import 'package:iqly_mobile/features/discover/filters_sheet.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
 import 'package:iqly_mobile/features/discover/saved_briefs_screen.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/banner.dart';
+import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/chip.dart';
 import 'package:iqly_mobile/ui/dock.dart';
 import 'package:iqly_mobile/ui/pull_indicator.dart';
@@ -475,6 +477,41 @@ void main() {
       );
     },
   );
+
+  testWidgets('Filters: "Show N briefs" rolls its count when a pick changes '
+      'it (spec 6.21)', (tester) async {
+    await pumpApp(tester, Routes.filters, reducedMotion: false, settle: false);
+    await tester.pump(_ms * 600);
+    String label() => tester
+        .widget<IqButton>(
+          find
+              .descendant(
+                of: find.byType(FiltersSheet),
+                matching: find.byType(IqButton),
+              )
+              .first,
+        )
+        .label;
+    final before = label();
+    expect(before, startsWith('Show '));
+
+    await tester.tap(find.text('TIER'));
+    await tester.pump();
+    await tester.pump(_ms * 400);
+    await tester.tap(find.text('Advanced'));
+    String? after;
+    for (var i = 0; i < 40 && after == null; i++) {
+      await tester.pump(_ms * 16);
+      if (label() != before) after = label();
+    }
+    expect(after, isNotNull);
+    await tester.pump(_ms * 64);
+    expect(find.text(before), findsOneWidget);
+    expect(find.text(after!), findsWidgets);
+    await tester.pump(_ms * 120);
+    expect(find.text(before), findsNothing);
+    expect(find.text(after), findsOneWidget);
+  });
 
   testWidgets('the first tip waits for the feed to land and arrive (227:11321 '
       'shows it over a loaded feed)', (tester) async {
