@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/money.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
+import '../../core/transitions.dart';
 import '../../data/models.dart';
 import '../../data/wallet_service.dart';
 import '../../router.dart';
@@ -19,7 +18,6 @@ import '../../ui/top_bar.dart';
 import '../entry/entry_copy.dart';
 import '../entry/entry_widgets.dart' show EntryInput;
 import 'wallet_format.dart';
-import 'wallet_motion.dart';
 import 'wallet_routes.dart';
 import 'wallet_state.dart';
 
@@ -31,6 +29,10 @@ const verifyHelp = 'Could not verify account. Check the number and bank.';
 /// or another bank from Select bank, which then needs its account number
 /// verified. The ProgressThread tracks the two steps: the bank, then the
 /// amount.
+///
+/// It rises on the .5 scrim (spec 3.3) and the field that owns the keyboard
+/// takes focus once it has risen. The thread moves on its own (spec 5.26):
+/// Ready on open draws its line, each step grows or shortens it.
 ///
 /// Figma over the brief: the saved bank is a Picker labelled "To" with no
 /// Verified line; another bank adds the ACCOUNT NUMBER field with the Valid
@@ -62,7 +64,9 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
   int _run = 0;
   bool _sending = false;
   WalletFailure? _sendFailure;
-  Timer? _focusLater;
+  bool _focusAsked = false;
+  bool _arrived = false;
+  bool _focused = false;
 
   @override
   void initState() {
@@ -70,23 +74,42 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
     _amount.focus.addListener(_onAmountFocus);
     _amount.controller.addListener(_clearSendFailure);
     _account.controller.addListener(_onAccountEdit);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      // The keyboard waits for the sheet to finish rising (MOTION-SPEC §3.3).
-      _focusLater = Timer(
-        walletMotion(context, WalletDurations.screen, fade: true),
-        () {
-          if (!mounted) return;
-          final saved = ref.read(walletProvider).value?.savedBank;
-          (_usesSaved(saved) ? _amount : _account).focus.requestFocus();
-        },
-      );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_focusAsked) return;
+    _focusAsked = true;
+    _afterRise();
+  }
+
+  /// A pushed page draws its first frame offstage for hero flights, and its
+  /// animation reads as arrived during it, so the wait starts after it.
+  void _afterRise() {
+    if (ModalRoute.of(context)?.offstage ?? false) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _afterRise();
+      });
+      return;
+    }
+    whenArrived(context, () {
+      _arrived = true;
+      _focusFirst();
     });
+  }
+
+  /// The field that owns the keyboard takes it once the sheet has risen and
+  /// the wallet has loaded (a link can open the sheet before it has).
+  void _focusFirst() {
+    final data = ref.read(walletProvider).value;
+    if (_focused || !_arrived || !mounted || data == null) return;
+    _focused = true;
+    (_usesSaved(data.savedBank) ? _amount : _account).focus.requestFocus();
   }
 
   @override
   void dispose() {
-    _focusLater?.cancel();
     _amount.dispose();
     _account.dispose();
     super.dispose();
@@ -132,7 +155,7 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
         _check = _Check.verified;
         _accountName = result.accountName;
       });
-      WalletHaptics.success();
+      IqHaptics.success.play();
       return;
     }
     setState(() => _check = _Check.failed);
@@ -209,7 +232,7 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
       return;
     }
     ref.read(walletProvider.notifier).add(withdrawal);
-    WalletHaptics.success();
+    IqHaptics.success.play();
     final router = GoRouter.of(context);
     router.pop();
     router.push(withdrawalPendingPath(withdrawal.id));
@@ -252,6 +275,7 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(walletProvider, (previous, next) => _focusFirst());
     final data = ref.watch(walletProvider).value;
     final saved = data?.savedBank;
     final available = data?.totals.withdrawableKobo ?? 0;
@@ -304,23 +328,19 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    SheetGrip(
-                      child: IqTopBar(
-                        variant: IqTopBarVariant.sheet,
-                        title: 'Withdraw',
-                        onClose: () => context.pop(),
-                      ),
+                    IqTopBar(
+                      variant: IqTopBarVariant.sheet,
+                      title: 'Withdraw',
+                      onClose: () => context.pop(),
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: IqSpace.s4,
                       ),
-                      child: _Thread(
-                        look: _thread(
-                          usesSaved: usesSaved,
-                          amountValid: amountValid,
-                        ),
-                      ),
+                      child: _thread(
+                        usesSaved: usesSaved,
+                        amountValid: amountValid,
+                      ).build(),
                     ),
                     Flexible(
                       child: SingleChildScrollView(
@@ -443,45 +463,4 @@ class _ThreadLook {
     readyText: text,
     errorText: text,
   );
-}
-
-/// The thread fills: each new state wipes in over the last, left to right
-/// (240 ease-out, the existing [Wipe]), so the rule grows to full green on
-/// Ready and the words come with it; Ready on open draws on. Reduced
-/// motion: the new state at once.
-class _Thread extends StatefulWidget {
-  const _Thread({required this.look});
-
-  final _ThreadLook look;
-
-  @override
-  State<_Thread> createState() => _ThreadState();
-}
-
-class _ThreadState extends State<_Thread> {
-  _ThreadLook? _previous;
-  int _generation = 0;
-
-  @override
-  void didUpdateWidget(_Thread old) {
-    super.didUpdateWidget(old);
-    if (old.look.state != widget.look.state) {
-      _previous = old.look;
-      _generation++;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final previous = _previous;
-    return Stack(
-      children: [
-        if (previous != null) ExcludeSemantics(child: previous.build()),
-        Wipe(
-          key: ValueKey(_generation),
-          child: ColoredBox(color: IqColors.bg, child: widget.look.build()),
-        ),
-      ],
-    );
-  }
 }
