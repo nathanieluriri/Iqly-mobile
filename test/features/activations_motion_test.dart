@@ -531,7 +531,7 @@ void main() {
       await tester.tap(find.text('Send proof'));
       await tester.pump();
       await tester.pump();
-      expect(haptics, [_commit, _success]);
+      expect(haptics, [_success]);
       await _run(tester, 100);
       expect(find.text('Upload proof of step 2'), findsNothing);
       expect(find.text('Your proof'), findsOneWidget);

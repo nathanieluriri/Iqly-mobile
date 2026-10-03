@@ -197,14 +197,10 @@ class EntryScaffold extends StatelessWidget {
           child: CenteredContent(
             child: Column(
               children: [
-                ChromeHero(
-                  tag: ChromeTags.back,
-                  shuttle: IqTopBar.shuttle,
-                  child: IqTopBar(
-                    variant: IqTopBarVariant.page,
-                    title: title,
-                    onBack: onBack,
-                  ),
+                IqTopBar(
+                  variant: IqTopBarVariant.page,
+                  title: title,
+                  onBack: onBack,
                 ),
                 Expanded(
                   child: SingleChildScrollView(

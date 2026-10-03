@@ -387,7 +387,7 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(find.byType(WithdrawalPendingScreen), findsOneWidget);
-      expect(haptics, [_commit, _success]);
+      expect(haptics, [_success]);
       await tester.pump(_ms * 151);
       await tester.pump();
       expect(find.byType(WithdrawSheet), findsNothing);

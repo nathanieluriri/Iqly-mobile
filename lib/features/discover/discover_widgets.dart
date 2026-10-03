@@ -6,6 +6,7 @@ import '../../core/brief_labels.dart';
 import '../../core/deadline.dart';
 import '../../core/flags.dart';
 import '../../core/money.dart';
+import '../../core/transitions.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
 import '../../router.dart';
@@ -45,7 +46,8 @@ void browseForYou(BuildContext context, WidgetRef ref) {
 }
 
 /// The feed lens row: For you, All and (behind Flags.savedBriefs) Saved.
-/// Each tap fades the content under the chips in (spec 3.7).
+/// Each tap crosses the content under the chips into the picked lens while
+/// the chips hold still (spec 3.7).
 class FeedChips extends ConsumerWidget {
   const FeedChips({super.key, required this.selected});
 
@@ -54,8 +56,9 @@ class FeedChips extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     void pick(FeedChip chip) {
+      if (chip == selected) return;
       final filters = ref.read(discoverFiltersProvider.notifier);
-      ref.read(lensSwitchProvider.notifier).bump();
+      LensCrossfade.cross(context, line: context);
       switch (chip) {
         case FeedChip.forYou:
           filters.showForYou();
@@ -134,11 +137,13 @@ class BriefTicket extends ConsumerWidget {
 
 /// The lens chips as chrome: pinned under the top bar while the feed scrolls
 /// beneath them (B12 192:9179, 192:9334), on paper, with the 12 pt gap to
-/// the first item.
+/// the first item. [chipsKey] finds the row, whose bottom edge a content
+/// crossfade starts from.
 class PinnedFeedChips extends StatelessWidget {
-  const PinnedFeedChips({super.key, required this.selected});
+  const PinnedFeedChips({super.key, required this.selected, this.chipsKey});
 
   final FeedChip selected;
+  final Key? chipsKey;
 
   @override
   Widget build(BuildContext context) {
@@ -147,7 +152,7 @@ class PinnedFeedChips extends StatelessWidget {
         color: IqColors.bg,
         child: Padding(
           padding: const EdgeInsets.only(bottom: IqSpace.s3),
-          child: FeedChips(selected: selected),
+          child: FeedChips(key: chipsKey, selected: selected),
         ),
       ),
     );

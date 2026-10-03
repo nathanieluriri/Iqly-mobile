@@ -18,7 +18,10 @@ void _reduce(WidgetTester tester) {
 /// The product of every fade above [finder].
 double _opacity(WidgetTester tester, Finder finder) => tester
     .widgetList<FadeTransition>(
-      find.ancestor(of: finder, matching: find.byType(FadeTransition)),
+      find.ancestor(
+        of: finder,
+        matching: find.byType(FadeTransition, skipOffstage: false),
+      ),
     )
     .fold(1.0, (o, w) => o * w.opacity.value);
 
@@ -224,7 +227,7 @@ void main() {
         tester.getTopLeft(find.byKey(ValueKey(i))).dy - i * 10;
 
     double fade(WidgetTester tester, int i) =>
-        _opacity(tester, find.byKey(ValueKey(i)));
+        _opacity(tester, find.byKey(ValueKey(i), skipOffstage: false));
 
     Widget list(ArrivalsController controller, {int count = 8}) => MaterialApp(
       home: Align(
@@ -244,24 +247,71 @@ void main() {
       ),
     );
 
-    testWidgets('a wave arrives 40 ms apart; the seventh stands still', (
-      tester,
-    ) async {
+    testWidgets('a wave arrives 40 ms apart; on screen, the seventh and on '
+        'arrive with the sixth', (tester) async {
       final arrivals = ArrivalsController()..play();
       await tester.pumpWidget(list(arrivals));
+      await tester.pump();
       expect(rise(tester, 0), closeTo(12, 0.01));
       expect(fade(tester, 0), 0);
-      expect(rise(tester, 6), 0);
-      expect(fade(tester, 6), 1);
+      expect(rise(tester, 6), closeTo(12, 0.01));
+      expect(fade(tester, 7), 0);
       await tester.pump(_ms * 170);
       expect(fade(tester, 0), closeTo(_eo(170 / 260), 0.01));
       expect(fade(tester, 2), closeTo(_eo(90 / 260), 0.01));
       expect(rise(tester, 5), closeTo(12, 0.01));
+      await tester.pump(_ms * 160);
+      expect(fade(tester, 5), closeTo(_eo(130 / 260), 0.01));
+      for (final i in [6, 7]) {
+        expect(fade(tester, i), fade(tester, 5));
+        expect(rise(tester, i), rise(tester, 5));
+      }
       await tester.pumpAndSettle();
       for (var i = 0; i < 8; i++) {
         expect(rise(tester, i), 0);
         expect(fade(tester, i), 1);
       }
+    });
+
+    testWidgets('below the fold, the seventh and on stand in place', (
+      tester,
+    ) async {
+      final arrivals = ArrivalsController()..play();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 100,
+              height: 300,
+              child: Arrivals(
+                controller: arrivals,
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    for (var i = 0; i < 20; i++)
+                      ArriveItem(child: SizedBox(key: ValueKey(i), height: 30)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      for (final i in [6, 9]) {
+        expect(fade(tester, i), 0, reason: 'item $i is on screen');
+      }
+      expect(fade(tester, 10), 1);
+      expect(
+        tester
+            .getTopLeft(find.byKey(const ValueKey(10), skipOffstage: false))
+            .dy,
+        300,
+      );
+      await tester.pump(_ms * 330);
+      expect(fade(tester, 9), closeTo(_eo(130 / 260), 0.01));
+      expect(fade(tester, 10), 1);
     });
 
     testWidgets('after: the wave waits behind a fading skeleton', (
@@ -371,6 +421,7 @@ void main() {
       await tester.pump(_ms * 75);
       expect(fade(tester, 0), closeTo(_eo(0.5), 0.01));
       expect(fade(tester, 5), closeTo(_eo(0.5), 0.01));
+      expect(fade(tester, 7), closeTo(_eo(0.5), 0.01));
       expect(rise(tester, 5), 0);
       await tester.pump(_ms * 75);
       expect(fade(tester, 5), 1);

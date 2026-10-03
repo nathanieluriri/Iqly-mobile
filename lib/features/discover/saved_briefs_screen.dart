@@ -22,8 +22,9 @@ import 'feed_slivers.dart';
 /// opens when the feed cannot load.
 ///
 /// Motion (spec 6.28, 3.7, 5.12): a lens over Discover's chrome, so the
-/// route itself does not move; the saved tickets arrive on the first open
-/// of the session and fade in (200 ms) after that. The Offline banner
+/// route itself does not move and the content crosses under the still chips
+/// (200 ms); the saved tickets arrive on the first open of the session. The
+/// Offline banner
 /// arrives under the chips. An unsaved ticket folds away 300 ms after the
 /// tap; when the last one goes, the empty state arrives after it: the 96 pt
 /// bookmark rises 16, the title and line appear at +80 and +120.
@@ -34,17 +35,8 @@ class SavedBriefsScreen extends ConsumerStatefulWidget {
   ConsumerState<SavedBriefsScreen> createState() => _SavedBriefsScreenState();
 }
 
-class _SavedBriefsScreenState extends ConsumerState<SavedBriefsScreen>
-    with SingleTickerProviderStateMixin {
+class _SavedBriefsScreenState extends ConsumerState<SavedBriefsScreen> {
   final _arrivals = ArrivalsController();
-  late final AnimationController _fade = AnimationController(
-    vsync: this,
-    duration: IqDurations.swap,
-    value: 1,
-  );
-  late final Animation<double> _fadeIn = _fade.drive(
-    CurveTween(curve: IqCurves.easeOut),
-  );
   late final bool _first = ref.read(arrivedListsProvider).add('saved');
   List<Brief>? _rows;
   final _leaving = <String, Timer>{};
@@ -54,23 +46,7 @@ class _SavedBriefsScreenState extends ConsumerState<SavedBriefsScreen>
   void initState() {
     super.initState();
     _rows = ref.read(savedBriefsProvider).value;
-    if (_first) {
-      if (_rows != null) _arrivals.play();
-    } else {
-      _fade.value = 0;
-    }
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_fade.isDismissed) {
-      if (MediaQuery.disableAnimationsOf(context)) {
-        _fade.value = 1;
-      } else {
-        _fade.forward();
-      }
-    }
+    if (_first && _rows != null) _arrivals.play();
   }
 
   @override
@@ -78,7 +54,6 @@ class _SavedBriefsScreenState extends ConsumerState<SavedBriefsScreen>
     for (final timer in _leaving.values) {
       timer.cancel();
     }
-    _fade.dispose();
     super.dispose();
   }
 
@@ -208,29 +183,27 @@ class _SavedBriefsScreenState extends ConsumerState<SavedBriefsScreen>
                 child: Column(children: skeletons),
               ),
             ),
-          SliverFadeTransition(
-            key: const ValueKey('saved'),
-            opacity: _fadeIn,
-            sliver: rows == null || rows.isEmpty
-                ? const SliverToBoxAdapter(child: _Empty())
-                : SliverList.list(
-                    children: [
-                      for (final brief in rows)
-                        ArriveItem(
-                          key: ValueKey(brief.id),
-                          child: Collapse(
-                            open: !_folding.contains(brief.id),
-                            child: Padding(
-                              padding: const EdgeInsets.only(
-                                bottom: IqSpace.s3,
-                              ),
-                              child: Center(child: BriefTicket(brief: brief)),
-                            ),
+          rows == null || rows.isEmpty
+              ? const SliverToBoxAdapter(
+                  key: ValueKey('saved'),
+                  child: _Empty(),
+                )
+              : SliverList.list(
+                  key: const ValueKey('saved'),
+                  children: [
+                    for (final brief in rows)
+                      ArriveItem(
+                        key: ValueKey(brief.id),
+                        child: Collapse(
+                          open: !_folding.contains(brief.id),
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: IqSpace.s3),
+                            child: Center(child: BriefTicket(brief: brief)),
                           ),
                         ),
-                    ],
-                  ),
-          ),
+                      ),
+                  ],
+                ),
         ],
       ),
     };

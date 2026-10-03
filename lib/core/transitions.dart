@@ -1,7 +1,9 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
@@ -123,6 +125,51 @@ void whenArrived(BuildContext context, VoidCallback action) {
   }
 
   wait();
+}
+
+/// Runs [action] once no page stands over the one around [context]: at once
+/// when none does, else as soon as the last page above has gone, so a
+/// change that lands while a page is still on its way out over this one
+/// (or arrives at the start of a pop, as a paused provider's does) plays
+/// where it is seen (spec 5.28, 7.5). Never runs once [context] is gone.
+void whenUncovered(BuildContext context, VoidCallback action) {
+  final above = _pageAbove(context);
+  if (above == null) {
+    action();
+    return;
+  }
+  late final AnimationStatusListener listener;
+  listener = (status) {
+    if (!status.isDismissed) return;
+    above.removeStatusListener(listener);
+    if (context.mounted) whenUncovered(context, action);
+  };
+  above.addStatusListener(listener);
+}
+
+/// The move of the nearest page standing over the one around [context], or
+/// still coming or going over it, through every navigator it sits in.
+Animation<double>? _pageAbove(BuildContext context) {
+  for (
+    var page = context.getInheritedWidgetOfExactType<_PageScope>();
+    page != null;
+    page = page.route.navigator?.context
+        .getInheritedWidgetOfExactType<_PageScope>()
+  ) {
+    final above = page.route.secondaryAnimation;
+    if (above != null && !above.isDismissed) return above;
+  }
+  return null;
+}
+
+/// Lets what a page holds find its route without depending on its state.
+class _PageScope extends InheritedWidget {
+  const _PageScope({required this.route, required super.child});
+
+  final ModalRoute<dynamic> route;
+
+  @override
+  bool updateShouldNotify(_PageScope old) => route != old.route;
 }
 
 enum _Move {
@@ -302,7 +349,10 @@ class _IqPageRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
         PulseScope(
           child: _HeldInsets(
             route: this,
-            child: (settings as _IqPage<T>).child,
+            child: _PageScope(
+              route: this,
+              child: (settings as _IqPage<T>).child,
+            ),
           ),
         ),
       ),
@@ -670,7 +720,10 @@ class IqSheetRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
             alignment: Alignment.bottomCenter,
             child: _SheetMotion(
               route: this,
-              child: _SheetDrag(route: this, child: sheet),
+              child: _SheetDrag(
+                route: this,
+                child: _PageScope(route: this, child: sheet),
+              ),
             ),
           ),
         ),
@@ -978,7 +1031,11 @@ typedef ChromeShuttle = Widget Function(
 /// hit-testable under the flight, so a back tap halfway through a push
 /// still lands. Under reduced motion it turns its hero off and the chrome
 /// crossfades with its page.
-class ChromeHero extends StatelessWidget {
+///
+/// A page that holds two of one [tag] at once (one state dissolving into
+/// the next) offers only the older to a flight, as a navigator takes one
+/// hero per tag from each page; the newer takes over once the older goes.
+class ChromeHero extends StatefulWidget {
   const ChromeHero({
     super.key,
     required this.tag,
@@ -1009,36 +1066,243 @@ class ChromeHero extends StatelessWidget {
         );
       };
 
+  /// Whether chrome built at [context] may carry its own [ChromeHero]: it is
+  /// not inside another Hero (heroes do not nest) nor drawn in a flight.
+  static bool canCarry(BuildContext context) =>
+      context.findAncestorWidgetOfExactType<Hero>() == null &&
+      context.findAncestorWidgetOfExactType<_InFlight>() == null;
+
+  @override
+  State<ChromeHero> createState() => _ChromeHeroState();
+}
+
+class _ChromeHeroState extends State<ChromeHero> {
+  /// The chrome heroes on each page by tag, oldest first.
+  static final _pages = Expando<Map<Object, List<_ChromeHeroState>>>();
+
+  List<_ChromeHeroState>? _line;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _line ??= _join();
+  }
+
+  @override
+  void didUpdateWidget(ChromeHero old) {
+    super.didUpdateWidget(old);
+    if (old.tag == widget.tag) return;
+    _leave();
+    _line = _join();
+  }
+
+  List<_ChromeHeroState>? _join() {
+    final route = ModalRoute.of(context);
+    if (route == null) return null;
+    return ((_pages[route] ??= {})[widget.tag] ??= [])..add(this);
+  }
+
+  void _leave() {
+    final line = _line;
+    _line = null;
+    if (line == null) return;
+    final led = identical(line.first, this);
+    line.remove(this);
+    if (!led || line.isEmpty) return;
+    final next = line.first;
+    WidgetsBinding.instance.addPostFrameCallback((_) => next._lead());
+  }
+
+  void _lead() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _leave();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Hero(
-      tag: tag,
-      curve: IqCurves.linear,
-      flightShuttleBuilder: (context, animation, direction, fromHero, toHero) {
-        final from = (fromHero.widget as Hero).child;
-        final to = (toHero.widget as Hero).child;
-        final push = direction == HeroFlightDirection.push;
-        final shuttle = this.shuttle;
-        // The flight is drawn in the navigator's overlay, outside every
-        // page's Material, where text would take the framework's fallback
-        // style (a yellow double underline).
-        return Material(
-          type: MaterialType.transparency,
-          child: shuttle == null
-              ? (push ? to : from)
-              : shuttle(
-                  context,
-                  push ? animation : ReverseAnimation(animation),
-                  from,
-                  to,
+    final line = _line;
+    final shuttle = widget.shuttle;
+    return HeroMode(
+      enabled: line == null || identical(line.first, this),
+      child: Hero(
+        tag: widget.tag,
+        curve: IqCurves.linear,
+        flightShuttleBuilder:
+            (context, animation, direction, fromHero, toHero) {
+              final from = (fromHero.widget as Hero).child;
+              final to = (toHero.widget as Hero).child;
+              final push = direction == HeroFlightDirection.push;
+              // The flight is drawn in the navigator's overlay, outside every
+              // page's Material, where text would take the framework's
+              // fallback style (a yellow double underline).
+              return _InFlight(
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: shuttle == null
+                      ? (push ? to : from)
+                      : shuttle(
+                          context,
+                          push ? animation : ReverseAnimation(animation),
+                          from,
+                          to,
+                        ),
                 ),
-        );
-      },
-      placeholderBuilder: (context, size, child) =>
-          Opacity(opacity: 0, child: child),
-      child: child,
+              );
+            },
+        placeholderBuilder: (context, size, child) =>
+            Opacity(opacity: 0, child: child),
+        child: widget.child,
+      ),
     );
   }
+}
+
+/// Marks chrome drawn in a [ChromeHero]'s flight.
+class _InFlight extends StatelessWidget {
+  const _InFlight({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => child;
+}
+
+/// The lens switch (spec 3.7): [cross] lays what the [child] last drew
+/// below a line (the lens chips' bottom edge) over whatever comes next and
+/// fades it out over 200 ms, so the new content reads as fading in,
+/// ease-out, while the chrome above the line holds still. A card on both
+/// lenses draws the same under and over, so it stays steady, and nothing
+/// blanks between the two. A cut under reduced motion.
+class LensCrossfade extends StatefulWidget {
+  const LensCrossfade({super.key, required this.child});
+
+  final Widget child;
+
+  /// Crosses what the nearest [LensCrossfade] around [context] shows below
+  /// the bottom edge of [line] into what it shows next.
+  static void cross(BuildContext context, {required BuildContext line}) =>
+      context.findAncestorStateOfType<_LensCrossfadeState>()?._cross(line);
+
+  @override
+  State<LensCrossfade> createState() => _LensCrossfadeState();
+}
+
+class _LensCrossfadeState extends State<LensCrossfade>
+    with SingleTickerProviderStateMixin {
+  final _content = GlobalKey();
+  late final AnimationController _fade = AnimationController(
+    vsync: this,
+    duration: IqDurations.swap,
+  )..addStatusListener(_onFade);
+  late final Animation<double> _was = ReverseAnimation(
+    _fade.drive(CurveTween(curve: IqCurves.easeOut)),
+  );
+  ui.Image? _image;
+  double _line = 0;
+
+  void _onFade(AnimationStatus status) {
+    if (status.isCompleted && mounted) setState(_drop);
+  }
+
+  void _drop() {
+    _image?.dispose();
+    _image = null;
+  }
+
+  void _cross(BuildContext line) {
+    if (MediaQuery.disableAnimationsOf(context)) return;
+    // A pick and the filter change it makes both ask in one frame, and the
+    // last frame drawn is the same for both.
+    if (_fade.isAnimating && _fade.value == 0) return;
+    final content = _content.currentContext?.findRenderObject();
+    final edge = line.findRenderObject();
+    if (content is! _RenderLastFrame ||
+        edge is! RenderBox ||
+        !edge.attached ||
+        !edge.hasSize) {
+      return;
+    }
+    final image = content.take(MediaQuery.devicePixelRatioOf(context));
+    if (image == null) return;
+    setState(() {
+      _drop();
+      _image = image;
+      _line = edge
+          .localToGlobal(edge.size.bottomLeft(Offset.zero), ancestor: content)
+          .dy;
+    });
+    _fade.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _fade.dispose();
+    _drop();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final image = _image;
+    // The last frame holds a crossing still under way, so a second pick
+    // starts from what is on screen.
+    return _LastFrame(
+      key: _content,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          widget.child,
+          if (image != null)
+            IgnorePointer(
+              child: ClipRect(
+                clipper: _Below(_line),
+                child: FadeTransition(
+                  opacity: _was,
+                  child: RawImage(image: image, fit: BoxFit.fill),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A repaint boundary that can hand over the last frame it drew.
+class _LastFrame extends SingleChildRenderObjectWidget {
+  const _LastFrame({super.key, required super.child});
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderLastFrame();
+}
+
+class _RenderLastFrame extends RenderProxyBox {
+  @override
+  bool get isRepaintBoundary => true;
+
+  /// The last frame drawn here, [ratio] pixels to the point.
+  ui.Image? take(double ratio) {
+    final layer = this.layer;
+    if (layer is! OffsetLayer || !attached || !hasSize) return null;
+    return layer.toImageSync(Offset.zero & size, pixelRatio: ratio);
+  }
+}
+
+class _Below extends CustomClipper<Rect> {
+  const _Below(this.top);
+
+  final double top;
+
+  @override
+  Rect getClip(Size size) => Rect.fromLTRB(0, top, size.width, size.height);
+
+  @override
+  bool shouldReclip(_Below old) => old.top != top;
 }
 
 /// Same screen, new state (spec 3.4): [child], told apart by its key,
