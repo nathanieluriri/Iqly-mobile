@@ -221,7 +221,10 @@ class IqPollOption extends StatelessWidget {
   Widget _outline(String asset, Color color) => Positioned(
     left: 0,
     top: 0,
-    width: 324.32,
+    // Figma insets the brush 0.52% from the right, so it stretches with a
+    // pill wider than the master (B3's 358 single choice); PollCard's 324
+    // column keeps the master's brush.
+    width: width > 326 ? 324.32 * width / 326 : 324.32,
     height: 51.82,
     child: IqVector(asset, color: color),
   );

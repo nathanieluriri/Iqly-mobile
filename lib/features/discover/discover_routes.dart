@@ -11,6 +11,7 @@ import '../notifications/notifications_routes.dart';
 import '../polls/polls_routes.dart';
 import '../profile/profile_routes.dart';
 import '../submissions/my_submissions_screen.dart';
+import '../submit/submit_routes.dart';
 import '../wallet/wallet_routes.dart';
 import 'app_shell.dart';
 import 'brief_detail_screen.dart';
@@ -76,7 +77,7 @@ final discoverRoutes = <RouteBase>[
     path: Routes.briefDetail,
     pageBuilder: (context, state) =>
         pushPage(state, BriefDetailScreen(id: state.pathParameters['id']!)),
-    routes: [_push('submit', const _PagePlaceholder('Submit'))],
+    routes: [...submitRoutes],
   ),
   ...notificationsRoutes,
   ...pollsRoutes,
