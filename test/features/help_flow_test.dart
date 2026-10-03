@@ -15,11 +15,11 @@ import 'package:iqly_mobile/ui/ticket_tag.dart';
 import 'package:iqly_mobile/ui/video_preview.dart';
 
 import '../golden/screens/app_harness.dart';
+import '../golden/screens/help_harness.dart';
 import '../golden/screens/polls_notifications_help_harness.dart';
 import '../golden/screens/wallet_harness.dart';
 import 'entry_harness.dart' show recordHaptics;
 
-const _commit = 'HapticFeedbackType.lightImpact';
 const _success = 'HapticFeedbackType.successNotification';
 const _error = 'HapticFeedbackType.mediumImpact';
 
@@ -47,9 +47,10 @@ Future<void> _openFromHome(WidgetTester tester, {HelpService? help}) async {
     overrides: [
       ...laneOverrides(help: help),
       ...walletOverrides(),
+      ...helpActivations(),
     ],
   );
-  GoRouter.of(tester.element(find.byType(HomeScreen))).push(Routes.help);
+  GoRouter.of(tester.element(find.byType(HomeScreen))).push(kudiBoxHelp);
   await tester.pumpAndSettle();
   expect(find.byType(HelpRequestScreen), findsOneWidget);
 }
@@ -78,7 +79,7 @@ void main() {
     expect(_button(tester, 'Send to support').disabled, isFalse);
 
     await _tap(tester, find.text('Send to support'));
-    expect(haptics, [_commit, _success]);
+    expect(haptics, [_success]);
     expect(find.byType(HelpRequestScreen), findsNothing);
     expect(find.byType(HelpThreadScreen), findsOneWidget);
     expect(help.requests.single.message, figmaMessage);
@@ -137,7 +138,7 @@ void main() {
     expect(find.byType(HelpThreadScreen), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
-    expect(haptics, [_commit, _success]);
+    expect(haptics, [_success]);
     expect(find.byType(HelpThreadScreen), findsNothing);
     expect(find.byType(HomeScreen), findsOneWidget);
   });
@@ -177,7 +178,7 @@ void main() {
     await _openFromHome(tester, help: FailingHelpService());
     await _write(tester);
     await _tap(tester, find.text('Send to support'));
-    expect(haptics, [_commit, _error]);
+    expect(haptics, [_error]);
     expect(find.byType(HelpRequestScreen), findsOneWidget);
     expect(find.text('Couldn’t send. Check your connection.'), findsOneWidget);
     expect(_button(tester, 'Send to support').disabled, isFalse);

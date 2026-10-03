@@ -373,9 +373,11 @@ class _LandingScreenState extends ConsumerState<LandingScreen>
 
   /// What steps aside while the box has focus: its slot closes with the
   /// layout while it fades in the first 90 ms, and it leaves the tree once
-  /// the box has focus.
+  /// the box has focus. The empty slot keeps its place in the column: a
+  /// child of another kind there would rebuild the box below it and close
+  /// its keyboard.
   Widget _stepAside(Widget child) {
-    if (_focus.isCompleted) return const SizedBox.shrink();
+    if (_focus.isCompleted) return _slot(0, const SizedBox.shrink());
     return _slot(
       1 - _layout.value,
       FadeTransition(

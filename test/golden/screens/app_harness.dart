@@ -52,8 +52,9 @@ Map<String, Object> signedInPrefs({
 
 /// Pumps the real router at [location] at 390 x 844 with the OS insets,
 /// animations off and the clock at [figmaNow]. [overrides] swap services
-/// (an instant wallet service, say). Returns the container so a test can
-/// drive providers.
+/// (an instant wallet service, say). [settle] false stops after the first
+/// frame, for motion tests. Returns the container so a test can drive
+/// providers.
 Future<ProviderContainer> pumpApp(
   WidgetTester tester,
   String location, {
@@ -61,6 +62,7 @@ Future<ProviderContainer> pumpApp(
   Map<String, Object>? prefs,
   bool reducedMotion = true,
   List<Override> overrides = const [],
+  bool settle = true,
 }) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
@@ -96,6 +98,6 @@ Future<ProviderContainer> pumpApp(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) await tester.pumpAndSettle();
   return container;
 }

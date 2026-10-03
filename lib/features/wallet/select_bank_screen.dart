@@ -19,7 +19,8 @@ import 'wallet_state.dart';
 /// name; the saved one says so. A pick goes back to the Withdraw sheet with
 /// that bank; opened on its own (Check bank details on a failed
 /// withdrawal), it opens the sheet for it. The search field and the first
-/// rows settle with the push (spec 1.3).
+/// rows settle with the push (spec 1.3); from the failed withdrawal the
+/// back button holds while the titles cross (spec 4.3).
 class SelectBankScreen extends ConsumerStatefulWidget {
   const SelectBankScreen({super.key});
 

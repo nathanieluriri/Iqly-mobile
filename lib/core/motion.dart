@@ -378,6 +378,11 @@ Duration pressMotion(BuildContext context, bool pressed) {
 
 /// The haptic moments (spec 2.7). The platform setting decides whether they
 /// play; reduced motion does not change them.
+///
+/// A commit plays as its frame ends, so a result that lands in that frame
+/// (a refused email, Finish, Save changes with nothing left to send) plays
+/// in its place: two pulses in one frame read as one muddled tap. A result
+/// that comes in a later frame still follows its commit.
 enum IqHaptics {
   /// Chips, switches, option rows, bookmarks, dock tabs, poll picks.
   select,
@@ -394,17 +399,35 @@ enum IqHaptics {
   /// The user's action failed.
   error;
 
+  static Object? _commit;
+
   /// Plays it; an error is the iOS error pattern, a medium impact on Android.
-  Future<void> play() => switch (this) {
-    select => HapticFeedback.selectionClick(),
-    commit => HapticFeedback.lightImpact(),
-    destructive => HapticFeedback.mediumImpact(),
-    success => HapticFeedback.successNotification(),
-    error =>
-      defaultTargetPlatform == TargetPlatform.iOS
-          ? HapticFeedback.errorNotification()
-          : HapticFeedback.mediumImpact(),
-  };
+  Future<void> play() {
+    switch (this) {
+      case select:
+        return HapticFeedback.selectionClick();
+      case commit:
+        final mine = _commit = Object();
+        SchedulerBinding.instance
+          ..addPostFrameCallback((_) {
+            if (!identical(_commit, mine)) return;
+            _commit = null;
+            HapticFeedback.lightImpact();
+          })
+          ..ensureVisualUpdate();
+        return Future.value();
+      case destructive:
+        return HapticFeedback.mediumImpact();
+      case success:
+        _commit = null;
+        return HapticFeedback.successNotification();
+      case error:
+        _commit = null;
+        return defaultTargetPlatform == TargetPlatform.iOS
+            ? HapticFeedback.errorNotification()
+            : HapticFeedback.mediumImpact();
+    }
+  }
 }
 
 /// The kit's error language, shared so every row fails the same way: the
@@ -893,9 +916,11 @@ enum StaggerMove {
 }
 
 /// Plays [move] down a list once, item i starting i × 40 ms in, on one
-/// controller; items from the seventh stand still (spec 2.6). With [play]
-/// false the items show in place; turning it on plays the move. Under
-/// reduced motion arrive fades everything in together, 150 ms.
+/// controller (spec 2.6). Items from the seventh that are on screen as the
+/// list starts play with the sixth, so a short list never arrives bottom
+/// first; those below the fold, or built later by a scroll, stand in place.
+/// With [play] false the items show in place; turning it on plays the move.
+/// Under reduced motion arrive fades everything in together, 150 ms.
 class Stagger extends StatefulWidget {
   const Stagger({
     super.key,
@@ -908,7 +933,7 @@ class Stagger extends StatefulWidget {
   final StaggerMove move;
   final bool play;
 
-  /// How many items move; the rest render in place.
+  /// How many beats a list has; later items share the last one.
   static const int moving = 6;
 
   static final Duration _length =
@@ -925,6 +950,8 @@ class _StaggerState extends State<Stagger> with SingleTickerProviderStateMixin {
   );
   bool _reduced = false;
   bool _started = false;
+  int _run = 0;
+  bool _starting = false;
 
   @override
   void didChangeDependencies() {
@@ -952,6 +979,9 @@ class _StaggerState extends State<Stagger> with SingleTickerProviderStateMixin {
     }
     _clock.duration = _reduced ? IqDurations.crossfade : Stagger._length;
     _clock.forward(from: 0);
+    _run++;
+    _starting = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) => _starting = false);
   }
 
   @override
@@ -962,7 +992,8 @@ class _StaggerState extends State<Stagger> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) => _StaggerScope(
-    clock: _clock,
+    state: this,
+    run: _run,
     move: widget.move,
     reduced: _reduced,
     child: widget.child,
@@ -971,19 +1002,29 @@ class _StaggerState extends State<Stagger> with SingleTickerProviderStateMixin {
 
 class _StaggerScope extends InheritedWidget {
   const _StaggerScope({
-    required this.clock,
+    required this.state,
+    required this.run,
     required this.move,
     required this.reduced,
     required super.child,
   });
 
-  final Animation<double> clock;
+  final _StaggerState state;
+  final int run;
   final StaggerMove move;
   final bool reduced;
 
+  Animation<double> get clock => state._clock;
+
+  /// Whether the list is in the frame its move starts in.
+  bool get starting => state._starting;
+
   @override
   bool updateShouldNotify(_StaggerScope old) =>
-      clock != old.clock || move != old.move || reduced != old.reduced;
+      state != old.state ||
+      run != old.run ||
+      move != old.move ||
+      reduced != old.reduced;
 }
 
 /// One item of the nearest [Stagger], [index] in reading order (titles too).
@@ -996,36 +1037,81 @@ class StaggerItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<_StaggerScope>();
-    if (scope == null || index >= Stagger.moving) return child;
-    final arrive = scope.move == StaggerMove.arrive;
-    if (scope.reduced) {
-      if (!arrive) return child;
-      return FadeTransition(
-        opacity: scope.clock.drive(CurveTween(curve: IqCurves.easeOut)),
-        child: child,
-      );
-    }
-    final total = Stagger._length.inMicroseconds;
-    final start = IqDurations.stagger * index;
-    final t = scope.clock.drive(
-      CurveTween(
-        curve: Interval(
-          start.inMicroseconds / total,
-          (start + IqDurations.enter).inMicroseconds / total,
-          curve: IqCurves.easeOut,
-        ),
-      ),
-    );
-    final rise = arrive ? IqTravel.riseCard : IqTravel.rise;
-    final moved = AnimatedBuilder(
-      animation: t,
+    if (scope == null) return child;
+    if (index >= Stagger.moving) return _StaggerTail(child: child);
+    return _staggered(scope, index, child);
+  }
+}
+
+/// [child] playing its list's move as item [index].
+Widget _staggered(_StaggerScope scope, int index, Widget child) {
+  final arrive = scope.move == StaggerMove.arrive;
+  if (scope.reduced) {
+    if (!arrive) return child;
+    return FadeTransition(
+      opacity: scope.clock.drive(CurveTween(curve: IqCurves.easeOut)),
       child: child,
-      builder: (context, child) => Transform.translate(
-        offset: Offset(0, rise * (1 - t.value)),
-        child: child,
-      ),
     );
-    return arrive ? FadeTransition(opacity: t, child: moved) : moved;
+  }
+  final total = Stagger._length.inMicroseconds;
+  final start = IqDurations.stagger * index;
+  final t = scope.clock.drive(
+    CurveTween(
+      curve: Interval(
+        start.inMicroseconds / total,
+        (start + IqDurations.enter).inMicroseconds / total,
+        curve: IqCurves.easeOut,
+      ),
+    ),
+  );
+  final rise = arrive ? IqTravel.riseCard : IqTravel.rise;
+  final moved = AnimatedBuilder(
+    animation: t,
+    child: child,
+    builder: (context, child) => Transform.translate(
+      offset: Offset(0, rise * (1 - t.value)),
+      child: child,
+    ),
+  );
+  return arrive ? FadeTransition(opacity: t, child: moved) : moved;
+}
+
+/// An item after the sixth: built as its list starts, it plays with the
+/// sixth until its first layout finds it below the fold, which is never
+/// seen, and then stands in place.
+class _StaggerTail extends StatefulWidget {
+  const _StaggerTail({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_StaggerTail> createState() => _StaggerTailState();
+}
+
+class _StaggerTailState extends State<_StaggerTail> {
+  int? _run;
+  bool _plays = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final scope = context.dependOnInheritedWidgetOfExactType<_StaggerScope>()!;
+    if (scope.run == _run) return;
+    _run = scope.run;
+    _plays = scope.starting;
+    if (!_plays) return;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _plays && !_withinView(context)) {
+        setState(() => _plays = false);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scope = context.dependOnInheritedWidgetOfExactType<_StaggerScope>()!;
+    if (!_plays) return widget.child;
+    return _staggered(scope, Stagger.moving - 1, widget.child);
   }
 }
 
@@ -1178,6 +1264,12 @@ class Beat extends StatelessWidget {
 /// out as the new rise from +6 and fade in, 160 ms ease-out, while the rest
 /// stand still and the width eases (spec 2.5 roll). A cut under reduced
 /// motion; never rolls on its first build.
+///
+/// A roll is never started over: a change that lands while one runs joins
+/// it, and the roll lands on the newest text. A change that comes sooner
+/// than a roll after the one before shows at once, so a count that moves
+/// with every keystroke holds still while the person types and rolls again
+/// once they pause (spec 6.15, no per-keystroke motion).
 class RollingText extends StatefulWidget {
   const RollingText(this.text, {super.key, required this.style, this.overflow});
 
@@ -1201,6 +1293,7 @@ class _RollingTextState extends State<RollingText>
     CurveTween(curve: IqCurves.easeOut),
   );
   String? _from;
+  Duration? _changedAt;
 
   void _onStatus(AnimationStatus status) {
     if (status.isCompleted && mounted) setState(() => _from = null);
@@ -1210,11 +1303,16 @@ class _RollingTextState extends State<RollingText>
   void didUpdateWidget(RollingText old) {
     super.didUpdateWidget(old);
     if (old.text == widget.text) return;
+    final now = SchedulerBinding.instance.currentFrameTimeStamp;
+    final changedAt = _changedAt;
+    _changedAt = now;
     if (MediaQuery.disableAnimationsOf(context)) {
       _roll.value = 0;
       _from = null;
       return;
     }
+    if (_roll.isAnimating) return;
+    if (changedAt != null && now - changedAt < IqDurations.tick) return;
     _from = old.text;
     _roll.forward(from: 0);
   }
@@ -1825,8 +1923,10 @@ class _ArrivalsState extends State<Arrivals> with TickerProviderStateMixin {
 
   _Slot? _join() {
     final wave = _open;
-    if (wave == null || wave.joined >= Stagger.moving) return null;
-    return _Slot(wave, wave.joined++);
+    if (wave == null) return null;
+    final index = wave.joined++;
+    if (index < Stagger.moving) return _Slot(wave, index);
+    return _Slot(wave, Stagger.moving - 1, tail: true);
   }
 
   @override
@@ -1882,10 +1982,13 @@ class _Wave {
 }
 
 class _Slot {
-  _Slot(this.wave, this.index);
+  _Slot(this.wave, this.index, {this.tail = false});
 
   final _Wave wave;
   final int index;
+
+  /// Joined after the sixth, so it plays with the sixth while on screen.
+  final bool tail;
 
   Duration get start => wave.after + IqDurations.stagger * index;
 
@@ -1900,9 +2003,10 @@ class _Slot {
 /// One item of the nearest [Arrivals] in reading order (titles count). Built
 /// for the first time while a wave is open, it takes the wave's next slot
 /// and arrives: fade and rise 12 over 260 ms ease-out, 40 ms after the slot
-/// before; from the seventh slot on, or with no wave open, it stands in
-/// place. Under reduced motion a wave fades in together over 150 ms. It
-/// keeps itself alive in a lazy list, so it never arrives twice.
+/// before. From the seventh slot on it arrives with the sixth while it is
+/// on screen, and stands in place below the fold; with no wave open it
+/// stands in place. Under reduced motion a wave fades in together over
+/// 150 ms. It keeps itself alive in a lazy list, so it never arrives twice.
 class ArriveItem extends StatefulWidget {
   const ArriveItem({super.key, required this.child});
 
@@ -1947,11 +2051,19 @@ class _ArriveItemState extends State<ArriveItem>
     super.didChangeDependencies();
     if (_joined) return;
     _joined = true;
-    _slot = context
+    final slot = _slot = context
         .getInheritedWidgetOfExactType<_ArrivalsScope>()
         ?.state
         ._join();
-    _move = _slot?.arrive();
+    _move = slot?.arrive();
+    if (slot == null || !slot.tail) return;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _withinView(context)) return;
+      setState(() {
+        _slot = null;
+        _move = null;
+      });
+    });
   }
 
   @override
@@ -2281,6 +2393,28 @@ class _AfterFrame {
       check();
     });
   }
+}
+
+/// Whether any of [context]'s box lies inside every scroll view around it,
+/// read from layout alone, so a page held offstage for its first frame reads
+/// as it will once shown.
+bool _withinView(BuildContext context) {
+  final box = context.findRenderObject();
+  if (box is! RenderBox || !box.attached || !box.hasSize) return false;
+  for (
+    var scroll = context.findAncestorStateOfType<ScrollableState>();
+    scroll != null;
+    scroll = scroll.context.findAncestorStateOfType<ScrollableState>()
+  ) {
+    final view = scroll.context.findRenderObject();
+    if (view is! RenderBox || !view.hasSize) continue;
+    final bounds = MatrixUtils.transformRect(
+      box.getTransformTo(view),
+      Offset.zero & box.size,
+    );
+    if (!bounds.overlaps(Offset.zero & view.size)) return false;
+  }
+  return true;
 }
 
 /// Whether at least half of [context]'s box is painted inside the screen and

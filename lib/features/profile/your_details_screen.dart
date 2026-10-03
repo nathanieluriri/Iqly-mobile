@@ -44,8 +44,9 @@ enum _Closing { no, saving, saved }
 /// of the eight fields hold a value, the line shortening to half) and grows
 /// back to Ready when the account has it, its check popping in (spec 7.2,
 /// 5.26). Save changes waits for the last save (spinner), lands a check
-/// with the success haptic and returns to Profile. Fields settle in with
-/// the push.
+/// with the success haptic and returns to Profile; a keypad still up goes
+/// down with the page as it leaves (spec 4.5). Fields settle in with the
+/// push.
 ///
 /// The frame draws the older Field set; here a filled field is Exp/Field
 /// Valid without its status icon (hairline base) and an empty one is Empty.
@@ -123,7 +124,9 @@ class _YourDetailsScreenState extends ConsumerState<YourDetailsScreen> {
   );
 
   Future<T?> _pick<T>(_Field field, WidgetBuilder sheet) async {
-    FocusScope.of(context).unfocus();
+    // Unfocusing the field itself, not the page's scope, so the page does not
+    // hand the keyboard back to it when the sheet closes.
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() => _open = field);
     final picked = await showOnboardingSheet<T>(context, sheet);
     if (mounted) setState(() => _open = null);
@@ -190,7 +193,6 @@ class _YourDetailsScreenState extends ConsumerState<YourDetailsScreen> {
 
   Future<void> _saveChanges() async {
     if (_closing != _Closing.no) return;
-    FocusScope.of(context).unfocus();
     setState(() => _closing = _Closing.saving);
     final saved = await _saver.save();
     if (!mounted) return;

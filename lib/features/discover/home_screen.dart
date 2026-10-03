@@ -11,6 +11,7 @@ import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../core/session.dart';
+import '../../core/transitions.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
@@ -24,6 +25,7 @@ import '../../ui/pull_indicator.dart';
 import '../../ui/section_title.dart';
 import '../../ui/skeleton.dart';
 import '../../ui/ticket_card.dart';
+import '../entry/first_tip.dart';
 import '../onboarding/setup_nudge.dart';
 import '../withdrawals/payout_arrival.dart';
 import 'app_shell.dart';
@@ -43,9 +45,10 @@ import 'feed_slivers.dart';
 /// one PullIndicator fades in with the pull, turns its arrow when armed
 /// (select haptic, once a pull), holds its 52 pt slot while refreshing,
 /// shows Done for 800 ms and then closes the slot as the feed slides up; a
-/// new page arrives from its first ticket; the lens chips and filters fade
-/// the content in (200 ms, no stagger); Try again sends the banner up and
-/// waits again, and a failed retry brings it back with the error haptic.
+/// new page arrives from its first ticket; the lens chips and filters cross
+/// the content under the still chips (200 ms, no stagger); Try again sends
+/// the banner up and waits again, and a failed retry brings it back with
+/// the error haptic.
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -59,20 +62,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   final _scroll = ScrollController();
   final _arrivals = ArrivalsController();
+  final _chips = GlobalKey();
   final _pull = ValueNotifier<double>(0);
   final _armed = ValueNotifier<bool>(false);
-  late final AnimationController _lens = AnimationController(
-    vsync: this,
-    duration: IqDurations.swap,
-    value: 1,
-  );
-  late final Animation<double> _lensIn = _lens.drive(
-    CurveTween(curve: IqCurves.easeOut),
-  );
   late final AnimationController _slot = AnimationController(vsync: this);
   bool _steady = false;
   bool _buzzed = false;
   bool _retrying = false;
+  bool _built = false;
+  bool _landed = false;
   bool? _nudge;
   IqPullIndicatorState? _closingAs;
   Timer? _doneTimer;
@@ -83,7 +81,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _scroll.dispose();
     _pull.dispose();
     _armed.dispose();
-    _lens.dispose();
     _slot.dispose();
     super.dispose();
   }
@@ -204,17 +201,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
   }
 
-  void _fadeContent() {
-    if (_reduced) {
-      _lens.value = 1;
-    } else {
-      _lens.forward(from: 0);
-    }
+  void _crossContent() {
+    final chips = _chips.currentContext;
+    if (chips != null) LensCrossfade.cross(context, line: chips);
   }
 
   void _retry() {
     _retrying = true;
     ref.read(discoverFeedProvider.notifier).retry();
+  }
+
+  /// The feed is on screen, arriving [after] from now: the first tip may
+  /// follow (spec 3.8). Told after the frame, as it lands mid-build.
+  void _land(Duration after) {
+    if (_landed) return;
+    _landed = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(firstTipCueProvider.notifier).cue(after);
+    });
   }
 
   FeedView _view(FeedData data) => buildFeed(
@@ -227,10 +231,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   void _listen() {
     ref.listen(discoverFiltersProvider, (previous, next) {
+      _crossContent();
       ref.read(discoverFeedProvider.notifier).resetWindow();
-      _fadeContent();
     });
-    ref.listen(lensSwitchProvider, (previous, next) => _fadeContent());
     ref.listen(discoverFeedProvider.select((f) => f.value?.refresh), (
       previous,
       next,
@@ -283,6 +286,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
     final nudge = _nudge ??= !onboardingDone;
     final payout = ref.watch(recentPayoutProvider);
+    final loading = (data == null && !failed) || proposalsPending;
+    if (!_built) {
+      _built = true;
+      if (!loading) _land(Duration.zero);
+    }
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -310,7 +318,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         slivers: [
                           _refreshSlot(data),
                           PinnedFeedChips(
-                            selected: filters.forYou
+                            chipsKey: _chips,
+                            // While the Saved lens, its own route, covers
+                            // this page, these chips show Saved too, so a
+                            // pick there lands here from Saved rather than
+                            // from the lens this page held before.
+                            selected: ModalRoute.isCurrentOf(context) == false
+                                ? FeedChip.saved
+                                : filters.forYou
                                 ? FeedChip.forYou
                                 : FeedChip.all,
                           ),
@@ -344,9 +359,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                             ),
                           LoadingGate.builder(
                             key: const ValueKey('gate'),
-                            loading:
-                                (data == null && !failed) || proposalsPending,
-                            onOpen: (after) => _arrivals.play(after: after),
+                            loading: loading,
+                            onOpen: (after) {
+                              _arrivals.play(after: after);
+                              _land(after);
+                            },
                             builder: (context, phase, skeletonOpacity) =>
                                 _body(phase, skeletonOpacity, data, nudge),
                           ),
@@ -438,12 +455,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           child: ArriveItem(child: _SetupNudgeSlot()),
         ),
       if (content)
-        SliverFadeTransition(
+        SliverList.list(
           key: const ValueKey('feed'),
-          opacity: _lensIn,
-          sliver: SliverList.list(
-            children: _spaced(data == null ? _failed() : _feed(data)),
-          ),
+          children: _spaced(data == null ? _failed() : _feed(data)),
         ),
     ];
     if (slivers.isEmpty) return const SliverToBoxAdapter();
@@ -850,8 +864,9 @@ class _Tail extends StatelessWidget {
   }
 }
 
-/// The empty and failed feed: an optional illustration, then a card title
-/// and one line appearing at +80 and +120 (spec 6.24).
+/// The empty and failed feed: an optional illustration rising in, its
+/// accent sweeping from +160 (spec 5.29), then a card title and one line
+/// appearing at +80 and +120 (spec 6.24).
 class _EmptyText extends StatelessWidget {
   const _EmptyText({required this.title, this.body, this.illustration});
 
@@ -866,7 +881,10 @@ class _EmptyText extends StatelessWidget {
       child: Column(
         children: [
           if (illustration != null) ...[
-            IqIllustration(illustration!),
+            IqIllustration(
+              illustration!,
+              entrance: IqIllustrationEntrance.rise,
+            ),
             const SizedBox(height: IqSpace.s2),
           ],
           Appear(

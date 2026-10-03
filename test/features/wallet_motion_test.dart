@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -26,6 +27,7 @@ import 'package:iqly_mobile/ui/highlight.dart';
 import 'package:iqly_mobile/ui/list_row.dart';
 import 'package:iqly_mobile/ui/receipt_card.dart';
 import 'package:iqly_mobile/ui/timeline_row.dart';
+import 'package:iqly_mobile/ui/top_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../golden/screens/app_harness.dart';
@@ -37,6 +39,7 @@ const _commit = 'HapticFeedbackType.lightImpact';
 const _success = 'HapticFeedbackType.successNotification';
 
 double _eo(double t) => IqCurves.easeOut.transform(t);
+double _ei(double t) => IqCurves.easeIn.transform(t);
 
 void _reduce(WidgetTester tester) {
   tester.platformDispatcher.accessibilityFeaturesTestValue =
@@ -324,19 +327,43 @@ void main() {
       expect(tester.getTopLeft(find.byType(SelectBankScreen)).dx, 0);
     });
 
-    testWidgets('a withdrawal: commit and success, the sheet drops as the '
-        'pending moment pushes, its Highlight starts at +240', (tester) async {
+    testWidgets('a withdrawal: the commit haptic, the sheet drops with the '
+        'keypad, then the pending moment pushes with the success haptic and '
+        'its Highlight starts at +240 (spec 7.1)', (tester) async {
       final haptics = recordHaptics(tester);
       await _pumpApp(tester, withdrawLocation(amountKobo: 500000));
       await tester.pump(_ms * 500);
+      expect(tester.testTextInput.isVisible, isTrue);
+      final sheet = find.byType(WithdrawSheet);
+      final rest = tester.getTopLeft(sheet).dy;
       await tester.tap(find.text('Withdraw').last);
       await tester.pump();
       await tester.pump();
-      expect(haptics, [_commit, _success]);
-      expect(find.byType(WithdrawalPendingScreen), findsOneWidget);
+      expect(haptics, [_commit]);
+      expect(tester.testTextInput.isVisible, isFalse);
 
+      // Only the sheet moves: 200 ease-in, the pending moment waiting.
+      final pending = find.byType(WithdrawalPendingScreen, skipOffstage: false);
+      await tester.pump(_ms * 100);
+      expect(tester.getTopLeft(sheet).dy, greaterThan(rest));
+      expect(pending, findsNothing);
+      var waited = 100;
+      while (haptics.length == 1 && waited < 400) {
+        expect(pending, findsNothing);
+        await tester.pump(_ms * 10);
+        waited += 10;
+      }
+      expect(haptics, [_commit, _success]);
+      expect(sheet, findsNothing);
+      expect(waited, inInclusiveRange(200, 240));
+      await tester.pump();
+      expect(pending, findsOneWidget);
+
+      final page = find.byType(WithdrawalPendingScreen);
       final title = find.text('Withdrawal pending');
       final highlight = find.byType(IqHighlight);
+      await tester.pump();
+      expect(tester.getTopLeft(page).dx, closeTo(24, 1));
       await tester.pump(_ms * 79);
       expect(_opacity(tester, title), 0);
       await tester.pump(_ms * 100);
@@ -345,7 +372,26 @@ void main() {
       await tester.pump(_ms * 62);
       expect(tester.element(highlight), isNot(same(before)));
       expect(_opacity(tester, highlight), greaterThan(0));
+    });
+
+    testWidgets('reduced motion: the pending moment fades in as the sheet '
+        'fades out, with the success haptic', (tester) async {
+      final haptics = recordHaptics(tester);
+      await _pumpApp(
+        tester,
+        withdrawLocation(amountKobo: 500000),
+        reduced: true,
+      );
+      await tester.pump(_ms * 500);
+      await tester.tap(find.text('Withdraw').last);
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(WithdrawalPendingScreen), findsOneWidget);
+      expect(haptics, [_success]);
+      await tester.pump(_ms * 151);
+      await tester.pump();
       expect(find.byType(WithdrawSheet), findsNothing);
+      expect(tester.getTopLeft(find.byType(WithdrawalPendingScreen)).dx, 0);
     });
 
     testWidgets('back on the Wallet after a withdrawal: the figures and the '
@@ -520,6 +566,49 @@ void main() {
       await tester.pump(_ms * 300);
       expect(haptics, [_commit]);
       expect(find.byType(SelectBankScreen), findsOneWidget);
+    });
+
+    testWidgets('failed to Select bank and back: the back button holds while '
+        'the titles cross (spec 4.3)', (tester) async {
+      await _pumpApp(tester, withdrawalPath('w1'));
+      await tester.pump(_ms * 800);
+      final bar = tester.getTopLeft(find.byType(IqTopBar));
+
+      await tester.tap(find.text('Check bank details'));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 60);
+      expect(tester.getTopLeft(find.byType(IqTopBar).last), bar);
+      expect(
+        _opacity(tester, find.text('Withdrawal').last),
+        closeTo(1 - _ei(0.5), 0.02),
+      );
+      expect(
+        tester
+            .renderObject<RenderParagraph>(find.text('Withdrawal').last)
+            .text
+            .style
+            ?.decoration,
+        isNull,
+      );
+      await tester.pump(_ms * 60);
+      expect(_opacity(tester, find.text('Withdrawal').last), closeTo(0, 0.001));
+      await tester.pump(_ms * 300);
+      expect(find.byType(SelectBankScreen), findsOneWidget);
+      expect(tester.getTopLeft(find.byType(IqTopBar)), bar);
+
+      await tester.tap(find.bySemanticsLabel('Back'));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 48);
+      expect(tester.getTopLeft(find.byType(IqTopBar).last), bar);
+      expect(
+        _opacity(tester, find.text('Select bank').last),
+        closeTo(1 - _ei(0.5), 0.02),
+      );
+      await tester.pump(_ms * 300);
+      expect(find.byType(SelectBankScreen), findsNothing);
+      expect(find.text('Withdrawal'), findsOneWidget);
     });
 
     testWidgets('Home after payout: the payout row is the first to arrive, '

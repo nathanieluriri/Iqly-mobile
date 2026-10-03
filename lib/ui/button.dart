@@ -13,9 +13,15 @@ enum IqButtonKind { primary, secondary, danger, ghost, inverse }
 /// (Figma draws it at 3,3; label and icon hold their place), 120 ms
 /// ease-out, back in 160; Ghost dims to .6 instead. Turning enabled peels
 /// the sticker out and crossfades the fill (160 ms), turning disabled tucks
-/// it back (120 ease-in); the label and spinner crossfade (150). Primary and
-/// Inverse taps give the commit haptic, Danger the destructive one (spec
-/// 5.2). [width] defaults to the Figma 200; pass double.infinity to fill.
+/// it back (120 ease-in); the label and spinner crossfade (150). A new
+/// [kind] crosses fill, stroke, ink and sticker colour over the same 160
+/// ease-out, the sticker peeling out or tucking in when only one kind has
+/// one (build extension: spec 5.2 times no kind change); colours cut under
+/// reduced motion. Primary and Inverse taps give the commit haptic, Danger
+/// the destructive one (spec 5.2). With [rollLabel] a new label rolls its
+/// changed characters in (spec 2.5 roll), as "Show 11 briefs" does when its
+/// count changes (spec 5.18). [width] defaults to the Figma 200; pass
+/// double.infinity to fill.
 ///
 /// Figma over brief: Danger keeps a sticker shadow (err-soft).
 /// Figma over brief: Ghost shows the brush arrow by default.
@@ -31,6 +37,7 @@ class IqButton extends StatelessWidget {
     this.disabled = false,
     this.loading = false,
     this.width = 200,
+    this.rollLabel = false,
   });
 
   final String label;
@@ -40,6 +47,7 @@ class IqButton extends StatelessWidget {
   final bool disabled;
   final bool loading;
   final double width;
+  final bool rollLabel;
 
   static const double height = 52;
   static const double radius = 26;
@@ -88,6 +96,10 @@ class _ButtonFaceState extends State<_ButtonFace> {
   Duration _duration = Duration.zero;
   Curve _curve = IqCurves.easeOut;
 
+  /// A sticker only crosses colours while it shows before and after; one
+  /// peeling out or tucking in takes its new colour at once.
+  Duration _shadow = Duration.zero;
+
   @override
   void didUpdateWidget(_ButtonFace old) {
     super.didUpdateWidget(old);
@@ -98,10 +110,16 @@ class _ButtonFaceState extends State<_ButtonFace> {
         disabled ? IqDurations.press : IqDurations.tick,
       );
       _curve = disabled ? IqCurves.easeIn : IqCurves.easeOut;
+    } else if (widget.button.kind != old.button.kind) {
+      _duration = motion(context, IqDurations.tick);
+      _curve = IqCurves.easeOut;
     } else if (widget.pressed != old.pressed) {
       _duration = pressMotion(context, widget.pressed);
       _curve = IqCurves.easeOut;
     }
+    _shadow = old.look.shadow != null && widget.look.shadow != null
+        ? _duration
+        : Duration.zero;
   }
 
   @override
@@ -124,13 +142,19 @@ class _ButtonFaceState extends State<_ButtonFace> {
                     color: look.ink,
                     duration: _duration,
                     curve: _curve,
-                    builder: (ink) => Text(
-                      button.label,
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.ellipsis,
-                      style: IqText.button.copyWith(color: ink),
-                    ),
+                    builder: (ink) => button.rollLabel
+                        ? RollingText(
+                            button.label,
+                            overflow: TextOverflow.ellipsis,
+                            style: IqText.button.copyWith(color: ink),
+                          )
+                        : Text(
+                            button.label,
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.ellipsis,
+                            style: IqText.button.copyWith(color: ink),
+                          ),
                   ),
                 ),
                 if (button.showIcon) ...[
@@ -161,12 +185,17 @@ class _ButtonFaceState extends State<_ButtonFace> {
       clipBehavior: Clip.none,
       children: [
         Positioned.fill(
-          child: Sticker(
-            radius: IqButton.radius,
+          child: _Ink(
             color: look.shadow ?? IqColors.accent,
-            visible: look.shadow != null,
-            pressed: widget.pressed && !ghost,
-            child: SizedBox.expand(child: pill),
+            duration: _shadow,
+            curve: _curve,
+            builder: (shadow) => Sticker(
+              radius: IqButton.radius,
+              color: shadow,
+              visible: look.shadow != null,
+              pressed: widget.pressed && !ghost,
+              child: SizedBox.expand(child: pill),
+            ),
           ),
         ),
         Positioned.fill(

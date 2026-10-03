@@ -17,6 +17,7 @@ import 'package:iqly_mobile/ui/step_mark.dart';
 import 'package:iqly_mobile/ui/top_bar.dart';
 
 import 'entry_harness.dart';
+import 'phone_keyboard.dart';
 
 const _ms = Duration(milliseconds: 1);
 const _light = 'HapticFeedbackType.lightImpact';
@@ -175,6 +176,15 @@ void main() {
       _opacity(tester, find.text(title).last),
       closeTo(1 - _ei(0.5), 0.02),
     );
+    // Drawn in the app's own style, not the framework's fallback.
+    expect(
+      tester
+          .renderObject<RenderParagraph>(find.text(title).last)
+          .text
+          .style
+          ?.decoration,
+      isNull,
+    );
     await tester.pump(_ms * 60);
     expect(_opacity(tester, find.text(title).last), closeTo(0, 0.001));
     await tester.pumpAndSettle();
@@ -250,6 +260,54 @@ void main() {
     expect(auth.signUps, 1);
     expect(haptics, [_light, _success]);
     expect(tester.testTextInput.isVisible, isFalse);
+  });
+
+  testWidgets('Forgot password to Reset link sent and back to Sign in: no '
+      'page lays out against the keyboard as it comes or goes', (tester) async {
+    await bootApp(tester, start: Routes.signIn, reduced: false);
+    final keyboard = PhoneKeyboard(tester);
+    await keyboard.until(() => keyboard.inset == PhoneKeyboard.height);
+    await tester.tap(find.text('Forgot your password?'));
+    await keyboard.frames(40);
+    await tester.enterText(find.byType(EditableText), DemoData.user.email);
+    await keyboard.frames(10);
+    expect(keyboard.inset, PhoneKeyboard.height);
+
+    double? top(String label) {
+      final found = find.text(label);
+      return found.evaluate().isEmpty ? null : tester.getTopLeft(found).dy;
+    }
+
+    final send = top('Send reset link')!;
+    await tester.tap(find.text('Send reset link'));
+    double? open;
+    for (var i = 0; i < 40; i++) {
+      await keyboard.frame();
+      final leaving = top('Send reset link');
+      if (leaving != null) expect(leaving, send);
+      final coming = top('Open email app');
+      if (coming != null) {
+        open ??= coming;
+        expect(coming, open);
+      }
+    }
+    expect(keyboard.inset, 0);
+    expect(find.byType(ResetLinkSentScreen), findsOneWidget);
+    expect(
+      find.byType(ForgotPasswordScreen, skipOffstage: false),
+      findsOneWidget,
+    );
+
+    // Sign in takes its field back, and its keyboard rises as this page
+    // leaves.
+    await tester.tap(find.text('Sign in'));
+    for (var i = 0; i < 30; i++) {
+      await keyboard.frame();
+      final leaving = top('Open email app');
+      if (leaving != null) expect(leaving, open);
+    }
+    expect(find.byType(ResetLinkSentScreen), findsNothing);
+    expect(keyboard.inset, PhoneKeyboard.height);
   });
 
   group('Reset link sent (spec 6.8)', () {

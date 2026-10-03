@@ -12,6 +12,7 @@ import '../../core/transitions.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/button.dart';
+import '../../ui/skeleton.dart';
 import '../../ui/top_bar.dart';
 import 'submission_widgets.dart';
 import 'submissions_state.dart';
@@ -21,7 +22,10 @@ import 'submissions_state.dart';
 /// Motion (spec 6.30, 4.3, 4.4): the push brings the row's status marker
 /// into the header as a shared element, while the title, brief line,
 /// facts, answer and hint settle 40 ms apart; back flies the marker home.
-/// The Page bar holds its back button across a push to the brief.
+/// From a row or from the sent moment the submission is already on the
+/// device, so it draws from the first frame; only a cold open waits
+/// behind LoadingGate. The Page bar holds its back button across a push to
+/// the brief.
 class SubmissionDetailScreen extends ConsumerWidget {
   const SubmissionDetailScreen({super.key, required this.id});
 
@@ -29,13 +33,15 @@ class SubmissionDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final item = ref.watch(submissionItemProvider(id)).value;
+    final loaded = ref.watch(submissionItemProvider(id));
+    final item = loaded.value;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
         resizeToAvoidBottomInset: false,
         backgroundColor: IqColors.bg,
         body: SafeArea(
+          maintainBottomViewPadding: true,
           child: CenteredContent(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -43,7 +49,6 @@ class SubmissionDetailScreen extends ConsumerWidget {
                 IqTopBar(
                   variant: IqTopBarVariant.page,
                   title: 'Submission',
-                  sharedChrome: true,
                   onBack: () => context.canPop()
                       ? context.pop()
                       : context.go(
@@ -52,9 +57,13 @@ class SubmissionDetailScreen extends ConsumerWidget {
                         ),
                 ),
                 Expanded(
-                  child: item == null
-                      ? const SizedBox.shrink()
-                      : _Body(item: item, now: ref.watch(clockProvider)()),
+                  child: LoadingGate(
+                    loading: item == null && loaded.isLoading,
+                    skeleton: const _Skeleton(),
+                    child: item == null
+                        ? const SizedBox.shrink()
+                        : _Body(item: item, now: ref.watch(clockProvider)()),
+                  ),
                 ),
                 if (item != null)
                   Padding(
@@ -76,6 +85,42 @@ class SubmissionDetailScreen extends ConsumerWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The detail's lines while a cold open loads: the status, the title, the
+/// brief line and the three facts.
+class _Skeleton extends StatelessWidget {
+  const _Skeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(IqSpace.s4, IqSpace.s2, IqSpace.s4, 0),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          Widget line(double share) => IqSkeleton(
+            kind: IqSkeletonKind.line,
+            width: box.maxWidth * share,
+          );
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              line(0.3),
+              const SizedBox(height: IqSpace.s3),
+              line(1),
+              const SizedBox(height: IqSpace.s2),
+              line(0.7),
+              const SizedBox(height: IqSpace.s6),
+              for (var i = 0; i < 3; i++) ...[
+                line(1),
+                const SizedBox(height: IqSpace.s6),
+              ],
+            ],
+          );
+        },
       ),
     );
   }

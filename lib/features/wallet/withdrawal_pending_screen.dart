@@ -20,7 +20,8 @@ import 'wallet_state.dart';
 /// arrives (ink rises 16 over 320, the strap sweeps in from +160), the
 /// title appears at +80, the amount line at +120 with its Highlight wiping
 /// from +240, AVAILABLE AFTER at +160. The success haptic plays as the
-/// sheet hands over (spec 7.1, 5.29).
+/// sheet hands over (spec 7.1, 5.29), and the page holds still while the
+/// sheet's keypad clears.
 ///
 /// Figma: the Page bar has no back button, and "Back to wallet" is the
 /// only way on; AVAILABLE AFTER is what is available once this one is on
@@ -37,8 +38,10 @@ class WithdrawalPendingScreen extends ConsumerWidget {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         backgroundColor: IqColors.bg,
         body: SafeArea(
+          maintainBottomViewPadding: true,
           child: CenteredContent(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/data/help_service.dart';
-import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/proof_tile.dart';
 
 import '../golden.dart';
 import 'app_harness.dart';
+import 'help_harness.dart';
 import 'polls_notifications_help_harness.dart';
 
 Future<void> _write(WidgetTester tester) async {
@@ -21,7 +21,14 @@ Future<void> _golden(
   HelpService? help,
   Future<void> Function(WidgetTester tester)? act,
 }) async {
-  await pumpApp(tester, Routes.help, overrides: laneOverrides(help: help));
+  await pumpApp(
+    tester,
+    kudiBoxHelp,
+    overrides: [
+      ...laneOverrides(help: help),
+      ...helpActivations(),
+    ],
+  );
   if (act != null) {
     await act(tester);
     await tester.pumpAndSettle();

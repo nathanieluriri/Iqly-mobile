@@ -173,6 +173,7 @@ void main() {
       final played = record(tester);
       for (final haptic in IqHaptics.values) {
         await haptic.play();
+        await tester.pump(Duration.zero);
       }
       expect(played, [
         'HapticFeedbackType.selectionClick',
@@ -180,6 +181,37 @@ void main() {
         'HapticFeedbackType.mediumImpact',
         'HapticFeedbackType.successNotification',
         'HapticFeedbackType.mediumImpact',
+      ]);
+    });
+
+    testWidgets('a result that lands with its commit plays alone (spec 2.7)', (
+      tester,
+    ) async {
+      final played = record(tester);
+      IqHaptics.commit.play();
+      errorHaptic();
+      await tester.pump(Duration.zero);
+      expect(played, ['HapticFeedbackType.mediumImpact']);
+
+      IqHaptics.commit.play();
+      await Future<void>.value();
+      IqHaptics.success.play();
+      await tester.pump(Duration.zero);
+      expect(played, [
+        'HapticFeedbackType.mediumImpact',
+        'HapticFeedbackType.successNotification',
+      ]);
+    });
+
+    testWidgets('a result that comes later follows its commit', (tester) async {
+      final played = record(tester);
+      IqHaptics.commit.play();
+      await tester.pump(Duration.zero);
+      expect(played, ['HapticFeedbackType.lightImpact']);
+      IqHaptics.success.play();
+      expect(played, [
+        'HapticFeedbackType.lightImpact',
+        'HapticFeedbackType.successNotification',
       ]);
     });
 
@@ -302,29 +334,73 @@ void main() {
     double fade(WidgetTester tester, int i) => tester
         .widgetList<FadeTransition>(
           find.ancestor(
-            of: find.byKey(ValueKey(i)),
-            matching: find.byType(FadeTransition),
+            of: find.byKey(ValueKey(i), skipOffstage: false),
+            matching: find.byType(FadeTransition, skipOffstage: false),
           ),
         )
         .fold(1.0, (o, w) => o * w.opacity.value);
 
-    testWidgets('items arrive 40 ms apart and the seventh stands still', (
-      tester,
-    ) async {
+    testWidgets('items arrive 40 ms apart; those after the sixth, on '
+        'screen, arrive with it', (tester) async {
       await _pumpTop(tester, list());
+      await tester.pump();
       expect(rise(tester, 0), closeTo(12, 0.01));
       expect(fade(tester, 0), 0);
-      expect(rise(tester, 6), 0);
-      expect(fade(tester, 6), 1);
+      expect(rise(tester, 6), closeTo(12, 0.01));
+      expect(fade(tester, 7), 0);
       await tester.pump(const Duration(milliseconds: 170));
       expect(fade(tester, 0), closeTo(_eo(170 / 260), 0.01));
       expect(fade(tester, 2), closeTo(_eo(90 / 260), 0.01));
       expect(rise(tester, 5), closeTo(12, 0.01));
-      await tester.pump(const Duration(milliseconds: 290));
+      await tester.pump(const Duration(milliseconds: 160));
+      expect(fade(tester, 5), closeTo(_eo(130 / 260), 0.01));
+      for (final i in [6, 7]) {
+        expect(fade(tester, i), fade(tester, 5));
+        expect(rise(tester, i), rise(tester, 5));
+      }
+      await tester.pump(const Duration(milliseconds: 130));
       for (var i = 0; i < 8; i++) {
         expect(rise(tester, i), 0);
         expect(fade(tester, i), 1);
       }
+    });
+
+    testWidgets('items after the sixth below the fold render in place', (
+      tester,
+    ) async {
+      await _pumpTop(
+        tester,
+        SizedBox(
+          width: 100,
+          height: 300,
+          child: Stagger(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                for (var i = 0; i < 20; i++)
+                  StaggerItem(
+                    index: i,
+                    child: SizedBox(key: ValueKey(i), height: 30),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      for (final i in [6, 9]) {
+        expect(fade(tester, i), 0, reason: 'item $i is on screen');
+      }
+      expect(fade(tester, 10), 1);
+      expect(
+        tester
+            .getTopLeft(find.byKey(const ValueKey(10), skipOffstage: false))
+            .dy,
+        300,
+      );
+      await tester.pump(const Duration(milliseconds: 330));
+      expect(fade(tester, 9), closeTo(_eo(130 / 260), 0.01));
+      expect(fade(tester, 10), 1);
     });
 
     testWidgets('settle only rises 8, and a list not playing stands still', (
@@ -345,6 +421,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 75));
       expect(fade(tester, 0), closeTo(_eo(0.5), 0.01));
       expect(fade(tester, 5), closeTo(_eo(0.5), 0.01));
+      expect(fade(tester, 7), closeTo(_eo(0.5), 0.01));
       expect(rise(tester, 5), 0);
     });
   });
@@ -378,6 +455,54 @@ void main() {
       await tester.pump();
       expect(find.text('5h 40m'), findsNothing);
       expect(find.byType(RichText), findsOneWidget);
+    });
+
+    testWidgets('a change while it rolls does not start the roll over', (
+      tester,
+    ) async {
+      await tester.pumpWidget(figure('17'));
+      await tester.pumpWidget(figure('18'));
+      await tester.pump(const Duration(milliseconds: 80));
+      await tester.pumpWidget(figure('19'));
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(find.text('18'), findsNothing);
+      final leaving = tester.widget<Transform>(
+        find
+            .ancestor(of: find.text('17'), matching: find.byType(Transform))
+            .first,
+      );
+      expect(
+        leaving.transform.getTranslation().y,
+        closeTo(-6 * _eo(120 / 160), 0.01),
+      );
+      await tester.pump(const Duration(milliseconds: 41));
+      await tester.pump();
+      expect(find.text('17'), findsNothing);
+      expect(find.text('19'), findsOneWidget);
+      expect(find.byType(RichText), findsOneWidget);
+    });
+
+    testWidgets('a count that changes faster than it rolls rests, and rolls '
+        'again once it has been still for a roll', (tester) async {
+      await tester.pumpWidget(figure('1'));
+      await tester.pumpWidget(figure('2'));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpWidget(figure('3'));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpWidget(figure('4'));
+      expect(find.text('4'), findsOneWidget);
+      expect(find.byType(RichText), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpWidget(figure('5'));
+      expect(find.byType(RichText), findsOneWidget);
+
+      await tester.pump(const Duration(milliseconds: 160));
+      await tester.pumpWidget(figure('6'));
+      await tester.pump(const Duration(milliseconds: 80));
+      expect(find.text('5'), findsOneWidget);
+      expect(find.text('6'), findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(find.text('5'), findsNothing);
     });
 
     testWidgets('reduced motion: a cut', (tester) async {

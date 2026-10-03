@@ -75,6 +75,7 @@ class ResultScreen extends ConsumerWidget {
         resizeToAvoidBottomInset: false,
         backgroundColor: IqColors.bg,
         body: SafeArea(
+          maintainBottomViewPadding: true,
           child: CenteredContent(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -145,6 +146,16 @@ class WinnerCard extends StatelessWidget {
     final brief = data.item.brief;
     return Hero(
       tag: heroTag(data.item.id),
+      curve: IqCurves.easeInOut,
+      createRectTween: (begin, end) => RectTween(begin: begin, end: end),
+      // The flight is drawn in the navigator's overlay, outside every page's
+      // Material, where text would take the framework's fallback style (a
+      // yellow double underline).
+      flightShuttleBuilder: (context, animation, direction, from, to) =>
+          Material(
+            type: MaterialType.transparency,
+            child: (to.widget as Hero).child,
+          ),
       child: SizedBox(
         width: width,
         child: FittedBox(

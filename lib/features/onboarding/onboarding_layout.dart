@@ -88,17 +88,15 @@ class _OnboardingStepScaffoldState extends State<OnboardingStepScaffold> {
           backgroundColor: IqColors.bg,
           resizeToAvoidBottomInset: false,
           body: SafeArea(
+            maintainBottomViewPadding: true,
             child: CenteredContent(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  ChromeHero(
-                    tag: ChromeTags.back,
-                    child: IqTopBar(
-                      variant: IqTopBarVariant.page,
-                      title: '',
-                      onBack: widget.onBack,
-                    ),
+                  IqTopBar(
+                    variant: IqTopBarVariant.page,
+                    title: '',
+                    onBack: widget.onBack,
                   ),
                   SizedBox(
                     height: 48,
@@ -345,6 +343,7 @@ class OnboardingHeroScaffold extends StatelessWidget {
         backgroundColor: IqColors.bg,
         resizeToAvoidBottomInset: false,
         body: SafeArea(
+          maintainBottomViewPadding: true,
           child: CenteredContent(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,

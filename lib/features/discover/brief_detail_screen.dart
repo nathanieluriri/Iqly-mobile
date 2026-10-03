@@ -60,6 +60,7 @@ class BriefDetailScreen extends ConsumerWidget {
         resizeToAvoidBottomInset: false,
         backgroundColor: IqColors.bg,
         body: SafeArea(
+          maintainBottomViewPadding: true,
           child: CenteredContent(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -69,7 +70,6 @@ class BriefDetailScreen extends ConsumerWidget {
                     IqTopBar(
                       variant: IqTopBarVariant.page,
                       title: 'Brief',
-                      sharedChrome: true,
                       onBack: () => leave(context),
                     ),
                     if (brief != null && Flags.savedBriefs)

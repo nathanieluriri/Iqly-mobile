@@ -8,10 +8,14 @@ import 'package:iqly_mobile/core/deadline.dart';
 import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/data/notifications_service.dart';
 import 'package:iqly_mobile/data/repository.dart';
+import 'package:iqly_mobile/features/discover/brief_detail_screen.dart';
 import 'package:iqly_mobile/features/notifications/notifications_screen.dart';
+import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/theme/theme.dart';
 import 'package:iqly_mobile/ui/highlight.dart';
 import 'package:iqly_mobile/ui/notification.dart';
+import 'package:iqly_mobile/ui/pressable.dart';
+import 'package:iqly_mobile/ui/top_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../golden/screens/app_harness.dart';
@@ -109,6 +113,23 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('the feed arrives top first: the rows after the sixth slot, all '
+      'on screen, arrive with it', (tester) async {
+    await _pumpFeed(tester);
+    await tester.pump();
+    await tester.pump();
+    final rows = tester.widgetList<IqNotification>(find.byType(IqNotification));
+    expect(rows.length, greaterThan(5));
+    final last = (rows.last.key! as ValueKey<String>).value;
+    expect(_rowOpacity(tester, last), 0);
+    await tester.pump(const Duration(milliseconds: 190));
+    expect(_rowOpacity(tester, last), 0);
+    await tester.pump(const Duration(milliseconds: 140));
+    expect(_rowOpacity(tester, last), inExclusiveRange(0, 1));
+    await tester.pumpAndSettle();
+    expect(_rowOpacity(tester, last), 1);
+  });
+
   testWidgets('each headline wipes 120 ms into its row', (tester) async {
     await _pumpFeed(tester);
     await tester.pump();
@@ -138,6 +159,58 @@ void main() {
     expect(tester.hasRunningAnimations, isFalse);
   });
 
+  testWidgets('Notifications to Brief and back: one back button holds and '
+      'the titles cross in place (spec 4.3)', (tester) async {
+    await pumpApp(
+      tester,
+      Routes.notifications,
+      overrides: [...laneOverrides(), ...walletOverrides()],
+      reducedMotion: false,
+    );
+    final rest = tester.getTopLeft(find.byType(IqTopBar));
+    double shown(String title) {
+      var opacity = 1.0;
+      for (final w in tester.widgetList(
+        find.ancestor(
+          of: find.text(title).last,
+          matching: find.byWidgetPredicate(
+            (w) => w is FadeTransition || w is Opacity,
+          ),
+        ),
+      )) {
+        opacity *= w is FadeTransition
+            ? w.opacity.value
+            : (w as Opacity).opacity;
+      }
+      return opacity;
+    }
+
+    await tester.tap(find.text('Closes in 6h'));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+    expect(tester.getTopLeft(find.byType(IqTopBar).last), rest);
+    expect(shown('Notifications'), closeTo(0.5, 0.2));
+    expect(shown('Brief'), 0);
+    await tester.pumpAndSettle();
+    expect(find.byType(BriefDetailScreen), findsOneWidget);
+
+    await tester.tap(
+      find
+          .byWidgetPredicate(
+            (w) => w is IqPressable && w.semanticLabel == 'Back',
+          )
+          .last,
+    );
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 48));
+    expect(tester.getTopLeft(find.byType(IqTopBar).last), rest);
+    expect(shown('Notifications'), 0);
+    await tester.pumpAndSettle();
+    expect(find.byType(BriefDetailScreen), findsNothing);
+  });
+
   group('the unread dot', () {
     Widget row(bool unread) => MaterialApp(
       home: Scaffold(
@@ -145,13 +218,13 @@ void main() {
       ),
     );
 
-    double scale(WidgetTester tester) =>
-        tester.widget<AnimatedScale>(find.byType(AnimatedScale)).scale;
+    double scale(WidgetTester tester, [Finder? dot]) =>
+        tester.widget<AnimatedScale>(dot ?? find.byType(AnimatedScale)).scale;
 
-    double shown(WidgetTester tester) => tester
+    double shown(WidgetTester tester, [Finder? dot]) => tester
         .widget<ScaleTransition>(
           find.descendant(
-            of: find.byType(AnimatedScale),
+            of: dot ?? find.byType(AnimatedScale),
             matching: find.byType(ScaleTransition),
           ),
         )
@@ -175,6 +248,47 @@ void main() {
       await tester.pumpWidget(row(false));
       await tester.pump();
       expect(shown(tester), 0);
+    });
+
+    testWidgets('back from the row it opened, the dot holds until the page '
+        'above has gone, then shrinks (spec 7.5)', (tester) async {
+      await pumpApp(
+        tester,
+        Routes.notifications,
+        overrides: [...laneOverrides(), ...walletOverrides()],
+        reducedMotion: false,
+      );
+      final dot = find.descendant(
+        of: find.byWidgetPredicate(
+          (w) => w is IqNotification && w.headline == 'Closes in 6h',
+        ),
+        matching: find.byType(AnimatedScale),
+      );
+      expect(scale(tester, dot), 1);
+      await tester.tap(find.text('Closes in 6h'));
+      await tester.pumpAndSettle();
+      expect(find.byType(BriefDetailScreen), findsOneWidget);
+
+      await tester.tap(
+        find
+            .byWidgetPredicate(
+              (w) => w is IqPressable && w.semanticLabel == 'Back',
+            )
+            .last,
+      );
+      var frames = 0;
+      while (find.byType(BriefDetailScreen).evaluate().isNotEmpty) {
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(++frames, lessThan(30));
+        expect(scale(tester, dot), 1);
+        expect(shown(tester, dot), 1);
+      }
+      await tester.pump();
+      expect(scale(tester, dot), 0);
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(shown(tester, dot), inExclusiveRange(0, 1));
+      await tester.pump(const Duration(milliseconds: 61));
+      expect(shown(tester, dot), 0);
     });
   });
 

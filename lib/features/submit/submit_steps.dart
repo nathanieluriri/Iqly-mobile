@@ -82,9 +82,18 @@ class StepHeading extends StatelessWidget {
 /// title validates inline (5 to 120 characters, as iqly.net), the answer
 /// area is judged by the thread. Its parts settle in with the push.
 class AnswerStep extends ConsumerStatefulWidget {
-  const AnswerStep({super.key, required this.brief, required this.settle});
+  const AnswerStep({
+    super.key,
+    required this.brief,
+    required this.flow,
+    required this.settle,
+  });
 
   final Brief brief;
+
+  /// The flow as the screen last drew this step, so a step on its way out
+  /// keeps showing what was sent while it fades.
+  final SubmitFlow flow;
 
   /// Rides the push in; coming back from the questions it stands still.
   final bool settle;
@@ -142,7 +151,7 @@ class _AnswerStepState extends ConsumerState<AnswerStep> {
         if (!answerReady(draft)) _answerShakes++;
       });
     });
-    final flow = ref.watch(provider);
+    final flow = widget.flow;
     final notifier = ref.read(provider.notifier);
     final title = titleLength(flow.draft);
     return Stagger(
@@ -218,10 +227,19 @@ class _AnswerStepState extends ConsumerState<AnswerStep> {
 /// over 120 ms with the select haptic), then Attachments, which opens the
 /// file picker and keeps up to five files of 10 MB.
 class QuestionsStep extends ConsumerStatefulWidget {
-  const QuestionsStep({super.key, required this.briefId, required this.form});
+  const QuestionsStep({
+    super.key,
+    required this.briefId,
+    required this.form,
+    required this.flow,
+  });
 
   final String briefId;
   final SubmitForm form;
+
+  /// The flow as the screen last drew this step, so a step on its way out
+  /// keeps showing what was sent while it fades.
+  final SubmitFlow flow;
 
   @override
   ConsumerState<QuestionsStep> createState() => _QuestionsStepState();
@@ -275,7 +293,7 @@ class _QuestionsStepState extends ConsumerState<QuestionsStep> {
       final id = widget.form.questions[missing].id;
       setState(() => _shakes[id] = (_shakes[id] ?? 0) + 1);
     });
-    final flow = ref.watch(provider);
+    final flow = widget.flow;
     final notifier = ref.read(provider.notifier);
     final form = widget.form;
     return SingleChildScrollView(

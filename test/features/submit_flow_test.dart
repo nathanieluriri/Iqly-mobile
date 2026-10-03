@@ -2,17 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/responsive.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
+import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/data/submit_data.dart';
 import 'package:iqly_mobile/data/submit_service.dart';
 import 'package:iqly_mobile/features/discover/brief_detail_screen.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
 import 'package:iqly_mobile/features/submissions/my_submissions_screen.dart';
 import 'package:iqly_mobile/features/submissions/submission_detail_screen.dart';
+import 'package:iqly_mobile/features/submissions/submissions_routes.dart';
 import 'package:iqly_mobile/features/submit/submit_screen.dart';
 import 'package:iqly_mobile/features/submit/submit_state.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/field.dart';
 import 'package:iqly_mobile/ui/poll_option.dart';
+import 'package:iqly_mobile/ui/skeleton.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../golden/screens/app_harness.dart';
@@ -86,7 +89,7 @@ void main() {
       expect(find.text("What's your take?"), findsOneWidget);
       expect(tester.widget<IqField>(_field('Title')).state, IqFieldState.error);
       expect(find.text('5 more characters'), findsOneWidget);
-      expect(haptics, [_commit, _commit, _error]);
+      expect(haptics, [_commit, _error]);
 
       await _type(tester, _field('Title'), SubmitCopy.title);
       await _type(tester, _answer(), SubmitCopy.shortAnswer);
@@ -116,14 +119,14 @@ void main() {
       await _tap(tester, find.text('Send response'));
       expect(find.text('A few quick questions'), findsOneWidget);
       expect(find.text('Question 1 needs an answer'), findsOneWidget);
-      expect(haptics, [_commit, _error]);
+      expect(haptics, [_error]);
 
       await _tap(tester, find.text('Pidgin'));
       await _tap(tester, find.text(SubmitCopy.language));
       expect(_option(tester, SubmitCopy.language), IqPollOptionState.selected);
       expect(_option(tester, 'Pidgin'), IqPollOptionState.standard);
       expect(find.text('Question 2 needs an answer'), findsNWidgets(2));
-      expect(haptics.sublist(2), [_select, _select]);
+      expect(haptics.sublist(1), [_select, _select]);
 
       await _type(
         tester,
@@ -143,7 +146,7 @@ void main() {
       expect(find.text("You're"), findsOneWidget);
       expect(find.text('1 of 29'), findsOneWidget);
       expect(find.text('so far'), findsOneWidget);
-      expect(haptics, [_commit, _success]);
+      expect(haptics, [_success]);
       final request = service.requests.single;
       expect(request.briefId, 'c5');
       expect(request.title, SubmitCopy.title);
@@ -172,6 +175,73 @@ void main() {
       expect(find.text('11 of 40 left'), findsOneWidget);
     },
   );
+
+  testWidgets('B3: View submission draws the new one from its first frame '
+      'while My submissions takes its 1.2 s to load', (tester) async {
+    await pumpApp(
+      tester,
+      Routes.submitTo('c5'),
+      repository: DemoRepository(
+        DemoData(now: figmaNow),
+        latency: const DemoLatency(submissions: Duration(milliseconds: 1200)),
+      ),
+      prefs: submitDraftPrefs(
+        title: SubmitCopy.title,
+        answer: SubmitCopy.answer,
+        answers: {
+          'language': [SubmitCopy.language],
+          'placement': ['On the kiosk itself'],
+        },
+      ),
+      overrides: instantSubmit(),
+    );
+    await _tap(tester, find.text('Continue'));
+    await _tap(tester, find.text('Send response'));
+
+    await tester.tap(find.text('View submission'));
+    for (var at = 0; at <= 1500; at += 16) {
+      await tester.pump(const Duration(milliseconds: 16));
+      if (find.byType(SubmissionDetailScreen).evaluate().isEmpty) continue;
+      expect(
+        find.descendant(
+          of: find.byType(SubmissionDetailScreen),
+          matching: find.text(SubmitCopy.title),
+        ),
+        findsOneWidget,
+        reason: 'at $at ms',
+      );
+      expect(find.byType(IqSkeleton), findsNothing, reason: 'at $at ms');
+    }
+    expect(find.text('View the brief'), findsOneWidget);
+    expect(find.text('Under review'), findsOneWidget);
+
+    await _tap(tester, find.bySemanticsLabel('Back'));
+    expect(find.text('6 sent · 3 under review'), findsOneWidget);
+    expect(find.text(SubmitCopy.title), findsOneWidget);
+  });
+
+  testWidgets('B4: a cold open of a submission waits behind the skeleton', (
+    tester,
+  ) async {
+    await pumpApp(
+      tester,
+      submissionPath('s1'),
+      repository: DemoRepository(
+        DemoData(now: figmaNow),
+        latency: const DemoLatency(submissions: Duration(milliseconds: 1200)),
+      ),
+      settle: false,
+    );
+    await tester.pump(const Duration(milliseconds: 290));
+    expect(find.byType(IqSkeleton), findsNothing);
+    expect(find.text('Fizzo: short, loud, easy to say'), findsNothing);
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(find.byType(IqSkeleton), findsWidgets);
+    await tester.pump(const Duration(milliseconds: 900));
+    await tester.pumpAndSettle();
+    expect(find.byType(IqSkeleton), findsNothing);
+    expect(find.text('Fizzo: short, loud, easy to say'), findsOneWidget);
+  });
 
   testWidgets('B3: from the sent moment, back and Back to Discover go home', (
     tester,
@@ -259,7 +329,7 @@ void main() {
     await _tap(tester, find.text('Send response'));
     expect(find.text("You've submitted to this brief."), findsOneWidget);
     expect(find.text("You're"), findsNothing);
-    expect(haptics, [_commit, _success]);
+    expect(haptics, [_success]);
   });
 
   testWidgets('B3: a short title says what is missing when it loses focus', (
@@ -326,7 +396,7 @@ void main() {
     await _tap(tester, find.text('Send response'));
     expect(find.text('Failed to submit'), findsOneWidget);
     expect(find.text('A few quick questions'), findsOneWidget);
-    expect(haptics, [_commit, _error]);
+    expect(haptics, [_error]);
     expect(await _draft(), isNotNull);
 
     service.offline = false;

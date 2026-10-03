@@ -725,6 +725,52 @@ void main() {
     });
   });
 
+  group('Button label', () {
+    Widget button(String label, {bool roll = true}) =>
+        IqButton(label: label, width: 300, rollLabel: roll, onTap: () {});
+
+    testWidgets('with rollLabel, a new count rolls in over 160 while the '
+        'words around it hold', (tester) async {
+      await _pump(tester, button('Show 11 briefs'));
+      expect(tester.hasRunningAnimations, isFalse);
+      await _pump(tester, button('Show 9 briefs'));
+      await tester.pump(_ms * 80);
+      expect(find.text('Show 11 briefs'), findsOneWidget);
+      expect(find.text('Show 9 briefs'), findsWidgets);
+      final leaving = tester.widget<Transform>(
+        find
+            .ancestor(
+              of: find.text('Show 11 briefs'),
+              matching: find.byType(Transform),
+            )
+            .first,
+      );
+      expect(
+        leaving.transform.getTranslation().y,
+        closeTo(-IqTravel.tick * _eo(0.5), 0.01),
+      );
+      await tester.pump(_ms * 81);
+      await tester.pump();
+      expect(find.text('Show 11 briefs'), findsNothing);
+      expect(find.text('Show 9 briefs'), findsOneWidget);
+    });
+
+    testWidgets('reduced motion: the new label cuts in', (tester) async {
+      _reduce(tester);
+      await _pump(tester, button('Show 11 briefs'));
+      await _pump(tester, button('Show 9 briefs'));
+      expect(find.text('Show 11 briefs'), findsNothing);
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+
+    testWidgets('without it, a new label cuts in as before', (tester) async {
+      await _pump(tester, button('Save changes', roll: false));
+      await _pump(tester, button('Saving', roll: false));
+      expect(find.text('Save changes'), findsNothing);
+      expect(find.text('Saving'), findsOneWidget);
+    });
+  });
+
   group('Illustration', () {
     double inkOpacity(WidgetTester tester) => _opacity(
       tester,

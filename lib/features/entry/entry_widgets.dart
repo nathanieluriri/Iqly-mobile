@@ -161,8 +161,8 @@ class EntryScaffold extends StatelessWidget {
   final String title;
   final Widget? action;
 
-  /// Screens without fields keep their layout while the previous screen's
-  /// keyboard slides away over them.
+  /// Screens without fields keep their layout, the home indicator's
+  /// padding included, while a keyboard slides over them.
   final bool hasFields;
   final bool settle;
 
@@ -193,17 +193,14 @@ class EntryScaffold extends StatelessWidget {
         backgroundColor: IqColors.bg,
         resizeToAvoidBottomInset: hasFields,
         body: SafeArea(
+          maintainBottomViewPadding: !hasFields,
           child: CenteredContent(
             child: Column(
               children: [
-                ChromeHero(
-                  tag: ChromeTags.back,
-                  shuttle: _barShuttle,
-                  child: IqTopBar(
-                    variant: IqTopBarVariant.page,
-                    title: title,
-                    onBack: onBack,
-                  ),
+                IqTopBar(
+                  variant: IqTopBarVariant.page,
+                  title: title,
+                  onBack: onBack,
                 ),
                 Expanded(
                   child: SingleChildScrollView(
@@ -224,67 +221,6 @@ class EntryScaffold extends StatelessWidget {
       ),
     );
   }
-}
-
-/// The Page bar in flight: the back button holds while the titles cross.
-Widget _barShuttle(
-  BuildContext context,
-  Animation<double> progress,
-  Widget from,
-  Widget to,
-) {
-  final old = from as IqTopBar;
-  final next = to as IqTopBar;
-  if (old.title == next.title) return to;
-  return AnimatedBuilder(
-    animation: progress,
-    builder: (context, _) {
-      final now = IqDurations.screen * progress.value;
-      double span(Duration from, Duration to, Curve curve) => curve.transform(
-        ((now - from).inMicroseconds / (to - from).inMicroseconds).clamp(
-          0.0,
-          1.0,
-        ),
-      );
-      final out = span(Duration.zero, IqChromeTiming.titleOut, IqCurves.easeIn);
-      final come = span(
-        IqChromeTiming.titleInAt,
-        IqChromeTiming.titleInEnd,
-        IqCurves.easeOut,
-      );
-      return Stack(
-        children: [
-          ClipRect(clipper: const _BarSide(back: true), child: to),
-          ClipRect(
-            clipper: const _BarSide(back: false),
-            child: Opacity(opacity: 1 - out, child: from),
-          ),
-          ClipRect(
-            clipper: const _BarSide(back: false),
-            child: Opacity(opacity: come, child: to),
-          ),
-        ],
-      );
-    },
-  );
-}
-
-/// The Page bar's back button side (12 padding, 44 button, 8 gap) or the
-/// rest of it.
-class _BarSide extends CustomClipper<Rect> {
-  const _BarSide({required this.back});
-
-  final bool back;
-
-  static const double _width = IqSpace.s3 + 44 + IqSpace.s2;
-
-  @override
-  Rect getClip(Size size) => back
-      ? Rect.fromLTRB(0, 0, _width, size.height)
-      : Rect.fromLTRB(_width, 0, size.width, size.height);
-
-  @override
-  bool shouldReclip(_BarSide old) => old.back != back;
 }
 
 /// A B0 step mark, chrome that morphs across a push (spec 4.1).

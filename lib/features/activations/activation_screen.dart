@@ -28,6 +28,7 @@ import '../../ui/step_row.dart';
 import '../../ui/timeline_row.dart';
 import '../../ui/top_bar.dart';
 import '../../ui/video_preview.dart';
+import '../help/help_routes.dart';
 import '../wallet/wallet_format.dart' show nairaParts;
 import '../wallet/wallet_state.dart';
 import 'activation_format.dart';
@@ -60,7 +61,10 @@ _Layout _layoutOf(ActivationPhase phase) => switch (phase) {
 /// screen to step not confirmed, with Upload proof of step 2. Being paid
 /// dissolves to the reward: the PAID stamp lands at +120 with the success
 /// haptic, the wallet rolls to its new balance at +400 and the timeline
-/// arrives. Tapping the waiting step or the Checking row asks for the
+/// arrives. Paid while a page covers the screen, nothing plays and no
+/// haptic sounds (spec 2.7); coming back, the screen opens on the reward
+/// and the stamp lands as it shows (spec 5.30), the wallet already at its
+/// new balance. Tapping the waiting step or the Checking row asks for the
 /// latest state, as those taps advance the prototypes.
 ///
 /// Figma over this build: Open Kudi Box has no reaction; it opens the
@@ -83,6 +87,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
   bool _starting = false;
   bool _startFailed = false;
   bool _paidHere = false;
+  bool _paidUnseen = false;
   bool _sentHere = false;
 
   @override
@@ -98,8 +103,12 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
     final was = before.phaseAt(now);
     final phase = after.phaseAt(now);
     if (phase != was) {
+      final seen = !covered(context);
       setState(() {
-        if (phase == ActivationPhase.credited) _paidHere = true;
+        if (phase == ActivationPhase.credited) {
+          _paidHere = seen;
+          _paidUnseen = !seen;
+        }
         if (phase == ActivationPhase.checking) _sentHere = true;
       });
     }
@@ -223,6 +232,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
         _Layout.credited => _CreditedPage(
           activation: activation,
           moment: _paidHere,
+          landed: _paidUnseen,
           onBack: _back,
         ),
       };
@@ -233,6 +243,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
         resizeToAvoidBottomInset: false,
         backgroundColor: IqColors.bg,
         body: SafeArea(
+          maintainBottomViewPadding: true,
           child: CenteredContent(
             child: StateDissolve(
               child: KeyedSubtree(key: ValueKey(layout), child: page),
@@ -681,7 +692,7 @@ class _CheckingPage extends StatelessWidget {
                 kind: IqButtonKind.secondary,
                 showIcon: false,
                 width: double.infinity,
-                onTap: () => context.push(Routes.help),
+                onTap: () => context.push(helpPath(about: a.id)),
               ),
             ],
           ),
@@ -698,6 +709,7 @@ class _CreditedPage extends StatefulWidget {
   const _CreditedPage({
     required this.activation,
     required this.moment,
+    required this.landed,
     required this.onBack,
   });
 
@@ -705,6 +717,10 @@ class _CreditedPage extends StatefulWidget {
 
   /// The payment landed while the screen was open: play the moment.
   final bool moment;
+
+  /// The payment landed while a page covered the screen: the stamp lands
+  /// as the screen shows, with nothing else.
+  final bool landed;
   final VoidCallback onBack;
 
   @override
@@ -790,7 +806,11 @@ class _CreditedPageState extends State<_CreditedPage> {
                     child: IqClaimStamp(
                       kind: IqClaimStampKind.credited,
                       label: 'Paid ${reward(a)}',
-                      landAfter: moment ? IqDurations.chain : null,
+                      landAfter: moment
+                          ? IqDurations.chain
+                          : widget.landed
+                          ? Duration.zero
+                          : null,
                     ),
                   ),
                   eyebrow: a.business,
@@ -887,9 +907,7 @@ class _RewardWalletState extends ConsumerState<_RewardWallet> {
     if (data == null) return const SizedBox(height: 146);
     final a = widget.activation;
     var totals = data.totals;
-    final paidIn = data.ledger.any(
-      (l) => l.id == ActivationsNotifier.creditId(a.id),
-    );
+    final paidIn = data.ledger.any((l) => l.id == a.creditId);
     if (_before && paidIn) {
       totals = WalletTotals(
         totalEarnedKobo: totals.totalEarnedKobo - a.rewardKobo,
