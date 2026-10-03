@@ -15,7 +15,6 @@ import '../../ui/icon.dart';
 import '../../ui/list_row.dart';
 import '../../ui/top_bar.dart';
 import '../onboarding/onboarding_draft.dart';
-import '../profile/profile_motion.dart' as motion;
 import '../profile/profile_state.dart';
 import 'settings_state.dart';
 
@@ -30,11 +29,18 @@ import 'settings_state.dart';
 /// Account closing.
 ///
 /// The consequence rows settle in with the push; no chevrons, as in the
-/// frame.
+/// frame. The Danger press gives the destructive haptic and hands off to
+/// Account closing, no success haptic (spec 7.10). A delete that fails
+/// shakes the button, plays the error haptic and says why under it.
+///
+/// Note over Figma: the frames have no failed state; its line is new copy
+/// for the owner to sign off.
 class DeleteAccountScreen extends ConsumerStatefulWidget {
   const DeleteAccountScreen({super.key});
 
   static const confirmWord = 'DELETE';
+  static const failedText =
+      'Couldn’t delete your account. Check your connection and try again.';
 
   @override
   ConsumerState<DeleteAccountScreen> createState() =>
@@ -114,8 +120,8 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
                   onBack: _keep,
                 ),
                 Expanded(
-                  child: motion.Entrance(
-                    length: motion.Entrance.listLength(rows.length + 2),
+                  child: Stagger(
+                    move: StaggerMove.settle,
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.fromLTRB(
                         IqSpace.s4,
@@ -126,8 +132,8 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          motion.Cue.settle(
-                            0,
+                          StaggerItem(
+                            index: 0,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
@@ -149,8 +155,8 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
                           ),
                           const SizedBox(height: IqSpace.s3),
                           for (final (i, (label, icon, onTap)) in rows.indexed)
-                            motion.Cue.settle(
-                              i + 1,
+                            StaggerItem(
+                              index: i + 1,
                               child: _Consequence(
                                 label: label,
                                 icon: icon,
@@ -159,8 +165,8 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
                               ),
                             ),
                           const SizedBox(height: IqSpace.s3),
-                          motion.Cue.settle(
-                            rows.length + 1,
+                          StaggerItem(
+                            index: rows.length + 1,
                             child: IqField(
                               label: 'Type DELETE to confirm',
                               value: '',
@@ -199,6 +205,10 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
                           loading: _deleting,
                           onTap: _delete,
                         ),
+                      ),
+                      _FailedLine(
+                        failures: _deleting ? 0 : _failures,
+                        text: DeleteAccountScreen.failedText,
                       ),
                       const SizedBox(height: IqSpace.s2),
                       IqButton(
@@ -250,6 +260,44 @@ class _Consequence extends StatelessWidget {
       container: true,
       label: label,
       child: ExcludeSemantics(child: row),
+    );
+  }
+}
+
+/// The words under a failed button: they rise in like a field's help line
+/// (spec 5.8) and make room as they come; a new attempt clears them. At
+/// once under reduced motion.
+class _FailedLine extends StatelessWidget {
+  const _FailedLine({required this.failures, required this.text});
+
+  /// Failed attempts so far; zero shows nothing.
+  final int failures;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget line = failures == 0
+        ? const SizedBox(width: double.infinity)
+        : Padding(
+            padding: const EdgeInsets.only(top: IqSpace.s1p5),
+            child: Reveal(
+              key: ValueKey(failures),
+              child: Semantics(
+                liveRegion: true,
+                child: Text(
+                  text,
+                  textAlign: TextAlign.center,
+                  style: IqText.small.copyWith(color: IqColors.errStrong),
+                ),
+              ),
+            ),
+          );
+    if (MediaQuery.disableAnimationsOf(context)) return line;
+    return AnimatedSize(
+      duration: IqDurations.tick,
+      curve: IqCurves.easeOut,
+      alignment: Alignment.topCenter,
+      child: line,
     );
   }
 }
