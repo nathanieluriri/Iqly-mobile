@@ -6,6 +6,8 @@ import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/theme/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../golden.dart';
+
 /// Renders a screen at the Figma frame size with the OS status bar (54) and
 /// home indicator (34) as safe-area insets, animations off. [keyboard] raises
 /// a system keyboard of that height. [prepare] seeds providers before the
@@ -59,8 +61,5 @@ Future<void> expectScreenGolden(
     await act(tester);
     await tester.pumpAndSettle();
   }
-  await expectLater(
-    find.byType(MaterialApp),
-    matchesGoldenFile('goldens/$name.png'),
-  );
+  await expectMatchesGolden(find.byType(MaterialApp), 'goldens/$name.png');
 }

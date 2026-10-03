@@ -65,9 +65,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('University of Lagos'));
     await tester.pumpAndSettle();
-    await expectLater(
+    await expectMatchesGolden(
       find.byType(MaterialApp),
-      matchesGoldenFile('goldens/onboarding_university_search.png'),
+      'goldens/onboarding_university_search.png',
     );
   });
 
@@ -76,9 +76,9 @@ void main() {
     await pumpOnboardingScreen(tester, prefs, const WhereYouLiveScreen());
     await tester.tap(find.text('Ikeja'));
     await tester.pumpAndSettle();
-    await expectLater(
+    await expectMatchesGolden(
       find.byType(MaterialApp),
-      matchesGoldenFile('goldens/onboarding_city_sheet.png'),
+      'goldens/onboarding_city_sheet.png',
     );
   });
 
@@ -89,9 +89,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'Ilupeju');
     await tester.pumpAndSettle();
-    await expectLater(
+    await expectMatchesGolden(
       find.byType(MaterialApp),
-      matchesGoldenFile('goldens/onboarding_city_sheet_add_mine.png'),
+      'goldens/onboarding_city_sheet_add_mine.png',
     );
   });
 
@@ -131,9 +131,9 @@ void main() {
         'onboarding.draft': jsonEncode({...sampleAboutYou, 'deferred': true}),
       },
     );
-    await expectLater(
+    await expectMatchesGolden(
       find.byType(MaterialApp),
-      matchesGoldenFile('goldens/onboarding_home_setup_nudge.png'),
+      'goldens/onboarding_home_setup_nudge.png',
     );
   });
 }

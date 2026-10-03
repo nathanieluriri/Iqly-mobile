@@ -103,10 +103,7 @@ class AccountClosingScreen extends ConsumerWidget {
                           label: 'Done',
                           showIcon: false,
                           width: double.infinity,
-                          onTap: () {
-                            motion.commitHaptic();
-                            context.go(Routes.landing);
-                          },
+                          onTap: () => context.go(Routes.landing),
                         ),
                         const SizedBox(height: IqSpace.s2),
                         IqButton(

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'button.dart';
 import 'icon.dart';
@@ -15,9 +16,10 @@ enum IqProofTileState { empty, error }
 /// parent's width (358 in Figma). [title], [hint] and [action] default to
 /// the Figma copy per state; the tile and its button both call [onTap].
 ///
-/// The sticker breathes (scale 1 to 1.04 over 2.4 s, sine) while empty; a
-/// press flashes the tile accent-soft (180 ms); turning to Error shakes the
-/// tile 2 px three times (240 ms). Reduced motion: no breathing, no shake.
+/// The sticker breathes (scale 1 to 1.04 over 2.4 s, sine) while empty and
+/// it holds the screen's pulse; a press flashes the tile accent-soft
+/// (180 ms); turning to Error shakes the tile 2 px three times (240 ms).
+/// Reduced motion: no breathing, no shake.
 ///
 /// Figma over its note: Error keeps the title in brand ink; only the
 /// outline, wash, sticker and hint go red.
@@ -38,17 +40,18 @@ class IqProofTile extends StatefulWidget {
   final String? action;
   final VoidCallback? onTap;
 
-  static const Duration breath = Duration(milliseconds: 2400);
-  static const Duration flash = Duration(milliseconds: 180);
-  static const Duration shake = Duration(milliseconds: 240);
+  static const Duration breath = IqDurations.stickerBreath;
+  static const Duration flash = IqDurations.ink;
+  static const Duration shake = ErrorMotion.shake;
 
   @override
   State<IqProofTile> createState() => _IqProofTileState();
 }
 
 class _IqProofTileState extends State<IqProofTile>
-    with TickerProviderStateMixin {
-  late final AnimationController _breath = AnimationController(
+    with TickerProviderStateMixin, PulseLoop {
+  @override
+  late final AnimationController pulse = AnimationController(
     vsync: this,
     duration: IqProofTile.breath,
   );
@@ -59,34 +62,31 @@ class _IqProofTileState extends State<IqProofTile>
   bool _reduced = false;
 
   @override
+  PulsePriority get pulsePriority => PulsePriority.proofBreath;
+
+  @override
+  bool get wantsPulse => widget.state == IqProofTileState.empty;
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _reduced = MediaQuery.disableAnimationsOf(context);
-    _syncBreath();
+    syncPulse();
   }
 
   @override
   void didUpdateWidget(IqProofTile oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.state == widget.state) return;
-    _syncBreath();
+    syncPulse();
     if (widget.state == IqProofTileState.error && !_reduced) {
       _shake.forward(from: 0);
     }
   }
 
-  void _syncBreath() {
-    if (!_reduced && widget.state == IqProofTileState.empty) {
-      if (!_breath.isAnimating) _breath.repeat();
-    } else {
-      _breath.stop();
-      _breath.value = 0;
-    }
-  }
-
   @override
   void dispose() {
-    _breath.dispose();
+    pulse.dispose();
     _shake.dispose();
     super.dispose();
   }
@@ -97,7 +97,11 @@ class _IqProofTileState extends State<IqProofTile>
     return AnimatedBuilder(
       animation: _shake,
       builder: (context, child) => Transform.translate(
-        offset: Offset(2 * math.sin(_shake.value * math.pi * 6), 0),
+        offset: Offset(
+          ErrorMotion.shakeDistance *
+              math.sin(_shake.value * math.pi * 2 * ErrorMotion.shakeTimes),
+          0,
+        ),
         child: child,
       ),
       child: IqPressable(
@@ -109,7 +113,7 @@ class _IqProofTileState extends State<IqProofTile>
           ),
           child: AnimatedContainer(
             duration: _reduced ? Duration.zero : IqProofTile.flash,
-            curve: Curves.easeOut,
+            curve: IqCurves.easeOut,
             padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
             decoration: BoxDecoration(
               color: pressed
@@ -123,10 +127,13 @@ class _IqProofTileState extends State<IqProofTile>
               mainAxisSize: MainAxisSize.min,
               children: [
                 AnimatedBuilder(
-                  animation: _breath,
+                  animation: pulse,
                   builder: (context, child) => Transform.scale(
                     scale:
-                        1 + 0.02 * (1 - math.cos(_breath.value * 2 * math.pi)),
+                        1 +
+                        (IqScale.stickerBreath - 1) /
+                            2 *
+                            (1 - math.cos(pulse.value * 2 * math.pi)),
                     child: child,
                   ),
                   child: IqTilt(

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/motion.dart';
+import '../../core/transitions.dart';
 import '../../data/reference_data.dart';
 import '../../theme/theme.dart';
 import '../../ui/button.dart';
@@ -10,32 +12,31 @@ import 'onboarding_draft.dart';
 
 /// Opens a first-run picker sheet: card fill, 24 top radius, ink scrim at
 /// 30%, its top 120 below the top of the screen (Figma 188:8340). It rises
-/// with the platform sheet motion, or appears in place under reduced motion.
+/// and drops on the one sheet route (spec 3.3), fading in place under
+/// reduced motion.
 Future<T?> showOnboardingSheet<T>(BuildContext context, WidgetBuilder builder) {
-  return showModalBottomSheet<T>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: false,
-    backgroundColor: IqColors.card,
-    barrierColor: IqColors.brand.withValues(alpha: 0.3),
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
-    clipBehavior: Clip.antiAlias,
-    sheetAnimationStyle: MediaQuery.disableAnimationsOf(context)
-        ? AnimationStyle.noAnimation
-        : null,
-    builder: (context) {
-      final media = MediaQuery.of(context);
-      return SizedBox(
-        height: media.size.height - _sheetTop,
-        child: Padding(
-          padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
-          child: builder(context),
+  return showIqSheet<T>(context, (context) {
+    final media = MediaQuery.of(context);
+    return MediaQuery.removePadding(
+      context: context,
+      removeTop: true,
+      child: Material(
+        color: IqColors.card,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-      );
-    },
-  );
+        clipBehavior: Clip.antiAlias,
+        child: SizedBox(
+          width: double.infinity,
+          height: media.size.height - _sheetTop,
+          child: Padding(
+            padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
+            child: builder(context),
+          ),
+        ),
+      ),
+    );
+  }, scrim: IqScrim.picker);
 }
 
 const double _sheetTop = 120;
@@ -43,8 +44,9 @@ const double _sheetTop = 120;
 final stateOptions = [for (final s in Reference.states) RefOption(s, s)];
 
 /// A short list (state of residence, education): tapping a row picks it and
-/// closes the sheet, unless [onSelected] takes the pick instead.
-class OptionSheet extends StatelessWidget {
+/// closes the sheet 120 ms later, unless [onSelected] takes the pick
+/// instead; the sheet ignores taps in between (spec 3.3).
+class OptionSheet extends StatefulWidget {
   const OptionSheet({
     super.key,
     required this.title,
@@ -59,42 +61,78 @@ class OptionSheet extends StatelessWidget {
   final ValueChanged<String>? onSelected;
 
   @override
+  State<OptionSheet> createState() => _OptionSheetState();
+}
+
+class _OptionSheetState extends State<OptionSheet>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _beat = AnimationController(vsync: this);
+  String? _picked;
+
+  void _pick(String value) {
+    if (_picked != null) return;
+    setState(() => _picked = value);
+    void done() {
+      if (!mounted) return;
+      final onSelected = widget.onSelected;
+      onSelected == null ? Navigator.of(context).pop(value) : onSelected(value);
+    }
+
+    final chain = motion(context, IqDurations.chain);
+    if (chain == Duration.zero) {
+      done();
+    } else {
+      _beat.duration = chain;
+      _beat.forward().then((_) => done());
+    }
+  }
+
+  @override
+  void dispose() {
+    _beat.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        IqTopBar(
-          variant: IqTopBarVariant.sheet,
-          title: title,
-          onClose: () => Navigator.of(context).pop(),
-        ),
-        Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(
-              IqSpace.s4,
-              IqSpace.s1,
-              IqSpace.s4,
-              IqSpace.s4,
-            ),
-            itemCount: options.length,
-            separatorBuilder: (context, i) =>
-                const SizedBox(height: IqSpace.s1),
-            itemBuilder: (context, i) {
-              final option = options[i];
-              return IqOptionRow(
-                label: option.label,
-                showNote: false,
-                state: option.value == selected
-                    ? IqOptionRowState.selected
-                    : IqOptionRowState.standard,
-                onTap: () => onSelected == null
-                    ? Navigator.of(context).pop(option.value)
-                    : onSelected!(option.value),
-              );
-            },
+    final options = widget.options;
+    final selected = _picked ?? widget.selected;
+    return IgnorePointer(
+      ignoring: _picked != null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          IqTopBar(
+            variant: IqTopBarVariant.sheet,
+            title: widget.title,
+            onClose: () => Navigator.of(context).pop(),
           ),
-        ),
-      ],
+          Expanded(
+            child: ListView.separated(
+              padding: const EdgeInsets.fromLTRB(
+                IqSpace.s4,
+                IqSpace.s1,
+                IqSpace.s4,
+                IqSpace.s4,
+              ),
+              itemCount: options.length,
+              separatorBuilder: (context, i) =>
+                  const SizedBox(height: IqSpace.s1),
+              itemBuilder: (context, i) {
+                final option = options[i];
+                return IqOptionRow(
+                  label: option.label,
+                  showNote: false,
+                  state: option.value == selected
+                      ? IqOptionRowState.selected
+                      : IqOptionRowState.standard,
+                  onTap: () => _pick(option.value),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -139,7 +177,8 @@ List<String> _matching(List<String> names, String query) {
 String _count(int n, String one, String many) =>
     '$n ${n == 1 ? one : many}'.toUpperCase();
 
-/// B11 · Step 2 · University search (188:8340).
+/// B11 · Step 2 · University search (188:8340). The search field takes the
+/// keyboard once the sheet has risen.
 class UniversitySheet extends StatefulWidget {
   const UniversitySheet({
     super.key,
@@ -158,11 +197,24 @@ class UniversitySheet extends StatefulWidget {
 
 class _UniversitySheetState extends State<UniversitySheet> {
   late final _query = TextEditingController(text: widget.initialQuery);
+  final _focus = FocusNode();
   late String? _selected = widget.selected;
+  bool _asked = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_asked) return;
+    _asked = true;
+    whenArrived(context, () {
+      if (mounted) _focus.requestFocus();
+    });
+  }
 
   @override
   void dispose() {
     _query.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
@@ -177,7 +229,7 @@ class _UniversitySheetState extends State<UniversitySheet> {
         label: 'Search universities…',
         value: '',
         controller: _query,
-        autofocus: true,
+        focusNode: _focus,
         textInputAction: TextInputAction.search,
         onChanged: (_) => setState(() {}),
       ),
@@ -326,11 +378,9 @@ class _CityPickerFlowState extends State<CityPickerFlow> {
   Widget build(BuildContext context) {
     final state = _state;
     return AnimatedSwitcher(
-      duration: MediaQuery.disableAnimationsOf(context)
-          ? Duration.zero
-          : const Duration(milliseconds: 200),
-      switchInCurve: Curves.easeOut,
-      switchOutCurve: Curves.easeOut,
+      duration: motion(context, IqDurations.swap),
+      switchInCurve: IqCurves.easeOut,
+      switchOutCurve: IqCurves.easeOut,
       child: state == null
           ? OptionSheet(
               key: const ValueKey('state'),

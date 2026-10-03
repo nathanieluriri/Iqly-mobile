@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../core/motion.dart';
 import '../../theme/theme.dart';
 
 enum SplashPhase { dark, spark, lit, settled }
@@ -89,7 +90,7 @@ class SplashMark extends StatelessWidget {
   Widget build(BuildContext context) {
     final spec = _MarkSpec.of(phase);
     final scale = tile / designTile;
-    const curve = Curves.easeInOut;
+    const curve = IqCurves.easeInOut;
     return Stack(
       alignment: Alignment.center,
       children: [

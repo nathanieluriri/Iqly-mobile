@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'button.dart';
 
@@ -151,7 +152,7 @@ class _Stat extends StatelessWidget {
 class _InkWash extends StatefulWidget {
   const _InkWash();
 
-  static const Duration loop = Duration(seconds: 24);
+  static const Duration loop = IqDurations.inkWash;
 
   @override
   State<_InkWash> createState() => _InkWashState();

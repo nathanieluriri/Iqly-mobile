@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'tilt.dart';
 
@@ -16,7 +17,8 @@ enum IqClaimStampKind {
 /// ink outline tilted 2° clockwise, on no fill so it sits on paper or ink.
 /// [label] defaults to the Figma words per kind. A new kind lands the stamp:
 /// scale 1.15 to 1 with a 2° overshoot, 240 ms ease-out; Checking pulses its
-/// dot like the Countdown Hot halo. Reduced motion: a 150 ms crossfade.
+/// dot like the Countdown Hot halo while it holds the screen's pulse.
+/// Reduced motion: a 150 ms crossfade.
 ///
 /// Figma over its note: Checking carries an 8 px brand dot, not a clock.
 /// Figma over brief: Credited reads PAID TO WALLET, Rejected NOT APPROVED.
@@ -31,9 +33,9 @@ class IqClaimStamp extends StatefulWidget {
   final String? label;
 
   static const double tilt = 2;
-  static const Duration land = Duration(milliseconds: 240);
-  static const Duration fade = Duration(milliseconds: 150);
-  static const Duration pulse = Duration(milliseconds: 1400);
+  static const Duration land = IqDurations.mark;
+  static const Duration fade = IqDurations.crossfade;
+  static const Duration pulse = IqDurations.pulse;
 
   static String defaultLabel(IqClaimStampKind kind) => switch (kind) {
     IqClaimStampKind.pending => 'Pending',
@@ -49,35 +51,42 @@ class IqClaimStamp extends StatefulWidget {
 }
 
 class _IqClaimStampState extends State<IqClaimStamp>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, PulseLoop {
   late final AnimationController _land = AnimationController(
     vsync: this,
     duration: IqClaimStamp.land,
     value: 1,
   );
-  late final AnimationController _pulse = AnimationController(
+  @override
+  late final AnimationController pulse = AnimationController(
     vsync: this,
     duration: IqClaimStamp.pulse,
   );
   bool _reduced = false;
 
+  @override
+  PulsePriority get pulsePriority => PulsePriority.checking;
+
+  @override
+  bool get wantsPulse => widget.kind == IqClaimStampKind.checking;
+
   static final _scale = Tween<double>(
     begin: 1.15,
     end: 1,
-  ).chain(CurveTween(curve: Curves.easeOut));
+  ).chain(CurveTween(curve: IqCurves.easeOut));
   static final _angle = TweenSequence<double>([
     TweenSequenceItem(
       tween: Tween(
         begin: 0.0,
         end: IqClaimStamp.tilt * 2,
-      ).chain(CurveTween(curve: Curves.easeOut)),
+      ).chain(CurveTween(curve: IqCurves.easeOut)),
       weight: 60,
     ),
     TweenSequenceItem(
       tween: Tween(
         begin: IqClaimStamp.tilt * 2,
         end: IqClaimStamp.tilt,
-      ).chain(CurveTween(curve: Curves.easeInOut)),
+      ).chain(CurveTween(curve: IqCurves.easeInOut)),
       weight: 40,
     ),
   ]);
@@ -86,7 +95,7 @@ class _IqClaimStampState extends State<IqClaimStamp>
   void didChangeDependencies() {
     super.didChangeDependencies();
     _reduced = MediaQuery.disableAnimationsOf(context);
-    _syncPulse();
+    syncPulse();
   }
 
   @override
@@ -94,23 +103,14 @@ class _IqClaimStampState extends State<IqClaimStamp>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.kind != widget.kind) {
       if (!_reduced) _land.forward(from: 0);
-      _syncPulse();
-    }
-  }
-
-  void _syncPulse() {
-    if (!_reduced && widget.kind == IqClaimStampKind.checking) {
-      if (!_pulse.isAnimating) _pulse.repeat();
-    } else {
-      _pulse.stop();
-      _pulse.value = 0;
+      syncPulse();
     }
   }
 
   @override
   void dispose() {
     _land.dispose();
-    _pulse.dispose();
+    pulse.dispose();
     super.dispose();
   }
 
@@ -156,20 +156,22 @@ class _IqClaimStampState extends State<IqClaimStamp>
             SizedBox.square(
               dimension: 8,
               child: AnimatedBuilder(
-                animation: _pulse,
+                animation: pulse,
                 builder: (context, _) => Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    if (_pulse.isAnimating)
+                    if (pulsing)
                       Positioned.fill(
                         child: Transform.scale(
                           scale:
-                              1 + 0.8 * Curves.easeOut.transform(_pulse.value),
+                              1 +
+                              (IqScale.halo - 1) *
+                                  IqCurves.easeOut.transform(pulse.value),
                           child: DecoratedBox(
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: IqColors.brand.withValues(
-                                alpha: 0.35 * (1 - _pulse.value),
+                                alpha: IqOpacity.halo * (1 - pulse.value),
                               ),
                             ),
                           ),

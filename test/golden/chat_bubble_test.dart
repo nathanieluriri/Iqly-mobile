@@ -55,10 +55,10 @@ void main() {
     );
     final fade = find.descendant(
       of: find.byType(IqChatBubble),
-      matching: find.byType(Opacity),
+      matching: find.byType(FadeTransition),
     );
-    expect(tester.widget<Opacity>(fade.first).opacity, 0);
+    expect(tester.widget<FadeTransition>(fade.first).opacity.value, 0);
     await tester.pumpAndSettle();
-    expect(tester.widget<Opacity>(fade.first).opacity, 1);
+    expect(tester.widget<FadeTransition>(fade.first).opacity.value, 1);
   });
 }

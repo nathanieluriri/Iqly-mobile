@@ -6,6 +6,9 @@ import 'package:intl/intl.dart';
 import 'demo_data.dart';
 import 'models.dart';
 
+/// How long Home keeps showing a payout that arrived.
+const payoutArrivalShown = Duration(days: 1);
+
 /// Why a wallet call failed. The live API layer maps its codes onto these.
 enum WalletFailure {
   /// The bank could not match the account number to a name.

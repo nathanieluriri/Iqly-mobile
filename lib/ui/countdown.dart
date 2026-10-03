@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../core/deadline.dart';
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 
@@ -13,17 +15,18 @@ enum IqCountdownTone {
   /// Calm otherwise, Closed once time is up or the activation has ended.
   static IqCountdownTone of(Duration remaining, {bool closed = false}) {
     if (closed || remaining <= Duration.zero) return IqCountdownTone.closed;
-    if (remaining < const Duration(hours: 6)) return IqCountdownTone.hot;
-    if (remaining < const Duration(days: 1)) return IqCountdownTone.warm;
+    if (remaining < DeadlineRules.countdownHot) return IqCountdownTone.hot;
+    if (remaining < DeadlineRules.countdownWarm) return IqCountdownTone.warm;
     return IqCountdownTone.calm;
   }
 }
 
 /// Exp/Countdown: time left as a chip, a clock on a tone halo, the time as a
-/// figure and the mono LEFT unit. Appears with a fade and 8 px rise (220 ms);
-/// a new time slides the old digits up 6 px (160 ms); Hot pulses its halo
-/// every 1.4 s and Warm breathes once on appear. Reduced motion: no
-/// movement, the Hot halo holds at .2.
+/// figure and the mono LEFT unit. Appears once seen with a fade and 8 px
+/// rise (220 ms); a new time rolls its changed digits up 6 px (160 ms); Hot
+/// pulses its halo every 1.4 s while it holds the screen's pulse and Warm
+/// breathes once on appear. Reduced motion: no movement, the Hot halo holds
+/// at .2.
 ///
 /// Figma over brief: four tones and the Time and Show unit props.
 /// Figma over brief: the clock glyph stays brand ink in every tone.
@@ -40,72 +43,70 @@ class IqCountdown extends StatefulWidget {
   final bool showUnit;
   final IqCountdownTone tone;
 
-  static const Duration appear = Duration(milliseconds: 220);
-  static const Duration tick = Duration(milliseconds: 160);
-  static const Duration pulse = Duration(milliseconds: 1400);
+  static const Duration appear = IqDurations.appear;
+  static const Duration tick = IqDurations.tick;
+  static const Duration pulse = IqDurations.pulse;
 
   @override
   State<IqCountdown> createState() => _IqCountdownState();
 }
 
 class _IqCountdownState extends State<IqCountdown>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, PulseLoop {
   late final AnimationController _appear = AnimationController(
     vsync: this,
     duration: IqCountdown.appear,
   );
-  late final AnimationController _pulse = AnimationController(
+  late final Animation<double> _rise = _appear.drive(
+    CurveTween(curve: IqCurves.easeOut),
+  );
+  late final AnimationController _breath = AnimationController(
+    vsync: this,
+    duration: IqCountdown.pulse,
+  );
+  @override
+  late final AnimationController pulse = AnimationController(
     vsync: this,
     duration: IqCountdown.pulse,
   );
   bool _reduced = false;
-  bool _started = false;
-  bool _repeating = false;
+
+  @override
+  PulsePriority get pulsePriority => PulsePriority.hotCountdown;
+
+  @override
+  bool get wantsPulse => widget.tone == IqCountdownTone.hot;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _reduced = MediaQuery.disableAnimationsOf(context);
-    if (!_started) {
-      _started = true;
-      if (_reduced) {
-        _appear.value = 1;
-      } else {
-        _appear.forward();
-        if (widget.tone == IqCountdownTone.warm) _pulse.forward();
-      }
+    if (_reduced) {
+      _appear.value = 1;
+      _breath
+        ..stop()
+        ..value = 0;
     }
-    _syncPulse();
+    syncPulse();
   }
 
   @override
   void didUpdateWidget(IqCountdown oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.tone != widget.tone) _syncPulse();
+    if (oldWidget.tone != widget.tone) syncPulse();
   }
 
-  void _syncPulse() {
-    final hot = widget.tone == IqCountdownTone.hot;
-    if (!_reduced && hot) {
-      if (!_repeating) _pulse.repeat();
-      _repeating = true;
-      return;
-    }
-    final breathing =
-        widget.tone == IqCountdownTone.warm &&
-        !_repeating &&
-        _pulse.status == AnimationStatus.forward;
-    if (_reduced || !breathing) {
-      _pulse.stop();
-      _pulse.value = 0;
-    }
-    _repeating = false;
+  void _seen() {
+    if (_reduced || !mounted) return;
+    _appear.forward();
+    if (widget.tone == IqCountdownTone.warm) _breath.forward(from: 0);
   }
 
   @override
   void dispose() {
     _appear.dispose();
-    _pulse.dispose();
+    _breath.dispose();
+    pulse.dispose();
     super.dispose();
   }
 
@@ -113,90 +114,97 @@ class _IqCountdownState extends State<IqCountdown>
   Widget build(BuildContext context) {
     final look = _CountdownLook.of(widget.tone);
     final closed = widget.tone == IqCountdownTone.closed;
-    final rise = CurvedAnimation(parent: _appear, curve: Curves.easeOut);
-    return AnimatedBuilder(
-      animation: rise,
-      builder: (context, child) => Opacity(
-        opacity: rise.value,
-        child: Transform.translate(
-          offset: Offset(0, 8 * (1 - rise.value)),
-          child: child,
-        ),
-      ),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(
-          IqSpace.s2p5,
-          IqSpace.s1p5,
-          14,
-          IqSpace.s1p5,
-        ),
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: look.fill,
-          borderRadius: BorderRadius.circular(IqRadius.full),
-          border: look.stroke == null
-              ? null
-              : Border.all(color: look.stroke!, width: look.strokeWidth),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox.square(
-              dimension: 18,
-              child: Stack(
-                clipBehavior: Clip.none,
-                alignment: Alignment.center,
-                children: [
-                  Positioned(
-                    left: -1,
-                    top: -1,
-                    width: 20,
-                    height: 20,
-                    child: AnimatedBuilder(
-                      animation: _pulse,
-                      builder: (context, _) => _halo(look),
-                    ),
+    return FirstSeen(
+      onSeen: _seen,
+      child: FadeTransition(
+        opacity: _rise,
+        child: AnimatedBuilder(
+          animation: _rise,
+          builder: (context, child) => Transform.translate(
+            offset: Offset(0, IqTravel.rise * (1 - _rise.value)),
+            child: child,
+          ),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(
+              IqSpace.s2p5,
+              IqSpace.s1p5,
+              14,
+              IqSpace.s1p5,
+            ),
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: look.fill,
+              borderRadius: BorderRadius.circular(IqRadius.full),
+              border: look.stroke == null
+                  ? null
+                  : Border.all(color: look.stroke!, width: look.strokeWidth),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox.square(
+                  dimension: 18,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.center,
+                    children: [
+                      Positioned(
+                        left: -1,
+                        top: -1,
+                        width: 20,
+                        height: 20,
+                        child: AnimatedBuilder(
+                          animation: Listenable.merge([pulse, _breath]),
+                          builder: (context, _) => _halo(look),
+                        ),
+                      ),
+                      const IqIcon(
+                        IqIcons.timer,
+                        size: 16,
+                        color: IqColors.brand,
+                      ),
+                    ],
                   ),
-                  const IqIcon(IqIcons.timer, size: 16, color: IqColors.brand),
-                ],
-              ),
-            ),
-            const SizedBox(width: IqSpace.s2),
-            _Ticker(
-              text: widget.time,
-              duration: _reduced ? Duration.zero : IqCountdown.tick,
-              style: IqText.figureSmall.copyWith(color: look.ink),
-            ),
-            if (widget.showUnit) ...[
-              const SizedBox(width: IqSpace.s2),
-              if (!closed)
-                Text(
-                  'LEFT',
-                  maxLines: 1,
-                  softWrap: false,
-                  style: IqText.mono.copyWith(color: look.ink),
                 ),
-            ],
-          ],
+                const SizedBox(width: IqSpace.s2),
+                RollingText(
+                  widget.time,
+                  style: IqText.figureSmall.copyWith(color: look.ink),
+                ),
+                if (widget.showUnit) ...[
+                  const SizedBox(width: IqSpace.s2),
+                  if (!closed)
+                    Text(
+                      'LEFT',
+                      maxLines: 1,
+                      softWrap: false,
+                      style: IqText.mono.copyWith(color: look.ink),
+                    ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
+  /// Hot beats (scale 1 to 1.8 ease-out as it fades .35 to 0, linear) while
+  /// it holds the pulse and stands at .2 otherwise; Warm breathes once.
   Widget _halo(_CountdownLook look) {
-    final t = _pulse.value;
     var scale = 1.0;
     var opacity = look.haloOpacity;
     if (widget.tone == IqCountdownTone.hot) {
-      if (_reduced) {
-        opacity = 0.2;
-      } else if (_pulse.isAnimating) {
-        scale = 1 + 0.8 * Curves.easeOut.transform(t);
-        opacity = 0.35 * (1 - t);
+      opacity = IqOpacity.haloStill;
+      if (pulsing) {
+        final t = pulse.value;
+        scale = 1 + (IqScale.halo - 1) * IqCurves.easeOut.transform(t);
+        opacity = IqOpacity.halo * (1 - t);
       }
-    } else if (widget.tone == IqCountdownTone.warm && t > 0 && t < 1) {
-      final breath = Curves.easeInOut.transform(t < 0.5 ? t * 2 : 2 - t * 2);
-      scale = 1 + 0.3 * breath;
+    } else if (widget.tone == IqCountdownTone.warm && _breath.isAnimating) {
+      final t = _breath.value;
+      final breath = IqCurves.easeInOut.transform(t < 0.5 ? t * 2 : 2 - t * 2);
+      scale = 1 + (IqScale.ring - 1) * breath;
       opacity = look.haloOpacity + 0.17 * breath;
     }
     return Transform.scale(
@@ -206,57 +214,6 @@ class _IqCountdownState extends State<IqCountdown>
           shape: BoxShape.circle,
           color: look.halo.withValues(alpha: opacity),
         ),
-      ),
-    );
-  }
-}
-
-class _Ticker extends StatelessWidget {
-  const _Ticker({
-    required this.text,
-    required this.duration,
-    required this.style,
-  });
-
-  final String text;
-  final Duration duration;
-  final TextStyle style;
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedSwitcher(
-      duration: duration,
-      switchInCurve: Curves.easeOut,
-      switchOutCurve: Curves.easeIn,
-      layoutBuilder: (current, previous) => Stack(
-        clipBehavior: Clip.none,
-        alignment: Alignment.centerLeft,
-        children: [...previous, ?current],
-      ),
-      transitionBuilder: (child, animation) {
-        final incoming = child.key == ValueKey(text);
-        final offset = Tween<Offset>(
-          begin: Offset(0, incoming ? 6 : -6),
-          end: Offset.zero,
-        );
-        return AnimatedBuilder(
-          animation: animation,
-          builder: (context, child) => Opacity(
-            opacity: animation.value,
-            child: Transform.translate(
-              offset: offset.transform(animation.value),
-              child: child,
-            ),
-          ),
-          child: child,
-        );
-      },
-      child: Text(
-        text,
-        key: ValueKey(text),
-        maxLines: 1,
-        softWrap: false,
-        style: style,
       ),
     );
   }

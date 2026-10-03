@@ -9,10 +9,8 @@ import 'package:iqly_mobile/router.dart';
 import '../golden.dart';
 import 'app_harness.dart';
 
-Future<void> _golden(String name) => expectLater(
-  find.byType(MaterialApp),
-  matchesGoldenFile('goldens/discover_$name.png'),
-);
+Future<void> _golden(String name) =>
+    expectMatchesGolden(find.byType(MaterialApp), 'goldens/discover_$name.png');
 
 Future<void> _scrollToEnd(WidgetTester tester) async {
   for (var i = 0; i < 6; i++) {

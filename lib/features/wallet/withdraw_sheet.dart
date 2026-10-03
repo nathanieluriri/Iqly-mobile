@@ -191,7 +191,6 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
       _amount.fail(amountHelp(available));
       return;
     }
-    WalletHaptics.commit();
     setState(() {
       _sending = true;
       _sendFailure = null;

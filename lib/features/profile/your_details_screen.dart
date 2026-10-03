@@ -188,7 +188,6 @@ class _YourDetailsScreenState extends ConsumerState<YourDetailsScreen> {
 
   Future<void> _saveChanges() async {
     if (_closing != _Closing.no) return;
-    motion.commitHaptic();
     FocusScope.of(context).unfocus();
     setState(() => _closing = _Closing.saving);
     final saved = await _saver.save();

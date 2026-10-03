@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/transitions.dart';
 import 'features/discover/discover_routes.dart';
 import 'features/entry/forgot_password_screen.dart';
 import 'features/entry/landing_screen.dart';
@@ -67,12 +68,13 @@ GoRouter buildRouter({String initialLocation = Routes.splash}) {
     routes: [
       GoRoute(
         path: Routes.splash,
-        builder: (context, state) => const SplashScreen(),
+        pageBuilder: (context, state) =>
+            handoffPage(state, const SplashScreen()),
       ),
       GoRoute(
         path: Routes.landing,
         pageBuilder: (context, state) =>
-            _dissolve(state, const LandingScreen()),
+            handoffPage(state, const LandingScreen()),
       ),
       appShellRoute(rootKey),
       ...discoverRoutes,
@@ -84,42 +86,18 @@ GoRouter buildRouter({String initialLocation = Routes.splash}) {
   );
 }
 
-/// The splash hands off with a 0.4 s ease-out dissolve (Figma prototype).
-CustomTransitionPage<void> _dissolve(GoRouterState state, Widget child) =>
-    CustomTransitionPage(
-      key: state.pageKey,
-      child: child,
-      transitionDuration: const Duration(milliseconds: 400),
-      transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-          FadeTransition(
-            opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
-            child: child,
-          ),
-    );
-
+/// The sign-up, sign-in and reset steps push; the notifications ask is a
+/// push from onboarding Done.
 final _entryRoutes = [
-  GoRoute(
-    path: Routes.yourName,
-    builder: (context, state) => const YourNameScreen(),
-  ),
-  GoRoute(
-    path: Routes.createPassword,
-    builder: (context, state) => const PasswordScreen(),
-  ),
-  GoRoute(
-    path: Routes.signIn,
-    builder: (context, state) => const SignInScreen(),
-  ),
-  GoRoute(
-    path: Routes.forgotPassword,
-    builder: (context, state) => const ForgotPasswordScreen(),
-  ),
-  GoRoute(
-    path: Routes.resetLinkSent,
-    builder: (context, state) => const ResetLinkSentScreen(),
-  ),
-  GoRoute(
-    path: Routes.notificationsAsk,
-    builder: (context, state) => const NotificationsAskScreen(),
-  ),
+  _push(Routes.yourName, const YourNameScreen()),
+  _push(Routes.createPassword, const PasswordScreen()),
+  _push(Routes.signIn, const SignInScreen()),
+  _push(Routes.forgotPassword, const ForgotPasswordScreen()),
+  _push(Routes.resetLinkSent, const ResetLinkSentScreen()),
+  _push(Routes.notificationsAsk, const NotificationsAskScreen()),
 ];
+
+GoRoute _push(String path, Widget screen) => GoRoute(
+  path: path,
+  pageBuilder: (context, state) => pushPage(state, screen),
+);

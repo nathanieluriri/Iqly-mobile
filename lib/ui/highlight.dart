@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'vector.dart';
 
@@ -22,7 +23,7 @@ class IqHighlight extends StatefulWidget {
   final IqHighlightTone tone;
   final TextStyle style;
 
-  static const Duration wipe = Duration(milliseconds: 240);
+  static const Duration wipe = IqDurations.mark;
 
   @override
   State<IqHighlight> createState() => _IqHighlightState();
@@ -34,9 +35,8 @@ class _IqHighlightState extends State<IqHighlight>
     vsync: this,
     duration: IqHighlight.wipe,
   );
-  late final Animation<double> _reveal = CurvedAnimation(
-    parent: _wipe,
-    curve: Curves.easeOut,
+  late final Animation<double> _reveal = _wipe.drive(
+    CurveTween(curve: IqCurves.easeOut),
   );
   bool _started = false;
 

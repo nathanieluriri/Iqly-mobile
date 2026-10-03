@@ -6,10 +6,8 @@ import 'package:iqly_mobile/router.dart';
 import '../golden.dart';
 import 'profile_harness.dart';
 
-Future<void> _golden(String name) => expectLater(
-  find.byType(MaterialApp),
-  matchesGoldenFile('goldens/$name.png'),
-);
+Future<void> _golden(String name) =>
+    expectMatchesGolden(find.byType(MaterialApp), 'goldens/$name.png');
 
 void main() {
   setUpAll(loadAppFonts);

@@ -6,7 +6,6 @@ import '../../ui/button.dart';
 import '../../ui/top_bar.dart';
 import '../onboarding/onboarding_draft.dart';
 import '../onboarding/what_you_like_screen.dart';
-import 'profile_motion.dart' as motion;
 
 /// Date of birth on a day, month, year wheel, built like the first-run
 /// sheets. Pops with the date.
@@ -80,7 +79,6 @@ class _InterestsSheetState extends State<InterestsSheet> {
   late final _picked = [...widget.selected];
 
   void _toggle(String value) {
-    motion.selectHaptic();
     setState(
       () =>
           _picked.contains(value) ? _picked.remove(value) : _picked.add(value),

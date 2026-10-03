@@ -27,10 +27,7 @@ Future<void> _golden(
     await act(tester);
     await tester.pumpAndSettle();
   }
-  await expectLater(
-    find.byType(MaterialApp),
-    matchesGoldenFile('goldens/$name.png'),
-  );
+  await expectMatchesGolden(find.byType(MaterialApp), 'goldens/$name.png');
 }
 
 /// The sheet focuses AMOUNT once it has risen.

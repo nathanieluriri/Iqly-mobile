@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/motion.dart';
 import '../../data/reference_data.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -46,9 +47,10 @@ class WhatYouLikeScreen extends ConsumerWidget {
       saved: interests.isNotEmpty,
       title: 'What are you into?',
       caption: 'Pick at least ${OnboardingDraft.minInterests}',
-      onBack: () => goToStep(context, ref, OnboardingStep.whereYouStudied),
-      onSkip: () => context.go(Routes.onboardingDone),
-      onNext: () => context.go(Routes.onboardingDone),
+      onBack: () =>
+          goToStep(context, ref, OnboardingStep.whereYouStudied, back: true),
+      onSkip: () => _finish(context),
+      onNext: () => _finish(context),
       nextEnabled: interests.length >= OnboardingDraft.minInterests,
       nextLabel: 'Finish',
       child: InterestChips(selected: interests, onToggle: draft.toggleInterest),
@@ -84,4 +86,10 @@ class InterestChips extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Finishing the steps lands the onboarding: the success haptic and Done.
+void _finish(BuildContext context) {
+  IqHaptics.success.play();
+  context.go(Routes.onboardingDone);
 }

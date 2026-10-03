@@ -14,6 +14,8 @@ class IqlyApp extends ConsumerWidget {
       theme: buildTheme(),
       routerConfig: ref.watch(routerProvider),
       debugShowCheckedModeBanner: false,
+      // Paper under every route, so no transition ever fades to black.
+      builder: (context, child) => ColoredBox(color: IqColors.bg, child: child),
     );
   }
 }

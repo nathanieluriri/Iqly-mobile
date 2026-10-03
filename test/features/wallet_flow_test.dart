@@ -218,7 +218,7 @@ void main() {
 
     await _tap(tester, find.text('Withdraw').last);
     expect(find.text(help), findsOneWidget);
-    expect(haptics, [_error]);
+    expect(haptics, [_commit, _error]);
 
     await _type(tester, _amountField(), '999');
     expect(find.text(help), findsNothing);

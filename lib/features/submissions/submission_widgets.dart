@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/money.dart';
+import '../../core/motion.dart';
 import '../../core/relative_time.dart';
 import '../../data/models.dart';
 import '../../theme/theme.dart';
@@ -121,12 +122,12 @@ class _SkeletonCardState extends State<SkeletonCard>
     with SingleTickerProviderStateMixin {
   late final AnimationController _pulse = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 900),
+    duration: IqDurations.skeletonPulse,
   );
   late final Animation<double> _opacity = TweenSequence<double>([
     TweenSequenceItem(tween: Tween(begin: 0.5, end: 1), weight: 1),
     TweenSequenceItem(tween: Tween(begin: 1, end: 0.5), weight: 1),
-  ]).animate(CurvedAnimation(parent: _pulse, curve: Curves.easeInOut));
+  ]).chain(CurveTween(curve: IqCurves.easeInOut)).animate(_pulse);
 
   @override
   void didChangeDependencies() {

@@ -334,16 +334,14 @@ class _PickerValue extends StatelessWidget {
   final String text;
   final TextStyle style;
 
-  static const duration = Duration(milliseconds: 200);
+  static const duration = IqDurations.swap;
 
   @override
   Widget build(BuildContext context) {
     return AnimatedSwitcher(
-      duration: MediaQuery.disableAnimationsOf(context)
-          ? Duration.zero
-          : duration,
-      switchInCurve: Curves.easeOut,
-      switchOutCurve: Curves.easeOut,
+      duration: motion(context, duration),
+      switchInCurve: IqCurves.easeOut,
+      switchOutCurve: IqCurves.easeOut,
       layoutBuilder: (current, previous) => Stack(
         alignment: AlignmentDirectional.centerStart,
         children: [...previous, ?current],

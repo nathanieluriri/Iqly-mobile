@@ -52,7 +52,7 @@ class WhereYouLiveScreen extends ConsumerWidget {
       icon: IqIcons.pin,
       saved: profile.state != null || city.isNotEmpty,
       title: 'Where do you live?',
-      onBack: () => goToStep(context, ref, OnboardingStep.aboutYou),
+      onBack: () => goToStep(context, ref, OnboardingStep.aboutYou, back: true),
       onSkip: () => goToStep(context, ref, OnboardingStep.whatYouLike),
       onNext: () => goToStep(context, ref, OnboardingStep.whereYouStudied),
       nextEnabled: profile.state != null && city.isNotEmpty,

@@ -5,14 +5,12 @@ import 'package:go_router/go_router.dart';
 import '../../core/deadline.dart';
 import '../../core/money.dart';
 import '../../data/models.dart';
+import '../../data/wallet_service.dart';
 import '../../ui/icon.dart';
 import '../../ui/list_row.dart';
 import '../wallet/wallet_motion.dart';
 import '../wallet/wallet_routes.dart';
 import '../wallet/wallet_state.dart';
-
-/// How long Home keeps showing a payout that arrived.
-const payoutArrivalShown = Duration(days: 1);
 
 /// The newest withdrawal that arrived within [payoutArrivalShown], for
 /// B14 · Home · after payout (194:10143). Null when there is none.

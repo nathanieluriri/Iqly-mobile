@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 import 'pressable.dart';
@@ -9,9 +10,10 @@ enum IqBannerKind { urgent, offline, error }
 /// Exp/Banner: a marker strip at the top of a list, one sentence and one
 /// action. It slides down from under the top bar on appear (240 ms
 /// ease-out) pushing the list, and slides back up when [visible] turns
-/// false (180 ms ease-in); under reduced motion it fades. The Urgent clock
-/// pulses like Countdown Hot (halo 1 to 1.8, .35 to 0, every 1.4 s; a
-/// static .2 halo under reduced motion).
+/// false (180 ms, reading ease-in); under reduced motion it fades. The
+/// Urgent clock pulses like Countdown Hot (halo 1 to 1.8, .35 to 0, every
+/// 1.4 s) while it holds the screen's pulse, and holds a static .2 halo
+/// otherwise and under reduced motion.
 ///
 /// Figma over brief: Urgent is Color/accent-soft and Error Color/err-soft, not the full accent or red.
 /// Figma over its note: Offline is Color/panel, not the paper background.
@@ -35,8 +37,8 @@ class IqBanner extends StatefulWidget {
   final VoidCallback? onAction;
   final bool visible;
 
-  static const Duration enter = Duration(milliseconds: 240);
-  static const Duration exit = Duration(milliseconds: 180);
+  static const Duration enter = IqDurations.mark;
+  static const Duration exit = IqDurations.ink;
 
   @override
   State<IqBanner> createState() => _IqBannerState();
@@ -49,10 +51,11 @@ class _IqBannerState extends State<IqBanner>
     duration: IqBanner.enter,
     reverseDuration: IqBanner.exit,
   );
-  late final CurvedAnimation _curve = CurvedAnimation(
-    parent: _show,
-    curve: Curves.easeOut,
-    reverseCurve: Curves.easeIn,
+  late final Animation<double> _curve = _show.drive(
+    CurveTween(curve: IqCurves.easeOut),
+  );
+  late final Animation<Offset> _slide = _curve.drive(
+    Tween(begin: const Offset(0, -1), end: Offset.zero),
   );
 
   @override
@@ -71,7 +74,6 @@ class _IqBannerState extends State<IqBanner>
 
   @override
   void dispose() {
-    _curve.dispose();
     _show.dispose();
     super.dispose();
   }
@@ -92,13 +94,7 @@ class _IqBannerState extends State<IqBanner>
       child: SizeTransition(
         sizeFactor: _curve,
         alignment: Alignment.bottomCenter,
-        child: SlideTransition(
-          position: Tween(
-            begin: const Offset(0, -1),
-            end: Offset.zero,
-          ).animate(_curve),
-          child: strip,
-        ),
+        child: SlideTransition(position: _slide, child: strip),
       ),
     );
   }
@@ -210,31 +206,34 @@ class _Pulse extends StatefulWidget {
   State<_Pulse> createState() => _PulseState();
 }
 
-class _PulseState extends State<_Pulse> with SingleTickerProviderStateMixin {
-  late final AnimationController _beat = AnimationController(
+class _PulseState extends State<_Pulse>
+    with SingleTickerProviderStateMixin, PulseLoop {
+  @override
+  late final AnimationController pulse = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1400),
+    duration: IqDurations.pulse,
   );
+
+  @override
+  PulsePriority get pulsePriority => PulsePriority.urgentBanner;
+
+  @override
+  bool get wantsPulse => true;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (MediaQuery.disableAnimationsOf(context)) {
-      _beat.stop();
-    } else if (!_beat.isAnimating) {
-      _beat.repeat();
-    }
+    syncPulse();
   }
 
   @override
   void dispose() {
-    _beat.dispose();
+    pulse.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final still = MediaQuery.disableAnimationsOf(context);
     return SizedBox.square(
       dimension: 22,
       child: Stack(
@@ -242,13 +241,16 @@ class _PulseState extends State<_Pulse> with SingleTickerProviderStateMixin {
         alignment: Alignment.center,
         children: [
           AnimatedBuilder(
-            animation: _beat,
+            animation: pulse,
             builder: (context, _) {
-              final t = Curves.easeOut.transform(_beat.value);
+              final t = pulse.value;
+              final grow = IqCurves.easeOut.transform(t);
               return Transform.scale(
-                scale: still ? 1 : 1 + 0.8 * t,
+                scale: pulsing ? 1 + (IqScale.halo - 1) * grow : 1,
                 child: Opacity(
-                  opacity: still ? 0.2 : 0.35 * (1 - t),
+                  opacity: pulsing
+                      ? IqOpacity.halo * (1 - t)
+                      : IqOpacity.haloStill,
                   child: const DecoratedBox(
                     decoration: BoxDecoration(
                       color: IqColors.accentStrong,

@@ -18,6 +18,27 @@ Future<void> loadAppFonts() async {
   }
 }
 
+/// Compares [finder] with a golden painted with BoxShadow blur, as a device
+/// paints it: flutter_test draws shadows without blur, which leaves a hard
+/// band under the dock and cards. The flag is restored before the test ends,
+/// as the test binding requires.
+Future<void> expectMatchesGolden(Finder finder, String path) async {
+  final binding = TestWidgetsFlutterBinding.instance;
+  debugDisableShadows = false;
+  try {
+    void repaint(RenderObject object) {
+      object.markNeedsPaint();
+      object.visitChildren(repaint);
+    }
+
+    binding.renderViews.forEach(repaint);
+    await binding.pump();
+    await expectLater(finder, matchesGoldenFile(path));
+  } finally {
+    debugDisableShadows = true;
+  }
+}
+
 /// Renders [child] on the app theme at [size] (the Figma frame by default)
 /// and compares it with `test/golden/goldens/<name>.png`. Update with
 /// `flutter test --update-goldens test/golden`.
@@ -38,10 +59,7 @@ Future<void> expectGolden(
     ),
   );
   await tester.pumpAndSettle();
-  await expectLater(
-    find.byType(MaterialApp),
-    matchesGoldenFile('goldens/$name.png'),
-  );
+  await expectMatchesGolden(find.byType(MaterialApp), 'goldens/$name.png');
 }
 
 /// Renders a component on the paper background at its own size, padded.

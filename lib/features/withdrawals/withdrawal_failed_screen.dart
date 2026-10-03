@@ -38,7 +38,6 @@ class WithdrawalFailedScreen extends ConsumerWidget {
   }
 
   Future<void> _checkBankDetails(BuildContext context) async {
-    WalletHaptics.commit();
     final bank = await context.push<Bank>(Routes.selectBank);
     if (bank == null || !context.mounted) return;
     context.go(

@@ -7,7 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/deadline.dart';
 import '../../core/money.dart';
-import '../../core/motion.dart';
+import '../../core/motion.dart' hide RollingText;
 import '../../core/relative_time.dart';
 import '../../core/responsive.dart';
 import '../../data/repository.dart';
@@ -210,10 +210,7 @@ class _LoadedState extends ConsumerState<_Loaded> {
         earned: naira(totals.totalEarnedKobo),
         holdLabel: 'On hold · ${data.onHoldCount} pending',
         figureBuilder: (text, style) => RollingText(text, style: style),
-        onWithdraw: () {
-          WalletHaptics.commit();
-          context.push(Routes.withdraw);
-        },
+        onWithdraw: () => context.push(Routes.withdraw),
       ),
       IqSectionTitle(
         title: 'Activity',

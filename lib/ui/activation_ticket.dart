@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'button.dart';
 import 'countdown.dart';
@@ -57,8 +58,8 @@ class IqActivationTicket extends StatefulWidget {
   final VoidCallback? onAction;
   final Duration enterDelay;
 
-  static const Duration enter = Duration(milliseconds: 260);
-  static const Duration press = Duration(milliseconds: 120);
+  static const Duration enter = IqDurations.enter;
+  static const Duration press = IqDurations.press;
 
   @override
   State<IqActivationTicket> createState() => _IqActivationTicketState();
@@ -69,6 +70,9 @@ class _IqActivationTicketState extends State<IqActivationTicket>
   late final AnimationController _enter = AnimationController(
     vsync: this,
     duration: IqActivationTicket.enter,
+  );
+  late final Animation<double> _rise = _enter.drive(
+    CurveTween(curve: IqCurves.easeOut),
   );
   bool _started = false;
   bool _reduced = false;
@@ -97,23 +101,25 @@ class _IqActivationTicketState extends State<IqActivationTicket>
   @override
   Widget build(BuildContext context) {
     final look = _TicketLook.of(widget.kind);
-    final rise = CurvedAnimation(parent: _enter, curve: Curves.easeOut);
-    return AnimatedBuilder(
-      animation: rise,
-      builder: (context, child) => Opacity(
-        opacity: rise.value,
-        child: Transform.translate(
-          offset: Offset(0, _reduced ? 0 : 12 * (1 - rise.value)),
+    return FadeTransition(
+      opacity: _rise,
+      child: AnimatedBuilder(
+        animation: _rise,
+        builder: (context, child) => Transform.translate(
+          offset: Offset(
+            0,
+            _reduced ? 0 : IqTravel.riseCard * (1 - _rise.value),
+          ),
           child: child,
         ),
-      ),
-      child: IqPressable(
-        onTap: widget.onTap,
-        builder: (context, pressed) => AnimatedScale(
-          scale: pressed ? 0.98 : 1,
-          duration: _reduced ? Duration.zero : IqActivationTicket.press,
-          curve: Curves.easeOut,
-          child: _card(context, look),
+        child: IqPressable(
+          onTap: widget.onTap,
+          builder: (context, pressed) => AnimatedScale(
+            scale: pressed && !_reduced ? IqScale.cardPress : 1,
+            duration: pressMotion(context, pressed),
+            curve: IqCurves.easeOut,
+            child: _card(context, look),
+          ),
         ),
       ),
     );

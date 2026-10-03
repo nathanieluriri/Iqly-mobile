@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'pressable.dart';
 import 'vector.dart';
@@ -9,7 +10,7 @@ enum IqOptionRowState { standard, selected }
 
 /// Exp/OptionRow: a 56 high picker row for long lists (universities,
 /// states, banks, sort). Selected is the tint fill with the check; the
-/// label stays Regular.
+/// label stays Regular. A pick gives the select haptic.
 ///
 /// Figma over brief: the check is a plain 16 x 11.5 stroked tick (2.2 px), not the brush check icon.
 /// Figma over brief: Default is a white Color/card row with radius 12.
@@ -37,6 +38,7 @@ class IqOptionRow extends StatelessWidget {
       child: IqPressable(
         onTap: onTap,
         semanticLabel: label,
+        haptic: IqHaptics.select,
         builder: (context, pressed) => Container(
           height: 56,
           padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),

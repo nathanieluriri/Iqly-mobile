@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'perforation.dart';
 
@@ -21,9 +22,9 @@ class IqSkeleton extends StatefulWidget {
   /// Defaults to the Figma 358.
   final double? width;
 
-  static const Duration pulse = Duration(milliseconds: 900);
-  static const Duration showAfter = Duration(milliseconds: 300);
-  static const Duration minVisible = Duration(milliseconds: 600);
+  static const Duration pulse = IqDurations.skeletonPulse;
+  static const Duration showAfter = IqDurations.skeletonDelay;
+  static const Duration minVisible = IqDurations.skeletonMin;
 
   @override
   State<IqSkeleton> createState() => _IqSkeletonState();
@@ -38,7 +39,7 @@ class _IqSkeletonState extends State<IqSkeleton>
   late final Animation<double> _opacity = TweenSequence<double>([
     TweenSequenceItem(tween: Tween(begin: 0.5, end: 1), weight: 1),
     TweenSequenceItem(tween: Tween(begin: 1, end: 0.5), weight: 1),
-  ]).animate(CurvedAnimation(parent: _pulse, curve: Curves.easeInOut));
+  ]).chain(CurveTween(curve: IqCurves.easeInOut)).animate(_pulse);
 
   @override
   void didChangeDependencies() {

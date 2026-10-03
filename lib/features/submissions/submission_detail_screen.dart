@@ -7,6 +7,7 @@ import '../../core/deadline.dart';
 import '../../core/money.dart';
 import '../../core/relative_time.dart';
 import '../../core/responsive.dart';
+import '../../core/transitions.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/button.dart';
@@ -38,7 +39,10 @@ class SubmissionDetailScreen extends ConsumerWidget {
                   title: 'Submission',
                   onBack: () => context.canPop()
                       ? context.pop()
-                      : context.go(Routes.submissions),
+                      : context.go(
+                          Routes.submissions,
+                          extra: NavDirection.back,
+                        ),
                 ),
                 Expanded(
                   child: item == null

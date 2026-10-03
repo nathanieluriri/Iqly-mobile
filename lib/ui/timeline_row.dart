@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 
@@ -7,9 +8,10 @@ enum IqTimelineRowState { done, current, upcoming }
 
 /// Exp/TimelineRow: one step of claim progress, a dot on a thread. Done is
 /// inked with the brush check, Current is the orange dot with a soft ring
-/// that breathes 1 to 1.3 over 1.6 s, Upcoming is an outline. Becoming Done
-/// inks the dot in 180 ms and draws the thread down in 240 ms ease-out.
-/// Reduced motion: static ring, colour change only.
+/// that breathes 1 to 1.3 and back over 1.6 s while it holds the screen's
+/// pulse, Upcoming is an outline. Becoming Done inks the dot in 180 ms, then
+/// draws the thread down in 240 ms ease-out. Reduced motion: static ring,
+/// colour change only.
 ///
 /// Figma over its note: only the threads under Current and Upcoming are
 /// dashed; the thread under Done is solid brand.
@@ -34,32 +36,50 @@ class IqTimelineRow extends StatefulWidget {
   final bool showLine;
   final bool failed;
 
-  static const Duration ink = Duration(milliseconds: 180);
-  static const Duration draw = Duration(milliseconds: 240);
-  static const Duration breathe = Duration(milliseconds: 1600);
+  static const Duration ink = IqDurations.ink;
+  static const Duration draw = IqDurations.mark;
+  static const Duration breathe = IqDurations.ringBreath;
 
   @override
   State<IqTimelineRow> createState() => _IqTimelineRowState();
 }
 
 class _IqTimelineRowState extends State<IqTimelineRow>
-    with TickerProviderStateMixin {
-  late final AnimationController _ring = AnimationController(
+    with TickerProviderStateMixin, PulseLoop {
+  @override
+  late final AnimationController pulse = AnimationController(
     vsync: this,
     duration: IqTimelineRow.breathe,
   );
-  late final AnimationController _thread = AnimationController(
+  late final Animation<double> _ring = pulse.drive(_Breath());
+  late final AnimationController _done = AnimationController(
     vsync: this,
-    duration: IqTimelineRow.draw,
+    duration: IqTimelineRow.ink + IqTimelineRow.draw,
     value: 1,
+  );
+  late final Animation<double> _thread = _done.drive(
+    CurveTween(
+      curve: Interval(
+        IqTimelineRow.ink.inMicroseconds / _done.duration!.inMicroseconds,
+        1,
+        curve: IqCurves.easeOut,
+      ),
+    ),
   );
 
   bool get _reduced => MediaQuery.disableAnimationsOf(context);
 
   @override
+  PulsePriority get pulsePriority => PulsePriority.currentRing;
+
+  @override
+  bool get wantsPulse =>
+      widget.state == IqTimelineRowState.current && !widget.failed;
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _syncRing();
+    syncPulse();
   }
 
   @override
@@ -68,31 +88,17 @@ class _IqTimelineRowState extends State<IqTimelineRow>
     if (widget.state == IqTimelineRowState.done &&
         oldWidget.state != IqTimelineRowState.done &&
         !_reduced) {
-      _thread.value = 0;
-      Future.delayed(IqTimelineRow.ink, () {
-        if (mounted) _thread.animateTo(1, curve: Curves.easeOut);
-      });
+      _done.forward(from: 0);
     }
-    _syncRing();
-  }
-
-  void _syncRing() {
-    final breathing =
-        widget.state == IqTimelineRowState.current &&
-        !widget.failed &&
-        !_reduced;
-    if (!breathing) {
-      _ring.value = 0;
-      _ring.stop();
-    } else if (!_ring.isAnimating) {
-      _ring.repeat(reverse: true);
+    if (widget.state != oldWidget.state || widget.failed != oldWidget.failed) {
+      syncPulse();
     }
   }
 
   @override
   void dispose() {
-    _ring.dispose();
-    _thread.dispose();
+    pulse.dispose();
+    _done.dispose();
     super.dispose();
   }
 
@@ -118,12 +124,7 @@ class _IqTimelineRowState extends State<IqTimelineRow>
                     children: [
                       if (state == IqTimelineRowState.current)
                         ScaleTransition(
-                          scale: Tween(begin: 1.0, end: 1.3).animate(
-                            CurvedAnimation(
-                              parent: _ring,
-                              curve: Curves.easeInOut,
-                            ),
-                          ),
+                          scale: _ring,
                           child: Container(
                             width: 28,
                             height: 28,
@@ -135,7 +136,7 @@ class _IqTimelineRowState extends State<IqTimelineRow>
                         ),
                       AnimatedContainer(
                         duration: duration,
-                        curve: Curves.easeOut,
+                        curve: IqCurves.easeOut,
                         width: 20,
                         height: 20,
                         alignment: Alignment.center,
@@ -248,4 +249,14 @@ class _ThreadPainter extends CustomPainter {
   @override
   bool shouldRepaint(_ThreadPainter old) =>
       old.dashed != dashed || old.reveal != reveal;
+}
+
+/// One full breath of the ring per loop: 1 to 1.3 and back on the breath
+/// curve.
+class _Breath extends Animatable<double> {
+  @override
+  double transform(double t) {
+    final half = t < 0.5 ? t * 2 : 2 - t * 2;
+    return 1 + (IqScale.ring - 1) * IqCurves.breath.transform(half);
+  }
 }

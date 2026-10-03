@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 import 'pressable.dart';
@@ -52,8 +53,8 @@ class IqVideoPreview extends StatefulWidget {
   final VoidCallback? onRemove;
   final VoidCallback? onRetry;
 
-  static const Duration pop = Duration(milliseconds: 220);
-  static const Duration press = Duration(milliseconds: 120);
+  static const Duration pop = IqDurations.appear;
+  static const Duration press = IqDurations.press;
 
   @override
   State<IqVideoPreview> createState() => _IqVideoPreviewState();
@@ -65,6 +66,9 @@ class _IqVideoPreviewState extends State<IqVideoPreview>
     vsync: this,
     duration: IqVideoPreview.pop,
     value: 1,
+  );
+  late final Animation<double> _pop = _ready.drive(
+    CurveTween(curve: IqCurves.easeOut),
   );
 
   bool get _reduced => MediaQuery.disableAnimationsOf(context);
@@ -106,7 +110,7 @@ class _IqVideoPreviewState extends State<IqVideoPreview>
   Widget _thumbnail() {
     final state = widget.state;
     final reduced = _reduced;
-    final pop = CurvedAnimation(parent: _ready, curve: Curves.easeOut);
+    final pop = _pop;
     return SizedBox(
       height: 200,
       child: ColoredBox(
@@ -142,36 +146,38 @@ class _IqVideoPreviewState extends State<IqVideoPreview>
               semanticLabel: 'Play',
               behavior: HitTestBehavior.deferToChild,
               builder: (context, pressed) => AnimatedScale(
-                scale: pressed ? 0.92 : 1,
-                duration: reduced ? Duration.zero : IqVideoPreview.press,
-                curve: Curves.easeOut,
-                child: AnimatedBuilder(
-                  animation: pop,
-                  builder: (context, child) => Opacity(
-                    opacity: pop.value,
-                    child: Transform.scale(
-                      scale: reduced ? 1 : 0.6 + 0.4 * pop.value,
+                scale: pressed && !reduced ? IqScale.playPress : 1,
+                duration: pressMotion(context, pressed),
+                curve: IqCurves.easeOut,
+                child: FadeTransition(
+                  opacity: pop,
+                  child: AnimatedBuilder(
+                    animation: pop,
+                    builder: (context, child) => Transform.scale(
+                      scale: reduced
+                          ? 1
+                          : IqScale.pop + (1 - IqScale.pop) * pop.value,
                       child: child,
                     ),
-                  ),
-                  child: IqTilt(
-                    degrees: 4,
-                    child: Container(
-                      width: 56,
-                      height: 56,
-                      alignment: Alignment.center,
-                      decoration: const BoxDecoration(
-                        color: IqColors.accent,
-                        shape: BoxShape.circle,
-                      ),
-                      child: IqIcon(
-                        switch (state) {
-                          IqVideoPreviewState.ready => IqIcons.play,
-                          IqVideoPreviewState.uploading => IqIcons.upload,
-                          IqVideoPreviewState.failed => IqIcons.warning,
-                        },
-                        size: 24,
-                        color: IqColors.brand,
+                    child: IqTilt(
+                      degrees: 4,
+                      child: Container(
+                        width: 56,
+                        height: 56,
+                        alignment: Alignment.center,
+                        decoration: const BoxDecoration(
+                          color: IqColors.accent,
+                          shape: BoxShape.circle,
+                        ),
+                        child: IqIcon(
+                          switch (state) {
+                            IqVideoPreviewState.ready => IqIcons.play,
+                            IqVideoPreviewState.uploading => IqIcons.upload,
+                            IqVideoPreviewState.failed => IqIcons.warning,
+                          },
+                          size: 24,
+                          color: IqColors.brand,
+                        ),
                       ),
                     ),
                   ),
@@ -182,27 +188,30 @@ class _IqVideoPreviewState extends State<IqVideoPreview>
               Positioned(
                 left: IqSpace.s3,
                 bottom: IqSpace.s3,
-                child: AnimatedBuilder(
-                  animation: pop,
-                  builder: (context, child) => Opacity(
-                    opacity: pop.value,
-                    child: Transform.translate(
-                      offset: Offset(0, reduced ? 0 : 6 * (1 - pop.value)),
+                child: FadeTransition(
+                  opacity: pop,
+                  child: AnimatedBuilder(
+                    animation: pop,
+                    builder: (context, child) => Transform.translate(
+                      offset: Offset(
+                        0,
+                        reduced ? 0 : IqTravel.tick * (1 - pop.value),
+                      ),
                       child: child,
                     ),
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: IqSpace.s1p5,
-                      vertical: IqSpace.s0p5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: IqColors.accentSoft,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      widget.duration.toUpperCase(),
-                      style: IqText.mono.copyWith(color: IqColors.brand),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: IqSpace.s1p5,
+                        vertical: IqSpace.s0p5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: IqColors.accentSoft,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        widget.duration.toUpperCase(),
+                        style: IqText.mono.copyWith(color: IqColors.brand),
+                      ),
                     ),
                   ),
                 ),
@@ -290,10 +299,8 @@ class _IqVideoPreviewState extends State<IqVideoPreview>
                       color: IqColors.line,
                       alignment: Alignment.centerLeft,
                       child: AnimatedFractionallySizedBox(
-                        duration: _reduced
-                            ? Duration.zero
-                            : const Duration(milliseconds: 200),
-                        curve: Curves.easeOut,
+                        duration: motion(context, IqDurations.swap),
+                        curve: IqCurves.easeOut,
                         widthFactor: widget.progress.clamp(0.0, 1.0),
                         heightFactor: 1,
                         child: const ColoredBox(color: IqColors.accent),
@@ -310,8 +317,8 @@ class _IqVideoPreviewState extends State<IqVideoPreview>
               onTap: widget.onRetry,
               builder: (context, pressed) => ConstrainedBox(
                 constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-                child: Opacity(
-                  opacity: pressed ? 0.7 : 1,
+                child: PressDim(
+                  pressed: pressed,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [

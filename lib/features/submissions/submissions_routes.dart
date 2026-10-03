@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/responsive.dart';
+import '../../core/transitions.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/top_bar.dart';
@@ -11,22 +12,20 @@ String submissionPath(String id) => '/submissions/$id';
 String resultPath(String id) => '/submissions/$id/result';
 
 /// Detail and result open over the tabs (their frames have no dock), so
-/// they are top-level routes beside the shell. Figma transitions are
-/// Instant.
+/// they are top-level routes beside the shell, pushed (spec 3.1; Figma wires
+/// them Instant).
 final submissionRoutes = <RouteBase>[
   GoRoute(
     path: Routes.submissionDetail,
-    pageBuilder: (context, state) => NoTransitionPage<void>(
-      key: state.pageKey,
-      child: SubmissionDetailScreen(id: state.pathParameters['id']!),
+    pageBuilder: (context, state) => pushPage(
+      state,
+      SubmissionDetailScreen(id: state.pathParameters['id']!),
     ),
   ),
   GoRoute(
     path: Routes.result,
-    pageBuilder: (context, state) => NoTransitionPage<void>(
-      key: state.pageKey,
-      child: _ResultPlaceholder(id: state.pathParameters['id']!),
-    ),
+    pageBuilder: (context, state) =>
+        pushPage(state, _ResultPlaceholder(id: state.pathParameters['id']!)),
   ),
 ];
 
@@ -52,7 +51,7 @@ class _ResultPlaceholder extends StatelessWidget {
                 title: 'Your result',
                 onBack: () => context.canPop()
                     ? context.pop()
-                    : context.go(Routes.submissions),
+                    : context.go(Routes.submissions, extra: NavDirection.back),
               ),
             ],
           ),

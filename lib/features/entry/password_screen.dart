@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/motion.dart';
 import '../../data/auth.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -68,7 +69,9 @@ class _PasswordScreenState extends ConsumerState<PasswordScreen> {
       return;
     }
     await completeSignIn(ref, newAccount: true);
-    if (mounted) context.go(Routes.onboarding);
+    if (!mounted) return;
+    IqHaptics.success.play();
+    context.go(Routes.onboarding);
   }
 
   @override

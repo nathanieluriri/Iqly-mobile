@@ -62,7 +62,6 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
 
   Future<void> _delete() async {
     if (!_confirmed || _deleting) return;
-    motion.destructiveHaptic();
     FocusScope.of(context).unfocus();
     setState(() => _deleting = true);
     try {

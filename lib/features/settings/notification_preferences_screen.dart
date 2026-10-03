@@ -12,7 +12,6 @@ import '../../theme/theme.dart';
 import '../../ui/setting_row.dart';
 import '../../ui/switch.dart';
 import '../../ui/top_bar.dart';
-import '../profile/profile_motion.dart' as motion;
 import 'settings_state.dart';
 
 /// The label and one-line description of each switch (Figma 194:9932).
@@ -47,7 +46,6 @@ class NotificationPreferencesScreen extends ConsumerWidget {
     ];
 
     Future<void> flip(NotificationTopic topic, IqSwitchState state) async {
-      motion.selectHaptic();
       final taken = await ref
           .read(notificationPreferencesProvider.notifier)
           .set(topic, state == IqSwitchState.on);
