@@ -23,7 +23,7 @@ double _opacity(WidgetTester tester, Finder finder) => tester
     .fold(1.0, (o, w) => o * w.opacity.value);
 
 void main() {
-  group('SkeletonGate', () {
+  group('LoadingGate', () {
     const skeleton = Text('skeleton');
     const content = Text('content');
     final opened = <Duration>[];
@@ -31,7 +31,7 @@ void main() {
     Future<void> gate(WidgetTester tester, {required bool loading}) =>
         tester.pumpWidget(
           MaterialApp(
-            home: SkeletonGate(
+            home: LoadingGate(
               loading: loading,
               skeleton: skeleton,
               onOpen: opened.add,
@@ -62,11 +62,18 @@ void main() {
       expect(find.text('skeleton'), findsOneWidget);
       expect(opened, isEmpty);
 
+      // The hand-over: the skeleton fades from 900 and the content comes
+      // in at +60.
+      await tester.pump(_ms);
+      await tester.pump();
+      expect(find.text('content'), findsNothing);
+      await tester.pump(_ms * 59);
+      expect(find.text('content'), findsNothing);
       await tester.pump(_ms);
       await tester.pump();
       expect(find.text('content'), findsOneWidget);
-      expect(opened, [IqDurations.lag]);
-      await tester.pump(_ms * 75);
+      expect(opened, [Duration.zero]);
+      await tester.pump(_ms * 15);
       expect(
         _opacity(tester, find.text('skeleton')),
         closeTo(1 - _ei(0.5), 0.01),
@@ -74,6 +81,51 @@ void main() {
       await tester.pump(_ms * 80);
       expect(find.text('skeleton'), findsNothing);
       expect(find.text('content'), findsOneWidget);
+    });
+
+    testWidgets('the builder sees the hand-over at once and waits 60', (
+      tester,
+    ) async {
+      final phases = <GatePhase>[];
+      Future<void> build({required bool loading}) => tester.pumpWidget(
+        MaterialApp(
+          home: LoadingGate.builder(
+            loading: loading,
+            onOpen: opened.add,
+            builder: (context, phase, _) {
+              phases.add(phase);
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+      await build(loading: true);
+      await tester.pump(_ms * 400);
+      await build(loading: false);
+      await tester.pump(_ms * 500);
+      await tester.pump();
+      expect(phases.last, GatePhase.handover);
+      expect(opened, [IqDurations.lag]);
+      await tester.pump(_ms * 151);
+      await tester.pump();
+      expect(phases.last, GatePhase.content);
+    });
+
+    testWidgets('skeletonNow shows the skeleton without the wait', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: LoadingGate(
+            loading: true,
+            skeletonNow: true,
+            skeleton: skeleton,
+            child: content,
+          ),
+        ),
+      );
+      expect(find.text('skeleton'), findsOneWidget);
+      expect(find.text('content'), findsNothing);
     });
 
     testWidgets('data inside 300 goes straight to the content', (tester) async {
@@ -325,13 +377,15 @@ void main() {
     });
   });
 
-  group('RiseIn', () {
+  group('Arrive.illustration', () {
     testWidgets('fades in as it rises 16 over 320 ms', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Align(
             alignment: Alignment.topLeft,
-            child: RiseIn(child: SizedBox(key: ValueKey('box'), height: 10)),
+            child: Arrive.illustration(
+              child: SizedBox(key: ValueKey('box'), height: 10),
+            ),
           ),
         ),
       );
@@ -353,7 +407,9 @@ void main() {
         const MaterialApp(
           home: Align(
             alignment: Alignment.topLeft,
-            child: RiseIn(child: SizedBox(key: ValueKey('box'), height: 10)),
+            child: Arrive.illustration(
+              child: SizedBox(key: ValueKey('box'), height: 10),
+            ),
           ),
         ),
       );

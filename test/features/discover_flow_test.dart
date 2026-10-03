@@ -6,6 +6,7 @@ import 'package:iqly_mobile/features/discover/discover_state.dart';
 import 'package:iqly_mobile/features/discover/filters_sheet.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
 import 'package:iqly_mobile/features/discover/saved_briefs_screen.dart';
+import 'package:iqly_mobile/features/submit/submit_screen.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/bookmark.dart';
@@ -80,7 +81,7 @@ void main() {
     );
 
     await _tap(tester, find.text('Submit your response'));
-    expect(find.text('Submit'), findsOneWidget);
+    expect(find.byType(SubmitScreen), findsOneWidget);
     await _tap(tester, find.bySemanticsLabel(RegExp('Back')));
     await _tap(tester, find.bySemanticsLabel(RegExp('Back')));
     expect(find.byType(SavedBriefsScreen), findsOneWidget);

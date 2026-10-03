@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 
 /// Figma State: [you] is the signed-in contributor's own row.
@@ -10,6 +11,9 @@ enum IqLeaderboardRowState { standard, you }
 /// rows with an 8 px gap.
 ///
 /// Figma over brief: on You the rank number stays brand ink on the orange disc.
+///
+/// [rankDelay] pops the rank disc in after that long (MOTION-SPEC §5.33:
+/// the You row's disc at its arrive + 120); null shows it at once.
 class IqLeaderboardRow extends StatelessWidget {
   const IqLeaderboardRow({
     super.key,
@@ -20,6 +24,7 @@ class IqLeaderboardRow extends StatelessWidget {
     this.amount = '₦25,000',
     this.showAmount = true,
     this.state = IqLeaderboardRowState.standard,
+    this.rankDelay,
   });
 
   final String rank;
@@ -29,6 +34,7 @@ class IqLeaderboardRow extends StatelessWidget {
   final String amount;
   final bool showAmount;
   final IqLeaderboardRowState state;
+  final Duration? rankDelay;
 
   static const double height = 56;
   static const double gap = IqSpace.s2;
@@ -45,17 +51,19 @@ class IqLeaderboardRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
-            width: 32,
-            height: 32,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: you ? IqColors.accent : IqColors.tintStrong,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Text(
-              rank,
-              style: IqText.label.copyWith(color: IqColors.brand),
+          _pop(
+            Container(
+              width: 32,
+              height: 32,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: you ? IqColors.accent : IqColors.tintStrong,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                rank,
+                style: IqText.label.copyWith(color: IqColors.brand),
+              ),
             ),
           ),
           const SizedBox(width: IqSpace.s3),
@@ -90,5 +98,10 @@ class IqLeaderboardRow extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _pop(Widget disc) {
+    final delay = rankDelay;
+    return delay == null ? disc : Pop(delay: delay, child: disc);
   }
 }

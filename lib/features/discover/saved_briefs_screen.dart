@@ -159,7 +159,7 @@ class _SavedBriefsScreenState extends ConsumerState<SavedBriefsScreen>
                           ),
                         ),
                       ),
-                      SkeletonGate.builder(
+                      LoadingGate.builder(
                         key: const ValueKey('gate'),
                         loading: rows == null,
                         onOpen: (after) {
@@ -249,7 +249,7 @@ class _Empty extends ConsumerWidget {
         children: [
           const SizedBox(
             height: 144,
-            child: Center(child: RiseIn(child: _Bookmark96())),
+            child: Center(child: Arrive.illustration(child: _Bookmark96())),
           ),
           const SizedBox(height: IqSpace.s3),
           Appear(

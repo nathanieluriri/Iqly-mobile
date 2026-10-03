@@ -136,13 +136,15 @@ void main() {
     expect(find.byType(SkeletonCard), findsNWidgets(4));
     expect(find.byType(ArriveItem), findsNothing);
 
-    await tester.pump(_ms * 450);
-    await tester.pump();
+    // The skeleton starts fading at 900 and the list comes in at 960.
+    await tester.pump(_ms * 425);
+    expect(find.byType(ArriveItem), findsNothing);
+    await tester.pump(_ms * 60);
     expect(find.byType(ArriveItem), findsWidgets);
-    // Under review title, then its two rows, 40 ms apart, 60 behind the
-    // fading skeleton; each marker wipes 120 after its row.
+    // Under review title, then its two rows, 40 ms apart; each marker
+    // wipes 120 after its row.
     expect(_arrived(tester, 0), 0);
-    await tester.pump(_ms * 170);
+    await tester.pump(_ms * 110);
     expect(_arrived(tester, 0), closeTo(_eo(110 / 260), 0.03));
     expect(_arrived(tester, 1), closeTo(_eo(70 / 260), 0.03));
     expect(_arrived(tester, 2), closeTo(_eo(30 / 260), 0.03));

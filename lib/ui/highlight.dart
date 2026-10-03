@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../core/motion.dart';
@@ -9,7 +11,8 @@ enum IqHighlightTone { orange, lilac, green, inverse }
 /// Exp/Highlight: a highlighter stroke behind the one figure that matters;
 /// Inverse is cream text over an orange brush underline for dark grounds.
 /// The marker wipes in left to right, 240 ms ease-out, once, when first
-/// seen; inside an arriving list row it wipes 120 ms after the row starts
+/// seen, or [delay] after it mounts so a staggered row's band waits for its
+/// row; inside an arriving list row it wipes 120 ms after the row starts
 /// (spec 5.13). [wipe] false shows it at once (a Highlight that flew in as
 /// a shared element). Static under reduced motion. [style] takes the nested
 /// text style override (TicketCard uses Mob/Small strong).
@@ -20,12 +23,14 @@ class IqHighlight extends StatefulWidget {
     this.tone = IqHighlightTone.orange,
     this.style = IqText.bodyStrong,
     this.wipe = true,
+    this.delay = Duration.zero,
   });
 
   final String text;
   final IqHighlightTone tone;
   final TextStyle style;
   final bool wipe;
+  final Duration delay;
 
   static const Duration wipeDuration = IqDurations.mark;
 
@@ -43,6 +48,7 @@ class _IqHighlightState extends State<IqHighlight>
     CurveTween(curve: IqCurves.easeOut),
   );
   Animation<double>? _beat;
+  Timer? _wait;
 
   @override
   void didChangeDependencies() {
@@ -54,15 +60,23 @@ class _IqHighlightState extends State<IqHighlight>
     );
     if (!widget.wipe || MediaQuery.disableAnimationsOf(context)) {
       _wipe.value = 1;
+    } else if (widget.delay > Duration.zero &&
+        _beat == null &&
+        _wait == null &&
+        _wipe.isDismissed) {
+      _wait = Timer(widget.delay, _wipe.forward);
     }
   }
 
   void _seen() {
-    if (mounted && _beat == null && _wipe.isDismissed) _wipe.forward();
+    if (mounted && _beat == null && _wait == null && _wipe.isDismissed) {
+      _wipe.forward();
+    }
   }
 
   @override
   void dispose() {
+    _wait?.cancel();
     _wipe.dispose();
     super.dispose();
   }

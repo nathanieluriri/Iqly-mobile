@@ -7,7 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/deadline.dart';
 import '../../core/money.dart';
-import '../../core/motion.dart' hide RollingText;
+import '../../core/motion.dart';
 import '../../core/relative_time.dart';
 import '../../core/responsive.dart';
 import '../../data/repository.dart';
@@ -21,17 +21,18 @@ import '../../ui/top_bar.dart';
 import '../discover/app_shell.dart';
 import '../submissions/submission_widgets.dart' show SkeletonCard;
 import 'wallet_format.dart';
-import 'wallet_motion.dart';
 import 'wallet_routes.dart';
 import 'wallet_state.dart';
 
 /// B5 · Wallet (37:24) with failed to load (165:8792) and no activity
 /// (165:8921). It is the Wallet tab of the app shell, which draws the dock.
 ///
+/// The first load goes through the LoadingGate (spec 2.6); the hero, the
+/// Activity title and the rows then arrive 40 ms apart, once (spec 7.1).
 /// The screen shows what the wallet held when it was last in view: a
 /// withdrawal made from the sheet lands when the person is back here, so
-/// the figures roll and the new row opens in front of them (MOTION-SPEC
-/// §1.4, §5.17). Figures never count up from zero.
+/// the figures and the count roll and the new row opens in front of them
+/// (spec 1.4, 5.17). Figures never count up from zero.
 class WalletScreen extends ConsumerStatefulWidget {
   const WalletScreen({super.key});
 
@@ -74,12 +75,9 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
     }
     if (_inView || (_catchUp?.isActive ?? false)) return;
     // Waits for the page on top to finish leaving.
-    _catchUp = Timer(
-      walletMotion(context, WalletDurations.screenBack, fade: true),
-      () {
-        if (mounted) setState(() => _inView = true);
-      },
-    );
+    _catchUp = Timer(motion(context, IqDurations.screenBack, fade: true), () {
+      if (mounted) setState(() => _inView = true);
+    });
   }
 
   void _retry() {
@@ -127,12 +125,15 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
                 ),
                 Expanded(
                   child: LoadingGate(
-                    loading: shown == null && !failed,
-                    keepSkeleton: _retrying,
-                    skeleton: const _Scroll(child: _Skeletons()),
-                    child: failed
-                        ? _Scroll(child: _Failed(onRetry: _retry))
-                        : shown == null
+                    loading: shown == null,
+                    skeletonNow: failed || _retrying,
+                    skeleton: _Scroll(
+                      child: _Placeholder(
+                        failed: failed && !_retrying,
+                        onRetry: _retry,
+                      ),
+                    ),
+                    child: shown == null
                         ? const SizedBox.shrink()
                         : _Loaded(data: shown),
                   ),
@@ -167,7 +168,7 @@ class _Scroll extends StatelessWidget {
 }
 
 /// The wallet with its activity. Arrive plays once, when the data first
-/// shows; rows that turn up later open in place.
+/// shows; rows that turn up later open their slot, then arrive.
 class _Loaded extends ConsumerStatefulWidget {
   const _Loaded({required this.data});
 
@@ -209,7 +210,6 @@ class _LoadedState extends ConsumerState<_Loaded> {
         onHold: naira(totals.pendingWithdrawalsKobo),
         earned: naira(totals.totalEarnedKobo),
         holdLabel: 'On hold · ${data.onHoldCount} pending',
-        figureBuilder: (text, style) => RollingText(text, style: style),
         onWithdraw: () => context.push(Routes.withdraw),
       ),
       IqSectionTitle(
@@ -227,8 +227,7 @@ class _LoadedState extends ConsumerState<_Loaded> {
         ),
     ];
 
-    return Choreography(
-      length: WalletDurations.list,
+    return Stagger(
       child: ListView(
         padding: EdgeInsets.fromLTRB(
           IqSpace.s4,
@@ -236,26 +235,56 @@ class _LoadedState extends ConsumerState<_Loaded> {
           IqSpace.s4,
           AppShell.contentInset(context),
         ),
-        children: [
-          for (final (i, item) in items.indexed) ...[
-            if (i > 0) const SizedBox(height: IqSpace.s2),
-            _slot(i, item),
-          ],
-        ],
+        children: [for (final (i, item) in items.indexed) _slot(i, item)],
       ),
     );
   }
 
+  /// The 8 above a row travels with it, so an inserted row opens its own
+  /// gap.
   Widget _slot(int index, Widget item) {
     final key = item.key;
+    final spaced = index == 0
+        ? item
+        : Padding(
+            padding: const EdgeInsets.only(top: IqSpace.s2),
+            child: item,
+          );
     if (key is ValueKey<String> && _added.contains(key.value)) {
-      return ExpandIn(key: key, child: item);
+      return _Inserted(key: key, child: spaced);
     }
     return KeyedSubtree(
       key: key ?? ValueKey(index),
-      child: Cue.arrive(index, item),
+      child: StaggerItem(index: index, child: spaced),
     );
   }
+}
+
+/// A row that turns up while the list is in view: its slot opens over
+/// 240 ms, then it arrives (spec 5.17). A cut under reduced motion.
+class _Inserted extends StatefulWidget {
+  const _Inserted({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<_Inserted> createState() => _InsertedState();
+}
+
+class _InsertedState extends State<_Inserted> {
+  bool _open = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _open = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      Collapse(open: _open, child: widget.child);
 }
 
 class _ActivityItemRow extends StatelessWidget {
@@ -284,18 +313,12 @@ class _ActivityItemRow extends StatelessWidget {
     }
     final withdrawal = item.withdrawal!;
     return MergeSemantics(
-      child: AnimatedSwitcher(
-        duration: walletMotion(context, WalletDurations.crossfade),
-        switchInCurve: WalletCurves.easeOut,
-        switchOutCurve: WalletCurves.easeOut,
-        child: IqActivityRowWithdrawal(
-          key: ValueKey(withdrawal.statusWord),
-          amount: naira(withdrawal.amountKobo),
-          when: timeAgoShort(withdrawal.createdAt, now),
-          status: withdrawal.statusWord,
-          divider: divider,
-          onTap: () => context.push(withdrawalPath(withdrawal.id)),
-        ),
+      child: IqActivityRowWithdrawal(
+        amount: naira(withdrawal.amountKobo),
+        when: timeAgoShort(withdrawal.createdAt, now),
+        status: withdrawal.statusWord,
+        divider: divider,
+        onTap: () => context.push(withdrawalPath(withdrawal.id)),
       ),
     );
   }
@@ -350,9 +373,13 @@ class _Skeletons extends StatelessWidget {
   }
 }
 
-class _Failed extends StatelessWidget {
-  const _Failed({required this.onRetry});
+/// The skeletons of 165:8792, with the Error banner over them once the load
+/// failed: it slides down and pushes them (240), and slides away (180) on
+/// Try again while the retry loads under the same skeletons (spec 5.21).
+class _Placeholder extends StatelessWidget {
+  const _Placeholder({required this.failed, required this.onRetry});
 
+  final bool failed;
   final VoidCallback onRetry;
 
   @override
@@ -365,9 +392,14 @@ class _Failed extends StatelessWidget {
           title: 'Couldn’t load. Check your connection.',
           action: 'Try again',
           onAction: onRetry,
+          visible: failed,
         ),
-        const SizedBox(height: IqSpace.s2),
-        const _Skeletons(),
+        AnimatedPadding(
+          duration: motion(context, failed ? IqBanner.enter : IqBanner.exit),
+          curve: failed ? IqCurves.easeOut : IqCurves.easeIn,
+          padding: EdgeInsets.only(top: failed ? IqSpace.s2 : 0),
+          child: const _Skeletons(),
+        ),
       ],
     );
   }

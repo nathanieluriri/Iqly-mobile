@@ -39,7 +39,7 @@ import 'feed_slivers.dart';
 /// shows the trophy.
 ///
 /// Motion (spec 6.20, 5.15 to 5.17, 3.7): the first load waits behind
-/// SkeletonGate and its items arrive 40 ms apart (the setup nudge first);
+/// LoadingGate and its items arrive 40 ms apart (the setup nudge first);
 /// one PullIndicator fades in with the pull, turns its arrow when armed
 /// (select haptic, once a pull), holds its 52 pt slot while refreshing,
 /// shows Done for 800 ms and then closes the slot as the feed slides up; a
@@ -339,7 +339,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                 child: PayoutArrivalRow(payout: payout),
                               ),
                             ),
-                          SkeletonGate.builder(
+                          LoadingGate.builder(
                             key: const ValueKey('gate'),
                             loading: data == null && !failed,
                             onOpen: (after) => _arrivals.play(after: after),

@@ -28,7 +28,7 @@ import 'discover_state.dart';
 ///
 /// Motion (spec 6.22, 4.3): the page pushes in already drawn from [initial],
 /// the brief the person tapped (or one already loaded), and its content
-/// settles 40 ms apart; only a cold open by URL waits behind SkeletonGate.
+/// settles 40 ms apart; only a cold open by URL waits behind LoadingGate.
 /// Its Page bar holds the back button and crossfades the title across a
 /// push from another Page bar.
 class BriefDetailScreen extends ConsumerWidget {
@@ -81,7 +81,7 @@ class BriefDetailScreen extends ConsumerWidget {
                   ],
                 ),
                 Expanded(
-                  child: SkeletonGate(
+                  child: LoadingGate(
                     loading: brief == null && loaded.isLoading,
                     skeleton: const _Skeleton(),
                     child: brief == null

@@ -633,6 +633,62 @@ class _PopState extends _EntranceState<Pop> {
   }
 }
 
+/// Fades [child] in as it rises [distance] into place over [duration],
+/// ease-out: one element's arrive (spec 2.5, 12 over 260), or an
+/// illustration's ink (16 over 320, spec 5.29). Fades only, 150 ms, under
+/// reduced motion.
+class Arrive extends _Entrance {
+  const Arrive({
+    super.key,
+    required super.child,
+    super.delay,
+    super.whenSeen,
+    this.distance = IqTravel.riseCard,
+    this.duration = IqDurations.enter,
+  });
+
+  /// An illustration's or hero icon's ink: rise 16 over 320 (spec 5.29).
+  const Arrive.illustration({
+    super.key,
+    required super.child,
+    super.delay,
+    super.whenSeen,
+  }) : distance = IqTravel.riseHero,
+       duration = IqDurations.illustration;
+
+  final double distance;
+  final Duration duration;
+
+  @override
+  State<Arrive> createState() => _ArriveState();
+}
+
+class _ArriveState extends _EntranceState<Arrive> {
+  @override
+  Duration get length => widget.duration;
+
+  @override
+  bool get fadesWhenReduced => true;
+
+  @override
+  Widget buildMove(BuildContext context, Animation<double> progress) {
+    return FadeTransition(
+      opacity: progress,
+      child: AnimatedBuilder(
+        animation: progress,
+        child: widget.child,
+        builder: (context, child) => Transform.translate(
+          offset: Offset(
+            0,
+            reduced ? 0 : widget.distance * (1 - progress.value),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
 /// The two ways a list comes in (spec 2.5).
 enum StaggerMove {
   /// Fade and rise 12, for data that lands after its page.
@@ -1101,6 +1157,220 @@ class _CollapseState extends State<Collapse> with TickerProviderStateMixin {
   }
 }
 
+/// What a [LoadingGate] shows (spec 2.6).
+enum GatePhase {
+  /// Paper, for the first 300 ms of a load.
+  waiting,
+
+  /// The skeleton, held at least 600 ms once shown.
+  skeleton,
+
+  /// The skeleton fading out over the content as it arrives.
+  handover,
+
+  /// The content.
+  content,
+}
+
+/// Builds a [LoadingGate.builder] for [phase]; [skeletonOpacity] runs the
+/// skeleton's fade in the hand-over and stands at 1 before it.
+typedef LoadingGateBuilder = Widget Function(
+  BuildContext context,
+  GatePhase phase,
+  Animation<double> skeletonOpacity,
+);
+
+/// A first load on the kit's clock (spec 2.6, 5.15): paper for 300 ms;
+/// then, if it is still loading, the skeleton, held at least 600 ms once
+/// shown; then the skeleton fades out over 150 ms ease-in while the content
+/// arrives from +60. Data inside 300 ms goes straight to the content.
+/// [skeletonNow] shows the skeleton without the wait (a failed load that
+/// already draws it). [onOpen] runs when a load opens onto the content,
+/// with how long the content's arrival still waits, so the screen can play
+/// its arrive. Reduced motion keeps the waits and makes the hand-over a
+/// 150 ms crossfade.
+class LoadingGate extends StatefulWidget {
+  /// Shows [skeleton], then [child], filling its parent. [child] comes in
+  /// at +60, so its own arrive plays over the fading skeleton.
+  const LoadingGate({
+    super.key,
+    required this.loading,
+    required Widget this.skeleton,
+    required Widget this.child,
+    this.skeletonNow = false,
+    this.onOpen,
+  }) : builder = null;
+
+  /// Lets the screen place each phase itself (as slivers, say); the
+  /// hand-over brings the content at once and [onOpen] gets the 60.
+  const LoadingGate.builder({
+    super.key,
+    required this.loading,
+    required LoadingGateBuilder this.builder,
+    this.skeletonNow = false,
+    this.onOpen,
+  }) : skeleton = null,
+       child = null;
+
+  final bool loading;
+  final Widget? skeleton;
+  final Widget? child;
+  final LoadingGateBuilder? builder;
+  final bool skeletonNow;
+  final ValueChanged<Duration>? onOpen;
+
+  @override
+  State<LoadingGate> createState() => _LoadingGateState();
+}
+
+class _LoadingGateState extends State<LoadingGate>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _fade = AnimationController(
+    vsync: this,
+    duration: IqDurations.crossfade,
+    animationBehavior: AnimationBehavior.preserve,
+  )..addStatusListener(_onFade);
+  late final Animation<double> _skeletonOpacity = ReverseAnimation(
+    _fade.drive(CurveTween(curve: IqCurves.easeIn)),
+  );
+  GatePhase _phase = GatePhase.content;
+  bool _childIn = true;
+  bool _held = true;
+  bool _reduced = false;
+  Timer? _wait;
+  Timer? _hold;
+  Timer? _lag;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.loading) _start();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduced = MediaQuery.disableAnimationsOf(context);
+  }
+
+  @override
+  void didUpdateWidget(LoadingGate old) {
+    super.didUpdateWidget(old);
+    if (widget.loading && !old.loading) {
+      _start();
+      return;
+    }
+    if (widget.skeletonNow && !old.skeletonNow && _phase == GatePhase.waiting) {
+      _showSkeleton();
+    }
+    if (!widget.loading && old.loading) _land();
+  }
+
+  void _start() {
+    _wait?.cancel();
+    _hold?.cancel();
+    _lag?.cancel();
+    _fade.value = 0;
+    _childIn = false;
+    _held = true;
+    if (widget.skeletonNow) {
+      _showSkeleton();
+      return;
+    }
+    _phase = GatePhase.waiting;
+    _wait = Timer(IqDurations.skeletonDelay, () {
+      if (mounted && widget.loading) setState(_showSkeleton);
+    });
+  }
+
+  void _showSkeleton() {
+    _wait?.cancel();
+    _hold?.cancel();
+    _phase = GatePhase.skeleton;
+    _held = false;
+    _hold = Timer(IqDurations.skeletonMin, () {
+      _held = true;
+      if (mounted && !widget.loading) setState(_handOver);
+    });
+  }
+
+  void _land() {
+    switch (_phase) {
+      case GatePhase.waiting:
+        _wait?.cancel();
+        _phase = GatePhase.content;
+        _childIn = true;
+        widget.onOpen?.call(Duration.zero);
+      case GatePhase.skeleton:
+        if (_held) _handOver();
+      case GatePhase.handover || GatePhase.content:
+        break;
+    }
+  }
+
+  void _handOver() {
+    _phase = GatePhase.handover;
+    _fade.forward(from: 0);
+    final lag = _reduced ? Duration.zero : IqDurations.lag;
+    if (widget.builder != null || lag == Duration.zero) {
+      _childIn = true;
+      widget.onOpen?.call(lag);
+      return;
+    }
+    _lag = Timer(lag, () {
+      if (!mounted) return;
+      setState(() => _childIn = true);
+      widget.onOpen?.call(Duration.zero);
+    });
+  }
+
+  void _onFade(AnimationStatus status) {
+    if (status.isCompleted && mounted && _phase == GatePhase.handover) {
+      setState(() {
+        _phase = GatePhase.content;
+        _childIn = true;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _wait?.cancel();
+    _hold?.cancel();
+    _lag?.cancel();
+    _fade.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final builder = widget.builder;
+    if (builder != null) return builder(context, _phase, _skeletonOpacity);
+    final handover = _phase == GatePhase.handover;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (_childIn)
+          KeyedSubtree(key: const ValueKey('content'), child: widget.child!),
+        if (_phase == GatePhase.skeleton || handover)
+          KeyedSubtree(
+            key: const ValueKey('skeleton'),
+            child: IgnorePointer(
+              ignoring: handover,
+              child: ExcludeSemantics(
+                excluding: handover,
+                child: FadeTransition(
+                  opacity: _skeletonOpacity,
+                  child: widget.skeleton!,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 /// The fade-through's two halves on a 0 to 1 switch (spec 2.5): the new
 /// child fades in from 20% ease-out, the old one is gone by 40% ease-in.
 abstract final class FadeThroughCurves {
@@ -1134,180 +1404,6 @@ class FadeThrough extends StatelessWidget {
       layoutBuilder: (current, previous) =>
           Stack(alignment: alignment, children: [...previous, ?current]),
       child: child,
-    );
-  }
-}
-
-/// What a [SkeletonGate] shows (spec 2.6).
-enum GatePhase {
-  /// Paper, for the first 300 ms of a load.
-  waiting,
-
-  /// The skeleton, held at least 600 ms once shown.
-  skeleton,
-
-  /// The skeleton fading out over the content as it arrives.
-  handover,
-
-  /// The content.
-  content,
-}
-
-/// Builds a [SkeletonGate.builder] for [phase]; [skeletonOpacity] runs the
-/// skeleton's fade in the hand-over and stands at 1 before it.
-typedef SkeletonGateBuilder = Widget Function(
-  BuildContext context,
-  GatePhase phase,
-  Animation<double> skeletonOpacity,
-);
-
-/// The spec's LoadingGate (spec 2.6, 5.15), the wait for a list's data:
-/// paper for 300 ms; then, if it is still loading, the skeleton, held at
-/// least 600 ms; then the skeleton fades out over 150 ms ease-in while the
-/// content arrives from +60. Data inside 300 ms goes straight to the
-/// content. [onOpen] runs when a load opens onto the content, with how long
-/// the content's arrival waits, so the screen can play its arrive. Reduced
-/// motion keeps the timings and makes the hand-over a 150 ms crossfade.
-class SkeletonGate extends StatefulWidget {
-  /// Shows [skeleton], then [child], in one box.
-  const SkeletonGate({
-    super.key,
-    required this.loading,
-    required Widget this.skeleton,
-    required Widget this.child,
-    this.onOpen,
-  }) : builder = null;
-
-  /// Lets the screen place each phase itself (as slivers, say).
-  const SkeletonGate.builder({
-    super.key,
-    required this.loading,
-    required SkeletonGateBuilder this.builder,
-    this.onOpen,
-  }) : skeleton = null,
-       child = null;
-
-  final bool loading;
-  final Widget? skeleton;
-  final Widget? child;
-  final SkeletonGateBuilder? builder;
-  final ValueChanged<Duration>? onOpen;
-
-  @override
-  State<SkeletonGate> createState() => _SkeletonGateState();
-}
-
-class _SkeletonGateState extends State<SkeletonGate>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _fade = AnimationController(
-    vsync: this,
-    duration: IqDurations.crossfade,
-    animationBehavior: AnimationBehavior.preserve,
-  )..addStatusListener(_onFade);
-  late final Animation<double> _skeletonOpacity = ReverseAnimation(
-    _fade.drive(CurveTween(curve: IqCurves.easeIn)),
-  );
-  GatePhase _phase = GatePhase.content;
-  Timer? _wait;
-  Timer? _hold;
-  bool _held = true;
-  bool _reduced = false;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.loading) _start();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _reduced = MediaQuery.disableAnimationsOf(context);
-  }
-
-  @override
-  void didUpdateWidget(SkeletonGate old) {
-    super.didUpdateWidget(old);
-    if (widget.loading && !old.loading) _start();
-    if (!widget.loading && old.loading) _land();
-  }
-
-  void _start() {
-    _wait?.cancel();
-    _hold?.cancel();
-    _fade.value = 0;
-    _held = true;
-    _phase = GatePhase.waiting;
-    _wait = Timer(IqDurations.skeletonDelay, () {
-      if (!mounted || !widget.loading) return;
-      setState(() {
-        _phase = GatePhase.skeleton;
-        _held = false;
-        _hold = Timer(IqDurations.skeletonMin, () {
-          _held = true;
-          if (mounted && !widget.loading) setState(_handOver);
-        });
-      });
-    });
-  }
-
-  void _land() {
-    switch (_phase) {
-      case GatePhase.waiting:
-        _wait?.cancel();
-        _phase = GatePhase.content;
-        widget.onOpen?.call(Duration.zero);
-      case GatePhase.skeleton:
-        if (_held) _handOver();
-      case GatePhase.handover || GatePhase.content:
-        break;
-    }
-  }
-
-  void _handOver() {
-    _phase = GatePhase.handover;
-    _fade.forward(from: 0);
-    widget.onOpen?.call(_reduced ? Duration.zero : IqDurations.lag);
-  }
-
-  void _onFade(AnimationStatus status) {
-    if (status.isCompleted && mounted && _phase == GatePhase.handover) {
-      setState(() => _phase = GatePhase.content);
-    }
-  }
-
-  @override
-  void dispose() {
-    _wait?.cancel();
-    _hold?.cancel();
-    _fade.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final builder = widget.builder;
-    if (builder != null) return builder(context, _phase, _skeletonOpacity);
-    final content = _phase == GatePhase.handover || _phase == GatePhase.content;
-    final skeleton =
-        _phase == GatePhase.skeleton || _phase == GatePhase.handover;
-    return Stack(
-      fit: StackFit.passthrough,
-      children: [
-        if (content)
-          KeyedSubtree(key: const ValueKey('content'), child: widget.child!),
-        if (skeleton)
-          KeyedSubtree(
-            key: const ValueKey('skeleton'),
-            child: IgnorePointer(
-              ignoring: _phase == GatePhase.handover,
-              child: FadeTransition(
-                opacity: _skeletonOpacity,
-                child: widget.skeleton!,
-              ),
-            ),
-          ),
-      ],
     );
   }
 }
@@ -1550,42 +1646,6 @@ class _ArriveCue extends InheritedWidget {
 
   @override
   bool updateShouldNotify(_ArriveCue old) => slot != old.slot;
-}
-
-/// Fades [child] in as it rises 16, 320 ms ease-out, the way illustrations
-/// and hero icons arrive (spec 5.29); fades only, 150 ms, under reduced
-/// motion.
-class RiseIn extends _Entrance {
-  const RiseIn({super.key, required super.child, super.delay, super.whenSeen});
-
-  @override
-  State<RiseIn> createState() => _RiseInState();
-}
-
-class _RiseInState extends _EntranceState<RiseIn> {
-  @override
-  Duration get length => IqDurations.illustration;
-
-  @override
-  bool get fadesWhenReduced => true;
-
-  @override
-  Widget buildMove(BuildContext context, Animation<double> progress) {
-    return FadeTransition(
-      opacity: progress,
-      child: AnimatedBuilder(
-        animation: progress,
-        child: widget.child,
-        builder: (context, child) => Transform.translate(
-          offset: Offset(
-            0,
-            reduced ? 0 : IqTravel.riseHero * (1 - progress.value),
-          ),
-          child: child,
-        ),
-      ),
-    );
-  }
 }
 
 /// Calls [onSeen] once at least half of [child] is painted inside the

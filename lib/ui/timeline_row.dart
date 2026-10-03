@@ -8,10 +8,11 @@ enum IqTimelineRowState { done, current, upcoming }
 
 /// Exp/TimelineRow: one step of claim progress, a dot on a thread. Done is
 /// inked with the brush check, Current is the orange dot with a soft ring
-/// that breathes 1 to 1.3 and back over 1.6 s while it holds the screen's
-/// pulse, Upcoming is an outline. Becoming Done inks the dot in 180 ms, then
-/// draws the thread down in 240 ms ease-out. Reduced motion: static ring,
-/// colour change only.
+/// that breathes 1 to 1.3 and back over 1.6 s at .25 while it holds the
+/// screen's pulse, Upcoming is an outline. Becoming Done inks the dot, its
+/// check and its words in 180 ms, then draws the thread down in 240 ms
+/// ease-out; becoming Current fades the ring in over the same 180 (spec
+/// 5.30, Figma 168:1077). Reduced motion: static ring, changes at once.
 ///
 /// Figma over its note: only the threads under Current and Upcoming are
 /// dashed; the thread under Done is solid brand.
@@ -57,6 +58,14 @@ class _IqTimelineRowState extends State<IqTimelineRow>
     duration: IqTimelineRow.ink + IqTimelineRow.draw,
     value: 1,
   );
+  late final AnimationController _ringIn = AnimationController(
+    vsync: this,
+    duration: IqTimelineRow.ink,
+    value: widget.state == IqTimelineRowState.current ? 1 : 0,
+  );
+  late final Animation<double> _ringShown = _ringIn.drive(
+    CurveTween(curve: IqCurves.easeOut),
+  );
   late final Animation<double> _thread = _done.drive(
     CurveTween(
       curve: Interval(
@@ -90,6 +99,16 @@ class _IqTimelineRowState extends State<IqTimelineRow>
         !_reduced) {
       _done.forward(from: 0);
     }
+    final current = widget.state == IqTimelineRowState.current;
+    if (current != (oldWidget.state == IqTimelineRowState.current)) {
+      if (_reduced) {
+        _ringIn.value = current ? 1 : 0;
+      } else if (current) {
+        _ringIn.forward();
+      } else {
+        _ringIn.reverse();
+      }
+    }
     if (widget.state != oldWidget.state || widget.failed != oldWidget.failed) {
       syncPulse();
     }
@@ -99,6 +118,7 @@ class _IqTimelineRowState extends State<IqTimelineRow>
   void dispose() {
     pulse.dispose();
     _done.dispose();
+    _ringIn.dispose();
     super.dispose();
   }
 
@@ -122,18 +142,20 @@ class _IqTimelineRowState extends State<IqTimelineRow>
                     clipBehavior: Clip.none,
                     alignment: Alignment.center,
                     children: [
-                      if (state == IqTimelineRowState.current)
-                        ScaleTransition(
+                      FadeTransition(
+                        opacity: _ringShown,
+                        child: ScaleTransition(
                           scale: _ring,
                           child: Container(
                             width: 28,
                             height: 28,
                             decoration: BoxDecoration(
-                              color: hot.withValues(alpha: 0.25),
+                              color: hot.withValues(alpha: IqOpacity.ring),
                               shape: BoxShape.circle,
                             ),
                           ),
                         ),
+                      ),
                       AnimatedContainer(
                         duration: duration,
                         curve: IqCurves.easeOut,
@@ -155,13 +177,18 @@ class _IqTimelineRowState extends State<IqTimelineRow>
                                 )
                               : null,
                         ),
-                        child: state == IqTimelineRowState.done
-                            ? const IqIcon(
-                                IqIcons.check,
-                                size: 12,
-                                color: IqColors.sidebarFg,
-                              )
-                            : null,
+                        child: AnimatedSwitcher(
+                          duration: duration,
+                          switchInCurve: IqCurves.easeOut,
+                          switchOutCurve: IqCurves.easeOut,
+                          child: state == IqTimelineRowState.done
+                              ? const IqIcon(
+                                  IqIcons.check,
+                                  size: 12,
+                                  color: IqColors.sidebarFg,
+                                )
+                              : const SizedBox.shrink(),
+                        ),
                       ),
                     ],
                   ),
@@ -200,13 +227,20 @@ class _IqTimelineRowState extends State<IqTimelineRow>
                           ? IqColors.fg3
                           : IqColors.fg,
                     ),
-                    child: Text(widget.title),
+                    child: _Swap(
+                      duration: duration,
+                      child: Text(widget.title, key: ValueKey(widget.title)),
+                    ),
                   ),
                   if (widget.meta.isNotEmpty) ...[
                     const SizedBox(height: IqSpace.s0p5),
-                    Text(
-                      widget.meta,
-                      style: IqText.small.copyWith(color: IqColors.fg3),
+                    _Swap(
+                      duration: duration,
+                      child: Text(
+                        widget.meta,
+                        key: ValueKey(widget.meta),
+                        style: IqText.small.copyWith(color: IqColors.fg3),
+                      ),
                     ),
                   ],
                 ],
@@ -249,6 +283,28 @@ class _ThreadPainter extends CustomPainter {
   @override
   bool shouldRepaint(_ThreadPainter old) =>
       old.dashed != dashed || old.reveal != reveal;
+}
+
+/// Crosses new words over the old ones in place, left aligned.
+class _Swap extends StatelessWidget {
+  const _Swap({required this.duration, required this.child});
+
+  final Duration duration;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: duration,
+      switchInCurve: IqCurves.easeOut,
+      switchOutCurve: IqCurves.easeOut,
+      layoutBuilder: (current, previous) => Stack(
+        alignment: AlignmentDirectional.topStart,
+        children: [...previous, ?current],
+      ),
+      child: child,
+    );
+  }
 }
 
 /// One full breath of the ring per loop: 1 to 1.3 and back on the breath

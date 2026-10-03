@@ -13,6 +13,13 @@ enum IqPollOptionState { standard, selected, result, chosen }
 /// with a check. Result and Chosen show the share bar, whose fill stops at
 /// [share] (0 to 1) with the Figma 2.4 point soft edge, and the rounded
 /// percentage. Figma State=Default is [IqPollOptionState.standard].
+///
+/// A new state moves in its parts (MOTION-SPEC §5.27): the ground crosses
+/// over, 120 ms for a pick (ink fills in) and 300 for the result looks, the
+/// Smart Animate of the B2 frames; the check pops (220) as its slot opens and
+/// eases the label right; the label's ink and weight ease across; the
+/// percentage fades in. A first build shows its state still. Under reduced
+/// motion the parts cut and the check fades in 150, as a pop does.
 class IqPollOption extends StatelessWidget {
   const IqPollOption({
     super.key,
@@ -32,66 +39,103 @@ class IqPollOption extends StatelessWidget {
   final double width;
   static const double height = 52;
 
+  /// The check and its gap before the label.
+  static const double _checkSlot = 18 + IqSpace.s2p5;
+
+  bool get _voting =>
+      state == IqPollOptionState.standard ||
+      state == IqPollOptionState.selected;
+
+  bool get _marked =>
+      state == IqPollOptionState.selected || state == IqPollOptionState.chosen;
+
   @override
   Widget build(BuildContext context) {
-    final voting =
-        state == IqPollOptionState.standard ||
-        state == IqPollOptionState.selected;
+    final change = motion(
+      context,
+      _voting ? IqDurations.press : IqDurations.screen,
+    );
+    final ink = switch (state) {
+      IqPollOptionState.standard ||
+      IqPollOptionState.result => IqText.body.copyWith(color: IqColors.fg),
+      IqPollOptionState.selected => IqText.bodyStrong.copyWith(
+        color: IqColors.primaryFg,
+      ),
+      IqPollOptionState.chosen => IqText.bodyStrong.copyWith(
+        color: IqColors.fg,
+      ),
+    };
     return IqPressable(
-      onTap: voting ? onTap : null,
+      onTap: _voting ? onTap : null,
       haptic: IqHaptics.select,
       builder: (context, _) => SizedBox(
         width: width,
         height: height,
         child: Stack(
           children: [
-            ..._ground(),
+            Positioned.fill(
+              child: AnimatedSwitcher(
+                duration: change,
+                switchInCurve: IqCurves.easeOut,
+                switchOutCurve: IqCurves.easeOut,
+                layoutBuilder: (current, previous) => Stack(
+                  fit: StackFit.expand,
+                  children: [...previous, ?current],
+                ),
+                child: Stack(key: ValueKey(state), children: _ground()),
+              ),
+            ),
             Positioned.fill(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 18),
                 child: Row(
                   children: [
-                    if (state == IqPollOptionState.selected ||
-                        state == IqPollOptionState.chosen) ...[
-                      IqIcon(
-                        IqIcons.check,
-                        size: 18,
-                        color: state == IqPollOptionState.selected
-                            ? IqColors.primaryFg
-                            : IqColors.brand,
-                      ),
-                      const SizedBox(width: IqSpace.s2p5),
-                    ],
-                    Expanded(
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: switch (state) {
-                          IqPollOptionState.standard ||
-                          IqPollOptionState.result => IqText.body.copyWith(
-                            color: IqColors.fg,
+                    AnimatedContainer(
+                      duration: change,
+                      curve: IqCurves.easeOut,
+                      width: _marked ? _checkSlot : 0,
+                      child: ClipRect(
+                        child: OverflowBox(
+                          alignment: Alignment.centerLeft,
+                          minWidth: _checkSlot,
+                          maxWidth: _checkSlot,
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: _check(context, change),
                           ),
-                          IqPollOptionState.selected =>
-                            IqText.bodyStrong.copyWith(
-                              color: IqColors.primaryFg,
-                            ),
-                          IqPollOptionState.chosen =>
-                            IqText.bodyStrong.copyWith(color: IqColors.fg),
-                        },
-                      ),
-                    ),
-                    if (!voting) ...[
-                      const SizedBox(width: IqSpace.s2p5),
-                      Text(
-                        '${(share * 100).round()}%',
-                        style: IqText.figureSmall.copyWith(
-                          color: state == IqPollOptionState.chosen
-                              ? IqColors.brand
-                              : IqColors.fg2,
                         ),
                       ),
-                    ],
+                    ),
+                    Expanded(
+                      child: AnimatedDefaultTextStyle(
+                        duration: change,
+                        curve: IqCurves.easeOut,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: DefaultTextStyle.of(context).style.merge(ink),
+                        child: Text(label),
+                      ),
+                    ),
+                    AnimatedSwitcher(
+                      duration: change,
+                      switchInCurve: IqCurves.easeOut,
+                      switchOutCurve: IqCurves.easeOut,
+                      child: _voting
+                          ? const SizedBox.shrink()
+                          : Padding(
+                              padding: const EdgeInsets.only(
+                                left: IqSpace.s2p5,
+                              ),
+                              child: Text(
+                                '${(share * 100).round()}%',
+                                style: IqText.figureSmall.copyWith(
+                                  color: state == IqPollOptionState.chosen
+                                      ? IqColors.brand
+                                      : IqColors.fg2,
+                                ),
+                              ),
+                            ),
+                    ),
                   ],
                 ),
               ),
@@ -101,6 +145,39 @@ class IqPollOption extends StatelessWidget {
       ),
     );
   }
+
+  Widget _check(BuildContext context, Duration change) {
+    return AnimatedSwitcher(
+      duration: motion(context, IqDurations.appear, fade: true),
+      switchInCurve: IqCurves.easeOut,
+      switchOutCurve: IqCurves.easeOut,
+      transitionBuilder: MediaQuery.disableAnimationsOf(context)
+          ? AnimatedSwitcher.defaultTransitionBuilder
+          : _pop,
+      child: _marked
+          ? TweenAnimationBuilder<Color?>(
+              tween: ColorTween(
+                end: state == IqPollOptionState.selected
+                    ? IqColors.primaryFg
+                    : IqColors.brand,
+              ),
+              duration: change,
+              curve: IqCurves.easeOut,
+              builder: (context, ink, _) =>
+                  IqIcon(IqIcons.check, size: 18, color: ink!),
+            )
+          : const SizedBox.shrink(),
+    );
+  }
+
+  static Widget _pop(Widget child, Animation<double> progress) =>
+      FadeTransition(
+        opacity: progress,
+        child: ScaleTransition(
+          scale: progress.drive(Tween(begin: IqScale.pop, end: 1)),
+          child: child,
+        ),
+      );
 
   List<Widget> _ground() {
     switch (state) {
@@ -144,7 +221,10 @@ class IqPollOption extends StatelessWidget {
   Widget _outline(String asset, Color color) => Positioned(
     left: 0,
     top: 0,
-    width: 324.32,
+    // Figma insets the brush 0.52% from the right, so it stretches with a
+    // pill wider than the master (B3's 358 single choice); PollCard's 324
+    // column keeps the master's brush.
+    width: width > 326 ? 324.32 * width / 326 : 324.32,
     height: 51.82,
     child: IqVector(asset, color: color),
   );

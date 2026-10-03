@@ -27,7 +27,7 @@ import 'submissions_state.dart';
 /// [AppShell.contentInset].
 ///
 /// Motion (spec 6.29, 6.31 to 6.33): the first load waits behind
-/// SkeletonGate; when the list lands the greeting crossfades in and the
+/// LoadingGate; when the list lands the greeting crossfades in and the
 /// titles and rows arrive 40 ms apart, each status marker wiping 120 ms
 /// after its row and each hairline with its row. A row's status flies into
 /// the detail's header. Try again sends the banner up and waits again; a
@@ -116,7 +116,7 @@ class _MySubmissionsScreenState extends ConsumerState<MySubmissionsScreen> {
                 Expanded(
                   child: Arrivals(
                     controller: _arrivals,
-                    child: SkeletonGate(
+                    child: LoadingGate(
                       loading: data == null && !failed,
                       skeleton: const _Loading(),
                       onOpen: (after) => _arrivals.play(after: after),
