@@ -7,6 +7,8 @@ import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/dock.dart';
 import '../../ui/top_bar.dart';
+import '../notifications/notifications_routes.dart';
+import '../polls/polls_routes.dart';
 import '../profile/profile_routes.dart';
 import '../submissions/my_submissions_screen.dart';
 import '../submit/submit_routes.dart';
@@ -77,8 +79,8 @@ final discoverRoutes = <RouteBase>[
         pushPage(state, BriefDetailScreen(id: state.pathParameters['id']!)),
     routes: [...submitRoutes],
   ),
-  _push(Routes.notifications, const _PagePlaceholder('Notifications')),
-  _push(Routes.polls, const _PagePlaceholder('Polls')),
+  ...notificationsRoutes,
+  ...pollsRoutes,
   _push(Routes.activations, const _PagePlaceholder('Activations')),
 ];
 

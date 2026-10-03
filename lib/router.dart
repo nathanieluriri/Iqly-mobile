@@ -11,6 +11,7 @@ import 'features/entry/password_screen.dart';
 import 'features/entry/reset_link_sent_screen.dart';
 import 'features/entry/sign_in_screen.dart';
 import 'features/entry/your_name_screen.dart';
+import 'features/help/help_routes.dart';
 import 'features/onboarding/onboarding_routes.dart';
 import 'features/profile/profile_routes.dart';
 import 'features/splash/splash_screen.dart';
@@ -58,6 +59,7 @@ abstract final class Routes {
   static String submitTo(String id) => '/briefs/$id/submit';
   static const share = '/submissions/:id/result/share';
   static const leaderboard = '/submissions/:id/result/leaderboard';
+  static const help = '/help';
 }
 
 final routerProvider = Provider<GoRouter>((ref) => buildRouter());
@@ -84,6 +86,7 @@ GoRouter buildRouter({String initialLocation = Routes.splash}) {
       ...onboardingRoutes,
       ...submissionRoutes,
       ...profileRoutes,
+      ...helpRoutes,
     ],
   );
 }

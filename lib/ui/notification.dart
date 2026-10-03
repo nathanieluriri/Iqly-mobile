@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'highlight.dart';
 import 'icon.dart';
@@ -13,6 +14,9 @@ enum IqNotificationKind { deadline, spots, result, payout }
 /// ledger and withdrawal rows. The feed is a proposal behind Flags.
 /// [headline] defaults to the Figma override for the [kind]; Result and
 /// Payout read [resultDetail] and [payoutDetail], as the Figma props do.
+/// [highlightDelay] holds the headline's marker wipe for the row's arrive
+/// (MOTION-SPEC §7.5); a row that turns read shrinks its dot away, 120 ms
+/// ease-in (a cut under reduced motion).
 ///
 /// Figma over brief: adds Divider and the kind-specific detail props.
 class IqNotification extends StatelessWidget {
@@ -26,6 +30,7 @@ class IqNotification extends StatelessWidget {
     this.when = '2h',
     this.unread = true,
     this.divider = true,
+    this.highlightDelay = Duration.zero,
     this.onTap,
   });
 
@@ -37,6 +42,7 @@ class IqNotification extends StatelessWidget {
   final String when;
   final bool unread;
   final bool divider;
+  final Duration highlightDelay;
   final VoidCallback? onTap;
 
   @override
@@ -105,7 +111,11 @@ class IqNotification extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        IqHighlight(text: headline ?? text, tone: tone),
+                        IqHighlight(
+                          text: headline ?? text,
+                          tone: tone,
+                          delay: highlightDelay,
+                        ),
                         const SizedBox(height: IqSpace.s1),
                         Text(
                           body,
@@ -125,17 +135,23 @@ class IqNotification extends StatelessWidget {
                         when.toUpperCase(),
                         style: IqText.mono.copyWith(color: IqColors.fg2),
                       ),
-                      if (unread) ...[
-                        const SizedBox(height: IqSpace.s1p5),
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: IqColors.accent,
-                            shape: BoxShape.circle,
+                      const SizedBox(height: IqSpace.s1p5),
+                      AnimatedScale(
+                        scale: unread ? 1 : 0,
+                        duration: motion(context, IqDurations.press),
+                        curve: IqCurves.easeIn,
+                        child: Semantics(
+                          label: unread ? 'Unread' : null,
+                          child: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: IqColors.accent,
+                              shape: BoxShape.circle,
+                            ),
                           ),
                         ),
-                      ],
+                      ),
                     ],
                   ),
                 ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'poll_option.dart';
 
@@ -18,10 +19,17 @@ class IqPollCardOption {
 /// vote so the crowd does not sway the answer. Open takes a tap per option
 /// ([onVote] with its index; [selected] shows the picked one); Voted marks
 /// [chosen]; Closed shows the final shares. Poll data does not exist in
-/// the product yet, so the defaults are illustrative.
+/// the product yet, so the defaults are illustrative. [hint] overrides the
+/// Open line (the B2 frames say "Pick one").
+///
+/// Turning Voted reveals the results in place (MOTION-SPEC §5.27, the Figma
+/// Smart Animate 33:169 to 33:289): the options cross into their result
+/// look over 300 ms, the bars fill from nothing over 600 ms ease-out with
+/// the percentages counting alongside, and the vote line appears (220).
+/// Reduced motion: the Voted card at once.
 ///
 /// Figma over brief: a Closed state exists.
-class IqPollCard extends StatelessWidget {
+class IqPollCard extends StatefulWidget {
   const IqPollCard({
     super.key,
     this.question = 'Which flavour should we launch first?',
@@ -35,6 +43,7 @@ class IqPollCard extends StatelessWidget {
     this.timeLeft = '2 days left',
     this.chosen = 0,
     this.selected,
+    this.hint,
     this.onVote,
   });
 
@@ -45,15 +54,55 @@ class IqPollCard extends StatelessWidget {
   final String timeLeft;
   final int chosen;
   final int? selected;
+  final String? hint;
   final ValueChanged<int>? onVote;
 
   @override
+  State<IqPollCard> createState() => _IqPollCardState();
+}
+
+class _IqPollCardState extends State<IqPollCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _fill = AnimationController(
+    vsync: this,
+    duration: IqDurations.fill,
+    value: 1,
+  );
+  late final Animation<double> _filled = _fill.drive(
+    CurveTween(curve: IqCurves.easeOut),
+  );
+  bool _revealed = false;
+
+  @override
+  void didUpdateWidget(IqPollCard old) {
+    super.didUpdateWidget(old);
+    if (old.state != IqPollCardState.open ||
+        widget.state == IqPollCardState.open ||
+        MediaQuery.disableAnimationsOf(context)) {
+      return;
+    }
+    _revealed = true;
+    _fill.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _fill.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final hint = switch (state) {
-      IqPollCardState.open => 'Pick one · results show after you vote',
-      IqPollCardState.voted => 'You voted · $votes votes',
-      IqPollCardState.closed => 'Final · $votes votes',
+    final hint = switch (widget.state) {
+      IqPollCardState.open =>
+        widget.hint ?? 'Pick one · results show after you vote',
+      IqPollCardState.voted => 'You voted · ${widget.votes} votes',
+      IqPollCardState.closed => 'Final · ${widget.votes} votes',
     };
+    final hintLine = Text(
+      hint,
+      style: IqText.small.copyWith(color: IqColors.fg3),
+    );
     return Container(
       padding: const EdgeInsets.all(IqSpace.s4),
       decoration: BoxDecoration(
@@ -67,25 +116,40 @@ class IqPollCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              question,
+              widget.question,
               style: IqText.cardTitle.copyWith(color: IqColors.brand),
             ),
             const SizedBox(height: IqSpace.s3),
-            Text(hint, style: IqText.small.copyWith(color: IqColors.fg3)),
+            _revealed
+                ? Appear(key: ValueKey(widget.state), child: hintLine)
+                : hintLine,
             const SizedBox(height: IqSpace.s3),
-            for (var i = 0; i < options.length; i++) ...[
-              if (i > 0) const SizedBox(height: IqSpace.s2),
-              IqPollOption(
-                label: options[i].label,
-                share: options[i].share,
-                width: box.maxWidth,
-                state: _optionState(i),
-                onTap: onVote == null ? null : () => onVote!(i),
+            AnimatedBuilder(
+              animation: _filled,
+              builder: (context, _) => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var i = 0; i < widget.options.length; i++) ...[
+                    if (i > 0) const SizedBox(height: IqSpace.s2),
+                    IqPollOption(
+                      label: widget.options[i].label,
+                      share: widget.options[i].share * _filled.value,
+                      width: box.maxWidth,
+                      state: _optionState(i),
+                      onTap: widget.onVote == null
+                          ? null
+                          : () => widget.onVote!(i),
+                    ),
+                  ],
+                ],
               ),
-            ],
+            ),
             const SizedBox(height: IqSpace.s3),
             Text(
-              state == IqPollCardState.closed ? 'Closed' : timeLeft,
+              widget.state == IqPollCardState.closed
+                  ? 'Closed'
+                  : widget.timeLeft,
               style: IqText.small.copyWith(color: IqColors.fg3),
             ),
           ],
@@ -94,11 +158,13 @@ class IqPollCard extends StatelessWidget {
     );
   }
 
-  IqPollOptionState _optionState(int i) => switch (state) {
+  IqPollOptionState _optionState(int i) => switch (widget.state) {
     IqPollCardState.open =>
-      i == selected ? IqPollOptionState.selected : IqPollOptionState.standard,
+      i == widget.selected
+          ? IqPollOptionState.selected
+          : IqPollOptionState.standard,
     IqPollCardState.voted =>
-      i == chosen ? IqPollOptionState.chosen : IqPollOptionState.result,
+      i == widget.chosen ? IqPollOptionState.chosen : IqPollOptionState.result,
     IqPollCardState.closed => IqPollOptionState.result,
   };
 }
