@@ -412,6 +412,54 @@ void main() {
       expect(find.byType(RichText), findsOneWidget);
     });
 
+    testWidgets('a change while it rolls does not start the roll over', (
+      tester,
+    ) async {
+      await tester.pumpWidget(figure('17'));
+      await tester.pumpWidget(figure('18'));
+      await tester.pump(const Duration(milliseconds: 80));
+      await tester.pumpWidget(figure('19'));
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(find.text('18'), findsNothing);
+      final leaving = tester.widget<Transform>(
+        find
+            .ancestor(of: find.text('17'), matching: find.byType(Transform))
+            .first,
+      );
+      expect(
+        leaving.transform.getTranslation().y,
+        closeTo(-6 * _eo(120 / 160), 0.01),
+      );
+      await tester.pump(const Duration(milliseconds: 41));
+      await tester.pump();
+      expect(find.text('17'), findsNothing);
+      expect(find.text('19'), findsOneWidget);
+      expect(find.byType(RichText), findsOneWidget);
+    });
+
+    testWidgets('a count that changes faster than it rolls rests, and rolls '
+        'again once it has been still for a roll', (tester) async {
+      await tester.pumpWidget(figure('1'));
+      await tester.pumpWidget(figure('2'));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpWidget(figure('3'));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpWidget(figure('4'));
+      expect(find.text('4'), findsOneWidget);
+      expect(find.byType(RichText), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpWidget(figure('5'));
+      expect(find.byType(RichText), findsOneWidget);
+
+      await tester.pump(const Duration(milliseconds: 160));
+      await tester.pumpWidget(figure('6'));
+      await tester.pump(const Duration(milliseconds: 80));
+      expect(find.text('5'), findsOneWidget);
+      expect(find.text('6'), findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(find.text('5'), findsNothing);
+    });
+
     testWidgets('reduced motion: a cut', (tester) async {
       await tester.pumpWidget(figure('5h 40m', reduced: true));
       await tester.pumpWidget(figure('5h 39m', reduced: true));

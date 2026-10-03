@@ -1201,6 +1201,12 @@ class Beat extends StatelessWidget {
 /// out as the new rise from +6 and fade in, 160 ms ease-out, while the rest
 /// stand still and the width eases (spec 2.5 roll). A cut under reduced
 /// motion; never rolls on its first build.
+///
+/// A roll is never started over: a change that lands while one runs joins
+/// it, and the roll lands on the newest text. A change that comes sooner
+/// than a roll after the one before shows at once, so a count that moves
+/// with every keystroke holds still while the person types and rolls again
+/// once they pause (spec 6.15, no per-keystroke motion).
 class RollingText extends StatefulWidget {
   const RollingText(this.text, {super.key, required this.style, this.overflow});
 
@@ -1224,6 +1230,7 @@ class _RollingTextState extends State<RollingText>
     CurveTween(curve: IqCurves.easeOut),
   );
   String? _from;
+  Duration? _changedAt;
 
   void _onStatus(AnimationStatus status) {
     if (status.isCompleted && mounted) setState(() => _from = null);
@@ -1233,11 +1240,16 @@ class _RollingTextState extends State<RollingText>
   void didUpdateWidget(RollingText old) {
     super.didUpdateWidget(old);
     if (old.text == widget.text) return;
+    final now = SchedulerBinding.instance.currentFrameTimeStamp;
+    final changedAt = _changedAt;
+    _changedAt = now;
     if (MediaQuery.disableAnimationsOf(context)) {
       _roll.value = 0;
       _from = null;
       return;
     }
+    if (_roll.isAnimating) return;
+    if (changedAt != null && now - changedAt < IqDurations.tick) return;
     _from = old.text;
     _roll.forward(from: 0);
   }
