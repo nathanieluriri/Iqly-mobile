@@ -1086,10 +1086,11 @@ typedef ChromeShuttle = Widget Function(
 /// still lands. Under reduced motion it turns its hero off and the chrome
 /// crossfades with its page.
 ///
-/// A page that holds two of one [tag] at once (one state dissolving into
-/// the next) offers only the older to a flight, as a navigator takes one
-/// hero per tag from each page; the newer takes over once the older goes.
-class ChromeHero extends StatefulWidget {
+/// A navigator takes one hero per tag from each page, so a page that holds
+/// two of its states at once, one dissolving into the next, turns heroes
+/// off in the state it is leaving ([Dissolve] does): the chrome of the
+/// state that stays flies from the frame it is built.
+class ChromeHero extends StatelessWidget {
   const ChromeHero({
     super.key,
     required this.tag,
@@ -1127,91 +1128,35 @@ class ChromeHero extends StatefulWidget {
       context.findAncestorWidgetOfExactType<_InFlight>() == null;
 
   @override
-  State<ChromeHero> createState() => _ChromeHeroState();
-}
-
-class _ChromeHeroState extends State<ChromeHero> {
-  /// The chrome heroes on each page by tag, oldest first.
-  static final _pages = Expando<Map<Object, List<_ChromeHeroState>>>();
-
-  List<_ChromeHeroState>? _line;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _line ??= _join();
-  }
-
-  @override
-  void didUpdateWidget(ChromeHero old) {
-    super.didUpdateWidget(old);
-    if (old.tag == widget.tag) return;
-    _leave();
-    _line = _join();
-  }
-
-  List<_ChromeHeroState>? _join() {
-    final route = ModalRoute.of(context);
-    if (route == null) return null;
-    return ((_pages[route] ??= {})[widget.tag] ??= [])..add(this);
-  }
-
-  void _leave() {
-    final line = _line;
-    _line = null;
-    if (line == null) return;
-    final led = identical(line.first, this);
-    line.remove(this);
-    if (!led || line.isEmpty) return;
-    final next = line.first;
-    WidgetsBinding.instance.addPostFrameCallback((_) => next._lead());
-  }
-
-  void _lead() {
-    if (mounted) setState(() {});
-  }
-
-  @override
-  void dispose() {
-    _leave();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final line = _line;
-    final shuttle = widget.shuttle;
-    return HeroMode(
-      enabled: line == null || identical(line.first, this),
-      child: Hero(
-        tag: widget.tag,
-        curve: IqCurves.linear,
-        flightShuttleBuilder:
-            (context, animation, direction, fromHero, toHero) {
-              final from = (fromHero.widget as Hero).child;
-              final to = (toHero.widget as Hero).child;
-              final push = direction == HeroFlightDirection.push;
-              // The flight is drawn in the navigator's overlay, outside every
-              // page's Material, where text would take the framework's
-              // fallback style (a yellow double underline).
-              return _InFlight(
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: shuttle == null
-                      ? (push ? to : from)
-                      : shuttle(
-                          context,
-                          push ? animation : ReverseAnimation(animation),
-                          from,
-                          to,
-                        ),
-                ),
-              );
-            },
-        placeholderBuilder: (context, size, child) =>
-            Opacity(opacity: 0, child: child),
-        child: widget.child,
-      ),
+    final shuttle = this.shuttle;
+    return Hero(
+      tag: tag,
+      curve: IqCurves.linear,
+      flightShuttleBuilder: (context, animation, direction, fromHero, toHero) {
+        final from = (fromHero.widget as Hero).child;
+        final to = (toHero.widget as Hero).child;
+        final push = direction == HeroFlightDirection.push;
+        // The flight is drawn in the navigator's overlay, outside every
+        // page's Material, where text would take the framework's fallback
+        // style (a yellow double underline).
+        return _InFlight(
+          child: Material(
+            type: MaterialType.transparency,
+            child: shuttle == null
+                ? (push ? to : from)
+                : shuttle(
+                    context,
+                    push ? animation : ReverseAnimation(animation),
+                    from,
+                    to,
+                  ),
+          ),
+        );
+      },
+      placeholderBuilder: (context, size, child) =>
+          Opacity(opacity: 0, child: child),
+      child: child,
     );
   }
 }
@@ -1361,7 +1306,8 @@ class _Below extends CustomClipper<Rect> {
 
 /// Same screen, new state (spec 3.4): [child], told apart by its key,
 /// crosses over the old one, 300 ms ease-out both ways (the exit reads
-/// ease-in); a 150 ms crossfade under reduced motion.
+/// ease-in); a 150 ms crossfade under reduced motion. The old state offers
+/// no heroes on its way out ([ChromeHero]).
 class Dissolve extends StatelessWidget {
   const Dissolve({super.key, required this.child});
 
@@ -1373,9 +1319,15 @@ class Dissolve extends StatelessWidget {
       duration: motion(context, IqDurations.screen, fade: true),
       switchInCurve: IqCurves.easeOut,
       switchOutCurve: IqCurves.easeOut,
+      // Each switch carries the key of the state it wraps, so a state that
+      // turns from coming to leaving keeps its widgets and their state.
       layoutBuilder: (current, previous) => Stack(
         alignment: Alignment.topCenter,
-        children: [...previous, ?current],
+        children: [
+          for (final leaving in previous)
+            HeroMode(key: leaving.key, enabled: false, child: leaving),
+          if (current != null) HeroMode(key: current.key, child: current),
+        ],
       ),
       child: child,
     );
