@@ -8,10 +8,13 @@ import 'package:iqly_mobile/core/deadline.dart';
 import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/data/notifications_service.dart';
 import 'package:iqly_mobile/data/repository.dart';
+import 'package:iqly_mobile/features/discover/brief_detail_screen.dart';
 import 'package:iqly_mobile/features/notifications/notifications_screen.dart';
+import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/theme/theme.dart';
 import 'package:iqly_mobile/ui/highlight.dart';
 import 'package:iqly_mobile/ui/notification.dart';
+import 'package:iqly_mobile/ui/pressable.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../golden/screens/app_harness.dart';
@@ -162,13 +165,13 @@ void main() {
       ),
     );
 
-    double scale(WidgetTester tester) =>
-        tester.widget<AnimatedScale>(find.byType(AnimatedScale)).scale;
+    double scale(WidgetTester tester, [Finder? dot]) =>
+        tester.widget<AnimatedScale>(dot ?? find.byType(AnimatedScale)).scale;
 
-    double shown(WidgetTester tester) => tester
+    double shown(WidgetTester tester, [Finder? dot]) => tester
         .widget<ScaleTransition>(
           find.descendant(
-            of: find.byType(AnimatedScale),
+            of: dot ?? find.byType(AnimatedScale),
             matching: find.byType(ScaleTransition),
           ),
         )
@@ -192,6 +195,47 @@ void main() {
       await tester.pumpWidget(row(false));
       await tester.pump();
       expect(shown(tester), 0);
+    });
+
+    testWidgets('back from the row it opened, the dot holds until the page '
+        'above has gone, then shrinks (spec 7.5)', (tester) async {
+      await pumpApp(
+        tester,
+        Routes.notifications,
+        overrides: [...laneOverrides(), ...walletOverrides()],
+        reducedMotion: false,
+      );
+      final dot = find.descendant(
+        of: find.byWidgetPredicate(
+          (w) => w is IqNotification && w.headline == 'Closes in 6h',
+        ),
+        matching: find.byType(AnimatedScale),
+      );
+      expect(scale(tester, dot), 1);
+      await tester.tap(find.text('Closes in 6h'));
+      await tester.pumpAndSettle();
+      expect(find.byType(BriefDetailScreen), findsOneWidget);
+
+      await tester.tap(
+        find
+            .byWidgetPredicate(
+              (w) => w is IqPressable && w.semanticLabel == 'Back',
+            )
+            .last,
+      );
+      var frames = 0;
+      while (find.byType(BriefDetailScreen).evaluate().isNotEmpty) {
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(++frames, lessThan(30));
+        expect(scale(tester, dot), 1);
+        expect(shown(tester, dot), 1);
+      }
+      await tester.pump();
+      expect(scale(tester, dot), 0);
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(shown(tester, dot), inExclusiveRange(0, 1));
+      await tester.pump(const Duration(milliseconds: 61));
+      expect(shown(tester, dot), 0);
     });
   });
 
