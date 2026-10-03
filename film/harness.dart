@@ -118,6 +118,10 @@ class Director {
   int _kbStart = 0;
   int _kbLostFor = 0;
   Map<String, dynamic>? _kbArgs;
+  double _kbHeight = _Board.strip + _Board.keysHeight;
+  double _kbHeightFrom = _Board.strip + _Board.keysHeight;
+  double _kbHeightGoal = _Board.strip + _Board.keysHeight;
+  int _kbHeightStart = 0;
 
   static const _kbSlideFrames = 15;
   static const _kbHideDebounce = 2;
@@ -186,6 +190,19 @@ class Director {
   /// The round back button of the top bar.
   Future<void> back() => tap(find.bySemanticsLabel('Back'), label: 'back');
 
+  /// The iOS back swipe: a thumb from the left edge across most of the
+  /// screen, lifting while it moves.
+  Future<void> swipeBack({double seconds = 0.4}) {
+    final index = '${_taps.length + 1}'.padLeft(2, '0');
+    _taps.add('${time.toStringAsFixed(3)}\t$index-swipe-back');
+    return _drag(
+      _screenOrigin + const Offset(6, _screenHeight * 0.55),
+      const Offset(_screenWidth * 0.62, 0),
+      seconds,
+      fling: true,
+    );
+  }
+
   /// Types [text] into the focused field, character by character, on the
   /// drawn keyboard. Like iOS, each character lands as its key is released.
   Future<void> type(String text, {double cps = 12}) async {
@@ -193,6 +210,9 @@ class Director {
     final per = math.max(3, (_fps / cps).round());
     for (final char in text.split('')) {
       final plan = _chrome.board.plan(char);
+      if (plan == null) {
+        throw TestFailure('$name: no "$char" key on the keyboard at ${_t()}');
+      }
       for (final key in plan.prelude) {
         await _pressKey(key, per, () => _chrome.board.apply(key));
       }
@@ -206,12 +226,15 @@ class Director {
   /// Presses the keyboard's return key (next, done, go and so on).
   Future<void> submit() async {
     await _keyboardUp();
-    final key = _chrome.board.key('enter')!;
+    final key = _chrome.board.key('enter');
+    if (key == null) {
+      throw TestFailure('$name: this keypad has no return key at ${_t()}');
+    }
     final action = _inputAction();
     final board = _chrome.board;
     await _touch(
       _screenOrigin +
-          Offset(0, _screenHeight - _Board.height) +
+          Offset(0, _screenHeight - _chrome.board.height) +
           key.rect.center,
       'keyboard-${key.label}',
       press: () async => board.pressed = key.id,
@@ -242,7 +265,7 @@ class Director {
     }
     final box = matches.single.renderObject! as RenderBox;
     final start = box.localToGlobal(from.alongSize(box.size));
-    return _drag(start, dy, seconds, fling: fling);
+    return _drag(start, Offset(0, dy), seconds, fling: fling);
   }
 
   /// Presses delete [count] times, or until the focused field is empty.
@@ -256,16 +279,12 @@ class Director {
     }
   }
 
-  /// Scrolls the open bottom sheet until [label] is in full view, then taps it.
-  Future<void> pickFromSheet(String label) async {
-    final sheet = find.byType(BottomSheet);
-    final list = find
-        .descendant(of: sheet, matching: find.byType(Scrollable))
-        .first;
-    final item = find.descendant(of: sheet, matching: find.text(label));
+  /// Drags [list] until [item] is in full view and clear of the keyboard.
+  Future<void> reveal(Finder item, Finder list) async {
+    await settle(on: list);
     for (var attempt = 0; !_inView(item, list); attempt++) {
       if (attempt == 8) {
-        throw TestFailure('$name: "$label" never came into view at ${_t()}');
+        throw TestFailure('$name: $item never came into view at ${_t()}');
       }
       final view = tester.getRect(list);
       final from = Offset(view.center.dx, view.top + view.height * 0.8);
@@ -273,9 +292,24 @@ class Director {
       if (item.evaluate().isNotEmpty) {
         dy = view.top + view.height * 0.45 - tester.getCenter(item).dy;
       }
-      await _drag(from, dy, 0.5);
+      await _drag(from, Offset(0, dy), 0.5);
       await hold(0.3);
     }
+  }
+
+  /// Scrolls the open sheet's list until [label] is in full view, then taps
+  /// it. The sheet is the top route; its first vertical list is the one.
+  Future<void> pickFromSheet(String label) async {
+    final list = find
+        .byElementPredicate(
+          (e) =>
+              e.widget is Scrollable &&
+              (e.widget as Scrollable).axisDirection == AxisDirection.down &&
+              (ModalRoute.of(e)?.isCurrent ?? false),
+        )
+        .first;
+    final item = find.descendant(of: list, matching: find.text(label));
+    await reveal(item, list);
     await tap(item, label: label);
   }
 
@@ -490,6 +524,13 @@ class Director {
       _chrome.board.configure(_kbArgs);
       _chrome.changed();
     }
+    // A keypad is shorter than the letters; iOS eases between the two.
+    final goal = _chrome.board.height;
+    if (goal != _kbHeightGoal) {
+      _kbHeightFrom = _chrome.keyboard == 0 ? goal : _kbHeight;
+      _kbHeightGoal = goal;
+      _kbHeightStart = _frame;
+    }
     if (target != _kbTarget) {
       _kbFrom = _chrome.keyboard;
       _kbTarget = target;
@@ -497,8 +538,12 @@ class Director {
     }
     final t = ((_frame + 1 - _kbStart) / _kbSlideFrames).clamp(0.0, 1.0);
     final v = _kbFrom + (_kbTarget - _kbFrom) * Curves.easeOut.transform(t);
-    if (v != _chrome.keyboard) {
-      final inset = (v * _Board.height * _pixelRatio).round() / _pixelRatio;
+    final th = ((_frame + 1 - _kbHeightStart) / _kbSlideFrames).clamp(0.0, 1.0);
+    _kbHeight =
+        _kbHeightFrom +
+        (_kbHeightGoal - _kbHeightFrom) * Curves.easeOut.transform(th);
+    final inset = (v * _kbHeight * _pixelRatio).round() / _pixelRatio;
+    if (v != _chrome.keyboard || inset != _chrome.inset) {
       _chrome
         ..keyboard = v
         ..inset = inset
@@ -509,6 +554,7 @@ class Director {
 
   bool get _keyboardIdle =>
       _chrome.keyboard == _kbTarget &&
+      _kbHeight == _kbHeightGoal &&
       (tester.testTextInput.isVisible ? 1.0 : 0.0) == _kbTarget;
 
   Future<void> _keyboardUp() =>
@@ -598,7 +644,7 @@ class Director {
 
   Future<void> _drag(
     Offset from,
-    double dy,
+    Offset by,
     double seconds, {
     bool fling = false,
   }) async {
@@ -616,7 +662,7 @@ class Director {
     final n = math.max(2, (seconds * _fps).round());
     final curve = fling ? Curves.linear : Curves.easeInOut;
     for (var i = 1; i <= n; i++) {
-      final at = from + Offset(0, dy * curve.transform(i / n));
+      final at = from + by * curve.transform(i / n);
       await gesture.moveTo(at, timeStamp: _clock + _frameTime);
       // A lifting finger's last move and its up land in the same frame. Lifted
       // a frame later, the fling's first tick (elapsed zero) holds the list
@@ -646,7 +692,9 @@ class Director {
     void Function() onRelease, {
     String? label,
   }) async {
-    final down = math.min(4, length - 1);
+    // Held for most of the stroke with a couple of frames up, so a key
+    // pressed twice running lifts visibly in between.
+    final down = math.max(1, math.min(4, length - 2));
     _chrome.board
       ..pressed = key.id
       ..pressedLabel = label;
@@ -766,7 +814,10 @@ class _Chrome extends ChangeNotifier {
   void changed() => notifyListeners();
 }
 
-enum _KeyKind { char, shift, delete, mode, symbols, space, enter }
+enum _KeyKind { char, digit, pad, shift, delete, mode, symbols, space, enter }
+
+/// The iOS numeric keypads: no suggestion strip and no return key.
+enum _Pad { number, decimal, phone }
 
 class _Key {
   const _Key(this.id, this.rect, this.kind, [this.label = '']);
@@ -789,17 +840,19 @@ class _Board {
   static const width = 390.0;
   static const strip = 45.0;
   static const keysHeight = 291.0;
-  static const height = strip + keysHeight;
   static const keyHeight = 42.0;
   static const _rowPitch = 54.0;
   static const _firstRow = strip + 8;
 
   bool email = false;
+  _Pad? pad;
   String enter = 'return';
   bool numbers = false;
   bool shift = false;
   String? pressed;
   String? pressedLabel;
+
+  double get height => pad == null ? strip + keysHeight : keysHeight;
 
   bool get enterIsAction =>
       const {'go', 'search', 'send', 'done'}.contains(enter);
@@ -807,9 +860,16 @@ class _Board {
   List<_Key> get keys => _layout(numbers);
 
   void configure(Map<String, dynamic>? args) {
-    final type = (args?['inputType'] as Map?)?['name'] as String?;
+    final input = args?['inputType'] as Map?;
+    final type = input?['name'] as String?;
     final action = (args?['inputAction'] as String?)?.split('.').last;
     email = type == 'TextInputType.emailAddress';
+    pad = switch (type) {
+      'TextInputType.phone' => _Pad.phone,
+      'TextInputType.number' when input?['signed'] != true =>
+        input?['decimal'] == true ? _Pad.decimal : _Pad.number,
+      _ => null,
+    };
     enter = switch (action) {
       'go' || 'next' || 'done' || 'search' || 'send' => action!,
       _ => 'return',
@@ -821,8 +881,12 @@ class _Board {
   _Key? key(String id) => _find(keys, id);
 
   /// The keys a typist presses for [char]: a layout or shift key first when
-  /// needed, then the key itself.
-  _Plan plan(String char) {
+  /// needed, then the key itself. Null when the keyboard has no such key.
+  _Plan? plan(String char) {
+    if (pad != null) {
+      final key = this.key(char);
+      return key == null ? null : _Plan(key);
+    }
     final lower = char.toLowerCase();
     final upper = char != lower;
     final here = _find(_layout(numbers), lower);
@@ -831,7 +895,7 @@ class _Board {
       return _Plan(here, [if (upper && !shift && shiftKey != null) shiftKey]);
     }
     final there = _find(_layout(!numbers), lower);
-    if (there == null) return _Plan(key(' ')!);
+    if (there == null) return null;
     final shiftKey = _find(_layout(!numbers), 'shift');
     return _Plan(there, [
       key(numbers ? 'ABC' : '123')!,
@@ -862,6 +926,7 @@ class _Board {
       Rect.fromLTWH(x, _firstRow + row * _rowPitch, w, keyHeight);
 
   List<_Key> _layout(bool numbers) {
+    if (pad != null) return _padLayout(pad!);
     final keys = <_Key>[];
     void row(int r, String chars, double x0, double w) {
       for (var i = 0; i < chars.length; i++) {
@@ -895,6 +960,37 @@ class _Board {
       ..add(_Key('enter', _at(3, 300, 87), _KeyKind.enter, enter));
     return keys;
   }
+}
+
+List<_Key> _padLayout(_Pad pad) {
+  Rect at(int row, int column) =>
+      Rect.fromLTWH(6.0 + column * 128, 6.0 + row * 53, 122, 46);
+  const letters = [
+    '',
+    'ABC',
+    'DEF',
+    'GHI',
+    'JKL',
+    'MNO',
+    'PQRS',
+    'TUV',
+    'WXYZ',
+  ];
+  final keys = [
+    for (var i = 1; i <= 9; i++)
+      _Key('$i', at((i - 1) ~/ 3, (i - 1) % 3), _KeyKind.digit, letters[i - 1]),
+  ];
+  switch (pad) {
+    case _Pad.decimal:
+      keys.add(_Key('.', at(3, 0), _KeyKind.pad, '.'));
+    case _Pad.phone:
+      keys.add(_Key('+', at(3, 0), _KeyKind.pad, '+*#'));
+    case _Pad.number:
+      break;
+  }
+  return keys
+    ..add(_Key('0', at(3, 1), _KeyKind.digit, pad == _Pad.phone ? '+' : ''))
+    ..add(_Key('delete', at(3, 2), _KeyKind.delete));
 }
 
 class _Stage extends StatelessWidget {
@@ -1053,7 +1149,7 @@ class _Overlays extends StatelessWidget {
             left: 0,
             top: _screenHeight - chrome.inset,
             width: _Board.width,
-            height: _Board.height,
+            height: chrome.board.height,
             child: CustomPaint(painter: _BoardPainter(chrome.board)),
           ),
         Positioned(
@@ -1131,6 +1227,7 @@ class _BoardPainter extends CustomPainter {
         board.pressedLabel,
         board.email,
         board.enter,
+        board.pad,
       );
 
   final _Board board;
@@ -1141,11 +1238,14 @@ class _BoardPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(Offset.zero & size, Paint()..color = _kbBackground);
-    final divider = Paint()
-      ..color = _kbDivider
-      ..strokeWidth = 1;
-    for (final x in [size.width / 3, size.width * 2 / 3]) {
-      canvas.drawLine(Offset(x, 12), Offset(x, _Board.strip - 12), divider);
+    final letters = board.pad == null;
+    if (letters) {
+      final divider = Paint()
+        ..color = _kbDivider
+        ..strokeWidth = 1;
+      for (final x in [size.width / 3, size.width * 2 / 3]) {
+        canvas.drawLine(Offset(x, 12), Offset(x, _Board.strip - 12), divider);
+      }
     }
     _Key? popup;
     for (final key in board.keys) {
@@ -1153,25 +1253,54 @@ class _BoardPainter extends CustomPainter {
       if (pressed && key.kind == _KeyKind.char) popup = key;
       _drawKey(canvas, key, pressed);
     }
-    _globe(canvas, Offset(33, size.height - 46));
-    _mic(canvas, Offset(size.width - 33, size.height - 46));
+    if (letters) {
+      _globe(canvas, Offset(33, size.height - 46));
+      _mic(canvas, Offset(size.width - 33, size.height - 46));
+    }
     if (popup != null) _drawPopup(canvas, popup, size);
   }
 
   void _drawKey(Canvas canvas, _Key key, bool pressed) {
+    // A keypad's corner keys sit on the background until pressed.
+    final bare = board.pad != null && !pressed;
     final fill = switch (key.kind) {
-      _KeyKind.char || _KeyKind.space => pressed ? _kbFunction : _kbKey,
+      _KeyKind.char ||
+      _KeyKind.space ||
+      _KeyKind.digit => pressed ? _kbFunction : _kbKey,
+      _KeyKind.pad || _KeyKind.delete when bare => null,
       _KeyKind.shift => board.shift || pressed ? _kbKey : _kbFunction,
       _KeyKind.enter when board.enterIsAction =>
         pressed ? _kbActionPressed : _kbAction,
       _ => pressed ? _kbKey : _kbFunction,
     };
     final rect = RRect.fromRectAndRadius(key.rect, _radius);
-    canvas
-      ..drawRRect(rect.shift(const Offset(0, 1)), Paint()..color = _kbShadow)
-      ..drawRRect(rect, Paint()..color = fill);
+    if (fill != null) {
+      canvas
+        ..drawRRect(rect.shift(const Offset(0, 1)), Paint()..color = _kbShadow)
+        ..drawRRect(rect, Paint()..color = fill);
+    }
     final centre = key.rect.center;
     switch (key.kind) {
+      case _KeyKind.digit:
+        final lettered = key.label.isNotEmpty;
+        _label(
+          canvas,
+          key.id,
+          lettered ? centre - const Offset(0, 6) : centre,
+          25,
+        );
+        if (lettered) {
+          _label(
+            canvas,
+            key.label,
+            centre + const Offset(0, 12),
+            10,
+            weight: FontWeight.w700,
+            spacing: 2,
+          );
+        }
+      case _KeyKind.pad:
+        _label(canvas, key.label, centre, key.label.length > 1 ? 20 : 25);
       case _KeyKind.shift:
         _shiftGlyph(canvas, centre, filled: board.shift || pressed);
       case _KeyKind.delete:
@@ -1251,6 +1380,8 @@ class _BoardPainter extends CustomPainter {
     Offset centre,
     double size, {
     Color color = _kbLabel,
+    FontWeight weight = FontWeight.w400,
+    double spacing = 0,
   }) {
     final painter = TextPainter(
       text: TextSpan(
@@ -1258,7 +1389,8 @@ class _BoardPainter extends CustomPainter {
         style: TextStyle(
           fontFamily: IqFonts.jakarta,
           fontSize: size,
-          fontWeight: FontWeight.w400,
+          fontWeight: weight,
+          letterSpacing: spacing,
           color: color,
           height: 1,
         ),

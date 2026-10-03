@@ -14,7 +14,7 @@ const _returning = <String, Object>{
 };
 
 /// A returning contributor opens the app on Discover, switches to the
-/// Submissions tab, browses the list and opens a submission.
+/// Submissions tab, browses the list, opens a submission and swipes back.
 void main() {
   film('my_submissions', prefs: _returning, (d) async {
     await d.waitFor(find.byType(HomeScreen));
@@ -51,7 +51,7 @@ void main() {
 
     await d.tap(find.text('Bring the shop to the hostel'));
     await d.arrive(find.byType(SubmissionDetailScreen), hold: 2);
-    await d.back();
+    await d.swipeBack();
 
     await d.arrive(find.byType(MySubmissionsScreen), hold: 2);
   });
