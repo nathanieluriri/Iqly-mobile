@@ -14,7 +14,10 @@ Future<void> _golden(String name) =>
 
 Future<void> _scrollToEnd(WidgetTester tester) async {
   for (var i = 0; i < 6; i++) {
-    await tester.drag(find.byType(ListView).first, const Offset(0, -900));
+    await tester.drag(
+      find.byType(CustomScrollView).first,
+      const Offset(0, -900),
+    );
     await tester.pumpAndSettle();
   }
 }
@@ -33,6 +36,8 @@ void main() {
       Routes.home,
       repository: ScriptedRepository([BriefsCall.hang]),
     );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
     await _golden('loading');
   });
 

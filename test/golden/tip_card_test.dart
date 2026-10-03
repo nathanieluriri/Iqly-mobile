@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/ui/pressable.dart';
 import 'package:iqly_mobile/ui/tip_card.dart';
 
 import 'golden.dart';
@@ -28,7 +29,23 @@ void main() {
     expect(taps, 1);
   });
 
-  testWidgets('the action takes taps across a 44 pt strip', (tester) async {
+  testWidgets('the card hugs its content and keeps the Figma gaps', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: Center(child: IqTipCard())),
+      ),
+    );
+    final card = tester.getRect(find.byType(IqTipCard));
+    final action = tester.getRect(find.text('OK, got it'));
+    // 36 + three title lines of 34 + 20 + hairline + 20 + 18 + 28.
+    expect(card.height, 225);
+    expect(action.top - card.top, 179);
+    expect(card.bottom - action.bottom, 28);
+  });
+
+  testWidgets('the action takes taps across a 44 pt band', (tester) async {
     var taps = 0;
     await tester.pumpWidget(
       MaterialApp(
@@ -37,9 +54,15 @@ void main() {
         ),
       ),
     );
-    final card = tester.getRect(find.byType(IqTipCard));
-    await tester.tapAt(card.topLeft + const Offset(40, 158));
-    await tester.tapAt(card.topLeft + const Offset(40, 198));
+    final band = tester.getRect(
+      find.ancestor(
+        of: find.text('OK, got it'),
+        matching: find.byType(IqPressable),
+      ),
+    );
+    expect(band.height, 44);
+    await tester.tapAt(band.topLeft + const Offset(20, 1));
+    await tester.tapAt(band.bottomLeft + const Offset(20, -1));
     expect(taps, 2);
   });
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 import 'pressable.dart';
@@ -11,6 +12,9 @@ enum IqListRowTone { standard, danger }
 /// Exp/ListRow: the settings and profile row, an icon tile, label, optional
 /// description and chevron. [icon] is the Figma Icon swap; it defaults to
 /// profile, and to close on Danger rows.
+///
+/// Pressing fills the row panel (100 ms, back in 160; spec 5.24, build
+/// extension), the same under reduced motion.
 ///
 /// Figma over brief: a Danger tone exists (red tile and label, no chevron).
 /// Figma over brief: the Icon prop is an instance swap.
@@ -45,8 +49,10 @@ class IqListRow extends StatelessWidget {
     return IqPressable(
       onTap: onTap,
       semanticLabel: label,
-      builder: (context, pressed) => Container(
-        color: IqColors.card,
+      builder: (context, pressed) => AnimatedContainer(
+        duration: pressed ? IqDurations.dim : IqDurations.release,
+        curve: IqCurves.easeOut,
+        color: pressed ? IqColors.panel : IqColors.card,
         constraints: const BoxConstraints(minHeight: 60),
         child: Stack(
           children: [
