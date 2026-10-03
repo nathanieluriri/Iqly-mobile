@@ -125,6 +125,7 @@ class IqConfirmSheet extends StatelessWidget {
 /// drops (200 ms), the button held down; Keep it drops it at once. From the
 /// choice on, the sheet ignores taps, drags and the scrim. Reduced motion
 /// fades in place.
+/// [scrim] takes a frame's own scrim (141:5492 is brand-dark at 50%).
 Future<bool> showIqConfirmSheet(
   BuildContext context, {
   String title = 'Remove this recording?',
@@ -132,20 +133,26 @@ Future<bool> showIqConfirmSheet(
       'You will need to upload it again before you can send the proof.',
   String confirmLabel = 'Remove recording',
   String cancelLabel = 'Keep it',
+  Color? scrim,
 }) async {
   final result = await Navigator.of(context).push<bool>(
     IqSheetRoute<bool>(
-      scrim: IqScrim.sheet,
+      scrim: scrim ?? IqScrim.sheet,
       rise: IqDurations.sheetConfirm,
       barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-      builder: (context) => MediaQuery.removePadding(
-        context: context,
-        removeTop: true,
-        child: _ConfirmSheetBody(
-          title: title,
-          body: body,
-          confirmLabel: confirmLabel,
-          cancelLabel: cancelLabel,
+      // The route has no Material of its own; without one the sheet's text
+      // falls back to the debug style.
+      builder: (context) => Material(
+        type: MaterialType.transparency,
+        child: MediaQuery.removePadding(
+          context: context,
+          removeTop: true,
+          child: _ConfirmSheetBody(
+            title: title,
+            body: body,
+            confirmLabel: confirmLabel,
+            cancelLabel: cancelLabel,
+          ),
         ),
       ),
     ),

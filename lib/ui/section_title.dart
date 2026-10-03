@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 import 'pressable.dart';
@@ -10,9 +11,14 @@ import 'vector.dart';
 /// link, shown only when the section is truncated. The root clips its
 /// content, so only the top sliver of the brush underline shows, as in Figma.
 ///
+/// Motion (spec 5.25, build extension): the underline wipes in left to right
+/// (240 ms ease-out) when first seen, or 60 ms after the title starts
+/// arriving in a list; the count rolls when it changes; the link dims to .6
+/// while pressed. Static under reduced motion.
+///
 /// Figma over brief: the master link is "See all" only; Discover overrides the
 /// text to "Filter" on some sections, carried by [link].
-class IqSectionTitle extends StatelessWidget {
+class IqSectionTitle extends StatefulWidget {
   const IqSectionTitle({
     super.key,
     this.title = 'Closing soon',
@@ -33,97 +39,175 @@ class IqSectionTitle extends StatelessWidget {
   static const double linkHitWidth = 72;
 
   @override
+  State<IqSectionTitle> createState() => _IqSectionTitleState();
+}
+
+class _IqSectionTitleState extends State<IqSectionTitle>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _wipe = AnimationController(
+    vsync: this,
+    duration: IqDurations.mark,
+  );
+  late final Animation<double> _own = _wipe.drive(
+    CurveTween(curve: IqCurves.easeOut),
+  );
+  Animation<double>? _beat;
+  bool _linkPressed = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _beat = ArriveItem.beatOf(
+      context,
+      lead: ArriveItem.underlineLead,
+      length: IqDurations.mark,
+    );
+    if (MediaQuery.disableAnimationsOf(context)) _wipe.value = 1;
+  }
+
+  void _seen() {
+    if (mounted && _beat == null && _wipe.isDismissed) _wipe.forward();
+  }
+
+  // The link's hit band sits over the row, so its pressed look reaches the
+  // visible link a frame later.
+  void _press(bool pressed) {
+    if (pressed == _linkPressed) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _linkPressed != pressed) {
+        setState(() => _linkPressed = pressed);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _wipe.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final reveal = _beat ?? _own;
     return _VerticalSlop(
-      child: ClipRect(
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            // Figma's 28 pt spacer sits on the title baseline, which lifts the
-            // row 8.8 above the title box.
-            Padding(
-              padding: const EdgeInsets.only(top: 8.8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Expanded(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            title,
-                            maxLines: 1,
-                            softWrap: false,
-                            overflow: TextOverflow.ellipsis,
-                            style: IqText.title.copyWith(color: IqColors.brand),
-                          ),
-                        ),
-                        if (showCount) ...[
-                          const SizedBox(width: IqSpace.s2),
-                          Text(
-                            count.toUpperCase(),
-                            style: IqText.mono.copyWith(color: IqColors.fg3),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  if (showLink) ...[
-                    const SizedBox(width: IqSpace.s2),
-                    ExcludeSemantics(
+      child: FirstSeen(
+        onSeen: _seen,
+        child: ClipRect(
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // Figma's 28 pt spacer sits on the title baseline, which lifts
+              // the row 8.8 above the title box.
+              Padding(
+                padding: const EdgeInsets.only(top: 8.8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Expanded(
                       child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
                         children: [
-                          Text(
-                            link,
-                            style: IqText.smallStrong.copyWith(
-                              color: IqColors.primary,
+                          Flexible(
+                            child: Text(
+                              widget.title,
+                              maxLines: 1,
+                              softWrap: false,
+                              overflow: TextOverflow.ellipsis,
+                              style: IqText.title.copyWith(
+                                color: IqColors.brand,
+                              ),
                             ),
                           ),
-                          const SizedBox(width: IqSpace.s0p5),
-                          const IqIcon(
-                            IqIcons.forward,
-                            size: 16,
-                            color: IqColors.primary,
-                          ),
+                          if (widget.showCount) ...[
+                            const SizedBox(width: IqSpace.s2),
+                            RollingText(
+                              widget.count.toUpperCase(),
+                              style: IqText.mono.copyWith(color: IqColors.fg3),
+                            ),
+                          ],
                         ],
                       ),
                     ),
+                    if (widget.showLink) ...[
+                      const SizedBox(width: IqSpace.s2),
+                      ExcludeSemantics(
+                        child: PressDim(
+                          pressed: _linkPressed,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Text(
+                                widget.link,
+                                style: IqText.smallStrong.copyWith(
+                                  color: IqColors.primary,
+                                ),
+                              ),
+                              const SizedBox(width: IqSpace.s0p5),
+                              const IqIcon(
+                                IqIcons.forward,
+                                size: 16,
+                                color: IqColors.primary,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
-                ],
-              ),
-            ),
-            const Positioned(
-              left: 0,
-              bottom: -3.2,
-              width: 75.84,
-              height: 4.2,
-              child: IqVector(
-                'assets/vectors/section-title-underline.svg',
-                color: IqColors.accent,
-              ),
-            ),
-            if (showLink)
-              Positioned(
-                top: 0,
-                right: 0,
-                bottom: 0,
-                width: linkHitWidth,
-                child: IqPressable(
-                  onTap: onSeeAll,
-                  semanticLabel: link,
-                  builder: (context, pressed) => const SizedBox.expand(),
                 ),
               ),
-          ],
+              Positioned(
+                left: 0,
+                bottom: -3.2,
+                width: 75.84,
+                height: 4.2,
+                child: AnimatedBuilder(
+                  animation: reveal,
+                  child: const IqVector(
+                    'assets/vectors/section-title-underline.svg',
+                    color: IqColors.accent,
+                  ),
+                  builder: (context, child) =>
+                      ClipRect(clipper: _Sweep(reveal.value), child: child),
+                ),
+              ),
+              if (widget.showLink)
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  bottom: 0,
+                  width: IqSectionTitle.linkHitWidth,
+                  child: IqPressable(
+                    onTap: widget.onSeeAll,
+                    semanticLabel: widget.link,
+                    builder: (context, pressed) {
+                      _press(pressed);
+                      return const SizedBox.expand();
+                    },
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+class _Sweep extends CustomClipper<Rect> {
+  const _Sweep(this.reveal);
+
+  final double reveal;
+
+  @override
+  Rect getClip(Size size) =>
+      Rect.fromLTWH(0, -size.height, size.width * reveal, size.height * 3);
+
+  @override
+  bool shouldReclip(_Sweep oldClipper) => oldClipper.reveal != reveal;
 }
 
 /// Lets taps just above or below the box land on its top or bottom edge, so

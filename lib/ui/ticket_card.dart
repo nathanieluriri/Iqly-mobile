@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'bookmark.dart';
 import 'highlight.dart';
@@ -16,6 +17,10 @@ enum IqTicketCardKind { hero, list }
 /// dark ticket for Closing soon, List the paper one. [showBookmark] reveals
 /// an Exp/Bookmark (Ink on Hero, Paper on List) that flips through
 /// [onBookmarkChanged]; [onTap] opens the brief.
+///
+/// Pressing scales the ticket to .98 (120 ms ease-out, back in 160), as the
+/// kit's ActivationTicket does (spec 5.24, build extension); no scale under
+/// reduced motion.
 ///
 /// Figma over brief: the default Meta is the category ("Sunline · Marketing"), not the tier.
 /// Figma over brief: the title box is 40 tall, so both kinds show at most two lines.
@@ -70,197 +75,203 @@ class IqTicketCard extends StatelessWidget {
     final text = hero ? IqColors.sidebarFg : IqColors.brand;
     final soft = hero ? IqColors.sidebarFg : IqColors.fg3;
 
+    final reduced = MediaQuery.disableAnimationsOf(context);
     return IqPressable(
       onTap: onTap,
       semanticLabel: title,
-      builder: (context, pressed) => SizedBox(
-        width: width,
-        height: height,
-        child: Stack(
-          clipBehavior: Clip.hardEdge,
-          children: [
-            if (hero)
-              const Positioned.fill(
-                child: IqVector(
-                  'assets/vectors/ticket-card-ticket-hero.svg',
-                  color: IqColors.brand,
-                ),
-              )
-            else ...const [
-              Positioned.fill(
-                child: IqVector(
-                  'assets/vectors/ticket-card-ticket-list-fill.svg',
-                  color: IqColors.card,
-                ),
-              ),
-              Positioned.fill(
-                child: IqVector(
-                  'assets/vectors/ticket-card-ticket-list-stroke.svg',
-                  color: IqColors.line,
-                ),
-              ),
-            ],
-            Positioned(
-              left: (hero ? 196 : 246) - 0.75,
-              top: 13,
-              bottom: 13,
-              width: 1.5,
-              child: IqPerforation(
-                color: hero ? IqColors.sidebarBorder : IqColors.line2,
-              ),
-            ),
-            Positioned(
-              left: 16,
-              top: 16,
-              width: hero ? 170 : 182,
-              height: 26,
-              child: Row(
-                children: [
-                  Container(
-                    width: 26,
-                    height: 26,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: hero
-                          ? IqColors.sidebarAccent
-                          : IqColors.tintStrong,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(
-                      initial,
-                      maxLines: 1,
-                      style: IqText.label.copyWith(
-                        color: hero ? IqColors.sidebarFg : IqColors.brand,
-                      ),
-                    ),
+      builder: (context, pressed) => AnimatedScale(
+        scale: pressed && !reduced ? IqScale.cardPress : 1,
+        duration: pressMotion(context, pressed),
+        curve: IqCurves.easeOut,
+        child: SizedBox(
+          width: width,
+          height: height,
+          child: Stack(
+            clipBehavior: Clip.hardEdge,
+            children: [
+              if (hero)
+                const Positioned.fill(
+                  child: IqVector(
+                    'assets/vectors/ticket-card-ticket-hero.svg',
+                    color: IqColors.brand,
                   ),
-                  const SizedBox(width: IqSpace.s2),
-                  Expanded(
-                    child: _Meta(
-                      meta,
-                      style: IqText.small.copyWith(
-                        color: hero
-                            ? IqColors.sidebarFg.withValues(alpha: 0.8)
-                            : IqColors.fg3,
-                      ),
-                    ),
+                )
+              else ...const [
+                Positioned.fill(
+                  child: IqVector(
+                    'assets/vectors/ticket-card-ticket-list-fill.svg',
+                    color: IqColors.card,
                   ),
-                ],
+                ),
+                Positioned.fill(
+                  child: IqVector(
+                    'assets/vectors/ticket-card-ticket-list-stroke.svg',
+                    color: IqColors.line,
+                  ),
+                ),
+              ],
+              Positioned(
+                left: (hero ? 196 : 246) - 0.75,
+                top: 13,
+                bottom: 13,
+                width: 1.5,
+                child: IqPerforation(
+                  color: hero ? IqColors.sidebarBorder : IqColors.line2,
+                ),
               ),
-            ),
-            Positioned(
-              left: 16,
-              top: 52,
-              width: hero ? 168 : 218,
-              height: 40,
-              child: Text(
-                title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: IqText.cardTitle.copyWith(color: text),
-              ),
-            ),
-            if (hero) ...[
               Positioned(
                 left: 16,
-                top: 144,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: showBookmark ? 126 : 172,
-                  ),
-                  child: IqUrgency(
-                    text: urgency,
-                    tone: urgencyTone ?? IqUrgencyTone.hot,
-                  ),
-                ),
-              ),
-              if (showRule)
-                Positioned(left: 210, top: 67, right: 4, child: _rule(hero)),
-            ] else
-              Positioned(
-                left: 16,
-                top: 92,
-                width: 222,
+                top: 16,
+                width: hero ? 170 : 182,
+                height: 26,
                 child: Row(
                   children: [
-                    ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxWidth: showRule ? 222 - _ruleGap : 222,
+                    Container(
+                      width: 26,
+                      height: 26,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: hero
+                            ? IqColors.sidebarAccent
+                            : IqColors.tintStrong,
+                        shape: BoxShape.circle,
                       ),
-                      child: IqUrgency(
-                        text: urgency,
-                        tone: urgencyTone ?? IqUrgencyTone.warm,
+                      child: Text(
+                        initial,
+                        maxLines: 1,
+                        style: IqText.label.copyWith(
+                          color: hero ? IqColors.sidebarFg : IqColors.brand,
+                        ),
                       ),
                     ),
-                    if (showRule) ...[
-                      const SizedBox(width: _ruleGap),
-                      Expanded(child: _rule(hero)),
-                    ],
+                    const SizedBox(width: IqSpace.s2),
+                    Expanded(
+                      child: _Meta(
+                        meta,
+                        style: IqText.small.copyWith(
+                          color: hero
+                              ? IqColors.sidebarFg.withValues(alpha: 0.8)
+                              : IqColors.fg3,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
-            Positioned(
-              left: stubX,
-              top: 28,
-              child: Text(
-                'Reward pool'.toUpperCase(),
-                maxLines: 1,
-                softWrap: false,
-                style: IqText.mono.copyWith(
-                  color: hero ? soft.withValues(alpha: 0.75) : soft,
+              Positioned(
+                left: 16,
+                top: 52,
+                width: hero ? 168 : 218,
+                height: 40,
+                child: Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: IqText.cardTitle.copyWith(color: text),
                 ),
               ),
-            ),
-            Positioned(
-              left: stubX,
-              top: 44,
-              right: 4,
-              child: Text(
-                reward,
-                maxLines: 1,
-                softWrap: false,
-                overflow: TextOverflow.ellipsis,
-                style: IqText.figureSmall.copyWith(color: text),
-              ),
-            ),
-            if (spots != null)
-              Positioned(
-                left: hero ? 201 : 256,
-                top: hero ? 148 : 96,
-                child: showSpotsMarker
-                    ? IqHighlight(
-                        text: spots!,
-                        tone: hero
-                            ? IqHighlightTone.inverse
-                            : IqHighlightTone.orange,
-                        style: IqText.smallStrong,
-                      )
-                    : Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: IqSpace.s1,
-                          vertical: 1,
+              if (hero) ...[
+                Positioned(
+                  left: 16,
+                  top: 144,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: showBookmark ? 126 : 172,
+                    ),
+                    child: IqUrgency(
+                      text: urgency,
+                      tone: urgencyTone ?? IqUrgencyTone.hot,
+                    ),
+                  ),
+                ),
+                if (showRule)
+                  Positioned(left: 210, top: 67, right: 4, child: _rule(hero)),
+              ] else
+                Positioned(
+                  left: 16,
+                  top: 92,
+                  width: 222,
+                  child: Row(
+                    children: [
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: showRule ? 222 - _ruleGap : 222,
                         ),
-                        child: Text(
-                          spots!,
-                          maxLines: 1,
-                          softWrap: false,
-                          style: IqText.smallStrong.copyWith(
-                            color: hero ? IqColors.primaryFg : IqColors.brand,
-                          ),
+                        child: IqUrgency(
+                          text: urgency,
+                          tone: urgencyTone ?? IqUrgencyTone.warm,
                         ),
                       ),
-              ),
-            if (showBookmark)
+                      if (showRule) ...[
+                        const SizedBox(width: _ruleGap),
+                        Expanded(child: _rule(hero)),
+                      ],
+                    ],
+                  ),
+                ),
               Positioned(
-                left: hero ? 150 : 198,
-                top: hero ? 136 : 6,
-                child: IqBookmark(
-                  state: bookmarkState,
-                  tone: hero ? IqBookmarkTone.ink : IqBookmarkTone.paper,
-                  onChanged: onBookmarkChanged,
+                left: stubX,
+                top: 28,
+                child: Text(
+                  'Reward pool'.toUpperCase(),
+                  maxLines: 1,
+                  softWrap: false,
+                  style: IqText.mono.copyWith(
+                    color: hero ? soft.withValues(alpha: 0.75) : soft,
+                  ),
                 ),
               ),
-          ],
+              Positioned(
+                left: stubX,
+                top: 44,
+                right: 4,
+                child: Text(
+                  reward,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  style: IqText.figureSmall.copyWith(color: text),
+                ),
+              ),
+              if (spots != null)
+                Positioned(
+                  left: hero ? 201 : 256,
+                  top: hero ? 148 : 96,
+                  child: showSpotsMarker
+                      ? IqHighlight(
+                          text: spots!,
+                          tone: hero
+                              ? IqHighlightTone.inverse
+                              : IqHighlightTone.orange,
+                          style: IqText.smallStrong,
+                        )
+                      : Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: IqSpace.s1,
+                            vertical: 1,
+                          ),
+                          child: Text(
+                            spots!,
+                            maxLines: 1,
+                            softWrap: false,
+                            style: IqText.smallStrong.copyWith(
+                              color: hero ? IqColors.primaryFg : IqColors.brand,
+                            ),
+                          ),
+                        ),
+                ),
+              if (showBookmark)
+                Positioned(
+                  left: hero ? 150 : 198,
+                  top: hero ? 136 : 6,
+                  child: IqBookmark(
+                    state: bookmarkState,
+                    tone: hero ? IqBookmarkTone.ink : IqBookmarkTone.paper,
+                    onChanged: onBookmarkChanged,
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

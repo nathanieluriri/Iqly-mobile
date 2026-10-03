@@ -23,6 +23,14 @@ import 'screens/onboarding_harness.dart';
 /// (spec 8.2). Names carry the time in ms from the start of the move.
 String _at(int ms) => ms.toString().padLeft(3, '0');
 
+/// Moves [ms] on at 60 fps, as a phone draws, so parts that start when they
+/// are first seen start on time.
+Future<void> _frames(WidgetTester tester, int ms) async {
+  for (var t = 0; t < ms; t += 16) {
+    await tester.pump(Duration(milliseconds: ms - t < 16 ? ms - t : 16));
+  }
+}
+
 void _phone(WidgetTester tester) {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
@@ -61,7 +69,7 @@ void main() {
         top: 54,
         bottom: math.max(0, 34 - keyboard),
       );
-      await tester.pump(Duration(milliseconds: ms));
+      await _frames(tester, ms);
       await expectMatchesGolden(
         find.byType(MaterialApp),
         'goldens/motion_landing_focus_${_at(ms)}.png',
@@ -88,7 +96,7 @@ void main() {
       );
       await tester.pumpWidget(mark(IqStepMarkStep.oneOfThree, IqIcons.profile));
       await tester.pumpWidget(mark(IqStepMarkStep.twoOfThree, IqIcons.pin));
-      await tester.pump(Duration(milliseconds: ms));
+      await _frames(tester, ms);
       await expectMatchesGolden(
         find.byType(MaterialApp),
         'goldens/motion_step_mark_${_at(ms)}.png',
@@ -106,7 +114,7 @@ void main() {
         ),
       );
       await tester.pump();
-      await tester.pump(Duration(milliseconds: ms));
+      await _frames(tester, ms);
       await expectMatchesGolden(
         find.byType(MaterialApp),
         'goldens/motion_done_${_at(ms)}.png',
@@ -130,7 +138,7 @@ void main() {
         ),
       );
       await tester.pump();
-      await tester.pump(Duration(milliseconds: ms));
+      await _frames(tester, ms);
       await expectMatchesGolden(
         find.byType(MaterialApp),
         'goldens/motion_splash_${_at(ms)}.png',

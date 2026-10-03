@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 import 'pressable.dart';
@@ -42,6 +43,10 @@ enum IqActivityRowStatusTone { secondary, standard, destructive }
 /// Exp/ActivityRow/Withdrawal: a withdrawal, plain amount, no sign, with the
 /// raw [status] word in a chip: completed is Default, failed and reversed
 /// are Destructive, anything else (pending, processing) is Secondary.
+///
+/// A new [status] crossfades the chip, 150 ms; both kinds fill card to panel
+/// under the finger, 100 ms in and 160 out (spec 5.31, 5.24; build
+/// extension).
 ///
 /// Figma over brief: the chip is the web-kit Badge (Label/Badge, Plus
 /// Jakarta Sans Medium 12), so the row is 65 tall, one more than Award.
@@ -94,23 +99,33 @@ class IqActivityRowWithdrawal extends StatelessWidget {
         children: [
           Text(when, style: IqText.small.copyWith(color: IqColors.fg3)),
           const SizedBox(width: IqSpace.s2),
-          Container(
-            height: 20,
-            padding: const EdgeInsets.symmetric(
-              horizontal: IqSpace.s2,
-              vertical: IqSpace.s0p5,
+          AnimatedSwitcher(
+            duration: IqDurations.crossfade,
+            switchInCurve: IqCurves.easeOut,
+            switchOutCurve: IqCurves.easeOut,
+            layoutBuilder: (current, previous) => Stack(
+              alignment: Alignment.centerLeft,
+              children: [...previous, ?current],
             ),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: fill,
-              borderRadius: BorderRadius.circular(IqRadius.md),
-            ),
-            child: Text(
-              status,
-              style: IqText.label.copyWith(
-                color: ink,
-                fontWeight: FontWeight.w500,
-                height: 1.33,
+            child: Container(
+              key: ValueKey(status),
+              height: 20,
+              padding: const EdgeInsets.symmetric(
+                horizontal: IqSpace.s2,
+                vertical: IqSpace.s0p5,
+              ),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: fill,
+                borderRadius: BorderRadius.circular(IqRadius.md),
+              ),
+              child: Text(
+                status,
+                style: IqText.label.copyWith(
+                  color: ink,
+                  fontWeight: FontWeight.w500,
+                  height: 1.33,
+                ),
               ),
             ),
           ),
@@ -147,8 +162,10 @@ class _ActivityRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return IqPressable(
       onTap: onTap,
-      builder: (context, _) => ColoredBox(
-        color: IqColors.card,
+      builder: (context, pressed) => AnimatedContainer(
+        duration: pressed ? IqDurations.dim : IqDurations.release,
+        curve: IqCurves.easeOut,
+        color: pressed ? IqColors.panel : IqColors.card,
         child: Stack(
           children: [
             Padding(
