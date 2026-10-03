@@ -76,20 +76,39 @@ Future<T?> showIqSheet<T>(
 }
 
 /// Runs [action] once the route around [context] has finished arriving, so
-/// a sheet's search field takes the keyboard after the rise (spec 3.3).
+/// a sheet's search field takes the keyboard after the rise (spec 3.3); at
+/// once under reduced motion.
+///
+/// The hero controller holds a pushed page route offstage for its first
+/// frame, and the route's animation reads as complete while it is, so the
+/// wait only starts once the route is back onstage.
 void whenArrived(BuildContext context, VoidCallback action) {
-  final animation = ModalRoute.of(context)?.animation;
-  if (animation == null || animation.isCompleted) {
+  final route = ModalRoute.of(context);
+  if (route == null || MediaQuery.disableAnimationsOf(context)) {
     action();
     return;
   }
-  late final AnimationStatusListener listener;
-  listener = (status) {
-    if (status.isAnimating) return;
-    animation.removeStatusListener(listener);
-    if (status.isCompleted) action();
-  };
-  animation.addStatusListener(listener);
+  void wait() {
+    if (!context.mounted) return;
+    if (route.offstage) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => wait());
+      return;
+    }
+    final animation = route.animation!;
+    if (animation.isCompleted) {
+      action();
+      return;
+    }
+    late final AnimationStatusListener listener;
+    listener = (status) {
+      if (status.isAnimating) return;
+      animation.removeStatusListener(listener);
+      if (status.isCompleted) action();
+    };
+    animation.addStatusListener(listener);
+  }
+
+  wait();
 }
 
 enum _Move {
