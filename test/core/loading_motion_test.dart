@@ -57,12 +57,12 @@ void main() {
       // The data lands at 400, but the skeleton holds for its 600.
       await tester.pump(_ms * 100);
       await gate(tester, loading: false);
-      await tester.pump(_ms * 498);
+      await tester.pump(_ms * 499);
       expect(find.text('content'), findsNothing);
       expect(find.text('skeleton'), findsOneWidget);
       expect(opened, isEmpty);
 
-      await tester.pump(_ms * 2);
+      await tester.pump(_ms);
       await tester.pump();
       expect(find.text('content'), findsOneWidget);
       expect(opened, [IqDurations.lag]);
