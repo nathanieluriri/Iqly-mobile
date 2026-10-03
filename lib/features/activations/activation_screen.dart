@@ -233,6 +233,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
         resizeToAvoidBottomInset: false,
         backgroundColor: IqColors.bg,
         body: SafeArea(
+          maintainBottomViewPadding: true,
           child: CenteredContent(
             child: StateDissolve(
               child: KeyedSubtree(key: ValueKey(layout), child: page),

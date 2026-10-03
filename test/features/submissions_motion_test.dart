@@ -1,16 +1,19 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/motion.dart';
 import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/features/submissions/my_submissions_screen.dart';
 import 'package:iqly_mobile/features/submissions/submission_detail_screen.dart';
 import 'package:iqly_mobile/features/submissions/submission_widgets.dart';
+import 'package:iqly_mobile/features/submissions/submissions_routes.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/banner.dart';
 import 'package:iqly_mobile/ui/dock.dart';
 import 'package:iqly_mobile/ui/highlight.dart';
+import 'package:iqly_mobile/ui/top_bar.dart';
 
 import '../golden/screens/app_harness.dart';
 import 'entry_harness.dart';
@@ -18,6 +21,25 @@ import 'entry_harness.dart';
 const _ms = Duration(milliseconds: 1);
 
 double _eo(double t) => IqCurves.easeOut.transform(t);
+double _ei(double t) => IqCurves.easeIn.transform(t);
+
+/// The product of every fade above [of].
+double _opacity(WidgetTester tester, Finder of) {
+  var opacity = 1.0;
+  for (final widget in tester.widgetList(
+    find.ancestor(
+      of: of,
+      matching: find.byWidgetPredicate(
+        (w) => w is FadeTransition || w is Opacity,
+      ),
+    ),
+  )) {
+    opacity *= widget is FadeTransition
+        ? widget.opacity.value
+        : (widget as Opacity).opacity;
+  }
+  return opacity;
+}
 
 /// The demo data with each submissions load answered when the test says so.
 class _Held extends ScriptedRepository {
@@ -212,6 +234,54 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('View the brief and back: the back button holds and the '
+      'titles cross in step, with no fallback underline (spec 4.3)', (
+    tester,
+  ) async {
+    await pumpApp(
+      tester,
+      submissionPath('s1'),
+      reducedMotion: false,
+      settle: false,
+    );
+    await tester.pump(_ms * 800);
+    final bar = tester.getTopLeft(find.byType(IqTopBar));
+
+    /// The flying copy of [title]: how far it shows, and that it draws in
+    /// the app's own style.
+    double flying(String title) {
+      final text = find.text(title).last;
+      final style = tester.renderObject<RenderParagraph>(text).text.style;
+      expect(style?.decoration, isNull);
+      return _opacity(tester, text);
+    }
+
+    await tester.tap(find.text('View the brief'));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(_ms * 60);
+    expect(tester.getTopLeft(find.byType(IqTopBar).last), bar);
+    expect(flying('Submission'), closeTo(1 - _ei(0.5), 0.02));
+    expect(flying('Brief'), 0);
+    await tester.pump(_ms * 400);
+    expect(find.text('Submission'), findsNothing);
+
+    await tester.tap(find.bySemanticsLabel('Back'));
+    await tester.pump();
+    await tester.pump();
+    expect(flying('Brief'), closeTo(1, 0.02));
+    expect(flying('Submission'), 0);
+    await tester.pump(_ms * 48);
+    expect(tester.getTopLeft(find.byType(IqTopBar).last), bar);
+    expect(flying('Brief'), closeTo(1 - _ei(0.5), 0.02));
+    await tester.pump(_ms * 144);
+    expect(flying('Submission'), 1);
+    expect(flying('Brief'), 0);
+    await tester.pump(_ms * 100);
+    expect(find.text('Brief'), findsNothing);
+    expect(find.text('Submission'), findsOneWidget);
   });
 
   testWidgets('the status marker flies into the header and back', (

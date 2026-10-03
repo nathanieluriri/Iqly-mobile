@@ -44,6 +44,26 @@ class _Sheet extends StatelessWidget {
   }
 }
 
+/// A page that makes room for the keyboard, with a foot at the bottom.
+class _Form extends StatelessWidget {
+  const _Form(this.name);
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: IqColors.bg,
+      body: Column(
+        children: [
+          const Spacer(),
+          SizedBox(key: ValueKey('$name-foot'), height: 20),
+        ],
+      ),
+    );
+  }
+}
+
 GoRouter _router([String initial = '/a']) => GoRouter(
   initialLocation: initial,
   routes: [
@@ -61,12 +81,26 @@ GoRouter _router([String initial = '/a']) => GoRouter(
       path: '/sheet',
       pageBuilder: (c, s) => sheetPage(s, const _Sheet(), scrim: IqScrim.sheet),
     ),
+    GoRoute(
+      path: '/form-a',
+      pageBuilder: (c, s) => pushPage(s, const _Form('a')),
+    ),
+    GoRoute(
+      path: '/form-b',
+      pageBuilder: (c, s) => pushPage(s, const _Form('b')),
+    ),
   ],
 );
 
 Future<GoRouter> _pump(
   WidgetTester tester, {
   String initial = '/a',
+  bool reduced = false,
+}) => _pumpWith(tester, _router(initial), reduced: reduced);
+
+Future<GoRouter> _pumpWith(
+  WidgetTester tester,
+  GoRouter router, {
   bool reduced = false,
 }) async {
   tester.view.physicalSize = _size;
@@ -77,7 +111,6 @@ Future<GoRouter> _pump(
         const FakeAccessibilityFeatures(disableAnimations: true);
     addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
   }
-  final router = _router(initial);
   addTearDown(router.dispose);
   await tester.pumpWidget(
     MaterialApp.router(theme: buildTheme(), routerConfig: router),
@@ -114,6 +147,53 @@ double _eo(double t) => IqCurves.easeOut.transform(t);
 double _ei(double t) => IqCurves.easeIn.transform(t);
 
 const _ms = Duration(milliseconds: 1);
+
+/// One 60 Hz frame.
+const _frame = Duration(microseconds: 16667);
+
+/// A thumb that moves [by] from [from] at an even speed over [frames]
+/// frames and lifts with its last move, as the films drag; [track] reads
+/// the moving thing after every frame until it stops or [settle] frames
+/// pass. Returns the thumb's travel per frame and [track]'s readings from
+/// the frame the thumb lifts.
+Future<(double, List<double>)> _thumb(
+  WidgetTester tester, {
+  required Offset from,
+  required Offset by,
+  required int frames,
+  required double? Function() track,
+  int settle = 60,
+}) async {
+  var at = Duration.zero;
+  final gesture = await tester.createGesture();
+  await gesture.down(from, timeStamp: at);
+  await tester.pump(_frame);
+  for (var i = 1; i <= frames; i++) {
+    at += _frame;
+    await gesture.moveTo(from + by * (i / frames), timeStamp: at);
+    if (i == frames) await gesture.up(timeStamp: at);
+    await tester.pump(_frame);
+  }
+  final after = <double>[];
+  for (var i = 0; i < settle; i++) {
+    final now = track();
+    if (now == null) break;
+    after.add(now);
+    await tester.pump(_frame);
+  }
+  return (by.distance / frames, after);
+}
+
+/// The largest step between consecutive readings.
+double _fastest(List<double> track) {
+  var fastest = 0.0;
+  for (var i = 1; i < track.length; i++) {
+    fastest = (track[i] - track[i - 1]).abs() > fastest
+        ? (track[i] - track[i - 1]).abs()
+        : fastest;
+  }
+  return fastest;
+}
 
 void main() {
   group('push', () {
@@ -240,6 +320,47 @@ void main() {
       expect(_dx(tester, 'a'), 0);
     }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 
+    testWidgets('iOS: a thumb that lifts mid-swipe carries the page on at '
+        'its own speed, never faster', (tester) async {
+      final router = await _pump(tester);
+      router.push('/b');
+      await tester.pumpAndSettle();
+      final page = find.byKey(const ValueKey('b'));
+      // The films' swipe: from the edge across 62% in 0.4 s, about 600
+      // pt/s, lifting as it moves.
+      final (thumb, track) = await _thumb(
+        tester,
+        from: const Offset(6, 460),
+        by: const Offset(390 * 0.62, 0),
+        frames: 24,
+        track: () => page.evaluate().isEmpty ? null : _dx(tester, 'b'),
+      );
+      expect(track, isNotEmpty);
+      expect(_fastest(track), lessThanOrEqualTo(thumb * 1.02));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/a');
+      expect(find.byKey(const ValueKey('b')), findsNothing);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('iOS: a quick flick settles no faster than the remaining '
+        'share of 240', (tester) async {
+      final router = await _pump(tester);
+      router.push('/b');
+      await tester.pumpAndSettle();
+      final page = find.byKey(const ValueKey('b'));
+      final (_, track) = await _thumb(
+        tester,
+        from: const Offset(6, 460),
+        by: const Offset(390 * 0.5, 0),
+        frames: 4,
+        track: () => page.evaluate().isEmpty ? null : _dx(tester, 'b'),
+      );
+      // Half the width left: at least 120 ms, so at least 7 frames to go.
+      expect(track.length, greaterThanOrEqualTo(7));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/a');
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
     testWidgets('iOS: a short swipe settles back', (tester) async {
       final router = await _pump(tester);
       router.push('/b');
@@ -257,6 +378,57 @@ void main() {
       expect(_dx(tester, 'b'), 0);
       expect(router.state.uri.path, '/b');
     }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+  });
+
+  group('keyboard', () {
+    double foot(WidgetTester tester, String page) =>
+        tester.getTopLeft(find.byKey(ValueKey('$page-foot'))).dy;
+
+    void keyboard(WidgetTester tester, double inset) =>
+        tester.view.viewInsets = FakeViewPadding(bottom: inset);
+
+    testWidgets('a page on its way out keeps its insets while the keyboard '
+        'moves; the page coming in follows it', (tester) async {
+      final router = await _pump(tester, initial: '/form-a');
+      keyboard(tester, 336);
+      await tester.pump();
+      expect(foot(tester, 'a'), 844 - 336 - 20);
+
+      router.push('/form-b');
+      await tester.pump();
+      for (final inset in [200.0, 80.0, 0.0]) {
+        keyboard(tester, inset);
+        await tester.pump(_ms * 50);
+        expect(foot(tester, 'a'), 844 - 336 - 20);
+        expect(foot(tester, 'b'), 844 - inset - 20);
+      }
+      await tester.pumpAndSettle();
+
+      keyboard(tester, 336);
+      await tester.pump();
+      router.pop();
+      await tester.pump();
+      for (final inset in [200.0, 80.0, 0.0]) {
+        keyboard(tester, inset);
+        await tester.pump(_ms * 50);
+        expect(foot(tester, 'b'), 844 - 336 - 20);
+        expect(foot(tester, 'a'), 844 - inset - 20);
+      }
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('b-foot')), findsNothing);
+    });
+
+    testWidgets('a page under a sheet is not leaving: it follows the '
+        'keyboard', (tester) async {
+      final router = await _pump(tester, initial: '/form-a');
+      keyboard(tester, 336);
+      await tester.pump();
+      router.push('/sheet');
+      await tester.pump();
+      keyboard(tester, 0);
+      await tester.pump(_ms * 50);
+      expect(foot(tester, 'a'), 844 - 20);
+    });
   });
 
   group('hand-off', () {
@@ -395,6 +567,28 @@ void main() {
       await close.moveBy(const Offset(0, 240));
       await tester.pump();
       await close.up();
+      await tester.pumpAndSettle();
+      expect(find.byType(_Sheet), findsNothing);
+      expect(router.state.uri.path, '/a');
+    });
+
+    testWidgets('a drag that lifts past half carries the sheet down at the '
+        'finger\'s speed, never faster', (tester) async {
+      final router = await _pump(tester);
+      router.push('/sheet');
+      await tester.pumpAndSettle();
+      const top = 844 - _sheetHeight;
+      final sheet = find.byKey(const ValueKey('sheet'));
+      // 300 down in 0.5 s, 600 px/s: under the 700 px/s fling.
+      final (finger, track) = await _thumb(
+        tester,
+        from: const Offset(195, top + 40),
+        by: const Offset(0, 300),
+        frames: 30,
+        track: () => sheet.evaluate().isEmpty ? null : _dy(tester, 'sheet'),
+      );
+      expect(track, isNotEmpty);
+      expect(_fastest(track), lessThanOrEqualTo(finger * 1.02));
       await tester.pumpAndSettle();
       expect(find.byType(_Sheet), findsNothing);
       expect(router.state.uri.path, '/a');
@@ -597,6 +791,67 @@ void main() {
       expect(_opacity(tester, 'card'), 1);
       await tester.pump(_ms);
       expect(tester.hasRunningAnimations, isFalse);
+    });
+  });
+
+  group('heroes', () {
+    Widget page(String name, Alignment at) => ColoredBox(
+      color: IqColors.bg,
+      child: Align(
+        alignment: at,
+        child: Hero(
+          tag: 'mark',
+          child: SizedBox(key: ValueKey('mark-$name'), width: 40, height: 40),
+        ),
+      ),
+    );
+
+    Future<GoRouter> heroes(WidgetTester tester, {required bool reduced}) =>
+        _pumpWith(
+          tester,
+          GoRouter(
+            initialLocation: '/one',
+            routes: [
+              GoRoute(
+                path: '/one',
+                pageBuilder: (c, s) =>
+                    pushPage(s, page('one', Alignment.topLeft)),
+              ),
+              GoRoute(
+                path: '/two',
+                pageBuilder: (c, s) =>
+                    pushPage(s, page('two', Alignment.bottomRight)),
+              ),
+            ],
+          ),
+          reduced: reduced,
+        );
+
+    bool flying(WidgetTester tester) =>
+        find.byKey(const ValueKey('mark-two')).evaluate().isNotEmpty &&
+        tester.getTopLeft(find.byKey(const ValueKey('mark-two'))) !=
+            const Offset(350, 804);
+
+    testWidgets('a shared element flies with the push', (tester) async {
+      final router = await heroes(tester, reduced: false);
+      router.push('/two');
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 100);
+      expect(flying(tester), isTrue);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('reduced motion: no flight, the element waits in place', (
+      tester,
+    ) async {
+      final router = await heroes(tester, reduced: true);
+      router.push('/two');
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 75);
+      expect(flying(tester), isFalse);
+      await tester.pumpAndSettle();
     });
   });
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../core/motion.dart';
@@ -10,7 +12,11 @@ import 'switch.dart';
 /// on both sides.
 ///
 /// Figma over brief: the row is a white Color/card band with no radius.
-class IqSettingRow extends StatelessWidget {
+///
+/// Motion (MOTION-SPEC 5.6, Figma 199:1311 "pair with Exp/SettingRow for a
+/// full-width 64 px target"): while pressed the band fills panel, 100 ms in
+/// and 160 out, a quick tap holding it for 100; the switch does the rest.
+class IqSettingRow extends StatefulWidget {
   const IqSettingRow({
     super.key,
     this.label = 'Brief closing soon',
@@ -29,11 +35,61 @@ class IqSettingRow extends StatelessWidget {
   final ValueChanged<IqSwitchState>? onChanged;
 
   @override
+  State<IqSettingRow> createState() => _IqSettingRowState();
+}
+
+class _IqSettingRowState extends State<IqSettingRow> {
+  bool _pressed = false;
+  bool _down = false;
+  Timer? _hold;
+
+  void _set(bool pressed) {
+    if (pressed != _pressed) setState(() => _pressed = pressed);
+  }
+
+  void _press(TapDownDetails details) {
+    _hold?.cancel();
+    _hold = Timer(IqDurations.pressHold, () {
+      _hold = null;
+      if (!_down) _set(false);
+    });
+    _down = true;
+    _set(true);
+  }
+
+  void _lift(TapUpDetails details) {
+    _down = false;
+    if (_hold == null) _set(false);
+  }
+
+  void _cancel() {
+    _hold?.cancel();
+    _hold = null;
+    _down = false;
+    _set(false);
+  }
+
+  @override
+  void dispose() {
+    _hold?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final onChanged = this.onChanged;
+    final onChanged = widget.onChanged;
+    final label = widget.label;
+    final description = widget.description;
+    final showDescription = widget.showDescription;
+    final divider = widget.divider;
+    final state = widget.state;
+    final active = onChanged != null;
     return MergeSemantics(
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
+        onTapDown: active ? _press : null,
+        onTapUp: active ? _lift : null,
+        onTapCancel: active ? _cancel : null,
         onTap: onChanged == null
             ? null
             : () {
@@ -44,8 +100,10 @@ class IqSettingRow extends StatelessWidget {
                       : IqSwitchState.on,
                 );
               },
-        child: Container(
-          color: IqColors.card,
+        child: AnimatedContainer(
+          duration: _pressed ? IqDurations.dim : IqDurations.release,
+          curve: IqCurves.easeOut,
+          color: _pressed ? IqColors.panel : IqColors.card,
           child: Stack(
             children: [
               Padding(

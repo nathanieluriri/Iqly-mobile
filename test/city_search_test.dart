@@ -17,7 +17,7 @@ void main() {
     expect(searchCities('Benue', 'zaki-biam'), ['Zaki Biam']);
   });
 
-  test('an alternate spelling counts as listed, so Add mine stays off', () {
+  test('an alternate spelling counts as listed, so Add my city stays off', () {
     expect(listedCity('Ogun', 'Shagamu'), 'Sagamu');
     expect(listedCity('Osun', 'Ife'), 'Ile-Ife');
     expect(listedCity('Lagos', 'FESTAC'), 'Festac Town');

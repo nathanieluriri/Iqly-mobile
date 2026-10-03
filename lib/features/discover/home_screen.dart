@@ -24,6 +24,7 @@ import '../../ui/pull_indicator.dart';
 import '../../ui/section_title.dart';
 import '../../ui/skeleton.dart';
 import '../../ui/ticket_card.dart';
+import '../entry/first_tip.dart';
 import '../onboarding/setup_nudge.dart';
 import '../withdrawals/payout_arrival.dart';
 import 'app_shell.dart';
@@ -73,6 +74,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   bool _steady = false;
   bool _buzzed = false;
   bool _retrying = false;
+  bool _built = false;
+  bool _landed = false;
   bool? _nudge;
   IqPullIndicatorState? _closingAs;
   Timer? _doneTimer;
@@ -217,6 +220,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ref.read(discoverFeedProvider.notifier).retry();
   }
 
+  /// The feed is on screen, arriving [after] from now: the first tip may
+  /// follow (spec 3.8). Told after the frame, as it lands mid-build.
+  void _land(Duration after) {
+    if (_landed) return;
+    _landed = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(firstTipCueProvider.notifier).cue(after);
+    });
+  }
+
   FeedView _view(FeedData data) => buildFeed(
     briefs: data.briefs,
     filters: ref.read(discoverFiltersProvider),
@@ -275,11 +288,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ref.watch(feedInterestsProvider);
     final data = feed.value;
     final failed = feed.hasError && !feed.isLoading;
+    final proposalsPending =
+        (Flags.polls && _pending(ref.watch(pollBrandsProvider))) ||
+        (Flags.activations && _pending(ref.watch(activationsSummaryProvider)));
     final onboardingDone = ref.watch(
       sessionProvider.select((s) => s.onboardingDone),
     );
     final nudge = _nudge ??= !onboardingDone;
     final payout = ref.watch(recentPayoutProvider);
+    final loading = (data == null && !failed) || proposalsPending;
+    if (!_built) {
+      _built = true;
+      if (!loading) _land(Duration.zero);
+    }
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -341,8 +362,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                             ),
                           LoadingGate.builder(
                             key: const ValueKey('gate'),
-                            loading: data == null && !failed,
-                            onOpen: (after) => _arrivals.play(after: after),
+                            loading: loading,
+                            onOpen: (after) {
+                              _arrivals.play(after: after);
+                              _land(after);
+                            },
                             builder: (context, phase, skeletonOpacity) =>
                                 _body(phase, skeletonOpacity, data, nudge),
                           ),
@@ -481,6 +505,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ),
     ),
   ];
+
+  /// Open polls and Activations sit above the feed, so the feed waits for
+  /// their first answer rather than being pushed down when they land.
+  static bool _pending(AsyncValue<Object?> value) =>
+      !value.hasValue && !value.hasError;
 
   /// Open polls and the Activations row, each behind its flag.
   List<_Item> _proposals() {
@@ -841,8 +870,9 @@ class _Tail extends StatelessWidget {
   }
 }
 
-/// The empty and failed feed: an optional illustration, then a card title
-/// and one line appearing at +80 and +120 (spec 6.24).
+/// The empty and failed feed: an optional illustration rising in, its
+/// accent sweeping from +160 (spec 5.29), then a card title and one line
+/// appearing at +80 and +120 (spec 6.24).
 class _EmptyText extends StatelessWidget {
   const _EmptyText({required this.title, this.body, this.illustration});
 
@@ -857,7 +887,10 @@ class _EmptyText extends StatelessWidget {
       child: Column(
         children: [
           if (illustration != null) ...[
-            IqIllustration(illustration!),
+            IqIllustration(
+              illustration!,
+              entrance: IqIllustrationEntrance.rise,
+            ),
             const SizedBox(height: IqSpace.s2),
           ],
           Appear(

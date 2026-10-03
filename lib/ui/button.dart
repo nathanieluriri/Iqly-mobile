@@ -15,7 +15,9 @@ enum IqButtonKind { primary, secondary, danger, ghost, inverse }
 /// the sticker out and crossfades the fill (160 ms), turning disabled tucks
 /// it back (120 ease-in); the label and spinner crossfade (150). Primary and
 /// Inverse taps give the commit haptic, Danger the destructive one (spec
-/// 5.2). [width] defaults to the Figma 200; pass double.infinity to fill.
+/// 5.2). With [rollLabel] a new label rolls its changed characters in
+/// (spec 2.5 roll), as "Show 11 briefs" does when its count changes (spec
+/// 5.18). [width] defaults to the Figma 200; pass double.infinity to fill.
 ///
 /// Figma over brief: Danger keeps a sticker shadow (err-soft).
 /// Figma over brief: Ghost shows the brush arrow by default.
@@ -31,6 +33,7 @@ class IqButton extends StatelessWidget {
     this.disabled = false,
     this.loading = false,
     this.width = 200,
+    this.rollLabel = false,
   });
 
   final String label;
@@ -40,6 +43,7 @@ class IqButton extends StatelessWidget {
   final bool disabled;
   final bool loading;
   final double width;
+  final bool rollLabel;
 
   static const double height = 52;
   static const double radius = 26;
@@ -124,13 +128,19 @@ class _ButtonFaceState extends State<_ButtonFace> {
                     color: look.ink,
                     duration: _duration,
                     curve: _curve,
-                    builder: (ink) => Text(
-                      button.label,
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.ellipsis,
-                      style: IqText.button.copyWith(color: ink),
-                    ),
+                    builder: (ink) => button.rollLabel
+                        ? RollingText(
+                            button.label,
+                            overflow: TextOverflow.ellipsis,
+                            style: IqText.button.copyWith(color: ink),
+                          )
+                        : Text(
+                            button.label,
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.ellipsis,
+                            style: IqText.button.copyWith(color: ink),
+                          ),
                   ),
                 ),
                 if (button.showIcon) ...[

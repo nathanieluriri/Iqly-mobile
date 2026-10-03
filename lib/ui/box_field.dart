@@ -18,6 +18,15 @@ enum IqBoxFieldState { empty, active, error }
 /// language: a 2 px err outline in place of the accent, and [help] 6 px below
 /// in Mob/Small err-strong (err-soft on the Ink tone's brand ground), centred
 /// like the value, rising in as the Field help does.
+///
+/// Motion (MOTION-SPEC 5.9): the outline's colour and width cross over in
+/// 160 ms ease-out on focus and on error; the help line opens its own slot
+/// as it rises in (160) and folds away as it fades (150), so nothing below
+/// jumps. The screen adds the shake. Reduced motion: the outline changes at
+/// once and the help line crossfades in place over 150.
+///
+/// [scrollPadding] is the room kept clear around the caret when a scroll
+/// view brings the box into view above the keyboard.
 class IqBoxField extends StatefulWidget {
   const IqBoxField({
     super.key,
@@ -34,6 +43,7 @@ class IqBoxField extends StatefulWidget {
     this.inputFormatters,
     this.autofocus = false,
     this.width = 358,
+    this.scrollPadding = const EdgeInsets.all(20),
   });
 
   final String value;
@@ -49,6 +59,7 @@ class IqBoxField extends StatefulWidget {
   final List<TextInputFormatter>? inputFormatters;
   final bool autofocus;
   final double width;
+  final EdgeInsets scrollPadding;
 
   static const double height = 56;
   static const double radius = 16;
@@ -97,7 +108,9 @@ class _IqBoxFieldState extends State<IqBoxField> {
     final box = GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => _focus.requestFocus(),
-      child: Container(
+      child: AnimatedContainer(
+        duration: motion(context, IqDurations.tick),
+        curve: IqCurves.easeOut,
         width: widget.width,
         height: IqBoxField.height,
         padding: const EdgeInsets.symmetric(horizontal: IqSpace.s5),
@@ -125,6 +138,7 @@ class _IqBoxFieldState extends State<IqBoxField> {
           inputFormatters: widget.inputFormatters,
           autofocus: widget.autofocus,
           autocorrect: false,
+          scrollPadding: widget.scrollPadding,
           maxLines: 1,
           textAlign: TextAlign.center,
           style: style,
@@ -148,10 +162,11 @@ class _IqBoxFieldState extends State<IqBoxField> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             box,
-            if (state == IqBoxFieldState.error && widget.help.isNotEmpty) ...[
-              const SizedBox(height: IqSpace.s1p5),
-              Reveal(
+            RevealSlot(
+              shown: state == IqBoxFieldState.error && widget.help.isNotEmpty,
+              child: Padding(
                 key: ValueKey(widget.help),
+                padding: const EdgeInsets.only(top: IqSpace.s1p5),
                 child: Semantics(
                   liveRegion: true,
                   child: Text(
@@ -163,7 +178,7 @@ class _IqBoxFieldState extends State<IqBoxField> {
                   ),
                 ),
               ),
-            ],
+            ),
           ],
         ),
       ),

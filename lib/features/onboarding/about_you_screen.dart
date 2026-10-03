@@ -27,6 +27,7 @@ class AboutYouScreen extends ConsumerWidget {
       step: IqStepMarkStep.oneOfThree,
       icon: IqIcons.profile,
       saved: occupation != null,
+      answer: occupation,
       title: 'What do you do?',
       onBack: () => context.go(Routes.onboarding, extra: NavDirection.back),
       onSkip: next,

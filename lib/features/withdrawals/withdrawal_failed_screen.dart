@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/deadline.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
+import '../../core/transitions.dart';
 import '../../data/models.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -22,9 +23,10 @@ import 'withdrawal_widgets.dart';
 /// opens the Withdraw sheet with the same amount, to the same bank or
 /// another one.
 ///
-/// Motion (spec 7.9): the banner slides down, the receipt arrives and
+/// Motion (spec 7.9, 4.3): the banner slides down, the receipt arrives and
 /// draws its tear line, and the failed step on err never breathes (a
-/// failure does not pulse). Check bank details pushes Select bank.
+/// failure does not pulse). Check bank details pushes Select bank, the back
+/// button holding while the titles cross.
 ///
 /// Figma over the row note: there is no separate Retry button; Check bank
 /// details is the retry. The banner adds "Nothing left your wallet." to
@@ -61,10 +63,14 @@ class WithdrawalFailedScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                IqTopBar(
-                  variant: IqTopBarVariant.page,
-                  title: 'Withdrawal',
-                  onBack: () => leaveWithdrawal(context),
+                ChromeHero(
+                  tag: ChromeTags.back,
+                  shuttle: IqTopBar.shuttle,
+                  child: IqTopBar(
+                    variant: IqTopBarVariant.page,
+                    title: 'Withdrawal',
+                    onBack: () => leaveWithdrawal(context),
+                  ),
                 ),
                 Expanded(
                   child: Stagger(

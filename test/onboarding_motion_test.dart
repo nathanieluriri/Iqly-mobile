@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/core/motion.dart';
 import 'package:iqly_mobile/features/onboarding/onboarding_layout.dart';
 import 'package:iqly_mobile/theme/theme.dart';
 import 'package:iqly_mobile/ui/field.dart';
@@ -13,14 +14,13 @@ Widget _app(Widget child, {bool reduced = false}) => MaterialApp(
 );
 
 double _checkScale(WidgetTester tester) => tester
-    .widget<ScaleTransition>(
+    .widgetList<ScaleTransition>(
       find.descendant(
         of: find.byType(AutosaveCheck),
         matching: find.byType(ScaleTransition),
       ),
     )
-    .scale
-    .value;
+    .fold(1.0, (scale, t) => scale * t.scale.value);
 
 Widget _city(String? city) => IqField(
   kind: IqFieldKind.picker,
@@ -61,6 +61,36 @@ void main() {
       _app(const AutosaveCheck(saved: true), reduced: true),
     );
     expect(_checkScale(tester), 1);
+  });
+
+  testWidgets('a later save re-stamps the check from 1.15 over 160', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(const AutosaveCheck(saved: true, answer: 1)));
+    await tester.pumpWidget(_app(const AutosaveCheck(saved: true, answer: 2)));
+    expect(_checkScale(tester), closeTo(IqScale.stampLand, 0.001));
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(
+      _checkScale(tester),
+      closeTo(
+        IqScale.stampLand -
+            (IqScale.stampLand - 1) * IqCurves.easeOut.transform(0.5),
+        0.002,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(_checkScale(tester), 1);
+  });
+
+  testWidgets('reduced motion: a later save does not re-stamp', (tester) async {
+    await tester.pumpWidget(
+      _app(const AutosaveCheck(saved: true, answer: 1), reduced: true),
+    );
+    await tester.pumpWidget(
+      _app(const AutosaveCheck(saved: true, answer: 2), reduced: true),
+    );
+    expect(_checkScale(tester), 1);
+    expect(tester.hasRunningAnimations, isFalse);
   });
 
   testWidgets('a chosen picker value crossfades in over 200 ms', (

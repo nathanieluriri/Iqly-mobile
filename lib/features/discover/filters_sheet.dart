@@ -13,8 +13,9 @@ import 'discover_routes.dart';
 import 'discover_state.dart';
 
 /// B1 · Discover · Filters sheet (31:397) with the B12 Sort "My interests
-/// first" (192:9763). Changes apply on "Show N briefs"; "Clear filters"
-/// resets; close keeps what was there.
+/// first" (192:9763). Changes apply on "Show N briefs", whose count rolls
+/// on every change (spec 6.21); "Clear filters" resets; close keeps what was
+/// there.
 class FiltersSheet extends ConsumerStatefulWidget {
   const FiltersSheet({super.key});
 
@@ -165,6 +166,7 @@ class _FiltersSheetState extends ConsumerState<FiltersSheet> {
                           ? 'No briefs match'
                           : 'Show $count ${count == 1 ? 'brief' : 'briefs'}',
                       width: double.infinity,
+                      rollLabel: true,
                       disabled: count == 0,
                       onTap: () {
                         ref

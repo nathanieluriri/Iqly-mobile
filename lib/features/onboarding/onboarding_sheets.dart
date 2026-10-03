@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/motion.dart';
 import '../../core/transitions.dart';
@@ -13,39 +16,62 @@ import 'onboarding_draft.dart';
 /// Opens a first-run picker sheet: card fill, 24 top radius, ink scrim at
 /// 30%, its top 120 below the top of the screen (Figma 188:8340). It rises
 /// and drops on the one sheet route (spec 3.3), fading in place under
-/// reduced motion.
-Future<T?> showOnboardingSheet<T>(BuildContext context, WidgetBuilder builder) {
-  return showIqSheet<T>(context, (context) {
-    final media = MediaQuery.of(context);
-    return MediaQuery.removePadding(
-      context: context,
-      removeTop: true,
-      child: Material(
-        color: IqColors.card,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: SizedBox(
-          width: double.infinity,
-          height: media.size.height - _sheetTop,
-          child: Padding(
-            padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
-            child: builder(context),
+/// reduced motion. With [hug] the sheet is as tall as its content and no
+/// taller than that; otherwise it takes the full height.
+///
+/// The future completes once the sheet has dropped, so the picked value
+/// lands on the step after it (spec 6.15); under reduced motion it
+/// completes as the sheet starts to fade.
+Future<T?> showOnboardingSheet<T>(
+  BuildContext context,
+  WidgetBuilder builder, {
+  bool hug = false,
+}) async {
+  final reduced = MediaQuery.disableAnimationsOf(context);
+  final route = IqSheetRoute<T>(
+    scrim: IqScrim.picker,
+    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+    builder: (context) {
+      final height = MediaQuery.sizeOf(context).height - _sheetTop;
+      return MediaQuery.removePadding(
+        context: context,
+        removeTop: true,
+        child: Material(
+          color: IqColors.card,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
+          clipBehavior: Clip.antiAlias,
+          child: hug
+              ? ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minWidth: double.infinity,
+                    maxHeight: height,
+                  ),
+                  child: builder(context),
+                )
+              : SizedBox(
+                  width: double.infinity,
+                  height: height,
+                  child: builder(context),
+                ),
         ),
-      ),
-    );
-  }, scrim: IqScrim.picker);
+      );
+    },
+  );
+  final value = await Navigator.of(context).push(route);
+  if (!reduced) await route.completed;
+  return value;
 }
 
 const double _sheetTop = 120;
 
 final stateOptions = [for (final s in Reference.states) RefOption(s, s)];
 
-/// A short list (state of residence, education): tapping a row picks it and
-/// closes the sheet 120 ms later, unless [onSelected] takes the pick
-/// instead; the sheet ignores taps in between (spec 3.3).
+/// A list of options (state of residence, education): tapping a row picks
+/// it and closes the sheet 120 ms later, unless [onSelected] takes the pick
+/// instead; the sheet ignores taps in between (spec 3.3). It is as tall as
+/// its rows, scrolling once they outgrow the sheet.
 class OptionSheet extends StatefulWidget {
   const OptionSheet({
     super.key,
@@ -97,44 +123,56 @@ class _OptionSheetState extends State<OptionSheet>
   Widget build(BuildContext context) {
     final options = widget.options;
     final selected = _picked ?? widget.selected;
+    final bottom = IqSpace.s4 + MediaQuery.paddingOf(context).bottom;
+    final rows =
+        IqOptionRow.height * options.length + IqSpace.s1 * (options.length - 1);
+    final height = _topBar + IqSpace.s1 + rows + bottom;
     return IgnorePointer(
       ignoring: _picked != null,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          IqTopBar(
-            variant: IqTopBarVariant.sheet,
-            title: widget.title,
-            onClose: () => Navigator.of(context).pop(),
-          ),
-          Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(
-                IqSpace.s4,
-                IqSpace.s1,
-                IqSpace.s4,
-                IqSpace.s4,
+      child: LayoutBuilder(
+        builder: (context, constraints) => SizedBox(
+          height: math.min(height, constraints.maxHeight),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              IqTopBar(
+                variant: IqTopBarVariant.sheet,
+                title: widget.title,
+                onClose: () => Navigator.of(context).pop(),
               ),
-              itemCount: options.length,
-              separatorBuilder: (context, i) =>
-                  const SizedBox(height: IqSpace.s1),
-              itemBuilder: (context, i) {
-                final option = options[i];
-                return IqOptionRow(
-                  label: option.label,
-                  showNote: false,
-                  state: option.value == selected
-                      ? IqOptionRowState.selected
-                      : IqOptionRowState.standard,
-                  onTap: () => _pick(option.value),
-                );
-              },
-            ),
+              Expanded(
+                child: ListView.separated(
+                  padding: EdgeInsets.fromLTRB(
+                    IqSpace.s4,
+                    IqSpace.s1,
+                    IqSpace.s4,
+                    bottom,
+                  ),
+                  itemCount: options.length,
+                  separatorBuilder: (context, i) =>
+                      const SizedBox(height: IqSpace.s1),
+                  itemBuilder: (context, i) {
+                    final option = options[i];
+                    return IqOptionRow(
+                      label: option.label,
+                      showNote: false,
+                      state: option.value == selected
+                          ? IqOptionRowState.selected
+                          : IqOptionRowState.standard,
+                      onTap: () => _pick(option.value),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
+
+  /// The sheet variant of Exp/TopBar.
+  static const double _topBar = 76;
 }
 
 /// Campus notes for the near-you group, from the Figma sheet. reference.ts
@@ -147,6 +185,7 @@ const universityCampuses = {
     'Lagos',
   ),
   'James Hope University, Lagos': ('Lekki, Lagos', 'Lagos'),
+  'Lagos State University of Education': ('Ijanikin, Lagos', 'Lagos'),
 };
 
 /// Universities matching [query], the ones in [state] first.
@@ -178,7 +217,8 @@ String _count(int n, String one, String many) =>
     '$n ${n == 1 ? one : many}'.toUpperCase();
 
 /// B11 · Step 2 · University search (188:8340). The search field takes the
-/// keyboard once the sheet has risen.
+/// keyboard once the sheet has risen; picking a row selects it and puts the
+/// keyboard away so "Use this" shows (the Figma frame is that moment).
 class UniversitySheet extends StatefulWidget {
   const UniversitySheet({
     super.key,
@@ -218,6 +258,11 @@ class _UniversitySheetState extends State<UniversitySheet> {
     super.dispose();
   }
 
+  void _pick(String name) {
+    _putKeyboardAway();
+    setState(() => _selected = name);
+  }
+
   @override
   Widget build(BuildContext context) {
     final query = _query.text.trim();
@@ -246,32 +291,31 @@ class _UniversitySheetState extends State<UniversitySheet> {
             state: name == selected
                 ? IqOptionRowState.selected
                 : IqOptionRowState.standard,
-            onTap: () => setState(() => _selected = name),
+            onTap: () => _pick(name),
           ),
       ],
-      actions: [
-        IqButton(
-          label: 'Use this',
-          showIcon: false,
-          width: double.infinity,
-          disabled: selected == null,
-          onTap: () => Navigator.of(context).pop(selected),
-        ),
-        IqButton(
-          label: 'Add my university',
-          kind: IqButtonKind.ghost,
-          showIcon: false,
-          width: double.infinity,
-          disabled: query.isEmpty,
-          onTap: () => Navigator.of(context).pop(query),
-        ),
-      ],
+      use: IqButton(
+        label: 'Use this',
+        showIcon: false,
+        width: double.infinity,
+        disabled: selected == null,
+        onTap: () => Navigator.of(context).pop(selected),
+      ),
+      add: IqButton(
+        label: 'Add my university',
+        kind: IqButtonKind.ghost,
+        showIcon: false,
+        width: double.infinity,
+        disabled: query.isEmpty,
+        onTap: () => Navigator.of(context).pop(query),
+      ),
     );
   }
 }
 
-/// The city search for [state], built like the university search. "Add
-/// mine" offers the typed name when the list does not have it.
+/// The city search for [state], built like the university search. "Add my
+/// city" (Figma's "Add my university" pattern) offers the typed name when
+/// the list does not have it, and stays in place, off, otherwise.
 class CitySheet extends StatefulWidget {
   const CitySheet({super.key, required this.state, this.selected});
 
@@ -286,12 +330,30 @@ class CitySheet extends StatefulWidget {
 
 class _CitySheetState extends State<CitySheet> {
   final _query = TextEditingController();
+  final _focus = FocusNode();
   late String? _selected = widget.selected;
+  bool _asked = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_asked) return;
+    _asked = true;
+    whenArrived(context, () {
+      if (mounted) _focus.requestFocus();
+    });
+  }
 
   @override
   void dispose() {
     _query.dispose();
+    _focus.dispose();
     super.dispose();
+  }
+
+  void _pick(String name) {
+    _putKeyboardAway();
+    setState(() => _selected = name);
   }
 
   @override
@@ -306,6 +368,7 @@ class _CitySheetState extends State<CitySheet> {
         label: 'Search cities',
         value: '',
         controller: _query,
+        focusNode: _focus,
         textInputAction: TextInputAction.search,
         onChanged: (_) => setState(() {}),
       ),
@@ -323,26 +386,24 @@ class _CitySheetState extends State<CitySheet> {
             state: name == selected
                 ? IqOptionRowState.selected
                 : IqOptionRowState.standard,
-            onTap: () => setState(() => _selected = name),
+            onTap: () => _pick(name),
           ),
       ],
-      actions: [
-        IqButton(
-          label: 'Use this',
-          showIcon: false,
-          width: double.infinity,
-          disabled: selected == null,
-          onTap: () => Navigator.of(context).pop(selected),
-        ),
-        if (canAdd)
-          IqButton(
-            label: 'Add mine',
-            kind: IqButtonKind.ghost,
-            showIcon: false,
-            width: double.infinity,
-            onTap: () => Navigator.of(context).pop(query),
-          ),
-      ],
+      use: IqButton(
+        label: 'Use this',
+        showIcon: false,
+        width: double.infinity,
+        disabled: selected == null,
+        onTap: () => Navigator.of(context).pop(selected),
+      ),
+      add: IqButton(
+        label: 'Add my city',
+        kind: IqButtonKind.ghost,
+        showIcon: false,
+        width: double.infinity,
+        disabled: !canAdd,
+        onTap: () => Navigator.of(context).pop(query),
+      ),
     );
   }
 }
@@ -397,8 +458,18 @@ class _CityPickerFlowState extends State<CityPickerFlow> {
   }
 }
 
+/// A pick puts the keyboard away so "Use this" shows, the search field
+/// keeping its focus and its Active look (Figma 188:8340); a tap on the field
+/// brings the keyboard back.
+void _putKeyboardAway() =>
+    SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+
 /// Title, search field, count line, results and the foot actions shared by
-/// the university and city sheets.
+/// the university and city sheets. The foot (primary at y 720, ghost at y
+/// 780 in Figma 188:8340) stays at the bottom of the sheet, under the
+/// keyboard while it is up; the results take the room above the keyboard
+/// and dragging them puts the keyboard away. The count rolls as it changes
+/// and an empty result fades in (spec 6.15).
 class _SearchSheetLayout extends StatelessWidget {
   const _SearchSheetLayout({
     required this.title,
@@ -406,7 +477,8 @@ class _SearchSheetLayout extends StatelessWidget {
     required this.count,
     required this.empty,
     required this.rows,
-    required this.actions,
+    required this.use,
+    required this.add,
   });
 
   final String title;
@@ -414,11 +486,16 @@ class _SearchSheetLayout extends StatelessWidget {
   final String? count;
   final String empty;
   final List<Widget> rows;
-  final List<Widget> actions;
+  final Widget use;
+  final Widget add;
 
   @override
   Widget build(BuildContext context) {
     final count = this.count;
+    final bottom = math.max(MediaQuery.paddingOf(context).bottom, IqSpace.s3);
+    const footTop = IqSpace.s3;
+    final foot = footTop + IqButton.height * 2 + IqSpace.s2 + bottom;
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -444,53 +521,65 @@ class _SearchSheetLayout extends StatelessWidget {
               IqSpace.s4,
               0,
             ),
-            child: Text(
-              count,
-              style: IqText.mono.copyWith(color: IqColors.fg2),
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: RollingText(
+                count,
+                style: IqText.mono.copyWith(color: IqColors.fg2),
+              ),
             ),
           ),
         Expanded(
-          child: rows.isEmpty
-              ? Padding(
-                  padding: const EdgeInsets.all(IqSpace.s4),
-                  child: Text(
-                    empty,
-                    style: IqText.body.copyWith(color: IqColors.fg2),
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(
-                    IqSpace.s4,
-                    IqSpace.s3,
-                    IqSpace.s4,
-                    IqSpace.s4,
-                  ),
-                  itemCount: rows.length,
-                  separatorBuilder: (context, i) =>
-                      const SizedBox(height: IqSpace.s1),
-                  itemBuilder: (context, i) => rows[i],
-                ),
-        ),
-        SafeArea(
-          top: false,
-          minimum: const EdgeInsets.only(bottom: IqSpace.s3),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              IqSpace.s4,
-              IqSpace.s3,
-              IqSpace.s4,
-              0,
+            padding: EdgeInsets.only(bottom: math.max(0, keyboard - foot)),
+            child: AnimatedSwitcher(
+              duration: motion(context, IqDurations.crossfade),
+              switchInCurve: IqCurves.easeOut,
+              switchOutCurve: IqCurves.easeOut,
+              layoutBuilder: (current, previous) => Stack(
+                fit: StackFit.expand,
+                children: [...previous, ?current],
+              ),
+              child: rows.isEmpty
+                  ? Padding(
+                      key: const ValueKey('empty'),
+                      padding: const EdgeInsets.all(IqSpace.s4),
+                      child: Align(
+                        alignment: AlignmentDirectional.topStart,
+                        child: Text(
+                          empty,
+                          style: IqText.body.copyWith(color: IqColors.fg2),
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      key: const ValueKey('rows'),
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: const EdgeInsets.fromLTRB(
+                        IqSpace.s4,
+                        IqSpace.s3,
+                        IqSpace.s4,
+                        IqSpace.s4,
+                      ),
+                      itemCount: rows.length,
+                      separatorBuilder: (context, i) =>
+                          const SizedBox(height: IqSpace.s1),
+                      itemBuilder: (context, i) => rows[i],
+                    ),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (var i = 0; i < actions.length; i++) ...[
-                  if (i > 0) const SizedBox(height: IqSpace.s2),
-                  actions[i],
-                ],
-              ],
-            ),
+          ),
+        ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(IqSpace.s4, footTop, IqSpace.s4, bottom),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              use,
+              const SizedBox(height: IqSpace.s2),
+              add,
+            ],
           ),
         ),
       ],

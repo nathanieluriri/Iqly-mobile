@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/motion.dart';
+import '../../core/transitions.dart';
 import '../../data/device.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -11,6 +13,10 @@ import 'entry_widgets.dart';
 
 /// B0 Notifications (227:11263), reached from onboarding Done. Both answers
 /// land on Discover, where the first tip shows once.
+///
+/// Motion (MOTION-SPEC 6.9): it pushes in from Done; at +200 the bell in the
+/// step mark's ring swings once (480 ms, pivoting at its top) as the title
+/// settles. Reduced motion: no swing.
 class NotificationsAskScreen extends ConsumerStatefulWidget {
   const NotificationsAskScreen({super.key});
 
@@ -34,6 +40,7 @@ class _NotificationsAskScreenState
   Widget build(BuildContext context) {
     return EntryScaffold(
       hasFields: false,
+      settle: true,
       onBack: () => goBack(context, Routes.onboardingDone),
       action: EntryButtons(
         primary: 'Turn on notifications',
@@ -42,13 +49,17 @@ class _NotificationsAskScreenState
         ghost: 'Not now',
         onGhost: () => context.go(Routes.home),
       ),
-      children: const [
-        Align(
-          alignment: Alignment.centerLeft,
-          child: IqStepMark(step: IqStepMarkStep.single, icon: IqIcons.bell),
+      children: [
+        EntryStepMark(
+          step: IqStepMarkStep.single,
+          icon: IqIcons.bell,
+          swingIcon: arrivalOf(context) == NavDirection.forward,
         ),
-        SizedBox(height: IqSpace.s4),
-        EntryTitle('Never miss a brief closing'),
+        const SizedBox(height: IqSpace.s4),
+        const StaggerItem(
+          index: 0,
+          child: EntryTitle('Never miss a brief closing'),
+        ),
       ],
     );
   }

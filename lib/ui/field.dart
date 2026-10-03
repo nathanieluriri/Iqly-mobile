@@ -26,12 +26,24 @@ enum IqFieldSize { standard, large }
 /// Figma over brief: the Active label is Color/primary, the Error label Color/err-strong.
 /// Screens hide the status icon and the note on some Valid instances (B0
 /// Your name, Sign in): [showStatus] and [showNote] carry those overrides.
-/// A new picker value crossfades in (200 ms ease-out, none under reduced
-/// motion). Turning Active wipes the accent brush in left to right (240 ms,
-/// MOTION-SPEC §5.8), as turning to Error does the err stroke; the error
-/// help line rises in (160 ms); the screen adds the shake
-/// (lib/core/motion). A Text field takes several lines through [maxLines]
-/// (the B10 help message; Figma draws that one as a plain frame).
+///
+/// A text field is one semantics node the height of the field, carrying
+/// [label], so a screen reader reads "Phone number, text field" and the
+/// whole 62 pt target counts.
+///
+/// Motion (MOTION-SPEC 5.8): the label colour and the base line cross over
+/// 160 ms ease-out; turning Active or Error wipes the accent or err brush in
+/// left to right (240), and a brush that goes fades out (150, reading
+/// ease-in); the success and error icons pop from .6 (220) and fade when
+/// they go (150); the help line or note opens its own slot as it rises in
+/// (160), so the rows below move with it, and folds away as it fades
+/// (150). A new picker value crossfades in (200). Pressing a picker dims
+/// its label and value to .6 (100 in, 160 out). The screen adds the shake
+/// (lib/core/motion). Reduced motion: colours and icons change at once, the
+/// brush shows whole, the help line crossfades over 150 in place.
+///
+/// A Text field takes several lines through [maxLines] (the B10 help
+/// message; Figma draws that one as a plain frame).
 class IqField extends StatefulWidget {
   const IqField({
     super.key,
@@ -136,6 +148,7 @@ class _IqFieldState extends State<IqField> {
   Widget build(BuildContext context) {
     final state = _resolved;
     final valueStyle = _large ? IqText.title : IqText.body;
+    final colour = motion(context, IqDurations.tick);
     final labelColor = switch (state) {
       IqFieldState.active => IqColors.primary,
       IqFieldState.error => IqColors.errStrong,
@@ -183,7 +196,20 @@ class _IqFieldState extends State<IqField> {
             ),
           );
 
-    final row = Stack(
+    final label = TweenAnimationBuilder<Color?>(
+      tween: ColorTween(end: labelColor),
+      duration: colour,
+      curve: IqCurves.easeOut,
+      builder: (context, color, _) => Text(
+        (_isText ? widget.label : widget.pickerLabel).toUpperCase(),
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.ellipsis,
+        style: IqText.mono.copyWith(color: color ?? labelColor),
+      ),
+    );
+
+    Widget row(bool pressed) => Stack(
       clipBehavior: Clip.none,
       children: [
         Padding(
@@ -194,31 +220,38 @@ class _IqFieldState extends State<IqField> {
           child: Row(
             children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      (_isText ? widget.label : widget.pickerLabel)
-                          .toUpperCase(),
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.ellipsis,
-                      style: IqText.mono.copyWith(color: labelColor),
-                    ),
-                    SizedBox(height: _large ? IqSpace.s1 : IqSpace.s0p5),
-                    valueLine,
-                  ],
+                child: PressDim(
+                  pressed: pressed,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _isText ? ExcludeSemantics(child: label) : label,
+                      SizedBox(height: _large ? IqSpace.s1 : IqSpace.s0p5),
+                      valueLine,
+                    ],
+                  ),
                 ),
               ),
-              if (state == IqFieldState.valid && widget.showStatus) ...[
-                const SizedBox(width: IqSpace.s3),
-                const IqIcon(IqIcons.success, size: 22, color: IqColors.ok),
-              ],
-              if (state == IqFieldState.error && widget.showStatus) ...[
-                const SizedBox(width: IqSpace.s3),
-                const IqIcon(IqIcons.error, size: 22, color: IqColors.err),
-              ],
+              _Status(
+                icon: !widget.showStatus
+                    ? null
+                    : switch (state) {
+                        IqFieldState.valid => const IqIcon(
+                          IqIcons.success,
+                          key: ValueKey(IqFieldState.valid),
+                          size: 22,
+                          color: IqColors.ok,
+                        ),
+                        IqFieldState.error => const IqIcon(
+                          IqIcons.error,
+                          key: ValueKey(IqFieldState.error),
+                          size: 22,
+                          color: IqColors.err,
+                        ),
+                        _ => null,
+                      },
+              ),
               if (!_isText) ...[
                 const SizedBox(width: IqSpace.s3),
                 const IqIcon(IqIcons.down, size: 20, color: IqColors.fg2),
@@ -237,91 +270,96 @@ class _IqFieldState extends State<IqField> {
       ],
     );
 
-    final body = ClipRect(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
+    final base = SizedBox(
+      height: 6,
+      child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          row,
-          const SizedBox(height: IqSpace.s1p5),
-          SizedBox(
-            height: 6,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned(
-                  left: -0.83,
-                  right: -0.44,
-                  top: 0,
-                  height: 6.05,
-                  child: IqVector(
-                    'assets/vectors/field-base.svg',
-                    color: state == IqFieldState.empty
-                        ? IqColors.line2
-                        : IqColors.line,
-                  ),
-                ),
-                if (state == IqFieldState.active)
-                  const Positioned(
-                    key: ValueKey('stroke-active'),
-                    left: 0,
-                    right: 0,
-                    top: 1.14,
-                    height: 4,
-                    child: Wipe(
-                      child: IqVector(
-                        'assets/vectors/field-stroke.svg',
-                        color: IqColors.accent,
-                      ),
-                    ),
-                  ),
-                if (state == IqFieldState.error)
-                  const Positioned(
-                    key: ValueKey('stroke-error'),
-                    left: 0,
-                    right: 0,
-                    top: 1.14,
-                    height: 4,
-                    child: Wipe(
-                      child: IqVector(
-                        'assets/vectors/field-stroke.svg',
-                        color: IqColors.err,
-                      ),
-                    ),
-                  ),
-              ],
+          Positioned(
+            left: -0.83,
+            right: -0.44,
+            top: 0,
+            height: 6.05,
+            child: TweenAnimationBuilder<Color?>(
+              tween: ColorTween(
+                end: state == IqFieldState.empty
+                    ? IqColors.line2
+                    : IqColors.line,
+              ),
+              duration: colour,
+              curve: IqCurves.easeOut,
+              builder: (context, color, _) => IqVector(
+                'assets/vectors/field-base.svg',
+                color: color ?? IqColors.line,
+              ),
             ),
           ),
-          if (showHelp) ...[
-            const SizedBox(height: IqSpace.s1p5),
-            if (state == IqFieldState.valid)
-              Text(
-                widget.note,
-                style: IqText.small.copyWith(color: IqColors.ok),
-              )
-            else
-              Reveal(
-                key: ValueKey(widget.help),
-                child: Semantics(
-                  liveRegion: true,
-                  child: Text(
-                    widget.help,
-                    style: IqText.small.copyWith(color: IqColors.errStrong),
-                  ),
-                ),
-              ),
-          ],
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 1.14,
+            height: 4,
+            child: _Brush(state: state),
+          ),
         ],
       ),
     );
+
+    Widget body(bool pressed) {
+      final field = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          row(pressed),
+          const SizedBox(height: IqSpace.s1p5),
+          base,
+        ],
+      );
+      return ClipRect(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_isText)
+              MergeSemantics(
+                child: Semantics(label: widget.label, child: field),
+              )
+            else
+              field,
+            RevealSlot(
+              shown: showHelp,
+              child: Padding(
+                key: ValueKey((state == IqFieldState.error, widget.help)),
+                padding: const EdgeInsets.only(top: IqSpace.s1p5),
+                child: state == IqFieldState.valid
+                    ? Text(
+                        widget.note,
+                        style: IqText.small.copyWith(color: IqColors.ok),
+                      )
+                    : Semantics(
+                        liveRegion: true,
+                        child: Text(
+                          widget.help,
+                          style: IqText.small.copyWith(
+                            color: IqColors.errStrong,
+                          ),
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     if (_isText) {
       return Material(
         type: MaterialType.transparency,
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
+          excludeFromSemantics: true,
           onTap: () => _focus.requestFocus(),
-          child: body,
+          child: body(false),
         ),
       );
     }
@@ -329,7 +367,82 @@ class _IqFieldState extends State<IqField> {
       onTap: widget.onTap,
       semanticLabel:
           '${widget.pickerLabel}, ${state == IqFieldState.empty ? widget.pickerPlaceholder : widget.pickerValue}',
-      builder: (context, pressed) => body,
+      builder: (context, pressed) => body(pressed),
+    );
+  }
+}
+
+/// The status icon slot: an icon that comes pops in from .6 (220 ms) and
+/// one that goes fades (150).
+class _Status extends StatelessWidget {
+  const _Status({required this.icon});
+
+  final Widget? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = this.icon;
+    return AnimatedSwitcher(
+      duration: motion(context, IqDurations.appear),
+      reverseDuration: motion(context, IqDurations.crossfade),
+      switchInCurve: IqCurves.easeOut,
+      switchOutCurve: IqCurves.easeOut,
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: AnimatedBuilder(
+          animation: animation,
+          child: child,
+          builder: (context, child) => Transform.scale(
+            scale: animation.status == AnimationStatus.reverse
+                ? 1
+                : IqScale.pop + (1 - IqScale.pop) * animation.value,
+            child: child,
+          ),
+        ),
+      ),
+      layoutBuilder: (current, previous) => Stack(
+        alignment: AlignmentDirectional.centerStart,
+        children: [...previous, ?current],
+      ),
+      child: icon == null
+          ? const SizedBox.shrink(key: ValueKey('none'))
+          : Padding(
+              key: icon.key,
+              padding: const EdgeInsetsDirectional.only(start: IqSpace.s3),
+              child: icon,
+            ),
+    );
+  }
+}
+
+/// The accent or err brush under an Active or Error field: it wipes in
+/// left to right and fades out when the state moves on.
+class _Brush extends StatelessWidget {
+  const _Brush({required this.state});
+
+  final IqFieldState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (state) {
+      IqFieldState.active => IqColors.accent,
+      IqFieldState.error => IqColors.err,
+      _ => null,
+    };
+    return AnimatedSwitcher(
+      duration: Duration.zero,
+      reverseDuration: motion(context, IqDurations.crossfade),
+      switchOutCurve: IqCurves.easeOut,
+      transitionBuilder: (child, animation) =>
+          FadeTransition(opacity: animation, child: child),
+      layoutBuilder: (current, previous) =>
+          Stack(fit: StackFit.expand, children: [...previous, ?current]),
+      child: color == null
+          ? const SizedBox.shrink(key: ValueKey('none'))
+          : Wipe(
+              key: ValueKey(state),
+              child: IqVector('assets/vectors/field-stroke.svg', color: color),
+            ),
     );
   }
 }

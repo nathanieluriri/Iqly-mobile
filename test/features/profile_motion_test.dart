@@ -10,6 +10,7 @@ import 'package:iqly_mobile/features/settings/account_closing_screen.dart';
 import 'package:iqly_mobile/features/settings/delete_account_screen.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/theme/theme.dart';
+import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/dock.dart';
 import 'package:iqly_mobile/ui/icon.dart';
 import 'package:iqly_mobile/ui/illustration.dart';
@@ -19,6 +20,7 @@ import 'package:iqly_mobile/ui/setting_row.dart';
 import '../golden/screens/app_harness.dart';
 import '../golden/screens/profile_harness.dart';
 import 'entry_harness.dart';
+import 'phone_keyboard.dart';
 
 const _ms = Duration(milliseconds: 1);
 const _commit = 'HapticFeedbackType.lightImpact';
@@ -281,6 +283,34 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(YourDetailsScreen), findsNothing);
       expect(find.byType(ProfileScreen), findsOneWidget);
+    });
+
+    testWidgets('Save changes with the keypad up: the page keeps its layout '
+        'as it leaves, the keypad going with it', (tester) async {
+      await pumpProfileApp(tester, Routes.profile, reducedMotion: false);
+      final keyboard = PhoneKeyboard(tester);
+      await tester.tap(find.text('Your details'));
+      await keyboard.frames(30);
+      await tester.tap(find.byType(TextField));
+      await keyboard.until(() => keyboard.inset == PhoneKeyboard.height);
+
+      final button = find.descendant(
+        of: find.byType(YourDetailsScreen),
+        matching: find.byType(IqButton),
+      );
+      final top = tester.getTopLeft(button).dy;
+      expect(top, lessThan(844 - PhoneKeyboard.height));
+      await tester.tap(find.text('Save changes'));
+      for (var i = 0; i < 60 && button.evaluate().isNotEmpty; i++) {
+        await keyboard.frame();
+        if (button.evaluate().isNotEmpty) {
+          expect(tester.getTopLeft(button).dy, top);
+        }
+      }
+      expect(find.byType(YourDetailsScreen), findsNothing);
+      expect(keyboard.inset, lessThan(PhoneKeyboard.height));
+      await keyboard.frames(20);
+      expect(keyboard.inset, 0);
     });
 
     testWidgets('reduced motion: the check lands at once', (tester) async {

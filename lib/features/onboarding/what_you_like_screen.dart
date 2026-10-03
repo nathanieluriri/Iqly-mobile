@@ -45,6 +45,7 @@ class WhatYouLikeScreen extends ConsumerWidget {
       step: IqStepMarkStep.threeOfThree,
       icon: IqIcons.discover,
       saved: interests.isNotEmpty,
+      answer: interests.join(','),
       title: 'What are you into?',
       caption: 'Pick at least ${OnboardingDraft.minInterests}',
       onBack: () =>
