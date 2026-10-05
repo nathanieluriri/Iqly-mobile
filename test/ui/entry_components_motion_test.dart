@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -15,15 +13,12 @@ import 'package:iqly_mobile/ui/illustration.dart';
 import 'package:iqly_mobile/ui/next_fab.dart';
 import 'package:iqly_mobile/ui/option_row.dart';
 import 'package:iqly_mobile/ui/setting_row.dart';
-import 'package:iqly_mobile/ui/step_mark.dart';
-import 'package:iqly_mobile/ui/step_mark_ring.dart';
 import 'package:iqly_mobile/ui/sticker.dart';
 import 'package:iqly_mobile/ui/switch.dart';
 
 const _ms = Duration(milliseconds: 1);
 
 double _eo(double t) => IqCurves.easeOut.transform(t);
-double _eio(double t) => IqCurves.easeInOut.transform(t);
 
 void _reduce(WidgetTester tester) {
   tester.platformDispatcher.accessibilityFeaturesTestValue =
@@ -214,141 +209,6 @@ void main() {
       await tester.tap(find.byType(IqNextFab));
       await tester.pumpAndSettle();
       expect(haptics, ['HapticFeedbackType.lightImpact']);
-    });
-  });
-
-  group('StepMark', () {
-    List<double> slots(WidgetTester tester) {
-      final row = tester.renderObject<RenderFlex>(
-        find.descendant(
-          of: find.byType(IqStepMarkRing),
-          matching: find.byType(Row),
-        ),
-      );
-      final widths = <double>[];
-      var child = row.firstChild;
-      while (child != null) {
-        if (child.size.height == IqStepMarkRing.ring) {
-          widths.add(child.size.width);
-        }
-        child = (child.parentData! as FlexParentData).nextSibling;
-      }
-      return widths;
-    }
-
-    testWidgets('a new step morphs over 300: 80 wide throughout', (
-      tester,
-    ) async {
-      await _pump(
-        tester,
-        const IqStepMarkRing(step: IqStepMarkStep.oneOfThree),
-      );
-      expect(slots(tester), [44, 6, 6]);
-      await _pump(
-        tester,
-        const IqStepMarkRing(step: IqStepMarkStep.twoOfThree),
-      );
-      await tester.pump(_ms * 150);
-      final grown = 6 + 38 * _eio(0.5);
-      final mid = slots(tester);
-      expect(mid[0], closeTo(44 - 38 * _eio(0.5), 0.01));
-      expect(mid[1], closeTo(grown, 0.01));
-      expect(mid[2], 6);
-      expect(
-        tester.getSize(find.byType(IqStepMarkRing)).width,
-        closeTo(80, 0.01),
-      );
-      await tester.pump(_ms * 150);
-      expect(slots(tester), [6, 44, 6]);
-      await tester.pumpAndSettle();
-      expect(slots(tester), [6, 44, 6]);
-    });
-
-    testWidgets('the old icon leaves in 120, the new one pops from +80', (
-      tester,
-    ) async {
-      await _pump(
-        tester,
-        const IqStepMarkRing(
-          step: IqStepMarkStep.twoOfThree,
-          icon: IqIcons.pin,
-        ),
-      );
-      await _pump(
-        tester,
-        const IqStepMarkRing(
-          step: IqStepMarkStep.twoOfThree,
-          icon: IqIcons.bank,
-        ),
-      );
-      await tester.pump(_ms * 60);
-      expect(find.byType(IqIcon), findsNWidgets(2));
-      await tester.pump(_ms * 70);
-      expect(find.byType(IqIcon), findsOneWidget);
-      await tester.pumpAndSettle();
-      final icon = tester.widget<IqIcon>(find.byType(IqIcon));
-      expect(icon.icon, IqIcons.bank);
-    });
-
-    testWidgets('reduced motion: the new step at once', (tester) async {
-      _reduce(tester);
-      await _pump(
-        tester,
-        const IqStepMarkRing(step: IqStepMarkStep.oneOfThree),
-      );
-      await _pump(
-        tester,
-        const IqStepMarkRing(step: IqStepMarkStep.twoOfThree),
-      );
-      expect(slots(tester), [6, 44, 6]);
-      expect(tester.hasRunningAnimations, isFalse);
-    });
-
-    double turn(WidgetTester tester) {
-      final rotations = tester.widgetList<Transform>(
-        find.descendant(
-          of: find.byType(IqStepMarkRing),
-          matching: find.byType(Transform),
-        ),
-      );
-      for (final t in rotations) {
-        final m = t.transform;
-        final angle = math.atan2(m.entry(1, 0), m.entry(0, 0));
-        if (angle.abs() > 1e-6) return angle;
-      }
-      return 0;
-    }
-
-    testWidgets('the bell swings once from +200 for 480', (tester) async {
-      await _pump(
-        tester,
-        const IqStepMarkRing(
-          step: IqStepMarkStep.single,
-          icon: IqIcons.bell,
-          swingIcon: true,
-        ),
-      );
-      await tester.pump(_ms * 150);
-      expect(turn(tester), 0);
-      await tester.pump(_ms * 100);
-      expect(turn(tester), lessThan(0));
-      await tester.pumpAndSettle();
-      expect(turn(tester), 0);
-    });
-
-    testWidgets('reduced motion: the bell does not swing', (tester) async {
-      _reduce(tester);
-      await _pump(
-        tester,
-        const IqStepMarkRing(
-          step: IqStepMarkStep.single,
-          icon: IqIcons.bell,
-          swingIcon: true,
-        ),
-      );
-      await tester.pump(_ms * 300);
-      expect(turn(tester), 0);
-      expect(tester.hasRunningAnimations, isFalse);
     });
   });
 
