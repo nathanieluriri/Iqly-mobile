@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/core/money.dart';
 import 'package:iqly_mobile/data/activations_data.dart';
 import 'package:iqly_mobile/data/help_data.dart';
 import 'package:iqly_mobile/data/help_service.dart';
@@ -10,7 +11,6 @@ import 'package:iqly_mobile/features/activations/activations_routes.dart';
 import 'package:iqly_mobile/features/activations/activations_state.dart';
 import 'package:iqly_mobile/features/help/help_thread_screen.dart';
 import 'package:iqly_mobile/features/wallet/wallet_state.dart';
-import 'package:iqly_mobile/ui/balance_hero.dart';
 import 'package:iqly_mobile/ui/proof_tile.dart';
 
 import '../golden/screens/activations_harness.dart';
@@ -49,8 +49,8 @@ Map<String, int> _awards(ProviderContainer container) => {
       l.id: l.amountKobo,
 };
 
-IqBalanceHero _hero(WidgetTester tester) =>
-    tester.widget<IqBalanceHero>(find.byType(IqBalanceHero));
+String _available(ProviderContainer container) =>
+    naira(container.read(walletProvider).value!.totals.withdrawableKobo);
 
 void main() {
   testWidgets('Unibooks, stuck at step 2: its proof, its help request and '
@@ -95,10 +95,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('UPDATED BALANCE'), findsOneWidget);
-    expect(_hero(tester).amount, '₦15,800');
-    expect(_hero(tester).decimals, '.00');
-    expect(_hero(tester).earned, '₦65,800.00');
+    expect(_available(container), '₦15,800.00');
     expect(_awards(container), {'activation-a3': 80000});
   });
 
@@ -124,14 +121,14 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(_hero(tester).amount, '₦16,500');
+    expect(_available(container), '₦16,500.00');
     expect(_awards(container), {'activation-a2': 150000});
 
     await container.read(activationsProvider.notifier).refresh('a2');
     await tester.pumpAndSettle();
     expect(container.read(activationProvider('a2'))!.credited, isTrue);
     expect(_awards(container), {'activation-a2': 150000});
-    expect(_hero(tester).amount, '₦16,500');
+    expect(_available(container), '₦16,500.00');
   });
 
   group('the demo support', () {

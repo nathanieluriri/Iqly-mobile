@@ -57,9 +57,9 @@ void main() {
         .toList();
     expect(headlines, [
       ('Closes in 7h', '1h', true),
-      ('₦1,500.00 added to your wallet', '2h', true),
       ('Kudi Box closes tomorrow', '5h', true),
       ('You won ₦12,500.00', '2d', false),
+      ('₦1,500.00 added to your wallet', '3d', true),
       ('₦40,000.00 paid out', '10d', false),
       ('₦5,000.00 never left your wallet', '11d', false),
     ]);

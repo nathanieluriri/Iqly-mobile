@@ -98,7 +98,7 @@ void main() {
       );
       expect(
         [for (final n in feed) n.id],
-        ['n2', 'n1', 'n3', 'n4', 'n5', 'n6'],
+        ['n2', 'n3', 'n4', 'n1', 'n5', 'n6'],
       );
       expect(feed.where((n) => n.unread).length, DemoData.unreadNotifications);
       final won = feed.firstWhere((n) => n.event == NotificationEvent.won);
@@ -135,12 +135,6 @@ void main() {
             '1h',
           ),
           (
-            IqNotificationKind.payout,
-            '₦1,500.00 added to your wallet',
-            'Kudi Box · activation reward',
-            '2h',
-          ),
-          (
             IqNotificationKind.deadline,
             'Kudi Box closes tomorrow',
             'Redesign the first five minutes of our savings app',
@@ -151,6 +145,12 @@ void main() {
             'You won ₦12,500.00',
             'Why do Lagosians skip mobile banking on Sundays?',
             '2d',
+          ),
+          (
+            IqNotificationKind.payout,
+            '₦1,500.00 added to your wallet',
+            'Kudi Box · activation reward',
+            '3d',
           ),
           (
             IqNotificationKind.payout,
@@ -171,8 +171,8 @@ void main() {
         expect(item.page, isNotNull, reason: 'row $i opens its sub page');
       }
       expect(items[0].page!.link.location, '/briefs/c5');
-      expect(items[1].page!.link.tab, isTrue);
-      expect(items[3].page!.link.location, '/submissions/s2/result');
+      expect(items[3].page!.link.tab, isTrue);
+      expect(items[2].page!.link.location, '/submissions/s2/result');
       expect(items[4].page!.link.location, '/wallet/withdrawals/w2');
       expect(
         items[4].page!.body,
@@ -181,7 +181,7 @@ void main() {
         'show it.',
       );
       expect(
-        items[3].page!.body,
+        items[2].page!.body,
         'A business kept private picked your answer to “Why do Lagosians skip '
         'mobile banking on Sundays?”. ₦12,500.00 is in your wallet now.',
       );

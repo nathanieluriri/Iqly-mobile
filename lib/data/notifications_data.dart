@@ -61,14 +61,15 @@ class AppNotification {
 }
 
 /// The B6 feed (39:24) on the demo dataset, newest first. The first payout
-/// is the Kudi Box activation reward, ledger row l6 (₦1,500.00 two hours
-/// ago); the deadlines point at briefs c5 (Sunline, closing in 6 hours) and
+/// is the Kudi Box activation reward, ledger row l6 (₦1,500.00 three days
+/// ago, as the Wallet frames date it; 39:24 shows it two hours ago); the
+/// deadlines point at briefs c5 (Sunline, closing in 6 hours) and
 /// c4 (Kudi Box, tomorrow); the result at ledger award l3 (₦12,500.00 two
 /// days ago, paid for submission s2 on brief c3); the payouts at withdrawals
 /// w2 (₦40,000.00 paid out ten days ago) and w1 (₦5,000.00 failed eleven
 /// days ago), all in DemoData. When the two reminders went out (1h and 5h
-/// before [now]) and which rows are unread (today's three,
-/// DemoData.unreadNotifications) are the frame's.
+/// before [now]) and which rows are unread (the two reminders and the
+/// reward, DemoData.unreadNotifications) are the frame's.
 List<AppNotification> demoNotifications({
   required List<LedgerEntry> ledger,
   required List<Withdrawal> withdrawals,
