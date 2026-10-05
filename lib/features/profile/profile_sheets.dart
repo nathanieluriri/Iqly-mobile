@@ -393,7 +393,7 @@ class _SheetLayout extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 action,
-                const SizedBox(height: IqSpace.s2 + IqButton.height),
+                const SizedBox(height: IqSpace.s2 + IqButton.defaultHeight),
               ],
             ),
           ),

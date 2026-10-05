@@ -21,7 +21,7 @@ enum IqButtonKind { primary, secondary, danger, ghost, inverse }
 /// the destructive one (spec 5.2). With [rollLabel] a new label rolls its
 /// changed characters in (spec 2.5 roll), as "Show 11 briefs" does when its
 /// count changes (spec 5.18). [width] defaults to the Figma 200; pass
-/// double.infinity to fill.
+/// double.infinity to fill. [height] defaults to the Figma 52.
 ///
 /// Figma over brief: Danger keeps a sticker shadow (err-soft).
 /// Figma over brief: Ghost shows the brush arrow by default.
@@ -37,6 +37,7 @@ class IqButton extends StatelessWidget {
     this.disabled = false,
     this.loading = false,
     this.width = 200,
+    this.height = defaultHeight,
     this.rollLabel = false,
   });
 
@@ -47,9 +48,13 @@ class IqButton extends StatelessWidget {
   final bool disabled;
   final bool loading;
   final double width;
+
+  /// Figma's kit has no size variant; screens resize the instance, as the
+  /// 44 pt Ghost under an action bar (app 154:6202, 179:7997).
+  final double height;
   final bool rollLabel;
 
-  static const double height = 52;
+  static const double defaultHeight = 52;
   static const double radius = 26;
 
   @override

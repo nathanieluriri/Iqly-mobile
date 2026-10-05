@@ -78,7 +78,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
               IqSpace.s4,
               IqSpace.s3,
               IqSpace.s4,
-              IqSpace.s3 + IqButton.height + IqSpace.s2,
+              IqSpace.s3 + IqButton.defaultHeight + IqSpace.s2,
             ),
             child: IqButton(
               label: 'Send reset link',
