@@ -12,6 +12,7 @@ import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
 import 'package:iqly_mobile/features/entry/notifications_ask_screen.dart';
 import 'package:iqly_mobile/features/onboarding/about_you_screen.dart';
+import 'package:iqly_mobile/features/onboarding/add_university_screen.dart';
 import 'package:iqly_mobile/features/onboarding/done_screen.dart';
 import 'package:iqly_mobile/features/onboarding/onboarding_sheets.dart';
 import 'package:iqly_mobile/features/onboarding/resume_screen.dart';
@@ -20,7 +21,6 @@ import 'package:iqly_mobile/features/onboarding/what_you_like_screen.dart';
 import 'package:iqly_mobile/features/onboarding/where_you_live_screen.dart';
 import 'package:iqly_mobile/features/onboarding/where_you_studied_screen.dart';
 import 'package:iqly_mobile/ui/button.dart';
-import 'package:iqly_mobile/ui/next_fab.dart';
 import 'package:iqly_mobile/ui/tip_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -65,8 +65,19 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.pumpAndSettle();
 }
 
-IqNextFabState _fab(WidgetTester tester) =>
-    tester.widget<IqNextFab>(find.byType(IqNextFab)).state;
+/// Whether the step's primary button (Continue, Finish) is on.
+bool _nextOn(WidgetTester tester) => !tester
+    .widget<IqButton>(
+      find.byWidgetPredicate(
+        (w) => w is IqButton && w.kind == IqButtonKind.primary,
+      ),
+    )
+    .disabled;
+
+const _aboutYou = {
+  'occupation': 'student',
+  'dateOfBirth': '2004-03-12T00:00:00.000',
+};
 
 bool _buttonOn(WidgetTester tester, String label) =>
     !tester.widget<IqButton>(find.widgetWithText(IqButton, label)).disabled;
@@ -83,65 +94,106 @@ void main() {
 
     await _tap(tester, find.text('Start'));
     expect(find.byType(AboutYouScreen), findsOneWidget);
-    expect(_fab(tester), IqNextFabState.disabled);
+    expect(_nextOn(tester), isFalse);
     await _tap(tester, find.text('Student'));
-    expect(_fab(tester), IqNextFabState.enabled);
-    expect(find.bySemanticsLabel('Saved'), findsOneWidget);
-    await _tap(tester, find.byType(IqNextFab));
+    expect(_nextOn(tester), isFalse);
+    await _tap(tester, find.text('Select…'));
+    await _tap(tester, find.text('Use this'));
+    expect(_nextOn(tester), isTrue);
+    await _tap(tester, find.text('Continue'));
 
     expect(find.byType(WhereYouLiveScreen), findsOneWidget);
     await _tap(tester, find.text('Select state'));
-    await tester.scrollUntilVisible(
-      find.text('Lagos'),
-      200,
-      scrollable: find.descendant(
-        of: find.byType(OptionSheet),
-        matching: find.byType(Scrollable),
-      ),
-    );
     await _tap(tester, find.text('Lagos'));
-    expect(_fab(tester), IqNextFabState.disabled);
+    await _tap(tester, find.text('Use this'));
+    expect(_nextOn(tester), isFalse);
     await _tap(tester, find.text('Select city'));
     expect(find.byType(CitySheet), findsOneWidget);
-    expect(find.text('28 CITIES'), findsOneWidget);
     await _tap(tester, find.text('Ikeja'));
     await _tap(tester, find.text('Use this'));
     expect(find.byType(CitySheet), findsNothing);
     expect(find.text('Ikeja'), findsOneWidget);
-    expect(_fab(tester), IqNextFabState.enabled);
-    await _tap(tester, find.byType(IqNextFab));
+    expect(_nextOn(tester), isTrue);
+    await tester.enterText(find.byType(TextField), '+234 803 000 0000');
+    await tester.pumpAndSettle();
+    await _tap(tester, find.text('Continue'));
 
     expect(find.byType(WhereYouStudiedScreen), findsOneWidget);
     await _tap(tester, find.text('Select…'));
     await _tap(tester, find.text('HND / BSc'));
+    await _tap(tester, find.text('Use this'));
     await _tap(tester, find.text('Search universities'));
     expect(find.byType(UniversitySheet), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'Lag');
     await tester.pumpAndSettle();
-    expect(find.text('5 MATCHES'), findsOneWidget);
     await _tap(tester, find.text('University of Lagos'));
     await _tap(tester, find.text('Use this'));
 
     expect(find.byType(WhatYouLikeScreen), findsOneWidget);
     await _tap(tester, find.text('Marketing & advertising'));
-    expect(_fab(tester), IqNextFabState.disabled);
+    expect(_nextOn(tester), isFalse);
     await _tap(tester, find.text('Finance & fintech'));
-    expect(_fab(tester), IqNextFabState.enabled);
-    await _tap(tester, find.byType(IqNextFab));
+    expect(_nextOn(tester), isTrue);
+    await _tap(tester, find.text('Finish'));
 
     expect(find.byType(DoneScreen), findsOneWidget);
     expect(find.text('Nice one, Adaeze'), findsOneWidget);
     expect(prefs.getBool('session.onboardingDone'), isTrue);
+    expect(service.saved?.occupation, 'student');
+    expect(service.saved?.dateOfBirth, isNotNull);
     expect(service.saved?.state, 'Lagos');
     expect(service.saved?.city, 'Ikeja');
+    expect(service.saved?.phone, '+234 803 000 0000');
+    expect(service.saved?.education, 'hnd_bsc');
     expect(service.saved?.university, 'University of Lagos');
     expect(service.saved?.interests, [
       'marketing_advertising',
       'finance_fintech',
     ]);
 
-    await _tap(tester, find.text('Continue'));
+    await _tap(tester, find.text('Go to Discover'));
     expect(find.byType(NotificationsAskScreen), findsOneWidget);
+  });
+
+  testWidgets('under 18 is blocked on About you (480:20079)', (tester) async {
+    await _launch(
+      tester,
+      draft: {
+        ..._aboutYou,
+        'dateOfBirth': '2012-01-01T00:00:00.000',
+        'lastStep': 'aboutYou',
+      },
+    );
+    await _tap(tester, find.text('Continue'));
+    expect(find.byType(AboutYouScreen), findsOneWidget);
+    expect(find.text(AboutYouScreen.underAge), findsOneWidget);
+    expect(find.text('Under 18'), findsOneWidget);
+    expect(_nextOn(tester), isFalse);
+  });
+
+  testWidgets('Add my university opens the one-field page and the typed name '
+      'comes back as the university (480:20477)', (tester) async {
+    await _launch(
+      tester,
+      draft: {
+        ..._aboutYou,
+        'state': 'Lagos',
+        'city': 'Ikeja',
+        'education': 'hnd_bsc',
+        'lastStep': 'whereYouStudied',
+      },
+    );
+    await _tap(tester, find.text('Continue'));
+    expect(find.byType(WhereYouStudiedScreen), findsOneWidget);
+    await _tap(tester, find.text('Search universities'));
+    await tester.enterText(find.byType(TextField), 'Caleb University');
+    await tester.pumpAndSettle();
+    await _tap(tester, find.text('Add my university'));
+    expect(find.byType(AddUniversityScreen), findsOneWidget);
+    expect(find.text('Caleb University'), findsOneWidget);
+    await _tap(tester, find.text('Add it'));
+    expect(find.byType(WhereYouStudiedScreen), findsOneWidget);
+    expect(find.text('Caleb University'), findsOneWidget);
   });
 
   testWidgets('reopening mid-flow lands on Resume', (tester) async {
@@ -156,13 +208,10 @@ void main() {
   });
 
   testWidgets('Start over clears the answers', (tester) async {
-    await _launch(
-      tester,
-      draft: {'occupation': 'student', 'lastStep': 'whereYouLive'},
-    );
+    await _launch(tester, draft: {..._aboutYou, 'lastStep': 'whereYouLive'});
     await _tap(tester, find.text('Start over'));
     expect(find.byType(AboutYouScreen), findsOneWidget);
-    expect(_fab(tester), IqNextFabState.disabled);
+    expect(_nextOn(tester), isFalse);
   });
 
   testWidgets('Skip for now lands on Discover with the setup nudge', (
@@ -180,17 +229,23 @@ void main() {
     expect(find.byType(AboutYouScreen), findsOneWidget);
   });
 
-  testWidgets('skip works on every step', (tester) async {
+  testWidgets('Skip for now opens the next step only, and back returns to '
+      'the opener', (tester) async {
     await _launch(tester);
     await _tap(tester, find.text('Start'));
     for (final screen in [
       AboutYouScreen,
       WhereYouLiveScreen,
-      WhatYouLikeScreen,
+      WhereYouStudiedScreen,
     ]) {
       expect(find.byType(screen), findsOneWidget);
-      await _tap(tester, find.text('Skip'));
+      await _tap(tester, find.text('Skip for now'));
     }
+    expect(find.byType(WhatYouLikeScreen), findsOneWidget);
+    await _tap(tester, find.bySemanticsLabel('Back'));
+    expect(find.byType(WhereYouStudiedScreen), findsOneWidget);
+    await _tap(tester, find.text('Skip for now'));
+    await _tap(tester, find.text('Skip for now'));
     expect(find.byType(DoneScreen), findsOneWidget);
   });
 
@@ -201,7 +256,7 @@ void main() {
     ) async {
       final (prefs, _) = await _launch(
         tester,
-        draft: {'occupation': 'student', 'lastStep': 'whereYouLive', ...draft},
+        draft: {..._aboutYou, 'lastStep': 'whereYouLive', ...draft},
       );
       await _tap(tester, find.text('Continue'));
       expect(find.byType(WhereYouLiveScreen), findsOneWidget);
@@ -229,7 +284,7 @@ void main() {
       expect(
         find.descendant(
           of: find.byType(OptionSheet),
-          matching: find.text('State of residence'),
+          matching: find.text('State'),
         ),
         findsOneWidget,
       );
@@ -253,7 +308,7 @@ void main() {
       expect(find.text('Lagos'), findsOneWidget);
       expect(find.text('Yaba'), findsOneWidget);
       expect(saved(prefs)['city'], 'Yaba');
-      expect(_fab(tester), IqNextFabState.enabled);
+      expect(_nextOn(tester), isTrue);
     });
 
     testWidgets('a city the list does not have is added as typed', (
@@ -263,15 +318,14 @@ void main() {
       await _tap(tester, find.text('Select city'));
 
       expect(_buttonOn(tester, 'Add my city'), isFalse);
-      await tester.enterText(find.byType(TextField), 'ikeja');
+      await tester.enterText(find.byType(TextField).last, 'ikeja');
       await tester.pumpAndSettle();
-      expect(find.text('1 MATCH'), findsOneWidget);
+      expect(find.text('Ikeja'), findsOneWidget);
       expect(_buttonOn(tester, 'Add my city'), isFalse);
 
-      await tester.enterText(find.byType(TextField), ' Ilupeju ');
+      await tester.enterText(find.byType(TextField).last, ' Ilupeju ');
       await tester.pumpAndSettle();
       expect(find.text('No city found.'), findsOneWidget);
-      expect(find.textContaining('MATCH'), findsNothing);
       expect(_buttonOn(tester, 'Add my city'), isTrue);
       await _tap(tester, find.text('Add my city'));
 
@@ -288,31 +342,25 @@ void main() {
         'city': 'Ilupeju',
       });
       expect(find.text('Ilupeju'), findsOneWidget);
-      expect(_fab(tester), IqNextFabState.enabled);
+      expect(_nextOn(tester), isTrue);
 
       final inSheet = find.descendant(
         of: find.byType(OptionSheet),
         matching: find.text('Lagos'),
       );
       await _tap(tester, find.text('Lagos'));
-      await tester.scrollUntilVisible(
-        inSheet,
-        200,
-        scrollable: sheetList(OptionSheet),
-      );
       await _tap(tester, inSheet);
+      await _tap(tester, find.text('Use this'));
       expect(find.text('Ilupeju'), findsOneWidget);
 
       await _tap(tester, find.text('Lagos'));
-      await tester.scrollUntilVisible(
-        find.text('Ogun'),
-        200,
-        scrollable: sheetList(OptionSheet),
-      );
-      await _tap(tester, find.text('Ogun'));
+      await tester.enterText(find.byType(TextField).last, 'Ogun');
+      await tester.pumpAndSettle();
+      await _tap(tester, find.text('Ogun', findRichText: true).last);
+      await _tap(tester, find.text('Use this'));
       expect(find.text('Select city'), findsOneWidget);
       expect(saved(prefs)['city'], '');
-      expect(_fab(tester), IqNextFabState.disabled);
+      expect(_nextOn(tester), isFalse);
     });
 
     testWidgets('reduced motion: the sheet and the values arrive in place', (

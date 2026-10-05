@@ -11,6 +11,8 @@ class OnboardingProfile {
     this.education,
     this.university,
     this.interests = const [],
+    this.dateOfBirth,
+    this.phone = '',
   });
 
   final String? occupation;
@@ -19,6 +21,12 @@ class OnboardingProfile {
   final String? education;
   final String? university;
   final List<String> interests;
+
+  /// Collected on About you; under 18 is blocked there (answers 10 and 17).
+  final DateTime? dateOfBirth;
+
+  /// Optional until the first withdrawal (answer 17).
+  final String phone;
 
   /// Keeps every field the change does not name, so an edit to one answer
   /// never drops another.
@@ -29,6 +37,8 @@ class OnboardingProfile {
     String? education,
     String? university,
     List<String>? interests,
+    DateTime? dateOfBirth,
+    String? phone,
   }) => OnboardingProfile(
     occupation: occupation ?? this.occupation,
     state: state ?? this.state,
@@ -36,6 +46,8 @@ class OnboardingProfile {
     education: education ?? this.education,
     university: university ?? this.university,
     interests: interests ?? this.interests,
+    dateOfBirth: dateOfBirth ?? this.dateOfBirth,
+    phone: phone ?? this.phone,
   );
 }
 

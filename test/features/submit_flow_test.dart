@@ -182,11 +182,11 @@ void main() {
       expect(find.byType(SubmissionDetailScreen), findsOneWidget);
       expect(find.text(SubmitCopy.title), findsOneWidget);
       expect(find.text('Under review'), findsOneWidget);
-      expect(find.text('Just now'), findsOneWidget);
+      expect(find.textContaining('Sent just now'), findsOneWidget);
 
       await _tap(tester, find.bySemanticsLabel('Back'));
       expect(find.byType(MySubmissionsScreen), findsOneWidget);
-      expect(find.text('6 sent · 3 under review'), findsOneWidget);
+      expect(find.text('Under review · 3'), findsOneWidget);
       expect(find.text(SubmitCopy.title), findsOneWidget);
     },
   );
@@ -221,6 +221,10 @@ void main() {
     }
     expect(find.text('View the brief'), findsOneWidget);
     expect(find.text('Under review'), findsOneWidget);
+
+    await _tap(tester, find.bySemanticsLabel('Back'));
+    expect(find.text('Under review · 3'), findsOneWidget);
+    expect(find.text(SubmitCopy.title), findsOneWidget);
   });
 
   testWidgets('B4: a cold open of a submission waits behind the skeleton', (

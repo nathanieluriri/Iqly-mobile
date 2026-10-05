@@ -6,13 +6,11 @@ import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../theme/theme.dart';
+import '../../ui/banner.dart';
 import '../../ui/button.dart';
 import '../../ui/field.dart';
-import '../../ui/next_fab.dart';
-import '../../ui/icon.dart';
 import '../../ui/pressable.dart';
 import '../../ui/step_mark.dart';
-import '../../ui/step_mark_ring.dart';
 import '../../ui/top_bar.dart';
 
 void goBack(BuildContext context, String fallback) {
@@ -56,6 +54,14 @@ class EntryInput {
   /// A failed submit: [message] under the field, a shake and a buzz.
   void fail(String message) {
     _error.value = message;
+    _fails.value++;
+    errorHaptic();
+  }
+
+  /// A submit with this field still empty: focus, a shake and a buzz, no
+  /// words (the B0 frames show the button live while a field is empty).
+  void nudge() {
+    focus.requestFocus();
     _fails.value++;
     errorHaptic();
   }
@@ -135,13 +141,12 @@ class EntryField extends StatelessWidget {
   }
 }
 
-/// The B0 step layout: Page top bar, content from 24 below it, and the
+/// The B0 page layout: Page top bar, content from 24 below it, and the
 /// action bar pinned above the home indicator (and the keyboard).
 ///
 /// Motion (MOTION-SPEC 4.1, 4.3): the back button holds still across a push
-/// between two of these screens while the bar's title crossfades (out over
-/// 0 to 120 ms, in over 60 to 240); the step mark and the next button are
-/// chrome too (see [EntryStepMark] and [NextBar]). With [settle] the
+/// between two of these screens; the step mark and the action button are
+/// chrome too (see [StepMarkChrome] and [EntryAction]). With [settle] the
 /// content items (wrapped in StaggerItem) rise 8 into place 40 apart as
 /// the page arrives (spec 1.3); a moment instead scripts its [entrance]
 /// with Beats. Neither replays on a page come back to.
@@ -155,9 +160,13 @@ class EntryScaffold extends StatelessWidget {
     this.hasFields = true,
     this.settle = false,
     this.entrance,
+    this.showBack = true,
   });
 
   final VoidCallback onBack;
+
+  /// Reset link sent draws its Page bar with the back layer hidden.
+  final bool showBack;
   final List<Widget> children;
   final String title;
   final Widget? action;
@@ -201,6 +210,7 @@ class EntryScaffold extends StatelessWidget {
                 IqTopBar(
                   variant: IqTopBarVariant.page,
                   title: title,
+                  showBack: showBack,
                   onBack: onBack,
                 ),
                 Expanded(
@@ -224,44 +234,43 @@ class EntryScaffold extends StatelessWidget {
   }
 }
 
-/// A B0 step mark, chrome that morphs across a push (spec 4.1).
-class EntryStepMark extends StatelessWidget {
-  const EntryStepMark({
-    super.key,
-    required this.step,
-    required this.icon,
-    this.swingIcon = false,
-  });
+/// Exp/StepMark as chrome: it holds its place across a push between two
+/// steps while the arriving step's bars fade over the leaving ones.
+class StepMarkChrome extends StatelessWidget {
+  const StepMarkChrome({super.key, required this.step});
 
   final IqStepMarkStep step;
-  final IqIcons icon;
-  final bool swingIcon;
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: ChromeHero(
-        tag: ChromeTags.stepMark,
-        shuttle: IqStepMarkRing.shuttle,
-        child: IqStepMarkRing(step: step, icon: icon, swingIcon: swingIcon),
+    return ChromeHero(
+      tag: ChromeTags.stepMark,
+      shuttle: (context, progress, from, to) => Stack(
+        children: [
+          from,
+          FadeTransition(
+            opacity: progress.drive(CurveTween(curve: IqCurves.easeOut)),
+            child: to,
+          ),
+        ],
       ),
+      child: IqStepMark(step: step),
     );
   }
 }
 
-/// The next button at the foot of a B0 step, chrome that holds still across
-/// a push and crossfades to the arriving step's look; [loading] while the
-/// step's call is in flight.
-class NextBar extends StatelessWidget {
-  const NextBar({
+/// The primary button in a B0 action bar (88 pt: 12 over it, 24 under),
+/// chrome that holds still across a push while its label crosses to the
+/// arriving page's; [loading] while the page's call is in flight.
+class EntryAction extends StatelessWidget {
+  const EntryAction({
     super.key,
-    required this.enabled,
+    required this.label,
     required this.onTap,
     this.loading = false,
   });
 
-  final bool enabled;
+  final String label;
   final VoidCallback onTap;
   final bool loading;
 
@@ -274,23 +283,57 @@ class NextBar extends StatelessWidget {
         IqSpace.s4,
         IqSpace.s6,
       ),
-      child: Align(
-        alignment: Alignment.centerRight,
-        child: ChromeHero(
-          tag: ChromeTags.next,
-          shuttle: ChromeHero.crossfade(IqNextFab.lit),
-          child: IqNextFab(
-            state: enabled ? IqNextFabState.enabled : IqNextFabState.disabled,
-            loading: loading,
-            onTap: onTap,
-          ),
+      child: ChromeHero(
+        tag: ChromeTags.next,
+        child: IqButton(
+          label: label,
+          showIcon: false,
+          width: double.infinity,
+          loading: loading,
+          onTap: onTap,
         ),
       ),
     );
   }
 }
 
-/// Primary over ghost, 8 apart, 12 from the home indicator.
+/// A ghost action on its Figma 44 pt slot: the 52 pt pill keeps its text
+/// centred where the frame draws it.
+class GhostAction extends StatelessWidget {
+  const GhostAction({
+    super.key,
+    required this.label,
+    required this.onTap,
+    this.loading = false,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final bool loading;
+
+  static const double height = 44;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: height,
+      child: OverflowBox(
+        maxHeight: IqButton.defaultHeight,
+        child: IqButton(
+          label: label,
+          kind: IqButtonKind.ghost,
+          showIcon: false,
+          width: double.infinity,
+          loading: loading,
+          onTap: onTap,
+        ),
+      ),
+    );
+  }
+}
+
+/// Primary over a 44 pt ghost, 8 apart, on the home indicator (B0
+/// 227:11209, 227:11263).
 class EntryButtons extends StatelessWidget {
   const EntryButtons({
     super.key,
@@ -299,7 +342,6 @@ class EntryButtons extends StatelessWidget {
     required this.ghost,
     required this.onGhost,
     this.primaryLoading = false,
-    this.primaryDisabled = false,
     this.ghostLoading = false,
   });
 
@@ -308,14 +350,12 @@ class EntryButtons extends StatelessWidget {
   final String ghost;
   final VoidCallback onGhost;
   final bool primaryLoading;
-  final bool primaryDisabled;
   final bool ghostLoading;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(IqSpace.s3)
-          .copyWith(left: IqSpace.s4, right: IqSpace.s4),
+      padding: const EdgeInsets.fromLTRB(IqSpace.s4, IqSpace.s3, IqSpace.s4, 0),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -324,18 +364,10 @@ class EntryButtons extends StatelessWidget {
             showIcon: false,
             width: double.infinity,
             loading: primaryLoading,
-            disabled: primaryDisabled,
             onTap: onPrimary,
           ),
           const SizedBox(height: IqSpace.s2),
-          IqButton(
-            label: ghost,
-            kind: IqButtonKind.ghost,
-            showIcon: false,
-            width: double.infinity,
-            loading: ghostLoading,
-            onTap: onGhost,
-          ),
+          GhostAction(label: ghost, loading: ghostLoading, onTap: onGhost),
         ],
       ),
     );
@@ -417,6 +449,48 @@ class LinkRow extends StatelessWidget {
         const SizedBox(width: IqSpace.s1p5),
         EntryLink(label: link, onTap: onTap),
       ],
+    );
+  }
+}
+
+/// An Exp/Banner Error in a B0 page's content (480:19882): it opens with
+/// [margin] above it while [message] is set and folds away when cleared.
+class EntryBanner extends StatefulWidget {
+  const EntryBanner({
+    super.key,
+    required this.message,
+    this.action,
+    this.onAction,
+    this.margin = const EdgeInsets.only(top: IqSpace.s4),
+  });
+
+  final String? message;
+  final String? action;
+  final VoidCallback? onAction;
+  final EdgeInsetsGeometry margin;
+
+  @override
+  State<EntryBanner> createState() => _EntryBannerState();
+}
+
+class _EntryBannerState extends State<EntryBanner> {
+  late String _last = widget.message ?? '';
+
+  @override
+  Widget build(BuildContext context) {
+    final message = widget.message;
+    if (message != null) _last = message;
+    return Semantics(
+      liveRegion: true,
+      child: IqBanner(
+        kind: IqBannerKind.error,
+        title: _last,
+        action: widget.action,
+        showAction: widget.action != null,
+        onAction: widget.onAction,
+        visible: message != null,
+        margin: widget.margin,
+      ),
     );
   }
 }

@@ -14,6 +14,7 @@ import '../../ui/list_row.dart';
 import '../../ui/share_card.dart';
 import '../../ui/share_target.dart';
 import '../../ui/top_bar.dart';
+import '../submissions/row_card.dart';
 import 'outcomes_state.dart';
 import 'result_screen.dart';
 
@@ -140,18 +141,6 @@ class _ShareSheetState extends ConsumerState<ShareSheet> {
                               ),
                             ),
                             const SizedBox(height: IqSpace.s4),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: IqSpace.s4,
-                              ),
-                              child: Text(
-                                'Share to'.toUpperCase(),
-                                style: IqText.mono.copyWith(
-                                  color: IqColors.fg2,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: IqSpace.s4),
                             Center(
                               child: SizedBox(
                                 width:
@@ -180,25 +169,27 @@ class _ShareSheetState extends ConsumerState<ShareSheet> {
                               padding: const EdgeInsets.symmetric(
                                 horizontal: IqSpace.s4,
                               ),
-                              child: Column(
-                                children: [
-                                  if (link != null)
+                              child: RowCard(
+                                child: Column(
+                                  children: [
+                                    if (link != null)
+                                      IqListRow(
+                                        label: 'Copy link',
+                                        icon: IqIcons.link,
+                                        showDescription: false,
+                                        showChevron: false,
+                                        onTap: () => _copy(link),
+                                      ),
                                     IqListRow(
-                                      label: 'Copy link',
-                                      icon: IqIcons.link,
+                                      label: 'Save image',
+                                      icon: IqIcons.download,
                                       showDescription: false,
                                       showChevron: false,
-                                      onTap: () => _copy(link),
+                                      divider: false,
+                                      onTap: () => _save(data),
                                     ),
-                                  IqListRow(
-                                    label: 'Save image',
-                                    icon: IqIcons.download,
-                                    showDescription: false,
-                                    showChevron: false,
-                                    divider: false,
-                                    onTap: () => _save(data),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ],

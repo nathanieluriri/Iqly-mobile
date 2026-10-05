@@ -76,13 +76,15 @@ void main() {
     expect(c.read(sessionProvider).firstName, 'Tolu');
   });
 
-  testWidgets('a known email signs in, through a password reset', (
-    tester,
-  ) async {
+  testWidgets('a known email signs in from the banner, through a password '
+      'reset', (tester) async {
     final c = await _boot(tester);
     await tester.enterText(find.byType(IqBoxField), 'adaeze@example.com');
     await tester.pumpAndSettle();
     await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    expect(find.byType(LandingScreen), findsOneWidget);
+    await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();
     expect(find.byType(SignInScreen), findsOneWidget);
     expect(find.text('adaeze@example.com'), findsOneWidget);
@@ -169,6 +171,31 @@ void main() {
     expect(device.opened, [LegalLinks.privacy]);
   });
 
+  testWidgets('an invite link signs up with the code (485:39127)', (
+    tester,
+  ) async {
+    final auth = _InviteAuth();
+    final c = await bootApp(tester, auth: auth);
+    c.read(routerProvider).go('/invite/CHIDI7');
+    await tester.pumpAndSettle();
+    expect(find.byType(LandingScreen), findsOneWidget);
+    await tester.enterText(find.byType(IqBoxField), 'tolu@example.com');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Invited by Chidi A. · code CHIDI7 added'),
+      findsOneWidget,
+    );
+    await _typeInto(tester, 0, 'Tolu');
+    await _typeInto(tester, 1, 'Bello');
+    await _next(tester);
+    await _typeInto(tester, 0, 'longenough');
+    await _next(tester);
+    expect(find.byType(WelcomeScreen), findsOneWidget);
+    expect(auth.inviteCode, 'CHIDI7');
+  });
+
   testWidgets('back from the notifications ask returns to onboarding Done', (
     tester,
   ) async {
@@ -178,7 +205,7 @@ void main() {
       start: Routes.onboardingDone,
     );
     expect(find.byType(DoneScreen), findsOneWidget);
-    await tester.tap(find.text('Continue'));
+    await tester.tap(find.text('Go to Discover'));
     await tester.pumpAndSettle();
     expect(find.byType(NotificationsAskScreen), findsOneWidget);
     await tester.tap(find.bySemanticsLabel('Back'));
@@ -186,4 +213,28 @@ void main() {
     expect(find.byType(DoneScreen), findsOneWidget);
     await tester.pump(const Duration(seconds: 1));
   });
+}
+
+class _InviteAuth extends DemoAuthService {
+  _InviteAuth() : super(delay: Duration.zero);
+
+  String? inviteCode;
+
+  @override
+  Future<AuthResult> signUp({
+    required String firstName,
+    required String lastName,
+    required String email,
+    required String password,
+    String? inviteCode,
+  }) {
+    this.inviteCode = inviteCode;
+    return super.signUp(
+      firstName: firstName,
+      lastName: lastName,
+      email: email,
+      password: password,
+      inviteCode: inviteCode,
+    );
+  }
 }

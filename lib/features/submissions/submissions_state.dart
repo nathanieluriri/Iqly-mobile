@@ -1,48 +1,51 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/deadline.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
 
 /// A submission with the brief it answers and, for a winner, the award the
-/// ledger paid for it.
+/// ledger paid for it and when.
 class SubmissionItem {
   const SubmissionItem({
     required this.submission,
     required this.brief,
     this.awardKobo,
+    this.awardedAt,
   });
 
   final Submission submission;
   final Brief? brief;
   final int? awardKobo;
+  final DateTime? awardedAt;
 
   String get id => submission.id;
   SubmissionStatus get status => submission.status;
   bool get underReview =>
       status == SubmissionStatus.pending || status == SubmissionStatus.scored;
 
-  /// "Brief title · Business", or the title alone when the business is
-  /// anonymous.
+  /// "Business · brief title", or the title alone when the business is
+  /// anonymous (324:14478).
   String get briefLine {
     final b = brief;
     if (b == null) return '';
     final business = b.businessName;
-    return business == null ? b.title : '${b.title} · $business';
+    return business == null ? b.title : '$business · ${b.title}';
   }
 }
 
-/// The three groups of the list, in the order the frame shows them.
-enum SubmissionGroup {
+/// The Segmented lenses of My submissions, in Figma order.
+enum SubmissionsTab {
   underReview('Under review'),
-  winner('Winner'),
+  winners('Winners'),
   notSelected('Not selected');
 
-  const SubmissionGroup(this.title);
-  final String title;
+  const SubmissionsTab(this.label);
+  final String label;
 
-  static SubmissionGroup of(SubmissionStatus status) => switch (status) {
+  static SubmissionsTab of(SubmissionStatus status) => switch (status) {
     SubmissionStatus.pending || SubmissionStatus.scored => underReview,
-    SubmissionStatus.winner => winner,
+    SubmissionStatus.winner => winners,
     SubmissionStatus.filteredOut => notSelected,
   };
 }
@@ -67,15 +70,14 @@ class MySubmissions {
   static int _newestFirst(SubmissionItem a, SubmissionItem b) =>
       b.submission.createdAt.compareTo(a.submission.createdAt);
 
-  int get underReviewCount => items.where((i) => i.underReview).length;
+  List<SubmissionItem> of(SubmissionsTab tab) =>
+      items.where((i) => SubmissionsTab.of(i.status) == tab).toList();
 
-  List<SubmissionItem> group(SubmissionGroup group) =>
-      items.where((i) => SubmissionGroup.of(i.status) == group).toList();
+  int count(SubmissionsTab tab) => of(tab).length;
 
-  String get greeting {
-    if (items.isEmpty) return '0 sent';
-    return '${items.length} sent · $underReviewCount under review';
-  }
+  /// What the wins paid, in kobo.
+  int get wonKobo =>
+      of(SubmissionsTab.winners).fold(0, (sum, i) => sum + (i.awardKobo ?? 0));
 }
 
 /// The submissions sent in this session, newest first. A send hands its
@@ -98,7 +100,8 @@ final sentSubmissionsProvider =
     );
 
 /// The contributor's submissions, with the ones sent this session in place
-/// from the moment they are sent.
+/// from the moment they are sent. Kept for the session: a later visit shows
+/// what it has and [refreshQuietly] loads behind it.
 class MySubmissionsNotifier extends AsyncNotifier<MySubmissions> {
   @override
   Future<MySubmissions> build() async {
@@ -114,34 +117,52 @@ class MySubmissionsNotifier extends AsyncNotifier<MySubmissions> {
       repo.ledger(),
     ).wait;
     final byId = {for (final b in briefs) b.id: b};
-    final awards = <String, int>{
+    final awards = <String, LedgerEntry>{
       for (final l in ledger)
         if (l.type == LedgerType.award && l.submissionId != null)
-          l.submissionId!: l.amountKobo,
+          l.submissionId!: l,
     };
     final items = [
       for (final s in submissions)
         SubmissionItem(
           submission: s,
           brief: byId[s.briefId],
-          awardKobo: awards[s.id],
+          awardKobo: awards[s.id]?.amountKobo,
+          awardedAt: awards[s.id]?.createdAt,
         ),
     ]..sort(MySubmissions._newestFirst);
     return MySubmissions(items).including(ref.read(sentSubmissionsProvider));
+  }
+
+  /// Loads again behind the list on screen; a failure keeps the list.
+  void refreshQuietly() {
+    if (state.hasValue) ref.invalidateSelf();
   }
 }
 
 /// No automatic retry: the failed state offers "Try again".
 final mySubmissionsProvider =
-    AsyncNotifierProvider.autoDispose<MySubmissionsNotifier, MySubmissions>(
+    AsyncNotifierProvider<MySubmissionsNotifier, MySubmissions>(
       MySubmissionsNotifier.new,
       retry: (_, _) => null,
     );
 
+/// The lens My submissions shows; it stays put across visits.
+class SubmissionsTabNotifier extends Notifier<SubmissionsTab> {
+  @override
+  SubmissionsTab build() => SubmissionsTab.underReview;
+
+  void select(SubmissionsTab tab) => state = tab;
+}
+
+final submissionsTabProvider =
+    NotifierProvider<SubmissionsTabNotifier, SubmissionsTab>(
+      SubmissionsTabNotifier.new,
+    );
+
 /// Taken from the loaded list, or from the ones just sent, at once when
-/// either has it, so a detail pushed from a row or from the sent moment
-/// draws from its first frame (and a row's status can fly in). Only a cold
-/// open waits for the load.
+/// either has it, so a detail pushed from a card or from the sent moment
+/// draws from its first frame. Only a cold open waits for the load.
 final submissionItemProvider = FutureProvider.autoDispose
     .family<SubmissionItem?, String>((ref, id) {
       SubmissionItem? pick(MySubmissions all) =>
@@ -155,3 +176,40 @@ final submissionItemProvider = FutureProvider.autoDispose
       if (sent != null) return sent;
       return ref.watch(mySubmissionsProvider.future).then(pick);
     });
+
+/// Live briefs not answered yet, soonest to close first.
+Future<List<Brief>> openBriefs(Ref ref) async {
+  final (briefs, mine) = await (
+    ref.watch(repositoryProvider).briefs(),
+    ref.watch(mySubmissionsProvider.future),
+  ).wait;
+  final answered = {for (final i in mine.items) i.submission.briefId};
+  return [
+    for (final b in briefs)
+      if (b.isLive && !answered.contains(b.id)) b,
+  ]..sort((a, b) {
+    final ad = a.deadline, bd = b.deadline;
+    if (ad == null || bd == null) return ad == null ? 1 : -1;
+    return ad.compareTo(bd);
+  });
+}
+
+/// "Try another brief" under Not selected (324:14520): two open briefs, the
+/// business that passed on you first, then the soonest to close among the
+/// ones with two days or more to go.
+final tryAnotherBriefsProvider = FutureProvider.autoDispose<List<Brief>>((
+  ref,
+) async {
+  final open = await openBriefs(ref);
+  final mine = await ref.watch(mySubmissionsProvider.future);
+  final passed = {
+    for (final i in mine.of(SubmissionsTab.notSelected)) ?i.brief?.businessName,
+  };
+  final now = ref.watch(clockProvider)();
+  bool roomy(Brief b) =>
+      b.deadline == null ||
+      b.deadline!.difference(now) >= DeadlineRules.closingSoonOutline;
+  final same = open.where((b) => passed.contains(b.businessName));
+  final rest = open.where((b) => !passed.contains(b.businessName) && roomy(b));
+  return [...same, ...rest].take(2).toList();
+});

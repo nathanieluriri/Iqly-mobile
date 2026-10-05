@@ -12,9 +12,6 @@ import 'package:iqly_mobile/features/entry/landing_screen.dart';
 import 'package:iqly_mobile/features/onboarding/done_screen.dart';
 import 'package:iqly_mobile/theme/theme.dart';
 import 'package:iqly_mobile/ui/box_field.dart';
-import 'package:iqly_mobile/ui/icon.dart';
-import 'package:iqly_mobile/ui/step_mark.dart';
-import 'package:iqly_mobile/ui/step_mark_ring.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'golden.dart';
@@ -74,33 +71,6 @@ void main() {
       await expectMatchesGolden(
         find.byType(MaterialApp),
         'goldens/motion_landing_focus_${_at(ms)}.png',
-      );
-    });
-
-    testWidgets('the step mark morph at $ms', (tester) async {
-      tester.view.physicalSize = const Size(112, 76);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
-      Widget mark(IqStepMarkStep step, IqIcons icon) => MaterialApp(
-        theme: buildTheme(),
-        debugShowCheckedModeBanner: false,
-        home: Scaffold(
-          backgroundColor: IqColors.bg,
-          body: Padding(
-            padding: const EdgeInsets.all(IqSpace.s4),
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: IqStepMarkRing(step: step, icon: icon),
-            ),
-          ),
-        ),
-      );
-      await tester.pumpWidget(mark(IqStepMarkStep.oneOfThree, IqIcons.profile));
-      await tester.pumpWidget(mark(IqStepMarkStep.twoOfThree, IqIcons.pin));
-      await _frames(tester, ms);
-      await expectMatchesGolden(
-        find.byType(MaterialApp),
-        'goldens/motion_step_mark_${_at(ms)}.png',
       );
     });
 

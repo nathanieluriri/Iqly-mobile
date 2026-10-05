@@ -7,7 +7,6 @@ import '../../data/reference_data.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/chip.dart';
-import '../../ui/icon.dart';
 import '../../ui/step_mark.dart';
 import 'onboarding_draft.dart';
 import 'onboarding_layout.dart';
@@ -31,7 +30,7 @@ const interestChipLabels = {
 };
 
 /// B11 · Step 3 · What you like (188:8390): interests order the feed.
-/// Finish stays disabled under two picks.
+/// Finish stays off under two picks; Skip for now goes on to Done.
 class WhatYouLikeScreen extends ConsumerWidget {
   const WhatYouLikeScreen({super.key});
 
@@ -43,13 +42,9 @@ class WhatYouLikeScreen extends ConsumerWidget {
     final draft = ref.read(onboardingDraftProvider.notifier);
     return OnboardingStepScaffold(
       step: IqStepMarkStep.threeOfThree,
-      icon: IqIcons.discover,
-      saved: interests.isNotEmpty,
-      answer: interests.join(','),
       title: 'What are you into?',
       caption: 'Pick at least ${OnboardingDraft.minInterests}',
-      onBack: () =>
-          goToStep(context, ref, OnboardingStep.whereYouStudied, back: true),
+      onBack: () => leaveStep(context, Routes.onboardingWhereYouStudied),
       onSkip: () => _finish(context),
       onNext: () => _finish(context),
       nextEnabled: interests.length >= OnboardingDraft.minInterests,

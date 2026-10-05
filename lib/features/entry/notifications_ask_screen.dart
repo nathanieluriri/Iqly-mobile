@@ -7,16 +7,15 @@ import '../../core/transitions.dart';
 import '../../data/device.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
-import '../../ui/icon.dart';
-import '../../ui/step_mark.dart';
+import '../../ui/illustration.dart';
 import 'entry_widgets.dart';
 
-/// B0 Notifications (227:11263), reached from onboarding Done. Both answers
-/// land on Discover, where the first tip shows once.
+/// B0 Notifications (227:11263), reached from onboarding Done. Turn on asks
+/// the phone, whose own prompt is 484:23576 (answer 25); either answer, and
+/// Not now, land on Discover, where the first tip shows once.
 ///
-/// Motion (MOTION-SPEC 6.9): it pushes in from Done; at +200 the bell in the
-/// step mark's ring swings once (480 ms, pivoting at its top) as the title
-/// settles. Reduced motion: no swing.
+/// Motion (MOTION-SPEC 6.9): it pushes in from Done as the title settles and
+/// the Point figure rises in.
 class NotificationsAskScreen extends ConsumerStatefulWidget {
   const NotificationsAskScreen({super.key});
 
@@ -28,6 +27,9 @@ class NotificationsAskScreen extends ConsumerStatefulWidget {
 class _NotificationsAskScreenState
     extends ConsumerState<NotificationsAskScreen> {
   bool _asking = false;
+
+  /// Figma keeps the hidden step mark's 44 pt slot over the title.
+  static const double _stepSlot = 44;
 
   Future<void> _turnOn() async {
     if (_asking) return;
@@ -50,15 +52,22 @@ class _NotificationsAskScreenState
         onGhost: () => context.go(Routes.home),
       ),
       children: [
-        EntryStepMark(
-          step: IqStepMarkStep.single,
-          icon: IqIcons.bell,
-          swingIcon: arrivalOf(context) == NavDirection.forward,
-        ),
-        const SizedBox(height: IqSpace.s4),
+        const SizedBox(height: _stepSlot + IqSpace.s4),
         const StaggerItem(
           index: 0,
           child: EntryTitle('Never miss a brief closing'),
+        ),
+        const SizedBox(height: IqSpace.s4),
+        SizedBox(
+          height: 252,
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: IqFigure(
+              IqFigures.point,
+              width: 207.06,
+              arrive: arrivalOf(context) == NavDirection.forward,
+            ),
+          ),
         ),
       ],
     );

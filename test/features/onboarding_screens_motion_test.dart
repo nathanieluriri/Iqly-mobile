@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/app.dart';
@@ -18,11 +17,10 @@ import 'package:iqly_mobile/features/onboarding/where_you_live_screen.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/theme/theme.dart';
 import 'package:iqly_mobile/ui/button.dart';
+import 'package:iqly_mobile/ui/brief_card.dart';
 import 'package:iqly_mobile/ui/illustration.dart';
-import 'package:iqly_mobile/ui/next_fab.dart';
 import 'package:iqly_mobile/ui/option_row.dart';
-import 'package:iqly_mobile/ui/step_mark_ring.dart';
-import 'package:iqly_mobile/ui/ticket_card.dart';
+import 'package:iqly_mobile/ui/step_mark.dart';
 import 'package:iqly_mobile/ui/top_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -36,7 +34,6 @@ const _keyboard = 336.0;
 
 double _eo(double t) => IqCurves.easeOut.transform(t);
 double _ei(double t) => IqCurves.easeIn.transform(t);
-double _eio(double t) => IqCurves.easeInOut.transform(t);
 
 class _NoSave implements OnboardingService {
   @override
@@ -98,23 +95,6 @@ double _opacity(WidgetTester tester, Finder finder) {
   return opacity;
 }
 
-final _shuttle = find.byWidgetPredicate(
-  (w) => w.runtimeType.toString() == '_Morph',
-);
-
-List<double> _slots(WidgetTester tester, Finder mark) {
-  final row = tester.renderObject<RenderFlex>(
-    find.descendant(of: mark, matching: find.byType(Row)).first,
-  );
-  final widths = <double>[];
-  var child = row.firstChild;
-  while (child != null) {
-    if (child.size.height == IqStepMarkRing.ring) widths.add(child.size.width);
-    child = (child.parentData! as FlexParentData).nextSibling;
-  }
-  return widths;
-}
-
 Future<void> _playTo(WidgetTester tester, Duration at) async {
   await tester.pump();
   await tester.pump();
@@ -132,8 +112,17 @@ double _top(WidgetTester tester, String label) =>
 bool _on(WidgetTester tester, String label) =>
     !tester.widget<IqButton>(find.widgetWithText(IqButton, label)).disabled;
 
-const _studied = {
+const _aboutYou = {
   'occupation': 'student',
+  'dateOfBirth': '2004-03-12T00:00:00.000',
+};
+
+final _primary = find.byWidgetPredicate(
+  (w) => w is IqButton && w.kind == IqButtonKind.primary,
+);
+
+const _studied = {
+  ..._aboutYou,
   'state': 'Lagos',
   'city': 'Yaba',
   'education': 'hnd_bsc',
@@ -146,33 +135,28 @@ void main() {
 
   group('one question per screen (spec 4.1)', () {
     testWidgets(
-      'About you to Where you live: back, Skip and the next button hold, '
-      'the mark morphs, the question rides the push, the control trails',
+      'About you to Where you live: back, the step mark, Continue and Skip '
+      'hold, the question rides the push, the control trails',
       (tester) async {
         final haptics = recordHaptics(tester);
         await _open(
           tester,
           Routes.onboardingAboutYou,
-          draft: {'occupation': 'student', 'lastStep': 'aboutYou'},
+          draft: {..._aboutYou, 'lastStep': 'aboutYou'},
         );
         await tester.pumpAndSettle();
         final back = tester.getTopLeft(find.byType(IqTopBar));
-        final mark = tester.getTopLeft(find.byType(IqStepMarkRing));
-        final skip = tester.getTopLeft(find.text('Skip'));
-        final next = tester.getTopLeft(find.byType(IqNextFab));
+        final mark = tester.getTopLeft(find.byType(IqStepMark));
+        final skip = tester.getTopLeft(find.text('Skip for now'));
+        final next = tester.getTopLeft(_primary);
         final question = tester.getTopLeft(find.text('What do you do?')).dx;
 
-        await tester.tap(find.byType(IqNextFab));
+        await tester.tap(_primary);
         await _playTo(tester, _ms * 150);
         expect(tester.getTopLeft(find.byType(IqTopBar).last), back);
-        expect(tester.getTopLeft(_shuttle.last), mark);
-        final grown = 6 + 38 * _eio(0.5);
-        final slots = _slots(tester, _shuttle.last);
-        expect(slots[0], closeTo(50 - grown, 0.01));
-        expect(slots[1], closeTo(grown, 0.01));
-        expect(slots[2], 6);
-        expect(tester.getTopLeft(find.text('Skip').last), skip);
-        expect(tester.getTopLeft(find.byType(IqNextFab).last), next);
+        expect(tester.getTopLeft(find.byType(IqStepMark).last), mark);
+        expect(tester.getTopLeft(find.text('Skip for now').last), skip);
+        expect(tester.getTopLeft(_primary.last), next);
         expect(
           tester.getTopLeft(find.text('What do you do?')).dx,
           closeTo(question - 24 * _ei(0.5), 0.5),
@@ -190,7 +174,10 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.byType(WhereYouLiveScreen), findsOneWidget);
         expect(find.byType(AboutYouScreen), findsNothing);
-        expect(_slots(tester, find.byType(IqStepMarkRing)), [6, 44, 6]);
+        expect(
+          tester.widget<IqStepMark>(find.byType(IqStepMark)).step,
+          IqStepMarkStep.twoOfThree,
+        );
         const lag = 40 / 300;
         final own = _eo((0.5 - lag) / (1 - lag));
         expect(midTrail - trail(), closeTo(24 * (_eo(0.5) - own), 0.5));
@@ -199,11 +186,11 @@ void main() {
     );
 
     testWidgets('back mirrors it: the earlier step comes in from the left '
-        'over 240, the mark morphing back', (tester) async {
+        'over 240', (tester) async {
       await _open(
         tester,
         Routes.onboardingWhereYouLive,
-        draft: {'occupation': 'student', 'lastStep': 'whereYouLive'},
+        draft: {..._aboutYou, 'lastStep': 'whereYouLive'},
       );
       await tester.pumpAndSettle();
       final question = tester.getTopLeft(find.text('Where do you live?')).dx;
@@ -217,13 +204,12 @@ void main() {
         tester.getTopLeft(find.text('Where do you live?')).dx,
         closeTo(question + 24 * _ei(0.5), 0.5),
       );
-      final grown = 6 + 38 * _eio(0.5);
-      final slots = _slots(tester, _shuttle.last);
-      expect(slots[0], closeTo(grown, 0.01));
-      expect(slots[1], closeTo(50 - grown, 0.01));
       await tester.pumpAndSettle();
       expect(find.byType(AboutYouScreen), findsOneWidget);
-      expect(_slots(tester, find.byType(IqStepMarkRing)), [44, 6, 6]);
+      expect(
+        tester.widget<IqStepMark>(find.byType(IqStepMark)).step,
+        IqStepMarkStep.oneOfThree,
+      );
     });
 
     testWidgets('reduced motion: the next step crossfades in place, its mark '
@@ -231,18 +217,17 @@ void main() {
       await _open(
         tester,
         Routes.onboardingAboutYou,
-        draft: {'occupation': 'student', 'lastStep': 'aboutYou'},
+        draft: {..._aboutYou, 'lastStep': 'aboutYou'},
         reduced: true,
       );
       await tester.pumpAndSettle();
       final question = tester.getTopLeft(find.text('What do you do?')).dx;
-      await tester.tap(find.byType(IqNextFab));
+      await tester.tap(_primary);
       await _playTo(tester, _ms * 75);
       final title = find.text('Where do you live?');
       expect(tester.getTopLeft(title).dx, question);
       expect(_opacity(tester, title), closeTo(_eo(0.5), 0.02));
-      final mark = find.byType(IqStepMarkRing).last;
-      expect(_slots(tester, mark), [6, 44, 6]);
+      final mark = find.byType(IqStepMark).last;
       expect(_opacity(tester, mark), closeTo(_eo(0.5), 0.02));
       await tester.pump(_ms * 80);
       expect(_opacity(tester, title), 1);
@@ -364,35 +349,38 @@ void main() {
       expect(find.byType(WhatYouLikeScreen), findsOneWidget);
     });
 
-    testWidgets('Education hugs its rows', (tester) async {
+    testWidgets('Education takes the full 724, Use this at its foot', (
+      tester,
+    ) async {
       await _open(tester, Routes.onboardingWhereYouStudied, draft: _studied);
       await tester.pumpAndSettle();
       await tester.tap(find.text('HND / BSc'));
       await tester.pumpAndSettle();
       final sheet = tester.getRect(find.byType(OptionSheet));
-      final rows = find.descendant(
-        of: find.byType(OptionSheet),
-        matching: find.byType(IqOptionRow),
-      );
-      expect(rows, findsNWidgets(5));
-      var content = 0.0;
-      for (var i = 0; i < 5; i++) {
-        content += tester.getSize(rows.at(i)).height;
-      }
-      expect(sheet.bottom, 844);
-      expect(sheet.height, closeTo(76 + 4 + content + 4 * 4 + 16 + 34, 0.5));
-      expect(sheet.top, greaterThan(120));
+      expect(sheet.top, 120);
+      expect(sheet.height, 724);
       expect(
-        tester.getRect(rows.at(4)).bottom,
-        closeTo(sheet.bottom - 16 - 34, 0.5),
+        find.descendant(
+          of: find.byType(OptionSheet),
+          matching: find.byType(IqOptionRow),
+        ),
+        findsNWidgets(5),
       );
+      expect(_top(tester, 'Use this'), 844 - 34 - 52);
+      await tester.tap(find.text('Postgraduate'));
+      await tester.pumpAndSettle();
+      expect(find.byType(OptionSheet), findsOneWidget);
+      await tester.tap(find.text('Use this'));
+      await tester.pumpAndSettle();
+      expect(find.byType(OptionSheet), findsNothing);
+      expect(find.text('Postgraduate'), findsOneWidget);
     });
 
     testWidgets('State of residence takes the full 724', (tester) async {
       await _open(
         tester,
         Routes.onboardingWhereYouLive,
-        draft: {'occupation': 'student', 'lastStep': 'whereYouLive'},
+        draft: {..._aboutYou, 'lastStep': 'whereYouLive'},
       );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Select state'));
@@ -408,11 +396,7 @@ void main() {
     await _open(
       tester,
       Routes.onboardingWhereYouLive,
-      draft: {
-        'occupation': 'student',
-        'state': 'Lagos',
-        'lastStep': 'whereYouLive',
-      },
+      draft: {..._aboutYou, 'state': 'Lagos', 'lastStep': 'whereYouLive'},
     );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Select city'));
@@ -421,11 +405,11 @@ void main() {
     expect(_on(tester, 'Add my city'), isFalse);
     expect(_top(tester, 'Use this'), _useThis);
 
-    await tester.enterText(find.byType(EditableText), 'Yaba');
+    await tester.enterText(find.byType(EditableText).last, 'Yaba');
     await tester.pumpAndSettle();
     expect(_on(tester, 'Add my city'), isFalse);
 
-    await tester.enterText(find.byType(EditableText), 'Atlantis');
+    await tester.enterText(find.byType(EditableText).last, 'Atlantis');
     await tester.pump();
     await tester.pump(_ms * 75);
     final empty = find.text('No city found.');
@@ -443,13 +427,13 @@ void main() {
       await _open(
         tester,
         Routes.onboardingWhatYouLike,
-        draft: {'occupation': 'student', 'lastStep': 'whatYouLike'},
+        draft: {..._aboutYou, 'lastStep': 'whatYouLike'},
       );
       await tester.pumpAndSettle();
       final caption = find.text('Pick at least 2');
       final rest = tester.getTopLeft(caption).dx;
 
-      await tester.tap(find.byType(IqNextFab));
+      await tester.tap(_primary);
       await tester.pump();
       var furthest = 0.0;
       for (var i = 0; i < 12; i++) {
@@ -467,7 +451,7 @@ void main() {
       await tester.tap(find.text('Business'));
       await tester.pumpAndSettle();
       expect(haptics, [_select, _select]);
-      await tester.tap(find.byType(IqNextFab));
+      await tester.tap(_primary);
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
       expect(find.byType(DoneScreen), findsOneWidget);
@@ -484,13 +468,12 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Technology'));
       await tester.pumpAndSettle();
-      final fab = find.byType(IqNextFab);
       Color disc() =>
           (tester
                       .widget<DecoratedBox>(
                         find.descendant(
                           of: find.descendant(
-                            of: fab,
+                            of: _primary,
                             matching: find.byType(AnimatedContainer),
                           ),
                           matching: find.byType(DecoratedBox),
@@ -501,10 +484,10 @@ void main() {
               .color!;
       double sticker() => tester
           .widget<Opacity>(
-            find.descendant(of: fab, matching: find.byType(Opacity)).first,
+            find.descendant(of: _primary, matching: find.byType(Opacity)).first,
           )
           .opacity;
-      expect(disc(), IqColors.line);
+      expect(disc(), IqColors.panel);
       expect(sticker(), 0);
 
       await tester.tap(find.text('Business'));
@@ -515,7 +498,7 @@ void main() {
         discs.add(disc());
         stickers.add(sticker());
       }
-      bool between(Color c) => c != IqColors.line && c != IqColors.brand;
+      bool between(Color c) => c != IqColors.panel && c != IqColors.brand;
       expect(discs.where(between).length, greaterThanOrEqualTo(5));
       expect(stickers.where((s) => s > 0 && s < 1).length, greaterThan(5));
       expect(discs.last, IqColors.brand);
@@ -524,38 +507,33 @@ void main() {
   });
 
   group('moments', () {
-    testWidgets('Done: eyebrow at +80, title at +120, Start here at +200, '
-        'the first ticket at +240; the Rocket draws 200 x 160 from (120, 78)', (
-      tester,
-    ) async {
+    testWidgets('Done: title at +120, Start here at +200, the first card at '
+        '+240; the Cheer figure is clipped to the 171 pt hero', (tester) async {
       await _open(
         tester,
         Routes.onboardingDone,
-        draft: {'occupation': 'student', 'lastStep': 'whatYouLike'},
+        draft: {..._aboutYou, 'lastStep': 'whatYouLike'},
       );
       await tester.pump();
-      final eyebrow = find.text('YOU’RE SET');
       final title = find.textContaining('Nice one');
       final start = find.text('Start here');
-      expect(_opacity(tester, eyebrow), 0);
-      await tester.pump(_ms * 100);
-      expect(_opacity(tester, eyebrow), closeTo(_eo(20 / 220), 0.02));
       expect(_opacity(tester, title), 0);
-      await tester.pump(_ms * 100);
+      await tester.pump(_ms * 200);
       expect(_opacity(tester, title), closeTo(_eo(80 / 220), 0.02));
       expect(_opacity(tester, start), 0);
-      final ticket = find.byType(IqTicketCard).first;
-      expect(_opacity(tester, ticket), 0);
+      final card = find.byType(IqBriefCard).first;
+      expect(_opacity(tester, card), 0);
       await tester.pump(_ms * 100);
-      expect(_opacity(tester, ticket), closeTo(_eo(60 / 260), 0.02));
+      expect(_opacity(tester, card), closeTo(_eo(60 / 260), 0.02));
       await tester.pumpAndSettle();
-      for (final finder in [eyebrow, title, start]) {
+      for (final finder in [title, start]) {
         expect(_opacity(tester, finder), 1);
       }
-      expect(
-        tester.getRect(find.byType(IqIllustration)),
-        const Rect.fromLTWH(120, 78, 200, 160),
+      final hero = find.ancestor(
+        of: find.byType(IqFigure),
+        matching: find.byType(ClipRect),
       );
+      expect(tester.getRect(hero.first), const Rect.fromLTWH(16, 78, 358, 171));
     });
 
     testWidgets('reduced motion: Done fades in together over 150', (
@@ -564,21 +542,17 @@ void main() {
       await _open(
         tester,
         Routes.onboardingDone,
-        draft: {'occupation': 'student', 'lastStep': 'whatYouLike'},
+        draft: {..._aboutYou, 'lastStep': 'whatYouLike'},
         reduced: true,
       );
       await tester.pump();
       await tester.pump(_ms * 75);
-      final eyebrow = _opacity(tester, find.text('YOU’RE SET'));
-      expect(eyebrow, closeTo(_eo(0.5), 0.02));
-      expect(_opacity(tester, find.text('Start here')), eyebrow);
+      final title = _opacity(tester, find.textContaining('Nice one'));
+      expect(title, closeTo(_eo(0.5), 0.02));
+      expect(_opacity(tester, find.text('Start here')), title);
       await tester.pump(_ms * 80);
       await tester.pump();
       expect(_opacity(tester, find.text('Start here')), 1);
-      expect(
-        tester.getRect(find.byType(IqIllustration)),
-        const Rect.fromLTWH(120, 78, 200, 160),
-      );
     });
 
     testWidgets('Welcome: the three rows arrive 40 apart from +200', (

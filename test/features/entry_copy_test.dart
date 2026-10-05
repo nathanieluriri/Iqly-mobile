@@ -8,7 +8,7 @@ void main() {
     test('sign in', () {
       expect(
         EntryCopy.signIn(AuthFailure.wrongCredentials),
-        'That email and password don’t match. Try again.',
+        "That password doesn't match. Try again or reset it.",
       );
       expect(
         EntryCopy.signIn(AuthFailure.emailNotVerified),
@@ -63,10 +63,14 @@ void main() {
       );
     });
 
-    test('bad email and the shipped password rule', () {
+    test('the B0 error frames and the shipped password rule', () {
       expect(
         EntryCopy.badEmail,
-        'That email doesn’t look right. Check for typos.',
+        "That doesn't look like an email address. Check it and try again.",
+      );
+      expect(
+        EntryCopy.emailRegistered,
+        'This email already has an account. Sign in instead.',
       );
       expect(ShippedCopy.shortPassword, 'At least 8 characters');
     });

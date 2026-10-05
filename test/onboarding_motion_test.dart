@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:iqly_mobile/core/motion.dart';
-import 'package:iqly_mobile/features/onboarding/onboarding_layout.dart';
 import 'package:iqly_mobile/theme/theme.dart';
 import 'package:iqly_mobile/ui/field.dart';
 
@@ -13,15 +11,6 @@ Widget _app(Widget child, {bool reduced = false}) => MaterialApp(
   ),
 );
 
-double _checkScale(WidgetTester tester) => tester
-    .widgetList<ScaleTransition>(
-      find.descendant(
-        of: find.byType(AutosaveCheck),
-        matching: find.byType(ScaleTransition),
-      ),
-    )
-    .fold(1.0, (scale, t) => scale * t.scale.value);
-
 Widget _city(String? city) => IqField(
   kind: IqFieldKind.picker,
   size: IqFieldSize.large,
@@ -32,67 +21,6 @@ Widget _city(String? city) => IqField(
 );
 
 void main() {
-  testWidgets('the autosave check pops in with a small overshoot', (
-    tester,
-  ) async {
-    await tester.pumpWidget(_app(const AutosaveCheck(saved: false)));
-    await tester.pumpWidget(_app(const AutosaveCheck(saved: true)));
-    await tester.pump(const Duration(milliseconds: 20));
-    final early = _checkScale(tester);
-    expect(early, greaterThanOrEqualTo(0.6));
-    expect(early, lessThan(1));
-    var peak = early;
-    for (var t = 0; t < 9; t++) {
-      await tester.pump(const Duration(milliseconds: 20));
-      if (_checkScale(tester) > peak) peak = _checkScale(tester);
-    }
-    expect(peak, greaterThan(1));
-    await tester.pumpAndSettle();
-    expect(_checkScale(tester), 1);
-  });
-
-  testWidgets('reduced motion: the autosave check appears in place', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      _app(const AutosaveCheck(saved: false), reduced: true),
-    );
-    await tester.pumpWidget(
-      _app(const AutosaveCheck(saved: true), reduced: true),
-    );
-    expect(_checkScale(tester), 1);
-  });
-
-  testWidgets('a later save re-stamps the check from 1.15 over 160', (
-    tester,
-  ) async {
-    await tester.pumpWidget(_app(const AutosaveCheck(saved: true, answer: 1)));
-    await tester.pumpWidget(_app(const AutosaveCheck(saved: true, answer: 2)));
-    expect(_checkScale(tester), closeTo(IqScale.stampLand, 0.001));
-    await tester.pump(const Duration(milliseconds: 80));
-    expect(
-      _checkScale(tester),
-      closeTo(
-        IqScale.stampLand -
-            (IqScale.stampLand - 1) * IqCurves.easeOut.transform(0.5),
-        0.002,
-      ),
-    );
-    await tester.pump(const Duration(milliseconds: 80));
-    expect(_checkScale(tester), 1);
-  });
-
-  testWidgets('reduced motion: a later save does not re-stamp', (tester) async {
-    await tester.pumpWidget(
-      _app(const AutosaveCheck(saved: true, answer: 1), reduced: true),
-    );
-    await tester.pumpWidget(
-      _app(const AutosaveCheck(saved: true, answer: 2), reduced: true),
-    );
-    expect(_checkScale(tester), 1);
-    expect(tester.hasRunningAnimations, isFalse);
-  });
-
   testWidgets('a chosen picker value crossfades in over 200 ms', (
     tester,
   ) async {

@@ -11,7 +11,7 @@ import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/box_field.dart';
 import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/field.dart';
-import 'package:iqly_mobile/ui/next_fab.dart';
+import 'package:iqly_mobile/ui/banner.dart';
 
 import 'entry_harness.dart';
 
@@ -27,9 +27,13 @@ IqBoxField _box(WidgetTester tester) =>
 bool _buttonOn(WidgetTester tester, String label) =>
     !tester.widget<IqButton>(find.widgetWithText(IqButton, label)).disabled;
 
-bool _nextOn(WidgetTester tester) =>
-    tester.widget<IqNextFab>(find.byType(IqNextFab)).state ==
-    IqNextFabState.enabled;
+/// The error banner's words, null while it is folded away.
+String? _banner(WidgetTester tester) {
+  final shown = tester
+      .widgetList<IqBanner>(find.byType(IqBanner))
+      .where((b) => b.visible);
+  return shown.isEmpty ? null : shown.single.title;
+}
 
 Future<void> _tapText(WidgetTester tester, String text) async {
   await tester.tap(find.text(text));
@@ -45,33 +49,49 @@ void main() {
       expect(_buttonOn(tester, 'Continue'), isTrue);
     });
 
-    testWidgets('a bad email shows on submit and clears on edit', (
-      tester,
-    ) async {
+    testWidgets('a bad email drops the banner in and it clears on edit '
+        '(480:20014)', (tester) async {
       final haptics = recordHaptics(tester);
       await bootApp(tester);
-      await tester.enterText(find.byType(IqBoxField), 'adaeze@example');
+      await tester.enterText(find.byType(IqBoxField), 'adaeze@');
       await tester.pumpAndSettle();
-      expect(find.text(EntryCopy.badEmail), findsNothing);
+      expect(_banner(tester), isNull);
 
       await _tapText(tester, 'Continue');
       expect(find.byType(LandingScreen), findsOneWidget);
-      expect(find.text(EntryCopy.badEmail), findsOneWidget);
-      expect(_box(tester).state, IqBoxFieldState.error);
+      expect(_banner(tester), EntryCopy.badEmail);
+      expect(_box(tester).state, isNull);
       // The refusal lands with the tap, so it plays in the commit's place.
       expect(haptics, [_medium]);
 
-      await _tapText(tester, 'Continue');
-      expect(haptics, [_medium, _medium]);
-
       await tester.tap(find.byType(IqBoxField));
       await tester.pumpAndSettle();
-      expect(find.text(EntryCopy.badEmail), findsOneWidget);
+      expect(_banner(tester), EntryCopy.badEmail);
 
       await tester.enterText(find.byType(IqBoxField), 'adaeze@example.');
       await tester.pumpAndSettle();
-      expect(find.text(EntryCopy.badEmail), findsNothing);
-      expect(_box(tester).state, isNull);
+      expect(_banner(tester), isNull);
+    });
+
+    testWidgets('a known email offers Sign in with it filled (480:19948)', (
+      tester,
+    ) async {
+      await bootApp(tester);
+      await tester.enterText(find.byType(IqBoxField), 'adaeze@example.com');
+      await tester.pumpAndSettle();
+      await _tapText(tester, 'Continue');
+      expect(find.byType(LandingScreen), findsOneWidget);
+      expect(_banner(tester), EntryCopy.emailRegistered);
+
+      await tester.tap(
+        find.descendant(
+          of: find.byType(IqBanner),
+          matching: find.text('Sign in'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(SignInScreen), findsOneWidget);
+      expect(find.text('adaeze@example.com'), findsOneWidget);
     });
 
     testWidgets('offline while looking up the email', (tester) async {
@@ -83,7 +103,7 @@ void main() {
       await tester.pumpAndSettle();
       await _tapText(tester, 'Continue');
       expect(find.byType(LandingScreen), findsOneWidget);
-      expect(find.text(EntryCopy.offline), findsOneWidget);
+      expect(_banner(tester), EntryCopy.offline);
     });
 
     for (final provider in AuthProvider.values) {
@@ -103,12 +123,12 @@ void main() {
         );
         await _tapText(tester, button);
         expect(find.byType(LandingScreen), findsOneWidget);
-        expect(find.text(EntryCopy.social(provider)), findsOneWidget);
+        expect(_banner(tester), EntryCopy.social(provider));
         expect(haptics, [_medium]);
 
         await tester.tap(find.byType(IqBoxField));
         await tester.pumpAndSettle();
-        expect(find.text(EntryCopy.social(provider)), findsNothing);
+        expect(_banner(tester), isNull);
       });
     }
 
@@ -123,7 +143,7 @@ void main() {
       );
       await _tapText(tester, 'Continue with Apple');
       expect(find.byType(LandingScreen), findsOneWidget);
-      expect(find.text(EntryCopy.social(AuthProvider.apple)), findsNothing);
+      expect(_banner(tester), isNull);
       expect(haptics, isEmpty);
     });
   });
@@ -139,28 +159,31 @@ void main() {
       await tapNext(tester);
     }
 
-    testWidgets('Next is on once both fields hold something', (tester) async {
+    testWidgets('an empty field takes the focus and nothing is sent', (
+      tester,
+    ) async {
       await bootApp(tester, start: Routes.signIn);
-      expect(_nextOn(tester), isFalse);
-      await typeInto(tester, 0, 'a');
-      expect(_nextOn(tester), isFalse);
-      await typeInto(tester, 1, 'b');
-      expect(_nextOn(tester), isTrue);
+      await typeInto(tester, 0, 'adaeze@example.com');
+      await tapNext(tester);
+      expect(find.byType(SignInScreen), findsOneWidget);
+      expect(_banner(tester), isNull);
+      final password = tester.widget<EditableText>(
+        find.byType(EditableText).at(1),
+      );
+      expect(password.focusNode.hasFocus, isTrue);
     });
 
-    testWidgets('a bad email shows on EMAIL and clears on edit', (
+    testWidgets('a bad email drops the banner in and clears on edit', (
       tester,
     ) async {
       await bootApp(tester, start: Routes.signIn);
       await submit(tester, 'adaeze@', DemoAuthService.password);
       expect(find.byType(SignInScreen), findsOneWidget);
-      expect(_field(tester, 'Email').state, IqFieldState.error);
-      expect(_field(tester, 'Email').help, EntryCopy.badEmail);
-      expect(_field(tester, 'Password').state, isNot(IqFieldState.error));
+      expect(_banner(tester), EntryCopy.badEmail);
 
       await typeInto(tester, 0, 'adaeze@example.com');
-      expect(find.text(EntryCopy.badEmail), findsNothing);
-      expect(_field(tester, 'Email').state, isNot(IqFieldState.error));
+      await tester.pumpAndSettle();
+      expect(_banner(tester), isNull);
     });
 
     final cases = {
@@ -171,40 +194,36 @@ void main() {
       'anything else': (DemoAuthService.brokenEmail, 'whatever1'),
     };
     final expected = {
-      'wrong password': 'That email and password don’t match. Try again.',
+      'wrong password': "That password doesn't match. Try again or reset it.",
       'too many tries': 'Too many tries. Wait a minute, then try again.',
       'not verified': 'Verification email sent. Please check your inbox.',
       'offline': 'You’re offline. Check your connection and try again.',
       'anything else': 'Login failed. Please try again.',
     };
     for (final MapEntry(key: name, value: (email, password)) in cases.entries) {
-      testWidgets('$name shows on PASSWORD', (tester) async {
+      testWidgets('$name shows in the banner (480:19882)', (tester) async {
         final haptics = recordHaptics(tester);
         await bootApp(tester, start: Routes.signIn);
         await submit(tester, email, password);
         expect(find.byType(SignInScreen), findsOneWidget);
-        expect(find.text(expected[name]!), findsOneWidget);
-        expect(_field(tester, 'Password').state, IqFieldState.error);
-        expect(_field(tester, 'Password').help, expected[name]);
+        expect(_banner(tester), expected[name]);
+        expect(_field(tester, 'Password').state, isNot(IqFieldState.error));
         expect(haptics, [_medium]);
       });
     }
 
-    testWidgets('a password error clears when the password changes', (
-      tester,
-    ) async {
+    testWidgets('the banner goes when the password changes', (tester) async {
       await bootApp(tester, start: Routes.signIn);
       await submit(tester, 'adaeze@example.com', 'wrongpass');
-      const wrong = 'That email and password don’t match. Try again.';
-      expect(find.text(wrong), findsOneWidget);
+      expect(_banner(tester), expected['wrong password']);
 
       await tester.tap(find.byType(EditableText).at(1));
       await tester.pumpAndSettle();
-      expect(find.text(wrong), findsOneWidget);
+      expect(_banner(tester), expected['wrong password']);
 
       await typeInto(tester, 1, 'wrongpas');
-      expect(find.text(wrong), findsNothing);
-      expect(_field(tester, 'Password').state, isNot(IqFieldState.error));
+      await tester.pumpAndSettle();
+      expect(_banner(tester), isNull);
     });
   });
 
@@ -219,14 +238,10 @@ void main() {
       },
     );
 
-    testWidgets('Next is on once anything is typed; 8 is checked on submit', (
-      tester,
-    ) async {
+    testWidgets('8 is checked on submit, under the field', (tester) async {
       final haptics = recordHaptics(tester);
       await boot(tester, 'tolu@example.com');
-      expect(_nextOn(tester), isFalse);
       await typeInto(tester, 0, 'short');
-      expect(_nextOn(tester), isTrue);
       expect(_field(tester, 'Password').state, isNot(IqFieldState.error));
 
       await tapNext(tester);
@@ -247,7 +262,7 @@ void main() {
       await tapNext(tester);
       expect(find.byType(SignInScreen), findsOneWidget);
       expect(find.text(DemoAuthService.takenEmail), findsOneWidget);
-      expect(find.text(ShippedCopy.signUpFailed), findsNothing);
+      expect(_banner(tester), isNull);
     });
 
     testWidgets('offline', (tester) async {
@@ -255,7 +270,7 @@ void main() {
       await typeInto(tester, 0, 'longenough');
       await tapNext(tester);
       expect(find.byType(PasswordScreen), findsOneWidget);
-      expect(_field(tester, 'Password').help, EntryCopy.offline);
+      expect(_banner(tester), EntryCopy.offline);
     });
 
     testWidgets('anything else', (tester) async {
@@ -263,10 +278,7 @@ void main() {
       await typeInto(tester, 0, 'longenough');
       await tapNext(tester);
       expect(find.byType(PasswordScreen), findsOneWidget);
-      expect(
-        _field(tester, 'Password').help,
-        'Sign-up failed. Please try again.',
-      );
+      expect(_banner(tester), 'Sign-up failed. Please try again.');
       expect(find.text('At least 8 characters'), findsOneWidget);
     });
   });
@@ -277,48 +289,38 @@ void main() {
       await _tapText(tester, 'Send reset link');
     }
 
-    testWidgets('Send reset link is on once anything is typed', (tester) async {
-      await bootApp(tester, start: Routes.forgotPassword);
-      expect(_buttonOn(tester, 'Send reset link'), isFalse);
-      await typeInto(tester, 0, 'a');
-      expect(_buttonOn(tester, 'Send reset link'), isTrue);
-    });
-
-    testWidgets('a bad email shows on submit and clears on edit', (
+    testWidgets('a bad email drops the banner in and clears on edit', (
       tester,
     ) async {
       await bootApp(tester, start: Routes.forgotPassword);
       await send(tester, 'adaeze.example.com');
-      expect(_field(tester, 'Email').state, IqFieldState.error);
-      expect(_field(tester, 'Email').help, EntryCopy.badEmail);
+      expect(_banner(tester), EntryCopy.badEmail);
       await typeInto(tester, 0, 'adaeze@example.com');
-      expect(find.text(EntryCopy.badEmail), findsNothing);
+      await tester.pumpAndSettle();
+      expect(_banner(tester), isNull);
     });
 
     testWidgets('offline', (tester) async {
       await bootApp(tester, start: Routes.forgotPassword);
       await send(tester, DemoAuthService.offlineEmail);
-      expect(_field(tester, 'Email').help, EntryCopy.offline);
+      expect(_banner(tester), EntryCopy.offline);
     });
 
     testWidgets('anything else', (tester) async {
       await bootApp(tester, start: Routes.forgotPassword);
       await send(tester, DemoAuthService.brokenEmail);
-      expect(
-        _field(tester, 'Email').help,
-        'Could not send reset email. Please try again.',
-      );
+      expect(_banner(tester), 'Could not send reset email. Please try again.');
     });
   });
 
-  testWidgets('Your name keeps Next on once both names are typed', (
-    tester,
-  ) async {
+  testWidgets('Your name stays until both names are typed', (tester) async {
     await bootApp(tester, start: Routes.yourName);
     expect(find.byType(YourNameScreen), findsOneWidget);
     await typeInto(tester, 0, 'T');
-    expect(_nextOn(tester), isFalse);
+    await tapNext(tester);
+    expect(find.byType(YourNameScreen), findsOneWidget);
     await typeInto(tester, 1, 'B');
-    expect(_nextOn(tester), isTrue);
+    await tapNext(tester);
+    expect(find.byType(PasswordScreen), findsOneWidget);
   });
 }

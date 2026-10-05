@@ -15,7 +15,9 @@ enum IqSubmissionCardStatus { underReview, winner, notSelected }
 /// status chip and when you sent it. The Winner chip carries the amount;
 /// Not selected dims the photo to .6.
 ///
-/// [statusLabel] overrides the chip text ("Won ₦50,000").
+/// [statusLabel] overrides the chip text ("Won ₦50,000") and [statusKind]
+/// its Exp/Meta kind, as the B4 frames do (Deadline "Closes in 20 days").
+/// The chip and the sent line wrap (gap 8, rows 6 apart).
 class IqSubmissionCard extends StatelessWidget {
   const IqSubmissionCard({
     super.key,
@@ -24,6 +26,7 @@ class IqSubmissionCard extends StatelessWidget {
     this.brief = 'Unibooks · How should a campus bookshop sell online?',
     this.sent = '1 day ago',
     this.statusLabel,
+    this.statusKind,
     this.cover = const IqSampleCover(IqSampleLogoBrand.unibooks, shot: 2),
     this.logo = const IqSampleLogo(IqSampleLogoBrand.unibooks),
     this.onTap,
@@ -34,21 +37,22 @@ class IqSubmissionCard extends StatelessWidget {
   final String brief;
   final String sent;
   final String? statusLabel;
+  final IqMetaKind? statusKind;
   final Widget cover;
   final Widget logo;
   final VoidCallback? onTap;
 
   IqMeta get _status => switch (status) {
     IqSubmissionCardStatus.underReview => IqMeta(
-      kind: IqMetaKind.time,
+      kind: statusKind ?? IqMetaKind.time,
       label: statusLabel ?? 'Under review',
     ),
     IqSubmissionCardStatus.winner => IqMeta(
-      kind: IqMetaKind.done,
+      kind: statusKind ?? IqMetaKind.done,
       label: statusLabel ?? 'Won ₦50,000',
     ),
     IqSubmissionCardStatus.notSelected => IqMeta(
-      kind: IqMetaKind.plain,
+      kind: statusKind ?? IqMetaKind.plain,
       label: statusLabel ?? 'Not selected',
     ),
   };
@@ -102,19 +106,17 @@ class IqSubmissionCard extends StatelessWidget {
                       const SizedBox(height: IqSpace.s1),
                       Padding(
                         padding: const EdgeInsets.only(top: IqSpace.s1),
-                        child: Row(
+                        child: Wrap(
+                          spacing: IqSpace.s2,
+                          runSpacing: IqSpace.s1p5,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             _status,
-                            const SizedBox(width: IqSpace.s2),
-                            Flexible(
-                              child: Text(
-                                sent,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: IqText.small.copyWith(
-                                  color: IqColors.fg3,
-                                ),
-                              ),
+                            Text(
+                              sent,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: IqText.small.copyWith(color: IqColors.fg3),
                             ),
                           ],
                         ),

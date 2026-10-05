@@ -10,14 +10,21 @@ abstract final class ShippedCopy {
   static const resetFailed = 'Could not send reset email. Please try again.';
 }
 
-/// What the entry screens say when something goes wrong.
+/// What the entry screens say when something goes wrong: the B0 error
+/// frames' words where Figma has them.
 abstract final class EntryCopy {
-  static const badEmail = 'That email doesn’t look right. Check for typos.';
+  /// Figma 480:20014.
+  static const badEmail =
+      "That doesn't look like an email address. Check it and try again.";
+
+  /// Figma 480:19948, with the Sign in action.
+  static const emailRegistered =
+      'This email already has an account. Sign in instead.';
   static const offline = 'You’re offline. Check your connection and try again.';
 
   static String signIn(AuthFailure failure) => switch (failure) {
     AuthFailure.wrongCredentials =>
-      'That email and password don’t match. Try again.',
+      "That password doesn't match. Try again or reset it.",
     AuthFailure.emailNotVerified => ShippedCopy.verificationSent,
     AuthFailure.tooManyAttempts =>
       'Too many tries. Wait a minute, then try again.',

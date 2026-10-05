@@ -1,11 +1,14 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/features/discover/brief_detail_screen.dart';
+import 'package:iqly_mobile/features/outcomes/result_screen.dart';
 import 'package:iqly_mobile/features/submissions/my_submissions_screen.dart';
 import 'package:iqly_mobile/features/submit/pick_brief_screen.dart';
 import 'package:iqly_mobile/features/submissions/submission_detail_screen.dart';
+import 'package:iqly_mobile/features/wallet/wallet_screen.dart';
 import 'package:iqly_mobile/router.dart';
+import 'package:iqly_mobile/ui/dock.dart';
 
+import '../golden/golden.dart';
 import '../golden/screens/app_harness.dart';
 import '../golden/screens/submissions_harness.dart';
 
@@ -17,54 +20,99 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
 }
 
 void main() {
-  testWidgets('list to detail, the brief and back; results for decided rows', (
+  setUpAll(loadAppFonts);
+
+  testWidgets('Under review: a card opens its detail, the brief and back', (
     tester,
   ) async {
-    final semantics = tester.ensureSemantics();
     await pumpApp(tester, Routes.submissions);
-    expect(find.text('5 sent · 2 under review'), findsOneWidget);
-    expect(find.text('SENT 30D AGO · ₦50,000.00 AWARDED'), findsOneWidget);
+    expect(find.text('Under review · 2'), findsOneWidget);
+    expect(find.text('Winners · 2'), findsOneWidget);
+    expect(find.text('Not selected · 1'), findsOneWidget);
+    expect(find.text('Closes in 20 days'), findsOneWidget);
+    expect(find.text('Sent 1 day ago'), findsOneWidget);
+    expect(find.byType(IqDock), findsOneWidget);
 
     await _tap(tester, find.text('Bring the shop to the hostel'));
     expect(find.byType(SubmissionDetailScreen), findsOneWidget);
+    expect(find.byType(IqDock), findsNothing);
     expect(
-      find.text('Results land here when Unibooks decides.'),
+      find.text(
+        'Sent 1 day ago · For: How should a campus bookshop sell '
+        'online?',
+      ),
       findsOneWidget,
     );
-    expect(find.text('In 20 days'), findsOneWidget);
+    expect(find.text('₦100k'), findsOneWidget);
+    expect(find.text('Results after the brief closes.'), findsOneWidget);
 
     await _tap(tester, find.text('View the brief'));
     expect(find.byType(BriefDetailScreen), findsOneWidget);
-    expect(find.text('How should a campus bookshop sell online?'), findsOne);
-
     await _tap(tester, find.bySemanticsLabel('Back'));
     expect(find.byType(SubmissionDetailScreen), findsOneWidget);
     await _tap(tester, find.bySemanticsLabel('Back'));
     expect(find.byType(MySubmissionsScreen), findsOneWidget);
+  });
+
+  testWidgets('Winners: the total foots to the awards and a card opens its '
+      'result', (tester) async {
+    await pumpApp(tester, Routes.submissions);
+    await _tap(tester, find.text('Winners · 2'));
+    expect(find.text('₦62,500.00 won from 2 briefs'), findsOneWidget);
+    expect(find.text('Won ₦50k'), findsOneWidget);
+    expect(find.text('Won ₦12.5k'), findsOneWidget);
+    expect(find.text('13 days ago'), findsOneWidget);
 
     await _tap(tester, find.text('Ekpe: a name riders own'));
-    expect(find.text('Your result'), findsOneWidget);
+    expect(find.byType(ResultScreen), findsOneWidget);
     await _tap(tester, find.bySemanticsLabel('Back'));
     expect(find.byType(MySubmissionsScreen), findsOneWidget);
+    expect(find.text('₦62,500.00 won from 2 briefs'), findsOneWidget);
 
-    await tester.scrollUntilVisible(
-      find.text('One counter for quick jobs'),
-      100,
-      scrollable: find.byType(Scrollable).first,
-    );
+    await _tap(tester, find.text('₦62,500.00 won from 2 briefs'));
+    expect(find.byType(WalletScreen), findsOneWidget);
+  });
+
+  testWidgets('Not selected: the card opens its result, another brief its '
+      'page', (tester) async {
+    await pumpApp(tester, Routes.submissions);
+    await _tap(tester, find.text('Not selected · 1'));
+    expect(find.text('Didn’t pass screening'), findsOneWidget);
+    expect(find.text('Try another brief'), findsOneWidget);
+    expect(find.text('Rename our youth current account'), findsOneWidget);
+    expect(find.text('Packaging ideas for a cassava snack'), findsOneWidget);
+
     await _tap(tester, find.text('One counter for quick jobs'));
-    expect(find.text('Your result'), findsOneWidget);
+    expect(find.text('Not selected this time'), findsOneWidget);
     await _tap(tester, find.bySemanticsLabel('Back'));
 
-    await _tap(tester, find.bySemanticsLabel(RegExp('Notifications')));
-    expect(find.text('Notifications'), findsOneWidget);
-    semantics.dispose();
+    await _tap(tester, find.text('Rename our youth current account'));
+    expect(find.byType(BriefDetailScreen), findsOneWidget);
+    await _tap(tester, find.bySemanticsLabel('Back'));
+    expect(find.text('Try another brief'), findsOneWidget);
+  });
+
+  testWidgets('the lens stays put across a dock switch', (tester) async {
+    await pumpApp(tester, Routes.submissions);
+    await _tap(tester, find.text('Winners · 2'));
+    await _tap(
+      tester,
+      find.descendant(of: find.byType(IqDock), matching: find.text('Wallet')),
+    );
+    await _tap(
+      tester,
+      find.descendant(
+        of: find.byType(IqDock),
+        matching: find.text('Submissions'),
+      ),
+    );
+    expect(find.text('₦62,500.00 won from 2 briefs'), findsOneWidget);
   });
 
   testWidgets('failed to load, Try again loads the list', (tester) async {
     final repository = FailingSubmissionsRepository();
     await pumpApp(tester, Routes.submissions, repository: repository);
-    expect(find.text('Nothing to show yet'), findsOneWidget);
+    expect(find.text('Couldn\'t load your submissions'), findsOneWidget);
 
     repository.fail = false;
     await _tap(tester, find.text('Try again'));
@@ -78,7 +126,7 @@ void main() {
       Routes.submissions,
       repository: EmptySubmissionsRepository(),
     );
-    expect(find.text('0 sent'), findsOneWidget);
+    expect(find.text('No submissions yet'), findsOneWidget);
     await _tap(tester, find.text('Browse briefs'));
     await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();

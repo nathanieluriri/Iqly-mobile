@@ -3,23 +3,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
-import '../../data/auth.dart';
 import '../../core/transitions.dart';
+import '../../data/auth.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
-import '../../ui/icon.dart';
 import '../../ui/step_mark.dart';
 import 'entry_copy.dart';
 import 'entry_state.dart';
 import 'entry_widgets.dart';
 import 'show_password.dart';
 
-/// B0 Password (227:10970), with the show or hide toggle the brief adds.
+/// B0 Password (227:10970), with the show or hide toggle the owner adds on
+/// the caption row. A short password gets the shipped words under the
+/// field; a failed call gets the error banner (answer 10).
 ///
 /// Motion (MOTION-SPEC 6.5): it arrives from Your name with the chrome
-/// holding still (the step mark morphs 2 to 3) while the title rides the
-/// push and the field trails it by 40 ms; PASSWORD has focus from the first
-/// frame. The next button works (a spinner) while the account is made,
+/// holding still (the step mark fills its third bar) while the title rides
+/// the push and the field trails it by 40 ms; Password has focus from the
+/// first frame. Create account works (a spinner) while the account is made,
 /// then the success haptic and the hand-off to Welcome, the keyboard going
 /// down with it.
 class PasswordScreen extends ConsumerStatefulWidget {
@@ -33,6 +34,13 @@ class _PasswordScreenState extends ConsumerState<PasswordScreen> {
   final _password = EntryInput();
   bool _shown = false;
   bool _busy = false;
+  String? _failure;
+
+  @override
+  void initState() {
+    super.initState();
+    _password.controller.addListener(_clearFailure);
+  }
 
   @override
   void dispose() {
@@ -40,14 +48,22 @@ class _PasswordScreenState extends ConsumerState<PasswordScreen> {
     super.dispose();
   }
 
+  void _clearFailure() {
+    if (_failure != null) setState(() => _failure = null);
+  }
+
   Future<void> _next() async {
     final password = _password.controller.text;
-    if (password.isEmpty || _busy) return;
+    if (_busy) return;
+    if (password.isEmpty) return _password.nudge();
     if (password.length < minPasswordLength) {
       _password.fail(ShippedCopy.shortPassword);
       return;
     }
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _failure = null;
+    });
     final draft = ref.read(entryDraftProvider);
     final result = await ref
         .read(authServiceProvider)
@@ -56,6 +72,7 @@ class _PasswordScreenState extends ConsumerState<PasswordScreen> {
           lastName: draft.lastName,
           email: draft.email,
           password: password,
+          inviteCode: ref.read(pendingInviteProvider)?.code,
         );
     if (!mounted) return;
     setState(() => _busy = false);
@@ -65,7 +82,8 @@ class _PasswordScreenState extends ConsumerState<PasswordScreen> {
       return;
     }
     if (failure != null) {
-      _password.fail(EntryCopy.signUp(failure));
+      setState(() => _failure = EntryCopy.signUp(failure));
+      errorHaptic();
       return;
     }
     await completeSignIn(ref, newAccount: true);
@@ -81,16 +99,13 @@ class _PasswordScreenState extends ConsumerState<PasswordScreen> {
       listenable: _password.changes,
       builder: (context, _) => EntryScaffold(
         onBack: () => goBack(context, Routes.yourName),
-        action: NextBar(
-          enabled: _password.controller.text.isNotEmpty,
+        action: EntryAction(
+          label: 'Create account',
           loading: _busy,
           onTap: _next,
         ),
         children: [
-          const EntryStepMark(
-            step: IqStepMarkStep.threeOfThree,
-            icon: IqIcons.lock,
-          ),
+          const StepMarkChrome(step: IqStepMarkStep.threeOfThree),
           const SizedBox(height: IqSpace.s4),
           const EntryTitle('Create a password'),
           const SizedBox(height: IqSpace.s4),
@@ -126,6 +141,7 @@ class _PasswordScreenState extends ConsumerState<PasswordScreen> {
                     ),
                   ],
                 ),
+                EntryBanner(message: _failure),
               ],
             ),
           ),
