@@ -55,10 +55,7 @@ List<Brief> pickList({
   );
   final seen = <String>{};
   return [
-    for (final brief in [
-      ...view.briefs.briefs,
-      ...view.more.briefs,
-    ])
+    for (final brief in [...view.briefs.briefs, ...view.more.briefs])
       if (seen.add(brief.id)) brief,
   ];
 }
