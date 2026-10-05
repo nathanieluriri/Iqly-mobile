@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
+import '../../data/device.dart';
 import '../../data/profile_service.dart';
-import '../../router.dart';
 import '../../theme/theme.dart';
+import '../../ui/banner.dart';
 import '../../ui/setting_row.dart';
 import '../../ui/switch.dart';
 import '../../ui/top_bar.dart';
+import '../more/more_widgets.dart';
 import 'settings_state.dart';
 
 /// The label and one-line description of each switch (Figma 194:9932).
@@ -21,13 +22,15 @@ const notificationCopy = {
     'A day before, and an hour before',
   ),
   NotificationTopic.results: ('Results', 'When the business picks winners'),
-  NotificationTopic.payouts: ('Payouts', 'When money lands or fails'),
+  NotificationTopic.payouts: ('Withdrawals', 'When money lands or fails'),
   NotificationTopic.newBriefs: ('New briefs for you', 'At most once a day'),
   NotificationTopic.polls: ('Polls', 'When a poll opens'),
 };
 
 /// B14 · Notification preferences (194:9932), behind
-/// Flags.notificationPreferences: five Exp/SettingRow switches. A flip
+/// Flags.notificationPreferences: five Exp/SettingRow switches. When the
+/// phone does not let iQLY notify, the Urgent banner says so above them
+/// with Open settings (484:23502, designer answer 25). A flip
 /// slides the knob (the Switch's own 160 ms) with the select haptic; a flip
 /// the account refuses slides back with the error haptic. No stagger: a
 /// settings list is not news. The Polls switch follows Flags.polls.
@@ -40,6 +43,7 @@ class NotificationPreferencesScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final preferences = ref.watch(notificationPreferencesProvider).value;
+    final allowed = ref.watch(notificationsAllowedProvider).value ?? true;
     final topics = [
       for (final topic in NotificationTopic.values)
         if (topic != NotificationTopic.polls || Flags.polls) topic,
@@ -64,9 +68,7 @@ class NotificationPreferencesScreen extends ConsumerWidget {
                 IqTopBar(
                   variant: IqTopBarVariant.page,
                   title: 'Notification preferences',
-                  onBack: () => context.canPop()
-                      ? context.pop()
-                      : context.go(Routes.profile),
+                  onBack: () => goBack(context),
                 ),
                 Expanded(
                   child: ListView(
@@ -77,6 +79,15 @@ class NotificationPreferencesScreen extends ConsumerWidget {
                       IqSpace.s4,
                     ),
                     children: [
+                      IqBanner(
+                        title: 'Notifications are off for iQLY on this phone.',
+                        action: 'Open settings',
+                        visible: !allowed,
+                        margin: const EdgeInsets.only(bottom: IqSpace.s3),
+                        onAction: () => ref
+                            .read(deviceServiceProvider)
+                            .openNotificationSettings(),
+                      ),
                       if (preferences != null)
                         for (final (i, topic) in topics.indexed)
                           IqSettingRow(

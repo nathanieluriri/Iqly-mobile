@@ -15,26 +15,27 @@ import '../../ui/icon.dart';
 import '../../ui/list_row.dart';
 import '../../ui/top_bar.dart';
 import '../onboarding/onboarding_draft.dart';
+import '../more/more_widgets.dart';
 import '../profile/profile_state.dart';
 import 'settings_state.dart';
 
-/// B14 · Delete account (194:9964) and its typed state (194:10046), behind
-/// Flags.deleteAccount. The store asks for a typed confirmation, a 30-day
-/// undo and withdrawing first: the consequence rows show the available
-/// balance to withdraw (it opens the Wallet) and what is already on its
-/// way, both from walletTotals, and hide when they are zero. "Delete my
-/// account" stays disabled until the field reads DELETE (typing is
-/// uppercased); then the field turns Valid and the Danger button takes its
-/// sticker. Deleting forgets the account on the device and hands off to
-/// Account closing.
+/// B14 · Delete account (194:9964), typed (194:10046) and at ₦0.00
+/// (484:23450), behind Flags.deleteAccount. Delete stays disabled until
+/// the wallet is at ₦0.00 (designer answer 35) and the field reads DELETE;
+/// until then the page says to withdraw first and the Withdraw row opens
+/// the Wallet. Keep my account goes back to the opener. Deleting forgets
+/// the account on the device and hands off to Account closing.
 ///
-/// The consequence rows settle in with the push; no chevrons, as in the
-/// frame. The Danger press gives the destructive haptic and hands off to
-/// Account closing, no success haptic (spec 7.10). A delete that fails
-/// shakes the button, plays the error haptic and says why under it.
+/// Conflict left open: 194:10046 drops the consequence rows once DELETE is
+/// typed; answer 35 keeps the Withdraw row above as the way out, which this
+/// follows. The frame's disabled Danger is a faded red; the kit's Disabled
+/// is the panel grey.
 ///
-/// Note over Figma: the frames have no failed state; its line is new copy
-/// for the owner to sign off.
+/// The consequence rows settle in with the push. The Danger press gives the
+/// destructive haptic and hands off to Account closing (spec 7.10). A
+/// delete that fails shakes the button, plays the error haptic and says why
+/// under it (new copy for the owner to sign off; the frames have no failed
+/// state).
 class DeleteAccountScreen extends ConsumerStatefulWidget {
   const DeleteAccountScreen({super.key});
 
@@ -67,7 +68,8 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
   bool get _confirmed => _typed.text.trim() == DeleteAccountScreen.confirmWord;
 
   Future<void> _delete() async {
-    if (!_confirmed || _deleting) return;
+    final available = ref.read(accountWalletProvider).value?.withdrawableKobo;
+    if (!_confirmed || _deleting || available != 0) return;
     FocusScope.of(context).unfocus();
     setState(() => _deleting = true);
     try {
@@ -86,7 +88,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
     if (mounted) context.go(Routes.accountClosing, extra: email);
   }
 
-  void _keep() => context.canPop() ? context.pop() : context.go(Routes.profile);
+  void _keep() => goBack(context);
 
   @override
   Widget build(BuildContext context) {
@@ -94,15 +96,17 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
     final wallet = ref.watch(accountWalletProvider).value;
     final available = wallet?.withdrawableKobo ?? 0;
     final onItsWay = wallet?.pendingWithdrawalsKobo ?? 0;
+    final locked = wallet == null || available > 0;
     final rows = [
-      if (available > 0)
+      if (available > 0) ...[
         (
           'Withdraw ${naira(available)} first',
           IqIcons.bank,
           () => context.go(Routes.wallet),
         ),
-      if (onItsWay > 0) ('${naira(onItsWay)} on its way', IqIcons.bank, null),
-      ('Submissions stay with the business', IqIcons.submissions, null),
+        if (onItsWay > 0) ('${naira(onItsWay)} on its way', IqIcons.bank, null),
+        ('Submissions stay with the business', IqIcons.submissions, null),
+      ],
     ];
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -116,7 +120,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
               children: [
                 IqTopBar(
                   variant: IqTopBarVariant.page,
-                  title: 'Delete account',
+                  title: '',
                   onBack: _keep,
                 ),
                 Expanded(
@@ -145,7 +149,14 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
                                 ),
                                 const SizedBox(height: IqSpace.s3),
                                 Text(
-                                  '30 days to change your mind.',
+                                  available > 0
+                                      ? 'Withdraw your ${naira(available)} '
+                                            'first. Delete unlocks at '
+                                            '${naira(0)}, then you have 30 '
+                                            'days to change your mind.'
+                                      : 'Your wallet is at ${naira(0)}. '
+                                            'Delete now and you have 30 days '
+                                            'to change your mind.',
                                   style: IqText.body.copyWith(
                                     color: IqColors.fg2,
                                   ),
@@ -154,21 +165,29 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
                             ),
                           ),
                           const SizedBox(height: IqSpace.s3),
-                          for (final (i, (label, icon, onTap)) in rows.indexed)
+                          if (rows.isNotEmpty) ...[
                             StaggerItem(
-                              index: i + 1,
-                              child: _Consequence(
-                                label: label,
-                                icon: icon,
-                                divider: i < rows.length - 1,
-                                onTap: onTap,
+                              index: 1,
+                              child: RowGroup(
+                                outlined: true,
+                                children: [
+                                  for (final (i, (label, icon, onTap))
+                                      in rows.indexed)
+                                    _Consequence(
+                                      label: label,
+                                      icon: icon,
+                                      divider: i < rows.length - 1,
+                                      onTap: onTap,
+                                    ),
+                                ],
                               ),
                             ),
-                          const SizedBox(height: IqSpace.s3),
+                            const SizedBox(height: IqSpace.s3),
+                          ],
                           StaggerItem(
-                            index: rows.length + 1,
+                            index: 2,
                             child: IqField(
-                              label: 'Type DELETE to confirm',
+                              label: 'Type delete to confirm',
                               value: '',
                               controller: _typed,
                               state: _confirmed ? IqFieldState.valid : null,
@@ -201,7 +220,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
                           kind: IqButtonKind.danger,
                           showIcon: false,
                           width: double.infinity,
-                          disabled: !_confirmed,
+                          disabled: !_confirmed || locked,
                           loading: _deleting,
                           onTap: _delete,
                         ),
@@ -211,12 +230,15 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
                         text: DeleteAccountScreen.failedText,
                       ),
                       const SizedBox(height: IqSpace.s2),
-                      IqButton(
-                        label: 'Keep my account',
-                        kind: IqButtonKind.ghost,
-                        showIcon: false,
-                        width: double.infinity,
-                        onTap: _keep,
+                      SizedBox(
+                        height: 44,
+                        child: IqButton(
+                          label: 'Keep my account',
+                          kind: IqButtonKind.ghost,
+                          showIcon: false,
+                          width: double.infinity,
+                          onTap: _keep,
+                        ),
                       ),
                     ],
                   ),
