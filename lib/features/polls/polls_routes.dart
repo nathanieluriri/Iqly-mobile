@@ -6,12 +6,22 @@ import '../../router.dart';
 import 'poll_sheet.dart';
 import 'polls_screen.dart';
 
-/// One business's poll sheet over the Polls page.
+/// One business's poll sheet over the Quick polls page.
 String pollsOf(String businessId) => '${Routes.polls}/$businessId';
 
-/// B2 Polls, behind Flags.polls: the page pushes (Figma: Instant) and a
-/// business's polls rise as a sheet on the .5 brand scrim. A Discover bubble
-/// opens the page with `?business=` naming whose sheet to raise.
+/// The same polls as a full page, where the sheet goes when dragged up.
+String pollPageOf(String businessId) => '${Routes.polls}/$businessId/full';
+
+/// The Quick polls page as a Discover tile opens it: with [businessId] its
+/// sheet rises over the page.
+String quickPollsFor(String businessId) => Uri(
+  path: Routes.polls,
+  queryParameters: {'business': businessId},
+).toString();
+
+/// B2 Quick polls, behind Flags.polls: a sub page (Page top bar, Back, no
+/// dock) that pushes; a business's polls rise as a sheet on the sheet scrim,
+/// or open as a full page.
 final pollsRoutes = <RouteBase>[
   if (Flags.polls)
     GoRoute(
@@ -21,6 +31,13 @@ final pollsRoutes = <RouteBase>[
         PollsScreen(open: state.uri.queryParameters['business']),
       ),
       routes: [
+        GoRoute(
+          path: ':id/full',
+          pageBuilder: (context, state) => pushPage(
+            state,
+            PollPage(businessId: state.pathParameters['id']!),
+          ),
+        ),
         GoRoute(
           path: ':id',
           pageBuilder: (context, state) => sheetPage(

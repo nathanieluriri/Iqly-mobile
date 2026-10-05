@@ -247,14 +247,8 @@ class DemoData {
     ),
   ];
 
-  /// Illustrative design proposals (polls, activations, saved briefs, close
+  /// Illustrative design proposals (activations, saved briefs, close
   /// reminders): the API does not serve them yet.
-  static const pollBrands = [
-    PollBrand(businessName: 'Orchid Foods', openPolls: 2, unanswered: 2),
-    PollBrand(businessName: 'Unibooks', openPolls: 1, unanswered: 1),
-    PollBrand(businessName: 'Sunline', openPolls: 1, unanswered: 0),
-  ];
-
   static const activations = ActivationsSummary(closingToday: 1);
 
   static const savedBriefIds = ['c5', 'c4'];

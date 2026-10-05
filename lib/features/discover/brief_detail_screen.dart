@@ -3,34 +3,36 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/brief_labels.dart';
 import '../../core/deadline.dart';
 import '../../core/flags.dart';
-import '../../core/money.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../data/models.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/bookmark.dart';
+import '../../ui/brief_hero.dart';
 import '../../ui/button.dart';
 import '../../ui/setting_row.dart';
 import '../../ui/skeleton.dart';
 import '../../ui/switch.dart';
 import '../../ui/top_bar.dart';
+import '../submissions/submissions_routes.dart';
+import 'business_art.dart';
 import 'discover_routes.dart';
 import 'discover_state.dart';
+import 'discover_widgets.dart';
 
-/// B1 · Brief detail (31:665) as evolved in B12 · Brief detail · saved
-/// (192:9707): the bookmark beside the top bar, the facts with only the
-/// reward pool keeping its note, the "Remind me" switch, then the brief and
-/// the submit bar.
+/// B1 · Brief detail (476:17315), a sub page: Page top bar with Back, the
+/// bookmark beside it (192:9707 when saved), Exp/BriefHero, the business,
+/// the ask, its chips and the brief, then one button: "Start your
+/// submission", "View your submission" once sent (480:22463), or "Closed ·
+/// results soon" disabled once closed (480:22572). A saved brief that is
+/// still open offers "Remind me".
 ///
 /// Motion (spec 6.22, 4.3): the page pushes in already drawn from [initial],
 /// the brief the person tapped (or one already loaded), and its content
 /// settles 40 ms apart; only a cold open by URL waits behind LoadingGate.
-/// Its Page bar holds the back button and crossfades the title across a
-/// push from another Page bar.
 class BriefDetailScreen extends ConsumerWidget {
   const BriefDetailScreen({super.key, required this.id, this.initial});
 
@@ -69,7 +71,7 @@ class BriefDetailScreen extends ConsumerWidget {
                   children: [
                     IqTopBar(
                       variant: IqTopBarVariant.page,
-                      title: 'Brief',
+                      title: '',
                       onBack: () => leave(context),
                     ),
                     if (brief != null && Flags.savedBriefs)
@@ -89,26 +91,52 @@ class BriefDetailScreen extends ConsumerWidget {
                         : _Body(brief: brief),
                   ),
                 ),
-                if (brief != null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      IqSpace.s4,
-                      IqSpace.s3,
-                      IqSpace.s4,
-                      IqSpace.s3,
-                    ),
-                    child: IqButton(
-                      label: 'Submit your response',
-                      width: double.infinity,
-                      disabled: !brief.isLive,
-                      onTap: () => context.push(Routes.submitTo(brief.id)),
-                    ),
-                  ),
+                if (brief != null) _ActionBar(brief: brief),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The action bar (76 high): the one thing to do with the brief.
+class _ActionBar extends ConsumerWidget {
+  const _ActionBar({required this.brief});
+
+  final Brief brief;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final now = ref.watch(clockProvider)();
+    final left = timeLeft(brief.deadline, now);
+    final closed = !brief.isLive || (left != null && left <= Duration.zero);
+    final sent = ref.watch(briefSubmissionProvider(brief.id));
+    final Widget button;
+    if (sent != null) {
+      button = IqButton(
+        label: 'View your submission',
+        kind: IqButtonKind.secondary,
+        width: double.infinity,
+        onTap: () => context.push(submissionPath(sent)),
+      );
+    } else {
+      button = IqButton(
+        label: closed ? 'Closed · results soon' : 'Start your submission',
+        width: double.infinity,
+        disabled: closed,
+        onTap: () => context.push(Routes.submitTo(brief.id)),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        IqSpace.s4,
+        IqSpace.s3,
+        IqSpace.s4,
+        IqSpace.s3,
+      ),
+      child: button,
     );
   }
 }
@@ -185,154 +213,103 @@ class _Body extends ConsumerWidget {
     final left = timeLeft(brief.deadline, now);
     final closed = !brief.isLive;
     final reminders = ref.watch(closeRemindersProvider).value ?? const {};
+    final saved =
+        ref.watch(savedBriefsProvider).value?.any((b) => b.id == brief.id) ??
+        false;
     final canRemind =
-        Flags.closeReminders && !closed && left != null && left > Duration.zero;
-    final eyebrow = [
-      ?brief.businessName,
-      brief.tier.label,
-      ?interestLabel(brief.interest),
-    ].join(' · ');
-    final total = brief.spotsTotal;
-    final spotsLeft = brief.spotsLeft;
-    final spots = spotsLeft == null
-        ? 'No limit'
-        : total == null
-        ? '$spotsLeft left'
-        : '$spotsLeft of $total left';
-
+        Flags.closeReminders &&
+        saved &&
+        !closed &&
+        left != null &&
+        left > Duration.zero;
     final remindersLoaded = ref.watch(closeRemindersProvider).hasValue;
+    Widget inset(Widget child) => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
+      child: child,
+    );
     return Stagger(
       move: StaggerMove.settle,
       child: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
+        padding: const EdgeInsets.only(bottom: IqSpace.s6),
         children: [
-          const SizedBox(height: IqSpace.s2),
           StaggerItem(
             index: 0,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  eyebrow.toUpperCase(),
-                  style: IqText.mono.copyWith(color: IqColors.fg3),
-                ),
-                const SizedBox(height: IqSpace.s2),
-                Text(
-                  brief.title,
-                  style: IqText.title.copyWith(color: IqColors.fg),
-                ),
-              ],
+            child: IqBriefHero(
+              cover: businessCover(brief.cover),
+              logo: businessLogo(brief.logo),
+              showDots: false,
             ),
           ),
-          const SizedBox(height: IqSpace.s6),
+          const SizedBox(height: 5),
+          StaggerItem(
+            index: 0,
+            child: inset(
+              Padding(
+                padding: const EdgeInsets.only(left: 66),
+                child: Text(
+                  businessLabel(brief),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: IqText.smallStrong.copyWith(color: IqColors.fg),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
           StaggerItem(
             index: 1,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _Fact(
-                  label: 'Reward pool',
-                  note: brief.winnerRule,
-                  value: rewardPool(brief.rewardPoolKobo),
-                ),
-                const _Hairline(),
-                _Fact(
-                  label: 'Submissions close',
-                  value: closesInWords(left, closed: closed),
-                ),
-                const _Hairline(),
-                _Fact(label: 'Spots', value: spots),
-              ],
+            child: inset(
+              Text(
+                brief.title,
+                style: IqText.headline.copyWith(color: IqColors.fg),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          StaggerItem(
+            index: 1,
+            child: inset(
+              Wrap(
+                spacing: IqSpace.s1p5,
+                runSpacing: IqSpace.s1p5,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: briefMeta(brief, now),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          StaggerItem(
+            index: 2,
+            child: inset(
+              Text(brief.body, style: IqText.body.copyWith(color: IqColors.fg)),
             ),
           ),
           if (canRemind) ...[
-            const SizedBox(height: IqSpace.s4),
+            const SizedBox(height: 14),
             StaggerItem(
-              index: 2,
+              index: 3,
               // A first value that loads after the page opens shows at once;
               // only a person's flip animates the switch.
               child: KeyedSubtree(
                 key: ValueKey(remindersLoaded),
-                child: IqSettingRow(
-                  label: 'Remind me',
-                  description: 'An hour before close',
-                  divider: false,
-                  state: reminders.contains(brief.id)
-                      ? IqSwitchState.on
-                      : IqSwitchState.off,
-                  onChanged: (state) => ref
-                      .read(closeRemindersProvider.notifier)
-                      .setReminder(brief.id, state == IqSwitchState.on),
+                child: inset(
+                  IqSettingRow(
+                    label: 'Remind me',
+                    description: 'An hour before close',
+                    divider: false,
+                    state: reminders.contains(brief.id)
+                        ? IqSwitchState.on
+                        : IqSwitchState.off,
+                    onChanged: (state) => ref
+                        .read(closeRemindersProvider.notifier)
+                        .setReminder(brief.id, state == IqSwitchState.on),
+                  ),
                 ),
               ),
             ),
           ],
-          const SizedBox(height: IqSpace.s4),
-          StaggerItem(
-            index: 3,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'About the brief'.toUpperCase(),
-                  style: IqText.mono.copyWith(color: IqColors.fg3),
-                ),
-                const SizedBox(height: IqSpace.s2),
-                Text(
-                  brief.body,
-                  style: IqText.body.copyWith(color: IqColors.fg),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: IqSpace.s4),
         ],
       ),
     );
   }
-}
-
-class _Fact extends StatelessWidget {
-  const _Fact({required this.label, required this.value, this.note});
-
-  final String label;
-  final String value;
-  final String? note;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: IqSpace.s3),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label.toUpperCase(),
-                  style: IqText.mono.copyWith(color: IqColors.fg3),
-                ),
-                if (note != null)
-                  Text(
-                    note!,
-                    style: IqText.small.copyWith(color: IqColors.fg2),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(width: IqSpace.s3),
-          Text(value, style: IqText.figureSmall.copyWith(color: IqColors.fg)),
-        ],
-      ),
-    );
-  }
-}
-
-class _Hairline extends StatelessWidget {
-  const _Hairline();
-
-  @override
-  Widget build(BuildContext context) =>
-      const SizedBox(height: 1, child: ColoredBox(color: IqColors.line));
 }

@@ -1,5 +1,4 @@
 import 'demo_data.dart';
-import 'models.dart';
 
 /// One poll a business runs (Exp/PollCard). Polls are a design proposal
 /// behind Flags.polls: the API does not serve them yet, so every figure is
@@ -100,13 +99,6 @@ class PollBusiness {
   DateTime get firstClose =>
       polls.map((p) => p.closesAt).reduce((a, b) => a.isBefore(b) ? a : b);
 
-  /// Its Exp/BrandBubble on Discover.
-  PollBrand get brand => PollBrand(
-    businessName: name,
-    openPolls: polls.length,
-    unanswered: unanswered,
-  );
-
   PollBusiness withPoll(Poll poll) => PollBusiness(
     id: id,
     name: name,
@@ -121,9 +113,8 @@ class PollBusiness {
 /// (33:169, 33:289); the flavour poll's counts give the row note's
 /// 45 / 33 / 22 of 214 once the person votes Zobo and ginger. The Unibooks and
 /// Sunline questions are their Figma tiles'; their choices are written for
-/// the demo. Open and unanswered counts foot to
-/// DemoData.pollBrands: Orchid Foods 2 open and unanswered, Unibooks 1,
-/// Sunline 1 answered, results in 1 day.
+/// the demo. Orchid Foods has 2 open and unanswered,
+/// Unibooks 1, Sunline 1 answered.
 List<PollBusiness> demoPolls(DateTime now) => [
   PollBusiness(
     id: 'orchid-foods',

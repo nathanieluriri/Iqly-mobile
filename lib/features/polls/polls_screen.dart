@@ -3,31 +3,26 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/deadline.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../data/polls_data.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
-import '../../ui/icon.dart';
-import '../../ui/list_row.dart';
 import '../../ui/section_title.dart';
 import '../../ui/skeleton.dart';
 import '../../ui/top_bar.dart';
 import '../discover/discover_routes.dart';
 import 'polls_routes.dart';
 import 'polls_state.dart';
+import 'quick_poll_tile.dart';
 
-/// B2 · Polls · Brands (33:26), behind Flags.polls: the businesses with
-/// open polls as Exp/ListRow, each raising its sheet. Opened from a
-/// Discover bubble, [open] names the business and its sheet rises over this
-/// page, as Figma's bubbles lead to 33:169.
+/// B2 · Quick polls (33:26), behind Flags.polls: a sub page with the open
+/// polls as Exp/PollTile, each raising its business's sheet. Opened from a
+/// Discover tile, [open] names the business and its sheet rises over this
+/// page, as Figma's tiles lead to 33:169.
 ///
-/// The rows arrive the first time the list shows in a session (MOTION-SPEC
+/// The tiles arrive the first time the list shows in a session (MOTION-SPEC
 /// §7.3) and stand still on later visits.
-///
-/// Figma over brief: the frame titles the section "Brands with open polls";
-/// the product says "business", never "brand", so it reads "Businesses".
 class PollsScreen extends ConsumerStatefulWidget {
   const PollsScreen({super.key, this.open});
 
@@ -73,7 +68,7 @@ class _PollsScreenState extends ConsumerState<PollsScreen> {
               children: [
                 IqTopBar(
                   variant: IqTopBarVariant.page,
-                  title: 'Polls',
+                  title: 'Quick polls',
                   onBack: () => leave(context),
                 ),
                 Expanded(
@@ -101,8 +96,6 @@ class _PollsScreenState extends ConsumerState<PollsScreen> {
   }
 }
 
-const _intro = 'Vote, then see results.';
-
 class _Page extends StatelessWidget {
   const _Page({required this.children});
 
@@ -112,11 +105,7 @@ class _Page extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(IqSpace.s4, 0, IqSpace.s4, IqSpace.s4),
-      children: [
-        Text(_intro, style: IqText.body.copyWith(color: IqColors.fg2)),
-        const SizedBox(height: IqSpace.s3),
-        ...children,
-      ],
+      children: [...children],
     );
   }
 }
@@ -146,29 +135,25 @@ class _BusinessesState extends ConsumerState<_Businesses> {
   @override
   Widget build(BuildContext context) {
     final businesses = widget.businesses;
-    final now = ref.watch(clockProvider)();
     return Stagger(
       play: _arrive,
       child: _Page(
         children: [
           StaggerItem(
             index: 0,
-            child: IqSectionTitle(
-              title: 'Businesses with open polls',
-              count: '${businesses.length}',
+            child: const IqSectionTitle(
+              title: 'Open polls',
+              showCount: false,
               showLink: false,
             ),
           ),
           for (final (i, business) in businesses.indexed) ...[
-            const SizedBox(height: IqSpace.s3),
+            SizedBox(height: i == 0 ? IqSpace.s3 : IqSpace.s2p5),
             StaggerItem(
               index: i + 1,
-              child: IqListRow(
+              child: QuickPollTile(
                 key: ValueKey(business.id),
-                label: business.name,
-                description: businessLine(business, now),
-                icon: IqIcons.polls,
-                divider: i < businesses.length - 1,
+                business: business,
                 onTap: () => context.push(pollsOf(business.id)),
               ),
             ),

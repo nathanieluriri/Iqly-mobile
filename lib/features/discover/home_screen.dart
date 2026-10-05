@@ -14,41 +14,45 @@ import '../../core/session.dart';
 import '../../core/transitions.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
+import '../../core/money.dart';
+import '../../data/activations_data.dart';
+import '../../data/polls_data.dart';
 import '../../ui/banner.dart';
-import '../../ui/brand_bubble.dart';
+import '../../ui/brief_card.dart';
 import '../../ui/button.dart';
 import '../../ui/dock.dart';
-import '../../ui/icon.dart';
 import '../../ui/illustration.dart';
-import '../../ui/list_row.dart';
+import '../../ui/meta.dart';
 import '../../ui/pull_indicator.dart';
 import '../../ui/section_title.dart';
 import '../../ui/skeleton.dart';
-import '../../ui/ticket_card.dart';
+import '../activations/activation_format.dart';
+import '../activations/activations_routes.dart';
+import '../activations/activations_state.dart';
 import '../entry/first_tip.dart';
+import '../polls/polls_routes.dart';
+import '../polls/polls_state.dart';
+import '../polls/quick_poll_tile.dart';
 import '../onboarding/setup_nudge.dart';
 import '../withdrawals/payout_arrival.dart';
 import 'app_shell.dart';
+import 'business_art.dart';
 import 'discover_state.dart';
 import 'discover_widgets.dart';
 import 'feed_slivers.dart';
 
-/// B1 · Discover · Home (31:24) with the B12 For you behaviour (192:8644):
-/// open polls, activations, Closing soon, the interest groups, then More
-/// briefs, loaded a page at a time, under the lens chips pinned as chrome.
-/// Pull to refresh shows Exp/PullIndicator above the chips; the first load
-/// shows skeletons; a failed load shows the error banner; an empty feed
-/// shows the trophy.
+/// B1 · Discover · Home (31:24, For you; 480:20532, All): Quick polls,
+/// Activations, then Briefs (and on For you More briefs), loaded a page at
+/// a time under the lens chips pinned as chrome. Pull to refresh shows
+/// Exp/PullIndicator above the chips (192:8909); the first visit shows
+/// skeleton cards (165:8171, 192:9042); a failed load shows the error
+/// banner and the Thinker (165:8401); an empty feed the Shrug (165:8285).
 ///
-/// Motion (spec 6.20, 5.15 to 5.17, 3.7): the first load waits behind
-/// LoadingGate and its items arrive 40 ms apart (the setup nudge first);
-/// one PullIndicator fades in with the pull, turns its arrow when armed
-/// (select haptic, once a pull), holds its 52 pt slot while refreshing,
-/// shows Done for 800 ms and then closes the slot as the feed slides up; a
-/// new page arrives from its first ticket; the lens chips and filters cross
-/// the content under the still chips (200 ms, no stagger); Try again sends
-/// the banner up and waits again, and a failed retry brings it back with
-/// the error haptic.
+/// Motion: the first load waits behind LoadingGate and its items arrive
+/// 40 ms apart; later dock returns show the feed as it was and refresh it
+/// quietly; the lens chips and filters cross the content under the still
+/// chips (200 ms); the gift's shine plays once a session, 0.8 s after the
+/// first load lands, never on a refresh.
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -74,10 +78,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   bool? _nudge;
   IqPullIndicatorState? _closingAs;
   Timer? _doneTimer;
+  Timer? _shineTimer;
+  bool _shine = false;
 
   @override
   void dispose() {
     _doneTimer?.cancel();
+    _shineTimer?.cancel();
     _scroll.dispose();
     _pull.dispose();
     _armed.dispose();
@@ -217,7 +224,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     if (_landed) return;
     _landed = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) ref.read(firstTipCueProvider.notifier).cue(after);
+      if (!mounted) return;
+      ref.read(firstTipCueProvider.notifier).cue(after);
+      if (ref.read(giftShineSpentProvider)) return;
+      ref.read(giftShineSpentProvider.notifier).spend();
+      _shineTimer = Timer(after + IqDurations.giftShineDelay, () {
+        if (mounted) setState(() => _shine = true);
+      });
     });
   }
 
@@ -267,6 +280,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       _retrying = false;
       if (next.hasError) IqHaptics.error.play();
     });
+    ref.listen(tabEntryProvider, (previous, next) {
+      if (next?.tab != IqDockActive.discover) return;
+      ref.read(discoverFeedProvider.notifier).refreshQuietly();
+      if (Flags.polls) ref.read(pollsProvider.notifier).refreshQuietly();
+    });
     scrollToTopOnRetap(ref, context, IqDockActive.discover, _scroll);
   }
 
@@ -279,8 +297,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final data = feed.value;
     final failed = feed.hasError && !feed.isLoading;
     final proposalsPending =
-        (Flags.polls && _pending(ref.watch(pollBrandsProvider))) ||
-        (Flags.activations && _pending(ref.watch(activationsSummaryProvider)));
+        (Flags.polls && _pending(ref.watch(pollsProvider))) ||
+        (Flags.activations && _pending(ref.watch(activationsProvider)));
     final onboardingDone = ref.watch(
       sessionProvider.select((s) => s.onboardingDone),
     );
@@ -301,7 +319,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const DiscoverTopBar(),
+              DiscoverTopBar(giftShine: _shine),
               Expanded(
                 child: Listener(
                   onPointerUp: (_) => _release(),
@@ -464,63 +482,90 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     return SliverMainAxisGroup(slivers: slivers);
   }
 
-  List<Widget> _loading() => gapped([
-    for (final kind in const [
-      IqSkeletonKind.ticket,
-      IqSkeletonKind.ticket,
-      IqSkeletonKind.row,
-      IqSkeletonKind.ticket,
-    ])
-      _inset(IqSkeleton(kind: kind)),
-  ]);
+  /// The first load: the two skeleton cards under the Briefs heading, with
+  /// Quick polls and Activations above them once they are in (B1 165:8171);
+  /// before then the skeleton cards alone (B12 192:9042).
+  List<Widget> _loading() {
+    final proposals = _proposals();
+    return [
+      if (proposals.isNotEmpty) ...[
+        for (final item in proposals) item.child,
+        _sectionGap,
+        _briefsTitle(),
+        const SizedBox(height: IqSpace.s3),
+      ],
+      ...gapped([_inset(const _SkeletonCard()), _inset(const _SkeletonCard())]),
+    ];
+  }
 
-  /// Each item arrives on its own; the first sits right under the chips,
-  /// the rest 12 apart.
+  /// Each item arrives on its own, the first right under the chips, the
+  /// rest 12 apart.
   List<Widget> _spaced(List<_Item> items) => [
     for (final (i, item) in items.indexed)
       ArriveItem(
         key: ValueKey(item.key),
         child: Padding(
-          padding: EdgeInsets.only(top: i == 0 || item.ownGap ? 0 : IqSpace.s3),
+          padding: EdgeInsets.only(top: i == 0 ? 0 : item.gap),
           child: item.child,
         ),
       ),
   ];
 
   List<_Item> _failed() => [
-    ..._proposals(),
     _Item(
       'failed',
       _inset(
-        const _EmptyText(
-          title: 'Nothing to show yet',
-          body: 'They will show here once they load.',
+        const _EmptyState(
+          figure: IqFigures.thinker,
+          top: IqSpace.s8,
+          title: 'Couldn’t load briefs',
+          body: 'Check your data or Wi-Fi and try again.',
         ),
       ),
     ),
   ];
 
-  /// Open polls and Activations sit above the feed, so the feed waits for
+  /// Quick polls and Activations sit above the feed, so the feed waits for
   /// their first answer rather than being pushed down when they land.
   static bool _pending(AsyncValue<Object?> value) =>
       !value.hasValue && !value.hasError;
 
-  /// Open polls and the Activations row, each behind its flag.
+  static const double _section = IqSpace.s6 + IqSpace.s3;
+  static const Widget _sectionGap = SizedBox(height: _section);
+
+  Widget _briefsTitle() => _inset(
+    IqSectionTitle(
+      title: 'Briefs',
+      showCount: false,
+      link: 'Filter',
+      onSeeAll: () => context.go(Routes.filters),
+    ),
+  );
+
+  /// Quick polls and the Activations block, each behind its flag.
   List<_Item> _proposals() {
-    final brands = Flags.polls
-        ? ref.watch(pollBrandsProvider).value ?? const []
-        : const [];
+    final businesses = Flags.polls
+        ? ref.watch(pollsProvider).value ?? const <PollBusiness>[]
+        : const <PollBusiness>[];
     final activations = Flags.activations
-        ? ref.watch(activationsSummaryProvider).value
-        : null;
+        ? ref.watch(activationsProvider).value ?? const <Activation>[]
+        : const <Activation>[];
+    final now = ref.watch(clockProvider)();
+    final open = [
+      for (final a in activations)
+        if (!a.closedAt(now) && !a.credited) a,
+    ]..sort((a, b) => a.closesAt.compareTo(b.closesAt));
+    void openActivations() => context.push(
+      open.length == 1 ? activationPath(open.single.id) : Routes.activations,
+    );
     return [
-      if (brands.isNotEmpty) ...[
+      if (businesses.isNotEmpty) ...[
         _Item(
           'polls-title',
           _inset(
             IqSectionTitle(
-              title: 'Open polls',
-              count: '${brands.length}',
+              title: 'Quick polls',
+              showCount: false,
               onSeeAll: () => context.push(Routes.polls),
             ),
           ),
@@ -533,160 +578,113 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: gappedRow([
-                for (final (i, brand) in brands.indexed)
-                  _Pop(
-                    index: i,
-                    child: IqBrandBubble(
-                      initial: brand.initial,
-                      name: brand.businessName,
-                      count: '${brand.unanswered}',
-                      state: brand.allAnswered
-                          ? IqBrandBubbleState.done
-                          : IqBrandBubbleState.newPolls,
-                      onTap: () => context.push(
-                        Uri(
-                          path: Routes.polls,
-                          queryParameters: {'business': brand.businessName},
-                        ).toString(),
-                      ),
-                    ),
+                for (final business in businesses)
+                  QuickPollTile(
+                    business: business,
+                    onTap: () => context.push(quickPollsFor(business.id)),
                   ),
               ]),
             ),
           ),
         ),
       ],
-      if (activations != null)
+      if (open.isNotEmpty) ...[
+        _Item(
+          'activations-title',
+          _inset(
+            IqSectionTitle(
+              title: 'Activations',
+              showCount: false,
+              onSeeAll: openActivations,
+            ),
+          ),
+          gap: businesses.isEmpty ? 0 : _section,
+        ),
         _Item(
           'activations',
           _inset(
-            IqListRow(
-              label: 'Activations',
-              description: activations.closingToday == 1
-                  ? '1 closes today'
-                  : '${activations.closingToday} close today',
-              showDescription: activations.closingToday > 0,
-              icon: IqIcons.timer,
-              divider: false,
-              onTap: () => context.push(Routes.activations),
+            IqBriefCard(
+              kind: IqBriefCardKind.row,
+              brand: open.first.business,
+              title: open.first.title,
+              cover: businessCover(activationCover(open.first)),
+              logo: businessLogo(activationLogo(open.first)),
+              meta: [
+                IqMeta(
+                  kind: IqMetaKind.reward,
+                  label: rewardShort(open.first.rewardKobo),
+                ),
+                IqMeta(
+                  kind: IqMetaKind.urgent,
+                  label:
+                      'Closes in ${countdownText(activationLeft(open.first, now))}',
+                ),
+              ],
+              onTap: openActivations,
             ),
           ),
         ),
+      ],
     ];
   }
 
   List<_Item> _feed(FeedData data) {
     final view = _view(data);
     final filters = ref.read(discoverFiltersProvider);
-    if (view.isEmpty && filters.narrowed) {
-      return [
-        ..._proposals(),
-        _Item(
-          'empty',
-          _inset(
-            const _EmptyText(
-              illustration: IqIllustrations.trophy,
-              title: 'No briefs match these filters',
-            ),
-          ),
-        ),
-        _Item(
-          'clear',
-          _inset(
-            IqButton(
-              label: 'Clear filters',
-              kind: IqButtonKind.ghost,
-              showIcon: false,
-              width: double.infinity,
-              onTap: () => ref
-                  .read(discoverFiltersProvider.notifier)
-                  .apply(const DiscoverFilters()),
-            ),
-          ),
-        ),
-      ];
-    }
+    final proposals = _proposals();
+    final lead = proposals.isEmpty ? 0.0 : _section;
     if (view.isEmpty) {
+      final narrowed = filters.narrowed;
       return [
-        ..._proposals(),
+        ...proposals,
         _Item(
           'empty',
           _inset(
-            const _EmptyText(
-              illustration: IqIllustrations.trophy,
-              title: 'No open briefs right now',
-              body: 'New briefs land here.',
+            _EmptyState(
+              figure: IqFigures.shrug,
+              top: IqSpace.s10,
+              title: narrowed
+                  ? 'No briefs match these filters'
+                  : 'No open briefs right now',
+              body: narrowed ? null : 'New briefs land here.',
+              action: narrowed ? 'Clear filters' : 'See all briefs',
+              onAction: narrowed
+                  ? () => ref
+                        .read(discoverFiltersProvider.notifier)
+                        .apply(const DiscoverFilters())
+                  : filters.forYou
+                  ? () {
+                      _crossContent();
+                      ref.read(discoverFiltersProvider.notifier).showAll();
+                    }
+                  : null,
             ),
           ),
+          gap: lead,
         ),
       ];
     }
-    void openFilters() => context.go(Routes.filters);
     final status = filters.status.label.toLowerCase();
     return [
-      ..._proposals(),
-      if (view.closingSoon.isNotEmpty) ...[
-        _Item(
-          'closing-title',
-          _inset(
-            IqSectionTitle(
-              title: 'Closing soon',
-              count: '${view.closingSoon.length}',
-              onSeeAll: openFilters,
-            ),
-          ),
-        ),
-        _Item(
-          'closing',
-          SizedBox(
-            height: 188,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
-              itemCount: view.closingSoon.length,
-              separatorBuilder: (context, i) =>
-                  const SizedBox(width: IqSpace.s3),
-              itemBuilder: (context, i) => BriefTicket(
-                brief: view.closingSoon[i],
-                kind: IqTicketCardKind.hero,
-              ),
-            ),
-          ),
-        ),
-      ],
-      for (final (i, group) in view.groups.indexed) ...[
-        _Item(
-          'group:${group.title}',
-          _inset(
-            IqSectionTitle(
-              title: group.title,
-              count: '${group.total}',
-              showLink: i == 0,
-              link: 'Filter',
-              onSeeAll: () => context.go(Routes.yourDetails),
-            ),
-          ),
-        ),
-        for (final brief in group.briefs)
-          _Item(
-            'group:${group.title}:${brief.id}',
-            Center(child: BriefTicket(brief: brief)),
-          ),
-      ],
-      if (view.more.total > 0) ...[
+      ...proposals,
+      _Item('briefs-title', _briefsTitle(), gap: lead),
+      for (final brief in view.briefs.briefs)
+        _Item('briefs:${brief.id}', _inset(BriefFeatureCard(brief: brief))),
+      if (view.more.briefs.isNotEmpty) ...[
         _Item(
           'more',
           _inset(
             IqSectionTitle(
               title: view.more.title,
-              count: '${view.more.total}',
+              showCount: false,
               link: 'Filter',
-              onSeeAll: openFilters,
+              onSeeAll: () => context.go(Routes.filters),
             ),
           ),
+          gap: _section,
         ),
         for (final brief in view.more.briefs)
-          _Item('more:${brief.id}', Center(child: BriefTicket(brief: brief))),
+          _Item('more:${brief.id}', _inset(BriefFeatureCard(brief: brief))),
       ],
       _Item(
         'tail',
@@ -699,20 +697,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               : 'That’s all ${view.total} $status briefs',
           onAdjust: () => context.go(Routes.yourDetails),
         ),
-        ownGap: true,
+        gap: 0,
       ),
     ];
   }
 }
 
 class _Item {
-  const _Item(this.key, this.child, {this.ownGap = false});
+  const _Item(this.key, this.child, {this.gap = IqSpace.s3});
 
   final String key;
   final Widget child;
 
-  /// The item opens its own gap above it (it may have nothing to show).
-  final bool ownGap;
+  /// The space above it; the tail opens its own (it may show nothing).
+  final double gap;
 }
 
 Widget _inset(Widget child) => Padding(
@@ -736,32 +734,6 @@ class _SetupNudgeSlot extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       _inset(const SetupNudge(gap: IqSpace.s3));
-}
-
-/// A brand bubble popping in 40 ms after the one before, inside its row's
-/// arrival (spec 6.20).
-class _Pop extends StatelessWidget {
-  const _Pop({required this.index, required this.child});
-
-  final int index;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final beat = ArriveItem.beatOf(
-      context,
-      lead: IqDurations.stagger * index,
-      length: IqDurations.appear,
-    );
-    if (beat == null) return child;
-    return FadeTransition(
-      opacity: beat,
-      child: ScaleTransition(
-        scale: beat.drive(Tween(begin: IqScale.pop, end: 1)),
-        child: child,
-      ),
-    );
-  }
 }
 
 /// The end of the list: the next page's skeleton with "LOADING MORE"
@@ -792,9 +764,9 @@ class _Tail extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: Text(
-                    'Loading more'.toUpperCase(),
+                    'Loading more…',
                     textAlign: TextAlign.center,
-                    style: IqText.mono.copyWith(color: IqColors.fg3),
+                    style: IqText.smallStrong.copyWith(color: IqColors.fg3),
                   ),
                 ),
               ),
@@ -864,29 +836,43 @@ class _Tail extends StatelessWidget {
   }
 }
 
-/// The empty and failed feed: an optional illustration rising in, its
-/// accent sweeping from +160 (spec 5.29), then a card title and one line
-/// appearing at +80 and +120 (spec 6.24).
-class _EmptyText extends StatelessWidget {
-  const _EmptyText({required this.title, this.body, this.illustration});
+/// The empty and failed feed (165:8285, 165:8401): the Exp/Figure rising
+/// in, then the title and one line appearing at +80 and +120 (spec 6.24),
+/// then the action.
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({
+    required this.figure,
+    required this.top,
+    required this.title,
+    this.body,
+    this.action,
+    this.onAction,
+  });
 
+  final IqFigures figure;
+  final double top;
   final String title;
   final String? body;
-  final IqIllustrations? illustration;
+  final String? action;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: IqSpace.s6),
+      padding: EdgeInsets.only(top: top, bottom: IqSpace.s6),
       child: Column(
         children: [
-          if (illustration != null) ...[
-            IqIllustration(
-              illustration!,
-              entrance: IqIllustrationEntrance.rise,
+          SizedBox(
+            height: 200,
+            child: ClipRect(
+              child: OverflowBox(
+                alignment: Alignment.topCenter,
+                maxHeight: double.infinity,
+                child: IqFigure(figure, width: 188, arrive: true),
+              ),
             ),
-            const SizedBox(height: IqSpace.s2),
-          ],
+          ),
+          const SizedBox(height: IqSpace.s3),
           Appear(
             delay: IqDurations.stagger * 2,
             child: SizedBox(
@@ -894,12 +880,12 @@ class _EmptyText extends StatelessWidget {
               child: Text(
                 title,
                 textAlign: TextAlign.center,
-                style: IqText.cardTitle.copyWith(color: IqColors.fg),
+                style: IqText.title.copyWith(color: IqColors.fg),
               ),
             ),
           ),
           if (body case final body?) ...[
-            const SizedBox(height: IqSpace.s2),
+            const SizedBox(height: IqSpace.s3),
             Appear(
               delay: IqDurations.stagger * 3,
               child: SizedBox(
@@ -912,7 +898,86 @@ class _EmptyText extends StatelessWidget {
               ),
             ),
           ],
+          if (action case final action?) ...[
+            const SizedBox(height: IqSpace.s3),
+            Appear(
+              delay: IqDurations.stagger * 4,
+              child: IqButton(label: action, showIcon: false, onTap: onAction),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+/// A brief card while the feed loads (165:8171): the photo block and the
+/// business, title and chip bars on the card, pulsing on the screen's beat.
+class _SkeletonCard extends StatelessWidget {
+  const _SkeletonCard();
+
+  @override
+  Widget build(BuildContext context) {
+    Widget bar(Animation<double> opacity, double w, double h) => FadeTransition(
+      opacity: opacity,
+      child: Container(
+        width: w,
+        height: h,
+        decoration: BoxDecoration(
+          color: IqColors.panel,
+          borderRadius: BorderRadius.circular(h / 2),
+        ),
+      ),
+    );
+    return Semantics(
+      label: 'Loading',
+      child: SkeletonPulse(
+        builder: (context, opacity) => Container(
+          height: 298,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: IqColors.card,
+            borderRadius: BorderRadius.circular(IqRadius.xl2),
+            border: Border.all(color: IqColors.line),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              FadeTransition(
+                opacity: opacity,
+                child: Container(height: 168, color: IqColors.panel),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  IqSpace.s4,
+                  IqSpace.s3,
+                  IqSpace.s4,
+                  0,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    bar(opacity, 120, 12),
+                    const SizedBox(height: IqSpace.s2p5),
+                    bar(opacity, 280, 16),
+                    const SizedBox(height: IqSpace.s2p5),
+                    bar(opacity, 200, 16),
+                    const SizedBox(height: IqSpace.s2p5),
+                    Row(
+                      children: [
+                        bar(opacity, 96, 26),
+                        const SizedBox(width: IqSpace.s2),
+                        bar(opacity, 64, 26),
+                        const SizedBox(width: IqSpace.s2),
+                        bar(opacity, 80, 26),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

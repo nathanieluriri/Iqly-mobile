@@ -9,7 +9,7 @@ import '../../data/models.dart';
 import '../../data/reference_data.dart';
 import '../../data/repository.dart';
 import '../onboarding/onboarding_draft.dart';
-import '../polls/polls_state.dart';
+import '../submissions/submissions_state.dart';
 
 enum FeedSort {
   myInterests('My interests first'),
@@ -68,8 +68,9 @@ class DiscoverFiltersNotifier extends Notifier<DiscoverFilters> {
 
   void showForYou() => state = state.copyWith(sort: FeedSort.myInterests);
 
+  /// All lists closing soon first (designer answer 20).
   void showAll() {
-    if (state.forYou) state = state.copyWith(sort: FeedSort.newest);
+    if (state.forYou) state = state.copyWith(sort: FeedSort.mostUrgent);
   }
 }
 
@@ -77,6 +78,20 @@ final discoverFiltersProvider =
     NotifierProvider<DiscoverFiltersNotifier, DiscoverFilters>(
       DiscoverFiltersNotifier.new,
     );
+
+/// The gift's shine plays once a session, on the first Discover load, and
+/// not at all once Referrals has opened (designer answer 32). True once it
+/// is spent either way.
+class GiftShineNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void spend() => state = true;
+}
+
+final giftShineSpentProvider = NotifierProvider<GiftShineNotifier, bool>(
+  GiftShineNotifier.new,
+);
 
 /// The lists that have played their first arrive this session (spec 2.6:
 /// a list arrives on its first load, not on revisits).
@@ -97,28 +112,6 @@ final feedInterestsProvider = Provider<List<String>>((ref) {
         if (option.label == label) option.value,
   ];
 });
-
-/// The bubbles follow the person's votes (lib/features/polls).
-final pollBrandsProvider = FutureProvider<List<PollBrand>>(
-  (ref) async => [
-    for (final business in await ref.watch(pollsProvider.future))
-      business.brand,
-  ],
-);
-
-final activationsSummaryProvider = FutureProvider<ActivationsSummary>(
-  (ref) => ref.watch(repositoryProvider).activationsSummary(),
-);
-
-String greeting(DateTime now, String? firstName) {
-  if (firstName == null) return '';
-  final part = now.hour < 12
-      ? 'morning'
-      : now.hour < 17
-      ? 'afternoon'
-      : 'evening';
-  return 'Good $part, $firstName';
-}
 
 enum RefreshPhase { idle, refreshing, done }
 
@@ -191,6 +184,21 @@ class DiscoverFeedNotifier extends AsyncNotifier<FeedData> {
     }
   }
 
+  /// A return to the tab: the feed on screen stays as it is and the new
+  /// list replaces it when it lands; a failure keeps what was there.
+  Future<void> refreshQuietly() async {
+    final current = state.value;
+    if (current == null || current.refresh != RefreshPhase.idle) return;
+    try {
+      final briefs = await ref
+          .read(repositoryProvider)
+          .briefs(load: BriefsLoad.refresh);
+      final now = state.value;
+      if (now == null || now.refresh != RefreshPhase.idle) return;
+      state = AsyncData(now.copyWith(briefs: briefs));
+    } catch (_) {}
+  }
+
   void settleRefresh() {
     final current = state.value;
     if (current == null || current.refresh != RefreshPhase.done) return;
@@ -243,28 +251,32 @@ class FeedGroup {
   final int total;
 }
 
-/// What Discover lays out: Closing soon, then the interest groups (For you
-/// only), then More briefs, cut to the loaded window.
+/// What Discover lays out under its Briefs heading, cut to the loaded
+/// window. For you: the briefs closing soon and those filed under the
+/// person's interests, then More briefs. All: one list. Closing soon cards
+/// always lead (Exp/BriefCard).
 class FeedView {
   const FeedView({
     required this.total,
-    required this.closingSoon,
-    required this.groups,
+    required this.briefs,
     required this.more,
     required this.hasMore,
   });
 
   final int total;
-  final List<Brief> closingSoon;
-  final List<FeedGroup> groups;
+  final FeedGroup briefs;
   final FeedGroup more;
   final bool hasMore;
 
   bool get isEmpty => total == 0;
 }
 
-abstract final class FeedRules {
-  static const closingSoonWithin = DeadlineRules.closingSoon;
+/// Whether [brief] wears the closing-soon tint and outline.
+bool isClosingSoon(Brief brief, DateTime now) {
+  final left = timeLeft(brief.deadline, now);
+  return left != null &&
+      left > Duration.zero &&
+      left < DeadlineRules.closingSoonOutline;
 }
 
 List<Brief> filterBriefs(List<Brief> briefs, DiscoverFilters filters) =>
@@ -278,60 +290,53 @@ FeedView buildFeed({
   required int window,
 }) {
   final matching = filterBriefs(briefs, filters);
+  bool leads(Brief b) => isClosingSoon(b, now);
+  final closing = _sorted(matching.where(leads), _bySoonest(now));
+  final rest = matching.where((b) => !leads(b));
 
-  final closingSoon = _sorted(
-    matching.where((b) {
-      final left = timeLeft(b.deadline, now);
-      return left != null &&
-          left > Duration.zero &&
-          left <= FeedRules.closingSoonWithin;
-    }),
-    _bySoonest(now),
-  );
-
-  final groups = <FeedGroup>[];
-  final grouped = <String>{};
+  final List<Brief> first;
+  final List<Brief> second;
   if (filters.forYou) {
-    for (final interest in interests) {
-      final inGroup = _sorted(
-        matching.where((b) => b.interest == interest),
+    first = [
+      ...closing,
+      ..._sorted(
+        rest.where((b) => interests.contains(b.interest)),
         _bySoonest(now),
-      );
-      if (inGroup.isEmpty) continue;
-      grouped.addAll(inGroup.map((b) => b.id));
-      final label = Reference.interests
-          .firstWhere((o) => o.value == interest)
-          .label;
-      groups.add(
-        FeedGroup(title: label, briefs: inGroup, total: inGroup.length),
-      );
-    }
+      ),
+    ];
+    second = _sorted(
+      rest.where((b) => !interests.contains(b.interest)),
+      _bySoonest(now),
+    );
+  } else {
+    first = [
+      ...closing,
+      ..._sorted(rest, switch (filters.sort) {
+        FeedSort.biggestReward => (a, b) => b.rewardPoolKobo.compareTo(
+          a.rewardPoolKobo,
+        ),
+        FeedSort.newest => (a, b) => b.createdAt.compareTo(a.createdAt),
+        FeedSort.mostUrgent || FeedSort.myInterests => _bySoonest(now),
+      }),
+    ];
+    second = const [];
   }
 
-  final rest = _sorted(
-    matching.where((b) => !grouped.contains(b.id)),
-    switch (filters.sort) {
-      FeedSort.mostUrgent => _bySoonest(now),
-      FeedSort.biggestReward => (a, b) => b.rewardPoolKobo.compareTo(
-        a.rewardPoolKobo,
-      ),
-      FeedSort.myInterests ||
-      FeedSort.newest => (a, b) => b.createdAt.compareTo(a.createdAt),
-    },
-  );
-
-  final inGroups = grouped.length;
-  final moreShown = (window - inGroups).clamp(0, rest.length);
+  final firstShown = window.clamp(0, first.length);
+  final secondShown = (window - first.length).clamp(0, second.length);
   return FeedView(
     total: matching.length,
-    closingSoon: closingSoon,
-    groups: groups,
+    briefs: FeedGroup(
+      title: 'Briefs',
+      briefs: first.take(firstShown).toList(),
+      total: first.length,
+    ),
     more: FeedGroup(
       title: 'More briefs',
-      briefs: rest.take(moreShown).toList(),
-      total: rest.length,
+      briefs: second.take(secondShown).toList(),
+      total: second.length,
     ),
-    hasMore: moreShown < rest.length,
+    hasMore: firstShown + secondShown < matching.length,
   );
 }
 
@@ -449,3 +454,27 @@ final briefDetailProvider = FutureProvider.family<Brief?, String>((
   final saved = await ref.watch(savedBriefsProvider.future);
   return saved.where((b) => b.id == id).firstOrNull;
 });
+
+/// The person's submission to brief [id], if they sent one: from those
+/// sent this session at once, else from the account.
+final briefSubmissionProvider = Provider.autoDispose.family<String?, String>((
+  ref,
+  id,
+) {
+  final sent = ref
+      .watch(sentSubmissionsProvider)
+      .where((i) => i.submission.briefId == id)
+      .firstOrNull;
+  if (sent != null) return sent.id;
+  return ref
+      .watch(_accountSubmissionsProvider)
+      .value
+      ?.where((s) => s.briefId == id)
+      .firstOrNull
+      ?.id;
+});
+
+final _accountSubmissionsProvider =
+    FutureProvider.autoDispose<List<Submission>>(
+      (ref) => ref.watch(repositoryProvider).submissions(),
+    );

@@ -142,22 +142,6 @@ class Brief {
   }
 }
 
-/// A business with open polls, as a Discover brand bubble.
-class PollBrand {
-  const PollBrand({
-    required this.businessName,
-    required this.openPolls,
-    required this.unanswered,
-  });
-
-  final String businessName;
-  final int openPolls;
-  final int unanswered;
-
-  String get initial => businessName.substring(0, 1);
-  bool get allAnswered => unanswered == 0;
-}
-
 /// The Activations row on Discover.
 class ActivationsSummary {
   const ActivationsSummary({required this.closingToday});

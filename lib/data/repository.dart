@@ -22,9 +22,6 @@ abstract class IqlyRepository {
   Future<SavedBank?> savedBank();
   Future<int> unreadNotifications();
 
-  /// Behind Flags.polls.
-  Future<List<PollBrand>> pollBrands();
-
   /// Behind Flags.activations.
   Future<ActivationsSummary> activationsSummary();
 
@@ -119,8 +116,6 @@ class DemoRepository implements IqlyRepository {
   Future<int> unreadNotifications() async => DemoData.unreadNotifications;
 
   @override
-  Future<List<PollBrand>> pollBrands() async => DemoData.pollBrands;
-
   @override
   Future<ActivationsSummary> activationsSummary() async => DemoData.activations;
 
