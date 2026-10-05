@@ -110,48 +110,61 @@ class _OnboardingStepScaffoldState extends State<OnboardingStepScaffold> {
                   child: StepMarkChrome(step: widget.step),
                 ),
                 Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(
-                      IqSpace.s4,
-                      IqSpace.s4,
-                      IqSpace.s4,
-                      IqSpace.s4,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Semantics(
-                          liveRegion: true,
-                          child: IqBanner(
-                            kind: IqBannerKind.error,
-                            title: _banner,
-                            showAction: false,
-                            visible: banner != null,
-                            margin: const EdgeInsets.only(bottom: IqSpace.s6),
-                          ),
-                        ),
-                        if (caption != null) const SizedBox(height: IqSpace.s2),
-                        Semantics(
-                          header: true,
-                          child: Text(
-                            widget.title,
-                            style: IqText.display.copyWith(color: IqColors.fg),
-                          ),
-                        ),
-                        if (caption != null) ...[
-                          const SizedBox(height: IqSpace.s1p5),
-                          Shake(
-                            trigger: _missing,
-                            child: Text(
-                              caption,
-                              style: IqText.body.copyWith(color: IqColors.fg2),
+                  // The phone keypad has no return key and covers the foot,
+                  // so a tap or drag on the step puts the keyboard away.
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+                    child: SingleChildScrollView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: const EdgeInsets.fromLTRB(
+                        IqSpace.s4,
+                        IqSpace.s4,
+                        IqSpace.s4,
+                        IqSpace.s4,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Semantics(
+                            liveRegion: true,
+                            child: IqBanner(
+                              kind: IqBannerKind.error,
+                              title: _banner,
+                              showAction: false,
+                              visible: banner != null,
+                              margin: const EdgeInsets.only(bottom: IqSpace.s6),
                             ),
                           ),
-                          const SizedBox(height: IqSpace.s5),
-                        ] else
-                          const SizedBox(height: IqSpace.s6),
-                        PushTrail(child: widget.child),
-                      ],
+                          if (caption != null)
+                            const SizedBox(height: IqSpace.s2),
+                          Semantics(
+                            header: true,
+                            child: Text(
+                              widget.title,
+                              style: IqText.display.copyWith(
+                                color: IqColors.fg,
+                              ),
+                            ),
+                          ),
+                          if (caption != null) ...[
+                            const SizedBox(height: IqSpace.s1p5),
+                            Shake(
+                              trigger: _missing,
+                              child: Text(
+                                caption,
+                                style: IqText.body.copyWith(
+                                  color: IqColors.fg2,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: IqSpace.s5),
+                          ] else
+                            const SizedBox(height: IqSpace.s6),
+                          PushTrail(child: widget.child),
+                        ],
+                      ),
                     ),
                   ),
                 ),
