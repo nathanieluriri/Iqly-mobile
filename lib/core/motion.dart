@@ -70,8 +70,11 @@ abstract final class IqDurations {
   /// Arrive and settle.
   static const enter = Duration(milliseconds: 260);
 
-  /// ConfirmSheet rise.
-  static const sheetConfirm = Duration(milliseconds: 280);
+  /// Every sheet rises in 300 and drops in 200 (owner rule).
+  static const sheetRise = Duration(milliseconds: 300);
+
+  /// See [sheetRise].
+  static const sheetDrop = Duration(milliseconds: 200);
 
   /// Push, sheet rise, dissolve, flow hand-off, landing focus.
   static const screen = Duration(milliseconds: 300);

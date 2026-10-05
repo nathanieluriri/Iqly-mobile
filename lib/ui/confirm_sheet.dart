@@ -124,13 +124,15 @@ class IqConfirmSheet extends StatelessWidget {
 }
 
 /// Shows [IqConfirmSheet] over an ink scrim and resolves to true when the
-/// destructive action is confirmed (spec 3.8). The sheet rises 280 ms
+/// destructive action is confirmed (spec 3.8). The sheet rises 300 ms
 /// ease-out as the scrim fades to .5 and follows a drag down; Remove gives
 /// the destructive haptic and the button sinks for 100 ms before the sheet
 /// drops (200 ms), the button held down; Keep it drops it at once. From the
 /// choice on, the sheet ignores taps, drags and the scrim. Reduced motion
 /// fades in place.
-/// [scrim] takes a frame's own scrim (141:5492 is brand-dark at 50%).
+/// [scrim] takes a frame's own scrim (141:5492 is brand-dark at 50%);
+/// [confirmKind] the instance's button override (Primary for a way
+/// forward).
 Future<bool> showIqConfirmSheet(
   BuildContext context, {
   String title = 'Remove this recording?',
@@ -138,12 +140,12 @@ Future<bool> showIqConfirmSheet(
       'You will need to upload it again before you can send the proof.',
   String confirmLabel = 'Remove recording',
   String cancelLabel = 'Keep it',
+  IqButtonKind confirmKind = IqButtonKind.danger,
   Color? scrim,
 }) async {
   final result = await Navigator.of(context).push<bool>(
     IqSheetRoute<bool>(
       scrim: scrim ?? IqScrim.sheet,
-      rise: IqDurations.sheetConfirm,
       barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
       // The route has no Material of its own; without one the sheet's text
       // falls back to the debug style.
@@ -157,6 +159,7 @@ Future<bool> showIqConfirmSheet(
             body: body,
             confirmLabel: confirmLabel,
             cancelLabel: cancelLabel,
+            confirmKind: confirmKind,
           ),
         ),
       ),
@@ -171,12 +174,14 @@ class _ConfirmSheetBody extends StatefulWidget {
     required this.body,
     required this.confirmLabel,
     required this.cancelLabel,
+    required this.confirmKind,
   });
 
   final String title;
   final String body;
   final String confirmLabel;
   final String cancelLabel;
+  final IqButtonKind confirmKind;
 
   @override
   State<_ConfirmSheetBody> createState() => _ConfirmSheetBodyState();
@@ -228,6 +233,7 @@ class _ConfirmSheetBodyState extends State<_ConfirmSheetBody>
           body: widget.body,
           confirmLabel: widget.confirmLabel,
           cancelLabel: widget.cancelLabel,
+          confirmKind: widget.confirmKind,
           onConfirm: () => _close(true),
           onCancel: () => _close(false),
         ),

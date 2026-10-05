@@ -26,7 +26,7 @@ import '../../ui/meta.dart';
 import '../../ui/pull_indicator.dart';
 import '../../ui/section_title.dart';
 import '../../ui/skeleton.dart';
-import '../activations/activation_format.dart';
+import '../activations/activation_format.dart' hide activationCover;
 import '../activations/activations_routes.dart';
 import '../activations/activations_state.dart';
 import '../entry/first_tip.dart';

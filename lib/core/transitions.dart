@@ -74,18 +74,16 @@ Page<T> sheetPage<T>(
 }) => _IqSheetPage<T>(state, child, scrim);
 
 /// Opens [builder] as a sheet on [scrim] (spec 3.3) and completes with what
-/// it pops. [rise] is 300 ms, the ConfirmSheet's 280.
+/// it pops.
 Future<T?> showIqSheet<T>(
   BuildContext context,
   WidgetBuilder builder, {
   required Color scrim,
-  Duration rise = IqDurations.screen,
 }) {
   return Navigator.of(context).push<T>(
     IqSheetRoute<T>(
       builder: builder,
       scrim: scrim,
-      rise: rise,
       barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     ),
   );
@@ -637,8 +635,8 @@ class _IqSheetPage<T> extends Page<T> {
   );
 }
 
-/// The one sheet route (spec 3.3): the sheet rises from the bottom edge as
-/// its scrim fades in, drops in 200 ms when it closes, and follows a drag
+/// The one sheet route (spec 3.3): the sheet rises from the bottom edge in
+/// 300 ms as its scrim fades in, drops in 200 ms when it closes, and follows a drag
 /// down (past half its height or a 700 px/s fling closes it). It fades in
 /// place under reduced motion. The page beneath stays put.
 ///
@@ -649,7 +647,6 @@ class IqSheetRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
   IqSheetRoute({
     this.builder,
     required this.scrim,
-    this.rise = IqDurations.screen,
     this.barrierLabel,
     super.settings,
   });
@@ -659,9 +656,6 @@ class IqSheetRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
 
   /// The scrim at full strength.
   final Color scrim;
-
-  /// How long the sheet takes to rise.
-  final Duration rise;
 
   @override
   final String? barrierLabel;
@@ -695,11 +689,12 @@ class IqSheetRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
   Curve get barrierCurve => IqCurves.easeOut;
 
   @override
-  Duration get transitionDuration => reduced ? IqDurations.crossfade : rise;
+  Duration get transitionDuration =>
+      reduced ? IqDurations.crossfade : IqDurations.sheetRise;
 
   @override
   Duration get reverseTransitionDuration =>
-      reduced ? IqDurations.crossfade : IqDurations.swap;
+      reduced ? IqDurations.crossfade : IqDurations.sheetDrop;
 
   @override
   bool canTransitionTo(TransitionRoute<dynamic> nextRoute) => false;
