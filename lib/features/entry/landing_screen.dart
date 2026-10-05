@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -22,9 +24,12 @@ import 'entry_widgets.dart';
 import 'line_art_loop.dart';
 
 /// B0 Landing (227:10756) and its email focused state (231:11204): the
-/// providers and OR step aside, the drawing shrinks and Continue appears
-/// under the box while it has focus or holds text. A failed Apple or Google
-/// attempt drops an Error banner in at the top until the next try.
+/// providers and "or" step aside, the drawing shrinks and Continue appears
+/// under the box while it has focus or holds text. Continue with a bad
+/// address (480:20014) or one that already has an account (480:19948, with
+/// Sign in) drops an Error banner in under the headline until the email
+/// changes; a failed Apple or Google try uses the same banner until the box
+/// takes focus.
 ///
 /// Motion (MOTION-SPEC 4.2, 6.2): one controller moves the whole column,
 /// 300 ms ease-out into the focused layout as the box takes focus (not when
@@ -39,7 +44,10 @@ import 'line_art_loop.dart';
 /// apart from +120. Reduced motion: the focused layout at once with
 /// Continue fading in over 150, and the entrance fades in together.
 class LandingScreen extends ConsumerStatefulWidget {
-  const LandingScreen({super.key});
+  const LandingScreen({super.key, this.invite});
+
+  /// The code an invite link opened the app with (answer 22).
+  final String? invite;
 
   /// The logo sits this far below the safe area at rest; the splash lands
   /// its wordmark here (spec 3.9).
@@ -60,7 +68,7 @@ class _LandingScreenState extends ConsumerState<LandingScreen>
   static const double _drawing = 220;
   static const double _focusedDrawing = 120;
   static const double _linkGap = 3;
-  static const double _restBottom = 14;
+  static const double _restBottom = 12;
 
   final _email = EntryInput();
   late final _terms = TapGestureRecognizer()
@@ -116,21 +124,24 @@ class _LandingScreenState extends ConsumerState<LandingScreen>
   late final Animation<double> _fadeIn = _fade.drive(
     CurveTween(curve: IqCurves.easeOut),
   );
-  late final AnimationController _failure = AnimationController(
+
+  /// Opens with the banner (IqBanner's own times) so the drawing makes room.
+  late final AnimationController _squeeze = AnimationController(
     vsync: this,
     duration: IqBanner.enter,
     reverseDuration: IqBanner.exit,
   );
-  late final Animation<double> _failed = CurvedAnimation(
-    parent: _failure,
-    curve: IqCurves.easeOut,
-  );
 
   bool _checking = false;
   bool _signingIn = false;
-  AuthProvider? _failedProvider;
-  bool _showFailure = false;
   bool _wasFocused = false;
+
+  /// The error banner under the headline (480:19948, 480:20014, a failed
+  /// Apple or Google try, a failed lookup): its words, kept while it folds
+  /// away, and whether it offers Sign in.
+  _Banner? _banner;
+  _Banner _lastBanner = const _Banner('');
+  String _typed = '';
 
   static double _share(Duration part, Duration whole) =>
       part.inMicroseconds / whole.inMicroseconds;
@@ -139,10 +150,16 @@ class _LandingScreenState extends ConsumerState<LandingScreen>
   void initState() {
     super.initState();
     _email.controller.text = ref.read(entryDraftProvider).email;
+    _typed = _email.controller.text;
+    final invite = widget.invite;
+    if (invite != null) {
+      ref.read(pendingInviteProvider.notifier).accept(invite);
+    }
     _wasFocused = _focused;
     _focus.value = _wasFocused ? 1 : 0;
     _email.focus.addListener(_onFocus);
     _email.changes.addListener(_syncFocus);
+    _email.controller.addListener(_onEdit);
   }
 
   @override
@@ -154,7 +171,7 @@ class _LandingScreenState extends ConsumerState<LandingScreen>
     _privacy.dispose();
     _focus.dispose();
     _fade.dispose();
-    _failure.dispose();
+    _squeeze.dispose();
     super.dispose();
   }
 
@@ -164,7 +181,13 @@ class _LandingScreenState extends ConsumerState<LandingScreen>
   bool get _reduced => MediaQuery.disableAnimationsOf(context);
 
   void _onFocus() {
-    if (_email.focus.hasFocus && _showFailure) _setFailure(false);
+    if (_email.focus.hasFocus && _banner?.social == true) _setBanner(null);
+  }
+
+  void _onEdit() {
+    if (_email.controller.text == _typed) return;
+    _typed = _email.controller.text;
+    if (_banner != null) _setBanner(null);
   }
 
   void _syncFocus() {
@@ -181,15 +204,19 @@ class _LandingScreenState extends ConsumerState<LandingScreen>
     }
   }
 
-  void _setFailure(bool shown) {
-    setState(() => _showFailure = shown);
+  void _setBanner(_Banner? banner) {
     if (_reduced) {
-      _failure.value = shown ? 1 : 0;
-    } else if (shown) {
-      _failure.forward();
+      _squeeze.value = banner == null ? 0 : 1;
+    } else if (banner == null) {
+      _squeeze.reverse();
     } else {
-      _failure.reverse();
+      _squeeze.forward();
     }
+    setState(() {
+      _banner = banner;
+      if (banner != null) _lastBanner = banner;
+    });
+    if (banner != null) errorHaptic();
   }
 
   void _leaveEmail() {
@@ -201,37 +228,47 @@ class _LandingScreenState extends ConsumerState<LandingScreen>
     final email = _email.text;
     if (email.isEmpty || _checking) return;
     if (!isEmail(email)) {
-      _email.fail(EntryCopy.badEmail);
+      _setBanner(const _Banner(EntryCopy.badEmail));
       return;
     }
-    setState(() => _checking = true);
+    setState(() {
+      _checking = true;
+      _banner = null;
+    });
     final result = await ref.read(authServiceProvider).lookUpEmail(email);
     if (!mounted) return;
     setState(() => _checking = false);
     if (result.failure == AuthFailure.offline) {
-      _email.fail(EntryCopy.offline);
+      _setBanner(const _Banner(EntryCopy.offline));
       return;
     }
     ref.read(entryDraftProvider.notifier).setEmail(email);
     // Any other lookup failure goes on to sign up, which sends a taken email
     // to Sign in anyway.
-    final known = result.ok && !result.newAccount;
-    context.push(known ? Routes.signIn : Routes.yourName);
+    if (result.ok && !result.newAccount) {
+      _setBanner(const _Banner(EntryCopy.emailRegistered, signIn: true));
+      return;
+    }
+    context.push(Routes.yourName);
+  }
+
+  void _signIn() {
+    final email = _email.text;
+    if (isEmail(email)) ref.read(entryDraftProvider.notifier).setEmail(email);
+    context.push(Routes.signIn);
   }
 
   Future<void> _continueWith(AuthProvider provider) async {
     if (_signingIn) return;
     _signingIn = true;
-    if (_showFailure) _setFailure(false);
+    if (_banner != null) _setBanner(null);
     final result = await ref.read(authServiceProvider).continueWith(provider);
     _signingIn = false;
     if (!mounted) return;
     final failure = result.failure;
     if (failure == AuthFailure.cancelled) return;
     if (failure != null) {
-      _failedProvider = provider;
-      _setFailure(true);
-      errorHaptic();
+      _setBanner(_Banner(EntryCopy.social(provider), social: true));
       return;
     }
     await completeSignIn(ref, newAccount: result.newAccount);
@@ -290,7 +327,7 @@ class _LandingScreenState extends ConsumerState<LandingScreen>
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
             child: AnimatedBuilder(
-              animation: Listenable.merge([_focus, _failure]),
+              animation: Listenable.merge([_focus, _squeeze]),
               builder: (context, _) => Column(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -307,26 +344,23 @@ class _LandingScreenState extends ConsumerState<LandingScreen>
 
   double _lerp(double from, double to) => from + (to - from) * _layout.value;
 
+  /// The top group's compaction: the focused layout's, or the banner's in
+  /// the rest layout, where it would push the legal line off the screen.
+  double get _compact => math.max(_layout.value, _squeeze.value);
+
+  double _shrink(double from, double to) => from + (to - from) * _compact;
+
   List<Widget> _top(bool focused) {
-    final provider = _failedProvider;
-    final rest = (1 - _layout.value) * (1 - _failed.value);
-    final drawing = _lerp(_drawing, _focusedDrawing);
+    final drawing = _shrink(_drawing, _focusedDrawing);
+    final banner = _lastBanner;
     return [
       SizedBox(
-        height: _focusedTop + (LandingScreen.logoTop - _focusedTop) * rest,
+        height:
+            _focusedTop +
+            (LandingScreen.logoTop - _focusedTop) * (1 - _compact),
       ),
-      Semantics(
-        liveRegion: true,
-        child: IqBanner(
-          kind: IqBannerKind.error,
-          title: provider == null ? '' : EntryCopy.social(provider),
-          showAction: false,
-          visible: _showFailure && !focused,
-        ),
-      ),
-      SizedBox(height: IqSpace.s3 * _failed.value),
       const IqBrandLogo(width: LandingScreen.logoWidth),
-      SizedBox(height: _lerp(_gap, _focusedGap)),
+      SizedBox(height: _shrink(_gap, _focusedGap)),
       Beat(
         move: BeatMove.arrive,
         child: SizedBox(
@@ -343,7 +377,7 @@ class _LandingScreenState extends ConsumerState<LandingScreen>
           ),
         ),
       ),
-      SizedBox(height: _lerp(_gap, _focusedGap)),
+      SizedBox(height: _shrink(_gap, _focusedGap)),
       Beat(
         at: IqLandingTiming.headlineAt,
         child: SizedBox(
@@ -359,6 +393,18 @@ class _LandingScreenState extends ConsumerState<LandingScreen>
               ),
             ),
           ),
+        ),
+      ),
+      Semantics(
+        liveRegion: true,
+        child: IqBanner(
+          kind: IqBannerKind.error,
+          title: banner.message,
+          action: 'Sign in',
+          showAction: banner.signIn,
+          onAction: _signIn,
+          visible: _banner != null,
+          margin: const EdgeInsets.only(top: _focusedGap),
         ),
       ),
     ];
@@ -483,7 +529,7 @@ class _LandingScreenState extends ConsumerState<LandingScreen>
             child: LinkRow(
               lead: 'Already with us?',
               link: 'Sign in',
-              onTap: () => context.push(Routes.signIn),
+              onTap: _signIn,
             ),
           ),
         ),
@@ -512,6 +558,16 @@ class _LandingScreenState extends ConsumerState<LandingScreen>
   }
 }
 
+/// The landing's banner: [signIn] adds the Sign in action (480:19948);
+/// [social] goes once the email box takes focus.
+class _Banner {
+  const _Banner(this.message, {this.signIn = false, this.social = false});
+
+  final String message;
+  final bool signIn;
+  final bool social;
+}
+
 class _OrDivider extends StatelessWidget {
   const _OrDivider();
 
@@ -521,12 +577,12 @@ class _OrDivider extends StatelessWidget {
       child: Container(height: 1, color: IqColors.brand.withValues(alpha: 0.3)),
     );
     return SizedBox(
-      height: 18,
+      height: 22,
       child: Row(
         children: [
           rule,
           const SizedBox(width: IqSpace.s3),
-          Text('OR', style: IqText.mono.copyWith(color: IqColors.fg2)),
+          Text('or', style: IqText.small.copyWith(color: IqColors.fg2)),
           const SizedBox(width: IqSpace.s3),
           rule,
         ],

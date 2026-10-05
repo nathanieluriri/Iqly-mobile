@@ -20,6 +20,9 @@ import 'features/submissions/submissions_routes.dart';
 abstract final class Routes {
   static const splash = '/splash';
   static const landing = '/landing';
+
+  /// An invite link: the landing, holding the friend's code for sign up.
+  static const invite = '/invite/:code';
   static const home = '/home';
   static const yourName = '/sign-up/name';
   static const createPassword = '/sign-up/password';
@@ -31,6 +34,7 @@ abstract final class Routes {
   static const onboardingAboutYou = '/onboarding/about-you';
   static const onboardingWhereYouLive = '/onboarding/where-you-live';
   static const onboardingWhereYouStudied = '/onboarding/where-you-studied';
+  static const onboardingAddUniversity = '/onboarding/add-university';
   static const onboardingWhatYouLike = '/onboarding/what-you-like';
   static const onboardingResume = '/onboarding/resume';
   static const onboardingDone = '/onboarding/done';
@@ -82,6 +86,13 @@ GoRouter buildRouter({String initialLocation = Routes.splash}) {
         path: Routes.landing,
         pageBuilder: (context, state) =>
             handoffPage(state, const LandingScreen()),
+      ),
+      GoRoute(
+        path: Routes.invite,
+        pageBuilder: (context, state) => handoffPage(
+          state,
+          LandingScreen(invite: state.pathParameters['code']),
+        ),
       ),
       appShellRoute(rootKey),
       ...discoverRoutes,

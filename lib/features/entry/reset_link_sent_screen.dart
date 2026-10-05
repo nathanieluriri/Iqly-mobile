@@ -7,14 +7,15 @@ import '../../data/auth.dart';
 import '../../data/device.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
-import '../../ui/icon.dart';
+import '../../ui/illustration.dart';
 import 'entry_state.dart';
 import 'entry_widgets.dart';
 
-/// B0 Reset link sent (227:11209), a moment.
+/// B0 Reset link sent (227:11209), a moment. Figma hides the bar's back
+/// button here; "Remembered? Sign in" and the system back lead out.
 ///
 /// Motion (MOTION-SPEC 6.8): the success haptic plays as it is pushed; the
-/// mail glyph rises in 16 (320 ms), the title appears at +80, "Sent to" at
+/// Reach figure rises in 16 (320 ms), the title appears at +80, "Sent to" at
 /// +120 and "Remembered? Sign in" at +160, the buttons come with the page.
 /// Resend link spins, then the "Sent to" line rolls once and the success
 /// haptic plays. "Sign in" pops back to Sign in, only this page moving.
@@ -79,6 +80,7 @@ class _ResetLinkSentScreenState extends ConsumerState<ResetLinkSentScreen> {
     return EntryScaffold(
       hasFields: false,
       entrance: IqMomentTiming.bodyAt + IqDurations.appear,
+      showBack: false,
       onBack: () => goBack(context, Routes.forgotPassword),
       action: EntryButtons(
         primary: 'Open email app',
@@ -91,12 +93,9 @@ class _ResetLinkSentScreenState extends ConsumerState<ResetLinkSentScreen> {
       children: [
         const Beat(
           move: BeatMove.rise,
-          child: SizedBox(
-            height: 88,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: IqIcon(IqIcons.mail, size: 72, color: IqColors.brand),
-            ),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: IqFigure(IqFigures.reach, width: 169.41),
           ),
         ),
         const SizedBox(height: IqSpace.s4),

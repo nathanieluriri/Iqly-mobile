@@ -12,7 +12,9 @@ import 'entry_widgets.dart';
 import 'show_password.dart';
 
 /// B0 Sign in with email (227:11109). A known email from the landing
-/// arrives filled in, with the password focused.
+/// arrives filled in, with the password focused. A failed sign in shows the
+/// error banner under the fields (480:19882), gone as soon as either field
+/// changes; the owner's Show / Hide toggle sits on the forgot row.
 ///
 /// Motion (MOTION-SPEC 6.6): it pushes in as the title, EMAIL, PASSWORD and
 /// "Forgot your password?" settle 40 apart, the right field focused from
@@ -30,12 +32,30 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   final _password = EntryInput();
   bool _shown = false;
   bool _busy = false;
+  String? _failure;
 
   @override
   void initState() {
     super.initState();
     _email = EntryInput(ref.read(entryDraftProvider).email);
     _knownEmail = isEmail(_email.text);
+    _typed = '${_email.controller.text}\n';
+    _email.controller.addListener(_clearFailure);
+    _password.controller.addListener(_clearFailure);
+  }
+
+  String _typed = '';
+
+  void _clearFailure() {
+    final typed = '${_email.controller.text}\n${_password.controller.text}';
+    if (typed == _typed) return;
+    _typed = typed;
+    if (_failure != null) setState(() => _failure = null);
+  }
+
+  void _fail(String message) {
+    setState(() => _failure = message);
+    errorHaptic();
   }
 
   late final bool _knownEmail;
@@ -47,26 +67,22 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     super.dispose();
   }
 
-  bool get _filled =>
-      _email.text.isNotEmpty && _password.controller.text.isNotEmpty;
-
   Future<void> _next() async {
-    if (!_filled || _busy) return;
-    if (!isEmail(_email.text)) {
-      _email.fail(EntryCopy.badEmail);
-      return;
-    }
-    setState(() => _busy = true);
+    if (_busy) return;
+    if (_email.text.isEmpty) return _email.nudge();
+    if (_password.controller.text.isEmpty) return _password.nudge();
+    if (!isEmail(_email.text)) return _fail(EntryCopy.badEmail);
+    setState(() {
+      _busy = true;
+      _failure = null;
+    });
     final result = await ref
         .read(authServiceProvider)
         .signIn(email: _email.text, password: _password.controller.text);
     if (!mounted) return;
     setState(() => _busy = false);
     final failure = result.failure;
-    if (failure != null) {
-      _password.fail(EntryCopy.signIn(failure));
-      return;
-    }
+    if (failure != null) return _fail(EntryCopy.signIn(failure));
     await completeSignIn(ref, newAccount: false);
     if (!mounted) return;
     FocusManager.instance.primaryFocus?.unfocus();
@@ -83,10 +99,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     return ListenableBuilder(
       listenable: Listenable.merge([_email.changes, _password.changes]),
       builder: (context, _) => EntryScaffold(
-        title: 'Sign in with email',
         onBack: () => goBack(context, Routes.landing),
         settle: true,
-        action: NextBar(enabled: _filled, loading: _busy, onTap: _next),
+        action: EntryAction(label: 'Sign in', loading: _busy, onTap: _next),
         children: [
           const StaggerItem(index: 0, child: EntryTitle('Sign in')),
           const SizedBox(height: IqSpace.s4),
@@ -118,6 +133,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
               onSubmitted: (_) => _next(),
             ),
           ),
+          EntryBanner(message: _failure),
           const SizedBox(height: IqSpace.s4 - EntryLink.linkSlack),
           StaggerItem(
             index: 3,
