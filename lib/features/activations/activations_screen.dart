@@ -10,37 +10,27 @@ import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../data/activations_data.dart';
+import '../../router.dart';
 import '../../theme/theme.dart';
-import '../../ui/activation_ticket.dart';
 import '../../ui/banner.dart';
-import '../../ui/icon.dart';
+import '../../ui/illustration.dart';
 import '../../ui/list_row.dart';
-import '../wallet/wallet_arrives.dart';
-import '../../ui/spots_stamp.dart';
 import '../../ui/top_bar.dart';
 import '../discover/discover_routes.dart' show leave;
-import '../submissions/submission_widgets.dart' show SkeletonCard;
 import 'activation_format.dart';
 import 'activations_routes.dart';
 import 'activations_state.dart';
 import 'activations_widgets.dart';
 
-/// B8 · Activations (141:4597), which B9 · Activations (161:16268) repeats,
-/// with its loading (165:7704), empty (165:7855) and failed to load
-/// (165:8008) states. Discover's Activations row opens it.
+/// B8 · Activations (141:4597, repeated as B9 161:16268) with its loading
+/// (165:7704), empty (165:7855) and failed to load (165:8008) states. A sub
+/// page, pushed from Discover's Activations row or from More.
 ///
-/// Loading shows paper for 300 ms, then the three skeleton cards for at
-/// least 600 (MOTION-SPEC §2.6); the content dissolves in and its tickets
-/// arrive 40 ms apart, fading and rising 12 (Figma 168:1062). The Hot
-/// ticket's countdown holds the screen's pulse. Try again reloads (row
-/// note: "Try again → loading"); a retry that fails again gives the error
-/// haptic.
-///
-/// Figma over this build: the frame shows Kudi Box as a List ticket with
-/// Start while My activations says it is under way; a started activation
-/// shows as the kit's Started ticket (Continue) here. Activations already
-/// paid leave the list (one completion per person). "SHORT TASKS FROM
-/// BRANDS" reads BUSINESSES, as the vocabulary rule asks.
+/// The open activations, closing soonest first: the first as a Feature
+/// card, the rest as Rows, then My activations once one is under way.
+/// Loading shows paper for 300 ms, then the skeleton for at least 600; the
+/// content dissolves in and its cards arrive 40 ms apart. Try again
+/// reloads; a retry that fails again gives the error haptic.
 class ActivationsScreen extends ConsumerStatefulWidget {
   const ActivationsScreen({super.key});
 
@@ -65,8 +55,6 @@ class _ActivationsScreenState extends ConsumerState<ActivationsScreen> {
     if (_loading(ref.read(activationsProvider))) _armGate();
   }
 
-  /// Paper first; the skeleton only if loading outlasts 300 ms, and then
-  /// for at least 600.
   void _armGate() {
     _delay?.cancel();
     _minimum?.cancel();
@@ -113,18 +101,19 @@ class _ActivationsScreenState extends ConsumerState<ActivationsScreen> {
     final Widget body;
     if (_loading(state) || held) {
       body = _skeleton
-          ? const _Loading(key: ValueKey('loading'))
+          ? const ActivationsLoading(key: ValueKey('loading'))
           : const SizedBox.shrink(key: ValueKey('paper'));
     } else if (state.hasError) {
       body = _Failed(key: const ValueKey('failed'), onRetry: _retry);
     } else {
+      final all = state.requireValue;
       final open = [
-        for (final a in state.requireValue)
-          if (!a.credited) a,
-      ];
+        for (final a in all)
+          if (!a.credited && !a.closedAt(now)) a,
+      ]..sort((a, b) => a.closesAt.compareTo(b.closesAt));
       body = open.isEmpty
           ? const _Empty(key: ValueKey('empty'))
-          : _List(key: const ValueKey('list'), open: open, now: now);
+          : _List(key: const ValueKey('list'), all: all, open: open, now: now);
     }
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -154,52 +143,20 @@ class _ActivationsScreenState extends ConsumerState<ActivationsScreen> {
 }
 
 class _List extends StatelessWidget {
-  const _List({super.key, required this.open, required this.now});
+  const _List({
+    super.key,
+    required this.all,
+    required this.open,
+    required this.now,
+  });
 
+  final List<Activation> all;
   final List<Activation> open;
   final DateTime now;
 
   @override
   Widget build(BuildContext context) {
-    final heroes = [
-      for (final a in open)
-        if (ticketKind(a, now) == IqActivationTicketKind.hero) a,
-    ];
-    final rest = [
-      for (final a in open)
-        if (ticketKind(a, now) != IqActivationTicketKind.hero) a,
-    ];
-    final mine = open.where((a) => a.inFlight).firstOrNull;
-    var slot = 0;
-    const gap = SizedBox(height: IqSpace.s3);
-
-    Widget ticket(Activation activation) {
-      final kind = ticketKind(activation, now);
-      void open() => context.push(activationPath(activation.id));
-      return IqActivationTicket(
-        key: ValueKey(activation.id),
-        kind: kind,
-        brand: activation.business,
-        title: activation.title,
-        steps: kind == IqActivationTicketKind.started
-            ? startedLine(activation)
-            : stepsLine(activation),
-        reward: earn(activation),
-        time: countdownText(activationLeft(activation, now)),
-        countdownTone: countdownTone(activation, now),
-        spotsLeft: activation.spotsLeft,
-        spotsTotal: activation.spotsTotal,
-        spotsTone: IqSpotsStampTone.of(
-          activation.spotsLeft,
-          activation.spotsTotal,
-        ),
-        showOf: false,
-        enterDelay: IqDurations.stagger * slot++,
-        onTap: open,
-        onAction: open,
-      );
-    }
-
+    final lead = leadActivation(all);
     return Stagger(
       child: ListView(
         padding: const EdgeInsets.fromLTRB(
@@ -209,34 +166,30 @@ class _List extends StatelessWidget {
           IqSpace.s4,
         ),
         children: [
-          StaggerItem(
-            index: slot++,
-            child: const Eyebrow('Short tasks from businesses'),
-          ),
-          if (heroes.isNotEmpty) ...[
-            gap,
+          for (final (i, a) in open.indexed) ...[
+            if (i > 0) const SizedBox(height: IqSpace.s3),
             StaggerItem(
-              index: slot++,
-              child: Eyebrow('Closing soon · ${heroes.length}'),
+              index: i,
+              child: ActivationCard(
+                key: ValueKey(a.id),
+                activation: a,
+                now: now,
+                feature: i == 0,
+                onTap: () => context.push(activationPath(a.id)),
+              ),
             ),
-            for (final a in heroes) ...[gap, ticket(a)],
           ],
-          gap,
-          StaggerItem(
-            index: slot++,
-            child: Eyebrow('All activations · ${open.length}'),
-          ),
-          for (final a in rest) ...[gap, ticket(a)],
-          if (mine != null) ...[
-            gap,
+          if (lead != null) ...[
+            const SizedBox(height: IqSpace.s3),
             StaggerItem(
-              index: slot++,
-              child: IqListRow(
-                label: 'My activations',
-                description: myActivationsLine(mine),
-                icon: IqIcons.profile,
-                divider: false,
-                onTap: () => context.push(activationPath(mine.id)),
+              index: open.length,
+              child: _Grouped(
+                child: IqListRow(
+                  label: 'My activations',
+                  description: myActivationsLine(lead),
+                  divider: false,
+                  onTap: () => context.push(myActivationsTarget(all)),
+                ),
               ),
             ),
           ],
@@ -246,64 +199,56 @@ class _List extends StatelessWidget {
   }
 }
 
-/// 165:7704: LOADING… over three standalone Figma Skeleton cards, 240 tall.
-class _Loading extends StatelessWidget {
-  const _Loading({super.key});
+/// The 1 pt line card, radius 16, the frame's "group" puts the row in.
+class _Grouped extends StatelessWidget {
+  const _Grouped({required this.child});
+
+  final Widget child;
+
+  static const double radius = 16;
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Eyebrow('Loading…'),
-          for (var i = 0; i < 3; i++) ...[
-            const SizedBox(height: IqSpace.s3),
-            const SkeletonCard(height: 240),
-          ],
-        ],
+    return Container(
+      padding: const EdgeInsets.all(1),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: IqColors.card,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: IqColors.line),
       ),
+      child: child,
     );
   }
 }
 
-/// 165:7855: the Wallet illustration, no button.
+/// 165:7855: the Shrug, centred in the space under the top bar.
 class _Empty extends StatelessWidget {
   const _Empty({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(
-        IqSpace.s4,
-        IqSpace.s6,
-        IqSpace.s4,
-        IqSpace.s6,
-      ),
-      child: Column(
-        children: [
-          const WalletArrives(),
-          const SizedBox(height: IqSpace.s2),
-          Text(
-            'No activations right now',
-            textAlign: TextAlign.center,
-            style: IqText.cardTitle.copyWith(color: IqColors.fg),
+    return LayoutBuilder(
+      builder: (context, box) => SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: box.maxHeight),
+          child: Center(
+            child: ActivationsEmpty(
+              figure: IqFigures.shrug,
+              title: 'No activations right now',
+              body: 'Check back soon.',
+              action: 'Browse briefs',
+              onAction: () => context.go(Routes.home, extra: NavDirection.back),
+            ),
           ),
-          const SizedBox(height: IqSpace.s2),
-          Text(
-            'Check back soon.',
-            textAlign: TextAlign.center,
-            style: IqText.body.copyWith(color: IqColors.fg2),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-/// 165:8008: the Error banner, then the empty block 12 below it.
+/// 165:8008: the Error banner, then the Thinker 12 below it.
 class _Failed extends StatelessWidget {
   const _Failed({super.key, required this.onRetry});
 
@@ -318,21 +263,16 @@ class _Failed extends StatelessWidget {
         children: [
           IqBanner(
             kind: IqBannerKind.error,
-            title: 'Couldn’t load. Check your connection.',
+            title: "Couldn't load. Check your connection.",
             action: 'Try again',
             onAction: onRetry,
           ),
-          const SizedBox(height: IqSpace.s3 + IqSpace.s6),
-          Text(
-            'Nothing to show yet',
-            textAlign: TextAlign.center,
-            style: IqText.cardTitle.copyWith(color: IqColors.fg),
-          ),
-          const SizedBox(height: IqSpace.s2),
-          Text(
-            'They will show here once they load.',
-            textAlign: TextAlign.center,
-            style: IqText.body.copyWith(color: IqColors.fg2),
+          const SizedBox(height: IqSpace.s3),
+          const ActivationsEmpty(
+            figure: IqFigures.thinker,
+            title: "Couldn't load activations",
+            body: 'Check your data or Wi-Fi and try again.',
+            top: 32,
           ),
         ],
       ),

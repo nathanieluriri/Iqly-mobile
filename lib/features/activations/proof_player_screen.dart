@@ -78,8 +78,7 @@ class ProofPlayerScreen extends ConsumerWidget {
                           ),
                           const SizedBox(height: IqSpace.s0p5),
                           Text(
-                            '${videoLength(video.length)} · '
-                            '${videoSize(video.bytes)}',
+                            videoFacts(video),
                             style: IqText.small.copyWith(color: IqColors.fg3),
                           ),
                         ],
