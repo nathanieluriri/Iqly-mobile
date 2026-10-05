@@ -220,11 +220,11 @@ class _Next extends StatelessWidget {
       disabled: !enabled,
       onTap: onTap,
     );
-    final onTapDisabled = this.onTapDisabled;
-    if (enabled || onTapDisabled == null) return button;
+    // One GestureDetector lit or not, so turning on keeps the button's
+    // state and its peel plays.
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onTapDisabled,
+      onTap: enabled ? null : onTapDisabled,
       child: button,
     );
   }

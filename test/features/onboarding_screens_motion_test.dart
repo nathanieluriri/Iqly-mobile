@@ -24,7 +24,6 @@ import 'package:iqly_mobile/ui/step_mark.dart';
 import 'package:iqly_mobile/ui/top_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../golden/screens/onboarding_harness.dart';
 import 'entry_harness.dart';
 
 const _ms = Duration(milliseconds: 1);
@@ -510,7 +509,6 @@ void main() {
   group('moments', () {
     testWidgets('Done: title at +120, Start here at +200, the first card at '
         '+240; the Cheer figure is clipped to the 171 pt hero', (tester) async {
-      allowBriefCardOverflow();
       await _open(
         tester,
         Routes.onboardingDone,
@@ -541,7 +539,6 @@ void main() {
     testWidgets('reduced motion: Done fades in together over 150', (
       tester,
     ) async {
-      allowBriefCardOverflow();
       await _open(
         tester,
         Routes.onboardingDone,
