@@ -1,0 +1,14 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Brand=Unibooks">
+<g clip-path="url(#clip0_47_99)">
+<path id="Vector" d="M60 120C93.1371 120 120 93.1371 120 60C120 26.8629 93.1371 0 60 0C26.8629 0 0 26.8629 0 60C0 93.1371 26.8629 120 60 120Z" fill="#1E3A8A"/>
+<path id="Vector_2" d="M60 41.313C50 33.313 36 33.313 28 37.313V81.313C36 77.313 50 77.313 60 85.313C70 77.313 84 77.313 92 81.313V37.313C84 33.313 70 33.313 60 41.313Z" fill="white"/>
+<path id="mark" d="M62 43.3145V83.3145H58V43.3145H62Z" fill="#1E3A8A"/>
+</g>
+</g>
+<defs>
+<clipPath id="clip0_47_99">
+<rect width="120" height="120" rx="60" fill="white"/>
+</clipPath>
+</defs>
+</svg>

@@ -351,11 +351,18 @@ class _Layer extends ColorMapper {
   int get hashCode => keep.hashCode;
 }
 
-/// Figma Exp/Figure, 320 x 340: flat half-body people, token colours only.
+/// Figma Exp/Figure, 320 x 340: hand-drawn people and objects.
 enum IqFigures {
   thinker,
   caller,
-  reach;
+  reach,
+  saver,
+  cheer,
+  point,
+  shrug,
+  writer,
+  sender,
+  gift;
 
   String get asset => 'assets/illustrations/figure-$name.svg';
 }

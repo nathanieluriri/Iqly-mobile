@@ -59,7 +59,21 @@ Future<void> expectGolden(
     ),
   );
   await tester.pumpAndSettle();
+  await precacheImages(tester);
   await expectMatchesGolden(find.byType(MaterialApp), 'goldens/$name.png');
+}
+
+/// Raster images decode off the fake clock, so a golden would catch them
+/// blank; this decodes every [Image] on screen for real, then repaints.
+Future<void> precacheImages(WidgetTester tester) async {
+  final images = tester.widgetList<Image>(find.byType(Image)).toList();
+  if (images.isEmpty) return;
+  await tester.runAsync(() async {
+    for (final image in images) {
+      await precacheImage(image.image, tester.element(find.byWidget(image)));
+    }
+  });
+  await tester.pumpAndSettle();
 }
 
 /// Renders a component on the paper background at its own size, padded.

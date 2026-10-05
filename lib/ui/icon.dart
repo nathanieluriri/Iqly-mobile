@@ -43,9 +43,34 @@ enum IqIcons {
   lock,
   link,
   download,
-  pin;
+  pin,
+  eye,
+  eyeOff,
+  heart,
+  zap,
+  flag,
+  star,
+  help,
+  history,
+  shield,
+  eraser,
+  award,
+  sparkles,
+  headset,
+  lifebuoy,
+  gift,
+  logout,
+  copy,
+  document,
+  users,
+  medal,
+  invite,
+  ticket,
+  more;
 
-  String get asset => 'assets/icons/$name.svg';
+  /// Figma names the file in kebab case (Exp/Icon/eye-off).
+  String get asset =>
+      'assets/icons/${name.replaceAllMapped(RegExp('[A-Z]'), (m) => '-${m[0]!.toLowerCase()}')}.svg';
 }
 
 class IqIcon extends StatelessWidget {
