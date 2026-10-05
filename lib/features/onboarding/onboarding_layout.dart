@@ -12,6 +12,7 @@ import '../../ui/icon.dart';
 import '../../ui/illustration.dart';
 import '../../ui/next_fab.dart';
 import '../../ui/step_mark.dart';
+import '../../ui/step_mark_ring.dart';
 import '../../ui/top_bar.dart';
 import 'onboarding_draft.dart';
 
@@ -108,8 +109,8 @@ class _OnboardingStepScaffoldState extends State<OnboardingStepScaffold> {
                         children: [
                           ChromeHero(
                             tag: ChromeTags.stepMark,
-                            shuttle: IqStepMark.shuttle,
-                            child: IqStepMark(
+                            shuttle: IqStepMarkRing.shuttle,
+                            child: IqStepMarkRing(
                               step: widget.step,
                               icon: widget.icon,
                             ),

@@ -154,6 +154,7 @@ class _BusinessesState extends ConsumerState<_Businesses> {
           StaggerItem(
             index: 0,
             child: IqSectionTitle(
+              showCount: true,
               title: 'Businesses with open polls',
               count: '${businesses.length}',
               showLink: false,

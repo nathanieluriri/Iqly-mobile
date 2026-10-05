@@ -112,7 +112,7 @@ Future<void> _shareTo(WidgetTester tester, String target, _Share share) async {
 }
 
 void main() {
-  // The share image is the card at 3x: real type keeps it 358 x 414.
+  // The share image is the card at 3x: real type keeps it 358 x 418.
   setUpAll(loadAppFonts);
 
   testWidgets(
@@ -155,7 +155,7 @@ void main() {
       expect(sent.app, ShareApp.whatsapp);
       expect(sent.name, 'iqly-win-s2.png');
       expect(sent.text, 'https://iqly.net/challenges/c3');
-      expect(_pngSize(share.images.single), (1074, 1242));
+      expect(_pngSize(share.images.single), (1074, 1254));
 
       await _tap(tester, find.text('Share your win'));
       await _shareTo(tester, 'More…', share);
@@ -300,7 +300,7 @@ void main() {
     tester,
   ) async {
     await pumpApp(tester, resultPath('s3'));
-    expect(find.text('WINNER · VOLT RIDERS'), findsOneWidget);
+    expect(find.text('Winner · Volt Riders'), findsOneWidget);
     expect(find.text('₦50,000'), findsOneWidget);
     expect(find.text('See the leaderboard'), findsNothing);
     await tester.tap(find.byType(IqShareCard));

@@ -101,6 +101,8 @@ class _MySubmissionsScreenState extends ConsumerState<MySubmissionsScreen> {
                   count: '$unread',
                   showCount: unread > 0,
                   onBell: () => context.push(Routes.notifications),
+                  showWallet: false,
+                  showGreeting: true,
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
@@ -167,6 +169,7 @@ class _List extends StatelessWidget {
             ArriveItem(
               key: ValueKey(group),
               child: IqSectionTitle(
+                showCount: true,
                 title: group.title,
                 count: '${items.length}',
                 showLink: false,

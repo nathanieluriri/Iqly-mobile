@@ -248,7 +248,7 @@ void main() {
     // The slot takes 52 of the pull; the rest settles over 200 ms.
     await tester.pump();
     await tester.pump(_ms * 201);
-    expect(find.text('REFRESHING'), findsOneWidget);
+    expect(find.text('Refreshing'), findsOneWidget);
     expect(_feed(tester).pixels, closeTo(0, 0.5));
     // The list holds the 52 pt slot: 40 row and 12 gap above the chips.
     expect(_top(tester, _chips), closeTo(listTop + IqTravel.refreshSlot, 0.5));
@@ -256,7 +256,7 @@ void main() {
     repository.refreshing!.complete(repository.data.briefs);
     await tester.pump();
     await tester.pump(_ms * 200);
-    expect(find.text('UP TO DATE · 9:41'), findsOneWidget);
+    expect(find.text('Up to date · 9:41'), findsOneWidget);
     await tester.pump(_ms * 650);
     expect(_top(tester, _chips), closeTo(listTop + IqTravel.refreshSlot, 0.5));
     // After 800 the slot closes over 200 and the feed slides up with it.
@@ -300,7 +300,7 @@ void main() {
     final listTop = _top(tester, _chips);
     container.read(discoverFeedProvider.notifier).refresh();
     await tester.pump();
-    expect(find.text('REFRESHING'), findsOneWidget);
+    expect(find.text('Refreshing'), findsOneWidget);
     expect(_top(tester, _chips), listTop + IqTravel.refreshSlot);
     repository.refreshing!.complete(repository.data.briefs);
     await tester.pump();
@@ -400,7 +400,7 @@ void main() {
   testWidgets('Filters: Show N briefs crosses the feed under the dropping '
       'sheet (spec 6.21)', (tester) async {
     await pumpApp(tester, Routes.filters, reducedMotion: false);
-    await tester.tap(find.text('TIER'));
+    await tester.tap(find.text('Tier'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Advanced'));
     await tester.pumpAndSettle();
@@ -457,7 +457,7 @@ void main() {
     expect(shown, greaterThan(8));
     await tester.pumpAndSettle();
     expect(find.byType(SavedBriefsScreen), findsNothing);
-    expect(fill('For you'), IqColors.brand);
+    expect(fill('For you'), IqColors.tint);
     expect(fill('Saved'), IqColors.card);
     expect(fill('All'), IqColors.card);
   });
@@ -637,7 +637,7 @@ void main() {
     final before = label();
     expect(before, startsWith('Show '));
 
-    await tester.tap(find.text('TIER'));
+    await tester.tap(find.text('Tier'));
     await tester.pump();
     await tester.pump(_ms * 400);
     await tester.tap(find.text('Advanced'));

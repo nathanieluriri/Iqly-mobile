@@ -13,7 +13,7 @@ import 'package:iqly_mobile/features/entry/sign_in_screen.dart';
 import 'package:iqly_mobile/features/onboarding/welcome_screen.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/next_fab.dart';
-import 'package:iqly_mobile/ui/step_mark.dart';
+import 'package:iqly_mobile/ui/step_mark_ring.dart';
 import 'package:iqly_mobile/ui/top_bar.dart';
 
 import 'entry_harness.dart';
@@ -59,7 +59,7 @@ List<double> _slots(WidgetTester tester, Finder mark) {
   final widths = <double>[];
   var child = row.firstChild;
   while (child != null) {
-    if (child.size.height == IqStepMark.ring) widths.add(child.size.width);
+    if (child.size.height == IqStepMarkRing.ring) widths.add(child.size.width);
     child = (child.parentData! as FlexParentData).nextSibling;
   }
   return widths;
@@ -108,9 +108,9 @@ void main() {
       await typeInto(tester, 0, 'Ada');
       await typeInto(tester, 1, 'Obi');
       final bar = tester.getTopLeft(find.byType(IqTopBar));
-      final mark = tester.getTopLeft(find.byType(IqStepMark));
+      final mark = tester.getTopLeft(find.byType(IqStepMarkRing));
       final next = tester.getTopLeft(find.byType(IqNextFab));
-      expect(_slots(tester, find.byType(IqStepMark)), [6, 44, 6]);
+      expect(_slots(tester, find.byType(IqStepMarkRing)), [6, 44, 6]);
 
       await tester.tap(find.byType(IqNextFab));
       await _playTo(tester, _ms * 150);
@@ -138,8 +138,8 @@ void main() {
       const lag = 40 / 300;
       final own = _eo((0.5 - lag) / (1 - lag));
       expect(midTrail - trail(), closeTo(24 * (_eo(0.5) - own), 0.5));
-      expect(_slots(tester, find.byType(IqStepMark)), [6, 6, 44]);
-      expect(tester.getTopLeft(find.byType(IqStepMark)), mark);
+      expect(_slots(tester, find.byType(IqStepMarkRing)), [6, 6, 44]);
+      expect(tester.getTopLeft(find.byType(IqStepMarkRing)), mark);
       expect(tester.testTextInput.isVisible, isTrue);
       expect(haptics, [_light]);
     },
@@ -153,7 +153,7 @@ void main() {
     final title = find.text('Create a password');
     expect(tester.getTopLeft(title).dx, 16);
     expect(_opacity(tester, title), closeTo(_eo(0.5), 0.02));
-    final mark = find.byType(IqStepMark).last;
+    final mark = find.byType(IqStepMarkRing).last;
     expect(_opacity(tester, mark), closeTo(_eo(0.5), 0.02));
     expect(_slots(tester, mark), [6, 6, 44]);
     await tester.pump(_ms * 80);

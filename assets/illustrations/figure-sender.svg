@@ -1,0 +1,20 @@
+<svg width="320" height="340" viewBox="0 0 320 340" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Kind=Sender">
+<g id="trail">
+<path id="trail-1" d="M40 318C70 270 96 240 130 212" stroke="#B396D1" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="1 12"/>
+</g>
+<g id="motion">
+<path id="motion-1" d="M36 236L62 214" stroke="#B396D1" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="motion-2" d="M28 262L60 236" stroke="#B396D1" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="motion-3" d="M56 282L80 262" stroke="#B396D1" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g id="plane">
+<g id="plane-1">
+<path id="plane-1_2" d="M62.9868 241.754L245.535 38.0977L159.053 201.828L62.9868 241.754Z" fill="white"/>
+<path id="plane-2" d="M159.053 201.828L245.535 38.0975L227.431 208.383L159.053 201.828Z" fill="#F58028"/>
+<path id="plane-3" d="M62.9868 241.754L245.535 38.0977L159.053 201.828L62.9868 241.754Z" stroke="#0A0A0A" stroke-width="5.85" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="plane-4" d="M159.053 201.828L245.535 38.0975L227.431 208.383L159.053 201.828Z" stroke="#0A0A0A" stroke-width="5.85" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+</g>
+</g>
+</svg>

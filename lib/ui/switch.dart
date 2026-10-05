@@ -5,13 +5,15 @@ import '../theme/theme.dart';
 
 enum IqSwitchState { off, on }
 
-/// Exp/Switch: a 52 x 32 toggle. On is the ink track with the orange marker
-/// knob (a state, not a warning). Tapping reports the flipped state through
+/// Exp/Switch: a 52 x 32 toggle. On is the ink track, Off the line track;
+/// the knob stays white. Tapping reports the flipped state through
 /// [onChanged] with the select haptic; the knob travels 20 px and the fills
 /// cross over in 160 ms ease-out, a cut under reduced motion. Pair with
 /// Exp/SettingRow for the full-width 64 px target.
 ///
 /// Figma over brief: both knobs carry a 1.5 px Color/brand outline.
+/// Figma over its description: since the 5 Oct update the On knob is white,
+/// not the orange marker, and the Off track is Color/line.
 /// Figma gives no timing; 160 ms follows the kit rule of 150 to 300 ms ease-out.
 class IqSwitch extends StatelessWidget {
   const IqSwitch({
@@ -53,7 +55,7 @@ class IqSwitch extends StatelessWidget {
           height: 32,
           padding: const EdgeInsets.all(IqSpace.s1),
           decoration: BoxDecoration(
-            color: on ? IqColors.brand : IqColors.line2,
+            color: on ? IqColors.brand : IqColors.line,
             borderRadius: BorderRadius.circular(16),
           ),
           child: AnimatedAlign(
@@ -66,7 +68,7 @@ class IqSwitch extends StatelessWidget {
               width: 24,
               height: 24,
               decoration: BoxDecoration(
-                color: on ? IqColors.accent : IqColors.card,
+                color: IqColors.card,
                 shape: BoxShape.circle,
                 border: Border.all(color: IqColors.brand, width: 1.5),
               ),

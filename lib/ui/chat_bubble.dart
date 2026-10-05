@@ -8,7 +8,8 @@ import 'video_preview.dart';
 enum IqChatBubbleFrom { you, support }
 
 /// Exp/ChatBubble: a help-thread message. Yours sit right in brand ink;
-/// support sits left on paper under the tilted iQ sticker. Time in mono. A
+/// support sits left on paper under the tilted iQ sticker. Time in Mob/Small
+/// (no longer mono, 5 Oct update). A
 /// recording can ride under the text ([showAttachment], the nested
 /// Exp/VideoPreview, [attachment] to override it).
 ///
@@ -194,10 +195,7 @@ class _IqChatBubbleState extends State<IqChatBubble>
           ),
         ),
         const SizedBox(height: IqSpace.s1p5),
-        Text(
-          widget.time.toUpperCase(),
-          style: IqText.mono.copyWith(color: IqColors.fg3),
-        ),
+        Text(widget.time, style: IqText.small.copyWith(color: IqColors.fg3)),
       ],
     );
   }

@@ -11,6 +11,10 @@ import 'vector.dart';
 /// link, shown only when the section is truncated. The root clips its
 /// content, so only the top sliver of the brush underline shows, as in Figma.
 ///
+/// Figma over brief: the title is Mob/Card title in fg, the count and the
+/// brush underline are hidden by default ([showCount], [showUnderline]) and
+/// the count is Mob/Label, not mono.
+///
 /// Motion (spec 5.25, build extension): the underline wipes in left to right
 /// (240 ms ease-out) when first seen, or 60 ms after the title starts
 /// arriving in a list; the count rolls when it changes; the link dims to .6
@@ -23,8 +27,9 @@ class IqSectionTitle extends StatefulWidget {
     super.key,
     this.title = 'Closing soon',
     this.count = '3',
-    this.showCount = true,
+    this.showCount = false,
     this.showLink = true,
+    this.showUnderline = false,
     this.link = 'See all',
     this.onSeeAll,
   });
@@ -33,6 +38,7 @@ class IqSectionTitle extends StatefulWidget {
   final String count;
   final bool showCount;
   final bool showLink;
+  final bool showUnderline;
   final String link;
   final VoidCallback? onSeeAll;
 
@@ -96,10 +102,10 @@ class _IqSectionTitleState extends State<IqSectionTitle>
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              // Figma's 28 pt spacer sits on the title baseline, which lifts
-              // the row 8.8 above the title box.
+              // Figma's 28 pt spacer sits on the title baseline, which drops
+              // the title box 12 below the top of the 32 pt row.
               Padding(
-                padding: const EdgeInsets.only(top: 8.8),
+                padding: const EdgeInsets.only(top: IqSpace.s3),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
@@ -115,16 +121,16 @@ class _IqSectionTitleState extends State<IqSectionTitle>
                               maxLines: 1,
                               softWrap: false,
                               overflow: TextOverflow.ellipsis,
-                              style: IqText.title.copyWith(
-                                color: IqColors.brand,
+                              style: IqText.cardTitle.copyWith(
+                                color: IqColors.fg,
                               ),
                             ),
                           ),
                           if (widget.showCount) ...[
                             const SizedBox(width: IqSpace.s2),
                             RollingText(
-                              widget.count.toUpperCase(),
-                              style: IqText.mono.copyWith(color: IqColors.fg3),
+                              widget.count,
+                              style: IqText.label.copyWith(color: IqColors.fg3),
                             ),
                           ],
                         ],
@@ -149,7 +155,7 @@ class _IqSectionTitleState extends State<IqSectionTitle>
                               const IqIcon(
                                 IqIcons.forward,
                                 size: 16,
-                                color: IqColors.primary,
+                                color: IqColors.brand,
                               ),
                             ],
                           ),
@@ -159,21 +165,22 @@ class _IqSectionTitleState extends State<IqSectionTitle>
                   ],
                 ),
               ),
-              Positioned(
-                left: 0,
-                bottom: -3.2,
-                width: 75.84,
-                height: 4.2,
-                child: AnimatedBuilder(
-                  animation: reveal,
-                  child: const IqVector(
-                    'assets/vectors/section-title-underline.svg',
-                    color: IqColors.accent,
+              if (widget.showUnderline)
+                Positioned(
+                  left: 0,
+                  bottom: -3.2,
+                  width: 75.84,
+                  height: 4.2,
+                  child: AnimatedBuilder(
+                    animation: reveal,
+                    child: const IqVector(
+                      'assets/vectors/section-title-underline.svg',
+                      color: IqColors.accent,
+                    ),
+                    builder: (context, child) =>
+                        ClipRect(clipper: _Sweep(reveal.value), child: child),
                   ),
-                  builder: (context, child) =>
-                      ClipRect(clipper: _Sweep(reveal.value), child: child),
                 ),
-              ),
               if (widget.showLink)
                 Positioned(
                   top: 0,

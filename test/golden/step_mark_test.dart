@@ -13,8 +13,8 @@ void main() {
       await expectComponentGolden(
         tester,
         name,
-        IqStepMark(step: step),
-        size: Size(step == IqStepMarkStep.single ? 44 : 80, 44),
+        SizedBox(width: 358, child: IqStepMark(step: step)),
+        size: const Size(358, 6),
       );
     });
   }
