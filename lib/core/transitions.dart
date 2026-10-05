@@ -639,6 +639,10 @@ class _IqSheetPage<T> extends Page<T> {
 /// 300 ms as its scrim fades in, drops in 200 ms when it closes, and follows a drag
 /// down (past half its height or a 700 px/s fling closes it). It fades in
 /// place under reduced motion. The page beneath stays put.
+///
+/// The rise moves the route's page from outside it, as a page route's
+/// slide does, so a hero flying into the sheet heads straight for where it
+/// comes to rest (spec 4.4).
 class IqSheetRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
   IqSheetRoute({
     this.builder,
@@ -658,6 +662,7 @@ class IqSheetRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
 
   bool _locked = false;
   bool _dragging = false;
+  final _box = GlobalKey();
 
   AnimationController get _sheet => controller!;
 
@@ -713,12 +718,10 @@ class IqSheetRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
         PulseScope(
           child: Align(
             alignment: Alignment.bottomCenter,
-            child: _SheetMotion(
+            child: _SheetDrag(
+              key: _box,
               route: this,
-              child: _SheetDrag(
-                route: this,
-                child: _PageScope(route: this, child: sheet),
-              ),
+              child: _PageScope(route: this, child: sheet),
             ),
           ),
         ),
@@ -732,24 +735,13 @@ class IqSheetRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
     Animation<double> animation,
     Animation<double> secondaryAnimation,
     Widget child,
-  ) => child;
-}
-
-class _SheetMotion extends AnimatedWidget {
-  _SheetMotion({required this.route, required this.child})
-    : super(listenable: route.animation!);
-
-  final IqSheetRoute<dynamic> route;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = route.animation!.value;
-    final dragging = route._dragging;
-    final fading = MediaQuery.disableAnimationsOf(context) && !dragging;
-    final up = dragging ? t : IqCurves.easeOut.transform(t);
-    return FractionalTranslation(
-      translation: Offset(0, fading ? 0 : 1 - up),
+  ) {
+    final t = animation.value;
+    final fading = MediaQuery.disableAnimationsOf(context) && !_dragging;
+    final up = _dragging ? t : IqCurves.easeOut.transform(t);
+    return _SheetLift(
+      sheet: _box,
+      drop: fading ? 0 : 1 - up,
       child: Opacity(
         opacity: fading ? IqCurves.easeOut.transform(t) : 1,
         child: child,
@@ -758,8 +750,70 @@ class _SheetMotion extends AnimatedWidget {
   }
 }
 
+/// Lowers the sheet at the foot of [child], a page that fills the screen,
+/// by [drop] times the height of the [sheet] box.
+class _SheetLift extends SingleChildRenderObjectWidget {
+  const _SheetLift({
+    required this.sheet,
+    required this.drop,
+    required super.child,
+  });
+
+  final GlobalKey sheet;
+  final double drop;
+
+  @override
+  _RenderSheetLift createRenderObject(BuildContext context) =>
+      _RenderSheetLift(sheet, drop);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderSheetLift lift) =>
+      lift.drop = drop;
+}
+
+class _RenderSheetLift extends RenderProxyBox {
+  _RenderSheetLift(this._sheet, this._drop);
+
+  final GlobalKey _sheet;
+  double _drop;
+
+  /// The shift last painted, so taps and transforms between frames match
+  /// what is on screen; the sheet's height is only safe to read at paint.
+  Offset _shift = Offset.zero;
+
+  set drop(double value) {
+    if (value == _drop) return;
+    _drop = value;
+    markNeedsPaint();
+    markNeedsSemanticsUpdate();
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final sheet = _sheet.currentContext?.findRenderObject();
+    final height = sheet is RenderBox && sheet.hasSize
+        ? sheet.size.height
+        : size.height;
+    _shift = Offset(0, _drop * height);
+    super.paint(context, offset + _shift);
+  }
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      result.addWithPaintOffset(
+        offset: _shift,
+        position: position,
+        hitTest: (result, position) =>
+            super.hitTestChildren(result, position: position),
+      );
+
+  @override
+  void applyPaintTransform(RenderBox child, Matrix4 transform) =>
+      transform.translateByDouble(_shift.dx, _shift.dy, 0, 1);
+}
+
 class _SheetDrag extends StatefulWidget {
-  const _SheetDrag({required this.route, required this.child});
+  const _SheetDrag({super.key, required this.route, required this.child});
 
   final IqSheetRoute<dynamic> route;
   final Widget child;
@@ -1027,10 +1081,11 @@ typedef ChromeShuttle = Widget Function(
 /// still lands. Under reduced motion it turns its hero off and the chrome
 /// crossfades with its page.
 ///
-/// A page that holds two of one [tag] at once (one state dissolving into
-/// the next) offers only the older to a flight, as a navigator takes one
-/// hero per tag from each page; the newer takes over once the older goes.
-class ChromeHero extends StatefulWidget {
+/// A navigator takes one hero per tag from each page, so a page that holds
+/// two of its states at once, one dissolving into the next, turns heroes
+/// off in the state it is leaving ([Dissolve] does): the chrome of the
+/// state that stays flies from the frame it is built.
+class ChromeHero extends StatelessWidget {
   const ChromeHero({
     super.key,
     required this.tag,
@@ -1068,91 +1123,35 @@ class ChromeHero extends StatefulWidget {
       context.findAncestorWidgetOfExactType<_InFlight>() == null;
 
   @override
-  State<ChromeHero> createState() => _ChromeHeroState();
-}
-
-class _ChromeHeroState extends State<ChromeHero> {
-  /// The chrome heroes on each page by tag, oldest first.
-  static final _pages = Expando<Map<Object, List<_ChromeHeroState>>>();
-
-  List<_ChromeHeroState>? _line;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _line ??= _join();
-  }
-
-  @override
-  void didUpdateWidget(ChromeHero old) {
-    super.didUpdateWidget(old);
-    if (old.tag == widget.tag) return;
-    _leave();
-    _line = _join();
-  }
-
-  List<_ChromeHeroState>? _join() {
-    final route = ModalRoute.of(context);
-    if (route == null) return null;
-    return ((_pages[route] ??= {})[widget.tag] ??= [])..add(this);
-  }
-
-  void _leave() {
-    final line = _line;
-    _line = null;
-    if (line == null) return;
-    final led = identical(line.first, this);
-    line.remove(this);
-    if (!led || line.isEmpty) return;
-    final next = line.first;
-    WidgetsBinding.instance.addPostFrameCallback((_) => next._lead());
-  }
-
-  void _lead() {
-    if (mounted) setState(() {});
-  }
-
-  @override
-  void dispose() {
-    _leave();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final line = _line;
-    final shuttle = widget.shuttle;
-    return HeroMode(
-      enabled: line == null || identical(line.first, this),
-      child: Hero(
-        tag: widget.tag,
-        curve: IqCurves.linear,
-        flightShuttleBuilder:
-            (context, animation, direction, fromHero, toHero) {
-              final from = (fromHero.widget as Hero).child;
-              final to = (toHero.widget as Hero).child;
-              final push = direction == HeroFlightDirection.push;
-              // The flight is drawn in the navigator's overlay, outside every
-              // page's Material, where text would take the framework's
-              // fallback style (a yellow double underline).
-              return _InFlight(
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: shuttle == null
-                      ? (push ? to : from)
-                      : shuttle(
-                          context,
-                          push ? animation : ReverseAnimation(animation),
-                          from,
-                          to,
-                        ),
-                ),
-              );
-            },
-        placeholderBuilder: (context, size, child) =>
-            Opacity(opacity: 0, child: child),
-        child: widget.child,
-      ),
+    final shuttle = this.shuttle;
+    return Hero(
+      tag: tag,
+      curve: IqCurves.linear,
+      flightShuttleBuilder: (context, animation, direction, fromHero, toHero) {
+        final from = (fromHero.widget as Hero).child;
+        final to = (toHero.widget as Hero).child;
+        final push = direction == HeroFlightDirection.push;
+        // The flight is drawn in the navigator's overlay, outside every
+        // page's Material, where text would take the framework's fallback
+        // style (a yellow double underline).
+        return _InFlight(
+          child: Material(
+            type: MaterialType.transparency,
+            child: shuttle == null
+                ? (push ? to : from)
+                : shuttle(
+                    context,
+                    push ? animation : ReverseAnimation(animation),
+                    from,
+                    to,
+                  ),
+          ),
+        );
+      },
+      placeholderBuilder: (context, size, child) =>
+          Opacity(opacity: 0, child: child),
+      child: child,
     );
   }
 }
@@ -1302,7 +1301,8 @@ class _Below extends CustomClipper<Rect> {
 
 /// Same screen, new state (spec 3.4): [child], told apart by its key,
 /// crosses over the old one, 300 ms ease-out both ways (the exit reads
-/// ease-in); a 150 ms crossfade under reduced motion.
+/// ease-in); a 150 ms crossfade under reduced motion. The old state offers
+/// no heroes on its way out ([ChromeHero]).
 class Dissolve extends StatelessWidget {
   const Dissolve({super.key, required this.child});
 
@@ -1314,9 +1314,15 @@ class Dissolve extends StatelessWidget {
       duration: motion(context, IqDurations.screen, fade: true),
       switchInCurve: IqCurves.easeOut,
       switchOutCurve: IqCurves.easeOut,
+      // Each switch carries the key of the state it wraps, so a state that
+      // turns from coming to leaving keeps its widgets and their state.
       layoutBuilder: (current, previous) => Stack(
         alignment: Alignment.topCenter,
-        children: [...previous, ?current],
+        children: [
+          for (final leaving in previous)
+            HeroMode(key: leaving.key, enabled: false, child: leaving),
+          if (current != null) HeroMode(key: current.key, child: current),
+        ],
       ),
       child: child,
     );
