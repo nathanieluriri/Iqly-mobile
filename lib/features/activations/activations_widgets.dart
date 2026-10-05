@@ -64,8 +64,10 @@ bool covered(BuildContext context) {
 /// goes), a 150 ms crossfade under reduced motion. While a page above
 /// covers the screen the change is a cut, so the screen is already in its
 /// new state when that page leaves (Send proof back to Your proof, whose
-/// change lands as the proof page starts to pop). [fit] passthrough lets
-/// the states size the space, top aligned.
+/// change lands as the proof page starts to pop). The old state takes no
+/// taps and offers no heroes on its way out, so the new state's top bar
+/// joins a push or pop from the frame it is built (spec 4.3). [fit]
+/// passthrough lets the states size the space, top aligned.
 class StateDissolve extends StatefulWidget {
   const StateDissolve({
     super.key,
@@ -135,12 +137,17 @@ class _StateDissolveState extends State<StateDissolve>
           FadeTransition(
             key: previous.key,
             opacity: _out,
-            child: IgnorePointer(child: previous),
+            child: HeroMode(
+              enabled: false,
+              child: IgnorePointer(child: previous),
+            ),
           ),
         FadeTransition(
           key: widget.child.key,
           opacity: _in,
-          child: IgnorePointer(ignoring: false, child: widget.child),
+          child: HeroMode(
+            child: IgnorePointer(ignoring: false, child: widget.child),
+          ),
         ),
       ],
     );

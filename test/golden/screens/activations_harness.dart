@@ -183,7 +183,6 @@ Future<ProviderContainer> pumpActivations(
   bool settle = true,
   List<Override> overrides = const [],
 }) async {
-  tolerateBriefCardOverflow();
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
   tester.view.padding = const FakeViewPadding(top: 54, bottom: 34);
@@ -234,19 +233,4 @@ Future<ProviderContainer> pumpActivations(
     await tester.pump();
   }
   return container;
-}
-
-/// Exp/BriefCard keeps a fixed body height, so Kudi Box's two-line ask
-/// overflows its Row and Feature cards until the kit lets the body grow.
-/// Drops only those overflow reports; remove once the kit fix is in.
-void tolerateBriefCardOverflow() {
-  final previous = FlutterError.onError;
-  FlutterError.onError = (details) {
-    final report = details.toString();
-    if (report.contains('overflowed') && report.contains('brief_card.dart')) {
-      return;
-    }
-    previous?.call(details);
-  };
-  addTearDown(() => FlutterError.onError = previous);
 }

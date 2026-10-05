@@ -2,14 +2,19 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:iqly_mobile/core/transitions.dart';
 import 'package:iqly_mobile/data/activations_service.dart';
 import 'package:iqly_mobile/features/activations/activations_routes.dart';
 import 'package:iqly_mobile/features/activations/activations_state.dart';
 import 'package:iqly_mobile/features/activations/activations_widgets.dart';
 import 'package:iqly_mobile/router.dart';
+import 'package:iqly_mobile/theme/theme.dart';
+import 'package:iqly_mobile/ui/icon.dart';
 import 'package:iqly_mobile/ui/pressable.dart';
 import 'package:iqly_mobile/ui/proof_tile.dart';
 import 'package:iqly_mobile/ui/step_row.dart';
+import 'package:iqly_mobile/ui/top_bar.dart';
 import 'package:iqly_mobile/ui/video_preview.dart';
 
 import '../golden/golden.dart' show loadAppFonts;
@@ -61,12 +66,61 @@ List<IqStepRowState> _steps(WidgetTester tester) => [
     row.state,
 ];
 
+/// [title] on a Page top bar, not the same words in the content.
+Finder _barTitle(String title) =>
+    find.descendant(of: find.byType(IqTopBar), matching: find.text(title));
+
 bool _between(double value) => value > 0 && value < 1;
 
 DemoActivationsService _stuck() => instantActivations(
   now: Figma.friday,
   seed: Figma.world(Figma.friday, kudiBox: Figma.step1),
 );
+
+/// From the stuck activation to its proof page, a recording picked and
+/// ready to send.
+Future<void> _readyToSend(WidgetTester tester) async {
+  await pumpActivations(
+    tester,
+    activationPath('a2'),
+    now: Figma.friday,
+    service: _stuck(),
+    reducedMotion: false,
+    settle: false,
+  );
+  await tester.pump(const Duration(milliseconds: 600));
+  await tester.tap(find.text('Upload proof of step 2'));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 600));
+  await tester.tap(find.byType(IqProofTile));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 600));
+}
+
+/// Every fade above [element] multiplied together.
+double _fadeOf(Element element) {
+  var opacity = 1.0;
+  element.visitAncestorElements((ancestor) {
+    final widget = ancestor.widget;
+    if (widget is FadeTransition) opacity *= widget.opacity.value;
+    if (widget is Opacity) opacity *= widget.opacity;
+    return true;
+  });
+  return opacity;
+}
+
+Rect _rectOf(Element element) {
+  final box = element.renderObject! as RenderBox;
+  return box.localToGlobal(Offset.zero) & box.size;
+}
+
+/// Where each widget [finder] finds is drawn, and how strongly.
+List<(Rect, double)> _drawn(Finder finder) => [
+  for (final element in finder.evaluate()) (_rectOf(element), _fadeOf(element)),
+];
+
+Finder _icon(IqIcons icon) =>
+    find.byWidgetPredicate((w) => w is IqIcon && w.icon == icon);
 
 void main() {
   setUpAll(loadAppFonts);
@@ -495,6 +549,87 @@ void main() {
       expect(flight.where((y) => y > from + 1 && y < to - 1), isNotEmpty);
     });
 
+    testWidgets('sent: the back button holds still while Upload proof '
+        'crosses into Your proof (spec 4.3)', (tester) async {
+      await _readyToSend(tester);
+      final back = tester.getTopLeft(_button('Back'));
+      final titles = {'Upload proof': <(Rect, double)>[], 'Your proof': []};
+
+      await tester.tap(find.text('Send proof'));
+      for (var at = 16; at <= 400; at += 16) {
+        await tester.pump(const Duration(milliseconds: 16));
+        for (final (rect, seen) in _drawn(_button('Back'))) {
+          if (seen < 0.01) continue;
+          expect(
+            rect.topLeft,
+            offsetMoreOrLessEquals(back, epsilon: 0.5),
+            reason: 'a back button at ${rect.topLeft} at $at ms',
+          );
+        }
+        for (final MapEntry(:key, :value) in titles.entries) {
+          value.addAll(_drawn(_barTitle(key)).where((d) => d.$2 > 0.01));
+        }
+      }
+      await tester.pump(const Duration(milliseconds: 500));
+      final upload = titles['Upload proof']!;
+      final yours = titles['Your proof']!;
+      final rest = tester.getTopLeft(_barTitle('Your proof'));
+      expect(
+        yours.map((d) => d.$1.topLeft),
+        everyElement(offsetMoreOrLessEquals(rest, epsilon: 0.5)),
+      );
+      expect(
+        upload.map((d) => d.$1.topLeft.dy),
+        everyElement(closeTo(rest.dy, 0.5)),
+      );
+      expect(upload.map((d) => d.$1.left).toSet(), hasLength(1));
+      expect(yours.where((d) => d.$2 < 0.99), isNotEmpty);
+      expect(upload.where((d) => d.$2 < 0.99), isNotEmpty);
+    });
+
+    testWidgets('sent: the play sticker and the remove X go with the '
+        'recording and never blink as it flies', (tester) async {
+      await _readyToSend(tester);
+      final flying = find.byElementPredicate(
+        (e) =>
+            e.widget is ProofFrame &&
+            e.findAncestorWidgetOfExactType<Hero>() == null,
+      );
+      double seen(IqIcons icon) {
+        final flight = flying.evaluate().map(_rectOf).firstOrNull;
+        var strongest = 0.0;
+        for (final element in _icon(icon).evaluate()) {
+          final onPage = element.findAncestorWidgetOfExactType<Scaffold>();
+          final under =
+              onPage != null &&
+              flight != null &&
+              flight.contains(_rectOf(element).center);
+          strongest = math.max(strongest, under ? 0 : _fadeOf(element));
+        }
+        return strongest;
+      }
+
+      expect(seen(IqIcons.close), 1);
+      expect(seen(IqIcons.play), 1);
+      await tester.tap(find.text('Send proof'));
+      final remove = <double>[];
+      final play = <double>[];
+      var flew = false;
+      for (var at = 16; at <= 400; at += 16) {
+        await tester.pump(const Duration(milliseconds: 16));
+        flew |= flying.evaluate().isNotEmpty;
+        remove.add(seen(IqIcons.close));
+        play.add(seen(IqIcons.play));
+      }
+      expect(flew, isTrue);
+      for (var i = 1; i < remove.length; i++) {
+        expect(remove[i], lessThanOrEqualTo(remove[i - 1] + 0.01));
+      }
+      expect(remove.where((o) => o > 0.05 && o < 0.95), isNotEmpty);
+      expect(remove.last, 0);
+      expect(play, everyElement(greaterThan(0.99)));
+    });
+
     testWidgets('play: the frame flies from the thumbnail to the player', (
       tester,
     ) async {
@@ -551,5 +686,66 @@ void main() {
       expect(heights.where((h) => h > 201 && h < 500), isEmpty);
       await tester.pumpAndSettle();
     });
+  });
+
+  testWidgets('a push while one state dissolves into the next flies the top '
+      'bar of the state that stays', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final state = ValueNotifier('Activation');
+    addTearDown(state.dispose);
+    Widget page(Widget bar) => Material(
+      color: IqColors.bg,
+      child: Column(children: [bar, const Spacer()]),
+    );
+    IqTopBar bar(String title) =>
+        IqTopBar(variant: IqTopBarVariant.page, title: title, onBack: () {});
+    final router = GoRouter(
+      initialLocation: '/states',
+      routes: [
+        GoRoute(
+          path: '/states',
+          pageBuilder: (c, s) => pushPage(
+            s,
+            ValueListenableBuilder(
+              valueListenable: state,
+              builder: (context, title, _) => page(
+                StateDissolve(
+                  fit: StackFit.passthrough,
+                  child: KeyedSubtree(key: ValueKey(title), child: bar(title)),
+                ),
+              ),
+            ),
+          ),
+        ),
+        GoRoute(
+          path: '/next',
+          pageBuilder: (c, s) => pushPage(s, page(bar('Upload proof'))),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      MaterialApp.router(theme: buildTheme(), routerConfig: router),
+    );
+    await tester.pumpAndSettle();
+    final rest = tester.getTopLeft(_button('Back'));
+
+    state.value = 'Your proof';
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('Activation'), findsOneWidget);
+    router.push('/next');
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+    expect(tester.takeException(), isNull);
+    expect(find.text('Your proof'), findsNWidgets(2));
+    expect(find.text('Activation'), findsOneWidget);
+    final flying = find.text('Your proof').last;
+    expect(_fadeOf(tester.element(flying)), inExclusiveRange(0, 1));
+    expect(tester.getTopLeft(_button('Back').last), rest);
+    await tester.pumpAndSettle();
   });
 }
