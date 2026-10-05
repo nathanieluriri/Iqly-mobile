@@ -195,7 +195,9 @@ class Surfaces {
   /// Android.
   Future<void> payoutChanged(Withdrawal w, SurfaceInputs inputs) async {
     if (!supported) return;
-    final state = PayoutActivityState.of(w);
+    final feedId = inputs.feedIdFor(w.id);
+    if (feedId == null) return;
+    final state = PayoutActivityState.of(w, notificationId: feedId);
     if (Flags.payoutLiveActivity &&
         defaultTargetPlatform == TargetPlatform.iOS) {
       await (state == null
@@ -203,8 +205,7 @@ class Surfaces {
           : _bridge.payoutActivity(state));
       return;
     }
-    final feedId = inputs.feedIdFor(w.id);
-    if (!Flags.pushNotifications || feedId == null) return;
+    if (!Flags.pushNotifications) return;
     final note = payoutNotification(w, notificationId: feedId);
     if (note == null) {
       await _notifications.cancel(id: stableId('payout:${w.id}'));
