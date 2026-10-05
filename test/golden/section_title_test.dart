@@ -69,4 +69,36 @@ void main() {
     expect(box.height, lessThan(44));
     expect(taps, 2);
   });
+
+  testWidgets('a long link takes taps across its whole label', (tester) async {
+    var taps = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 358,
+            child: IqSectionTitle(link: 'Deselect all', onSeeAll: () => taps++),
+          ),
+        ),
+      ),
+    );
+    final label = tester.getRect(find.text('Deselect all'));
+    await tester.tapAt(label.centerLeft + const Offset(2, 0));
+    await tester.tapAt(label.center);
+    expect(taps, 2);
+    await tester.tapAt(label.centerLeft - const Offset(12, 0));
+    expect(taps, 2);
+  });
+
+  testWidgets('long link', (tester) async {
+    await expectComponentGolden(
+      tester,
+      'section_title_long_link',
+      const SizedBox(
+        width: 358,
+        child: IqSectionTitle(title: 'Drafts', link: 'Deselect all'),
+      ),
+      size: const Size(358, 32),
+    );
+  });
 }
