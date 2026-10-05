@@ -8,7 +8,7 @@ import '../../ui/dock.dart';
 import '../activations/activations_routes.dart';
 import '../notifications/notifications_routes.dart';
 import '../polls/polls_routes.dart';
-import '../profile/profile_routes.dart';
+import '../more/more_routes.dart';
 import '../submissions/my_submissions_screen.dart';
 import '../submit/submit_routes.dart';
 import '../wallet/wallet_routes.dart';
@@ -67,7 +67,7 @@ RouteBase appShellRoute(GlobalKey<NavigatorState> rootKey) =>
           routes: [_push(Routes.submissions, const MySubmissionsScreen())],
         ),
         StatefulShellBranch(routes: [walletTabRoute(rootKey)]),
-        StatefulShellBranch(routes: [profileTab]),
+        StatefulShellBranch(routes: [moreTab]),
       ],
     );
 
@@ -93,12 +93,7 @@ final discoverRoutes = <RouteBase>[
   ...activationsRoutes,
 ];
 
-const _tabRoots = [
-  Routes.home,
-  Routes.submissions,
-  Routes.wallet,
-  Routes.profile,
-];
+const _tabRoots = [Routes.home, Routes.submissions, Routes.wallet, Routes.more];
 
 GoRoute _push(String path, Widget screen) => GoRoute(
   path: path,

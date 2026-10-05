@@ -3,6 +3,7 @@ import 'package:iqly_mobile/core/responsive.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/dock.dart';
 
+import '../golden/golden.dart' show loadAppFonts;
 import 'entry_harness.dart';
 
 const _keyboard = 336.0;
@@ -28,6 +29,8 @@ Future<double> _shrinkUnderKeyboard(WidgetTester tester) async {
 }
 
 void main() {
+  setUpAll(loadAppFonts);
+
   for (final route in [
     Routes.onboarding,
     Routes.onboardingResume,
@@ -37,7 +40,7 @@ void main() {
     Routes.home,
     Routes.submissions,
     Routes.wallet,
-    Routes.profile,
+    Routes.more,
     Routes.brief('c3'),
     Routes.notifications,
     Routes.polls,

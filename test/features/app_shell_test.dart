@@ -6,6 +6,7 @@ import 'package:iqly_mobile/features/submissions/my_submissions_screen.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/dock.dart';
 
+import '../golden/golden.dart' show loadAppFonts;
 import '../golden/screens/app_harness.dart';
 
 Future<void> _tab(WidgetTester tester, String label) async {
@@ -27,6 +28,8 @@ ScrollPosition _position(WidgetTester tester, Type screen) => tester
     .position;
 
 void main() {
+  setUpAll(loadAppFonts);
+
   testWidgets('the dock moves between the four tabs and each keeps its state', (
     tester,
   ) async {
@@ -39,7 +42,9 @@ void main() {
     await _tab(tester, 'Submissions');
     expect(find.byType(MySubmissionsScreen), findsOneWidget);
     expect(find.byType(HomeScreen), findsNothing);
-    _position(tester, MySubmissionsScreen).jumpTo(120);
+    final submissions = _position(tester, MySubmissionsScreen);
+    final kept = submissions.maxScrollExtent.clamp(0.0, 120.0);
+    submissions.jumpTo(kept);
     await tester.pumpAndSettle();
 
     await _tab(tester, 'Wallet');
@@ -54,7 +59,7 @@ void main() {
     expect(_position(tester, HomeScreen).pixels, 600);
 
     await _tab(tester, 'Submissions');
-    expect(_position(tester, MySubmissionsScreen).pixels, 120);
+    expect(_position(tester, MySubmissionsScreen).pixels, kept);
 
     await _tab(tester, 'Discover');
     _position(tester, HomeScreen).jumpTo(0);
