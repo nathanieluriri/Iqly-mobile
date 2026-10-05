@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/ui/brand_logo.dart';
 import 'package:iqly_mobile/ui/wallet_row.dart';
 
 import 'golden.dart';
@@ -12,6 +13,29 @@ void main() {
       tester,
       'wallet_row_award',
       const SizedBox(width: 358, child: IqWalletRow()),
+      size: const Size(358, 64),
+    );
+  });
+
+  testWidgets('referral award keeps the square logomark', (tester) async {
+    await expectComponentGolden(
+      tester,
+      'wallet_row_referral',
+      const SizedBox(
+        width: 358,
+        child: IqWalletRow(
+          title: 'Referral bonus',
+          detail: 'Reward · Ngozi E. won a first brief',
+          amount: '+₦500.00',
+          when: '5 days ago',
+          logo: IqBrandLogo(
+            mark: IqBrandMark.logomark,
+            tone: IqBrandTone.onDark,
+            width: 40,
+            height: 40,
+          ),
+        ),
+      ),
       size: const Size(358, 64),
     );
   });
