@@ -29,6 +29,17 @@ String placeKey(String name) =>
 Iterable<String> placeSpellings(String city) =>
     [city, ...?Reference.cityAlternates[city]].map(placeKey);
 
+/// Contributors must be 18 or older (answer 10).
+const minimumAge = 18;
+
+/// Whether someone born on [born] is [minimumAge] or older on [today].
+bool isAdult(DateTime? born, [DateTime? today]) {
+  if (born == null) return false;
+  final now = today ?? DateTime.now();
+  final birthday = DateTime(born.year + minimumAge, born.month, born.day);
+  return !birthday.isAfter(DateTime(now.year, now.month, now.day));
+}
+
 /// The screens of first run, in order. [label] is what Resume shows after
 /// "Next:".
 enum OnboardingStep {
@@ -61,7 +72,8 @@ class OnboardingDraft {
 
   bool get started => lastStep != null;
 
-  bool get aboutYouDone => profile.occupation != null;
+  bool get aboutYouDone =>
+      profile.occupation != null && isAdult(profile.dateOfBirth);
   bool get whereYouAreDone =>
       profile.state != null &&
       profile.city.trim().isNotEmpty &&
@@ -103,6 +115,8 @@ class OnboardingDraft {
     'education': profile.education,
     'university': profile.university,
     'interests': profile.interests,
+    'dateOfBirth': profile.dateOfBirth?.toIso8601String(),
+    'phone': profile.phone,
     'lastStep': lastStep?.name,
     'deferred': deferred,
   };
@@ -116,6 +130,8 @@ class OnboardingDraft {
       university: json['university'] as String?,
       interests: [...(json['interests'] as List<Object?>? ?? const [])]
           .cast<String>(),
+      dateOfBirth: DateTime.tryParse(json['dateOfBirth'] as String? ?? ''),
+      phone: json['phone'] as String? ?? '',
     ),
     lastStep: OnboardingStep.values
         .where((s) => s.name == json['lastStep'])
@@ -157,6 +173,10 @@ class OnboardingDraftNotifier extends Notifier<OnboardingDraft> {
 
   void setUniversity(String value) => _save(_profile(university: value));
 
+  void setDateOfBirth(DateTime value) => _save(_profile(dateOfBirth: value));
+
+  void setPhone(String value) => _save(_profile(phone: value));
+
   void toggleInterest(String value) {
     final next = [..._p.interests];
     next.contains(value) ? next.remove(value) : next.add(value);
@@ -190,6 +210,8 @@ class OnboardingDraftNotifier extends Notifier<OnboardingDraft> {
     String? education,
     String? university,
     List<String>? interests,
+    DateTime? dateOfBirth,
+    String? phone,
   }) => this.state.copyWith(
     profile: OnboardingProfile(
       occupation: occupation ?? _p.occupation,
@@ -198,6 +220,8 @@ class OnboardingDraftNotifier extends Notifier<OnboardingDraft> {
       education: education ?? _p.education,
       university: university ?? _p.university,
       interests: interests ?? _p.interests,
+      dateOfBirth: dateOfBirth ?? _p.dateOfBirth,
+      phone: phone ?? _p.phone,
     ),
   );
 

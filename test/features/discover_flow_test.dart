@@ -263,7 +263,7 @@ void main() {
     expect(find.byType(BriefDetailScreen), findsNothing);
   });
 
-  testWidgets('onboarding Done tickets open brief detail', (tester) async {
+  testWidgets('onboarding Done cards open brief detail', (tester) async {
     await pumpApp(
       tester,
       Routes.onboardingDone,

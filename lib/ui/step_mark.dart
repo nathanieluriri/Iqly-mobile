@@ -19,8 +19,7 @@ enum IqStepMarkStep {
 /// the width. Done and current bars are accent; the ones to come are line.
 ///
 /// Figma over brief: since the 5 Oct update the mark is a segmented bar,
-/// not the 44 pt ring with dots (IqStepMarkRing keeps that until the
-/// entry and onboarding rows move over, see step_mark_ring.dart).
+/// not the 44 pt ring with dots.
 ///
 /// Motion (build extension): a bar that becomes current fills over 300 ms
 /// ease-out; reduced motion cuts.

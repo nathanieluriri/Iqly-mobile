@@ -59,10 +59,14 @@ Future<void> pumpOnboardingScreen(
   await tester.pumpAndSettle();
 }
 
-final sampleAboutYou = {'occupation': 'student', 'lastStep': 'aboutYou'};
+final sampleAboutYou = {
+  'occupation': 'student',
+  'dateOfBirth': '2004-03-12T00:00:00.000',
+  'lastStep': 'aboutYou',
+};
 
 final sampleWhereYouLive = {
-  'occupation': 'student',
+  ...sampleAboutYou,
   'state': 'Lagos',
   'city': 'Ikeja',
   'lastStep': 'whereYouLive',

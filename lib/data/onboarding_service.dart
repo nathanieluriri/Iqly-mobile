@@ -11,6 +11,8 @@ class OnboardingProfile {
     this.education,
     this.university,
     this.interests = const [],
+    this.dateOfBirth,
+    this.phone = '',
   });
 
   final String? occupation;
@@ -19,6 +21,12 @@ class OnboardingProfile {
   final String? education;
   final String? university;
   final List<String> interests;
+
+  /// Collected on About you; under 18 is blocked there (answers 10 and 17).
+  final DateTime? dateOfBirth;
+
+  /// Optional until the first withdrawal (answer 17).
+  final String phone;
 }
 
 /// Sends the first-run answers to the contributor's profile.

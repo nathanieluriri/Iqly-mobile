@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/session.dart';
+import '../../data/invite.dart';
 
 class EntryDraft {
   const EntryDraft({this.email = '', this.firstName = '', this.lastName = ''});
@@ -35,6 +36,25 @@ final entryDraftProvider = NotifierProvider<EntryDraftNotifier, EntryDraft>(
   EntryDraftNotifier.new,
 );
 
+/// The invite an invite link opened the app with, until sign up uses it or
+/// the person signs in instead (answer 22).
+class PendingInviteNotifier extends Notifier<Invite?> {
+  @override
+  Invite? build() => null;
+
+  /// Looks [code] up and keeps the invite when it is known.
+  Future<void> accept(String code) async {
+    final invite = await ref.read(inviteServiceProvider).lookUp(code);
+    if (invite != null) state = invite;
+  }
+
+  void clear() => state = null;
+}
+
+final pendingInviteProvider = NotifierProvider<PendingInviteNotifier, Invite?>(
+  PendingInviteNotifier.new,
+);
+
 final _email = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
 bool isEmail(String value) => _email.hasMatch(value.trim());
@@ -55,4 +75,5 @@ Future<void> completeSignIn(WidgetRef ref, {required bool newAccount}) async {
     await session.setFirstTipSeen(true);
   }
   ref.read(entryDraftProvider.notifier).clear();
+  ref.read(pendingInviteProvider.notifier).clear();
 }
