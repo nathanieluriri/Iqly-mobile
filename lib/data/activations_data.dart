@@ -16,9 +16,12 @@ abstract final class ActivationRules {
   /// Under this the countdown counts hours ("36h"), then days ("2 days").
   static const countsHours = Duration(days: 2);
 
-  /// Activations closing within this lead the list as Hero tickets
-  /// ("CLOSING SOON") and count on Discover as closing today.
+  /// Activations closing within this put their deadline on the Urgent pill
+  /// and count on Discover as closing today.
   static const closingSoon = Duration(days: 1);
+
+  /// The largest recording accepted as proof.
+  static const proofBytes = 50000000;
 }
 
 class ActivationStep {
@@ -34,19 +37,24 @@ class ActivationStep {
   final String? howTo;
 }
 
-/// The recording picked as proof.
+/// The recording picked as proof. [length] is null when the picker cannot
+/// read it (the phone's own picker gives the file only).
 class ProofVideo {
-  const ProofVideo({
-    required this.name,
-    required this.bytes,
-    required this.length,
-  });
+  const ProofVideo({required this.name, required this.bytes, this.length});
 
   final String name;
   final int bytes;
-  final Duration length;
+  final Duration? length;
 
-  bool get tooLong => length > ActivationRules.proofLength;
+  bool get tooLong {
+    final length = this.length;
+    return length != null && length > ActivationRules.proofLength;
+  }
+
+  bool get tooLarge => bytes > ActivationRules.proofBytes;
+
+  /// Over either limit: the upload is refused before it starts.
+  bool get refused => tooLong || tooLarge;
 }
 
 class ActivationProof {
@@ -55,6 +63,7 @@ class ActivationProof {
     required this.video,
     required this.receivedAt,
     this.checkedAt,
+    this.notAccepted,
   });
 
   /// The index of the step it proves.
@@ -65,11 +74,24 @@ class ActivationProof {
   /// When iQLY confirmed it with the business; null while checking.
   final DateTime? checkedAt;
 
+  /// Why the business turned it down ("The recording ends before the
+  /// Verification page."); null unless it was.
+  final String? notAccepted;
+
+  bool get accepted => notAccepted == null;
+
   ActivationProof checked(DateTime at) => ActivationProof(
     step: step,
     video: video,
     receivedAt: receivedAt,
     checkedAt: at,
+  );
+
+  ActivationProof refused(String reason) => ActivationProof(
+    step: step,
+    video: video,
+    receivedAt: receivedAt,
+    notAccepted: reason,
   );
 }
 
@@ -122,8 +144,14 @@ enum ActivationPhase {
   /// Proof sent; iQLY is checking it with the business.
   checking,
 
+  /// The business turned the proof down; it can be recorded again.
+  notAccepted,
+
   /// Paid to the wallet.
   credited,
+
+  /// Closed before it was finished, or before it was started.
+  expired,
 }
 
 class Activation {
@@ -173,10 +201,10 @@ class Activation {
   bool closedAt(DateTime now) => !closesAt.isAfter(now);
 
   /// The step the business is confirming, once one step is confirmed and
-  /// until the last is, while no proof stands in for it.
+  /// until the last is, while no accepted proof stands in for it.
   int? get waitingStep {
     final run = progress;
-    if (run == null || credited || run.proof != null) return null;
+    if (run == null || credited || (run.proof?.accepted ?? false)) return null;
     final done = run.confirmedAt.length;
     if (done == 0 || done >= steps.length) return null;
     return done;
@@ -195,9 +223,15 @@ class Activation {
 
   ActivationPhase phaseAt(DateTime now) {
     final run = progress;
-    if (run == null) return ActivationPhase.offer;
     if (credited) return ActivationPhase.credited;
-    if (run.proof != null) return ActivationPhase.checking;
+    final proof = run?.proof;
+    if (proof != null) {
+      return proof.accepted
+          ? ActivationPhase.checking
+          : ActivationPhase.notAccepted;
+    }
+    if (closedAt(now)) return ActivationPhase.expired;
+    if (run == null) return ActivationPhase.offer;
     final since = waitingSince;
     if (since == null) {
       return run.confirmedAt.isEmpty
@@ -224,12 +258,10 @@ class Activation {
   );
 }
 
-/// The activations of the Figma frames (rows B8 and B9) at [now]. Rewards,
-/// times left, spots and steps are the frames' (spot totals read off each
-/// thread: Kudi Box 312 of 500 taken, Unibooks 40% taken, Orchid Foods
-/// 97.6% taken with 38 left). Kudi Box's steps are Figma's; Orchid Foods and
-/// Unibooks have no detail frame, so their steps reuse Kudi Box's first
-/// step and add their own (written for the demo, listed for the owner).
+/// The activations of the Figma frames (rows B8 and B9) at [now]: rewards,
+/// times left and Kudi Box's steps are the frames'. Orchid Foods and
+/// Unibooks have no detail frame, so their steps reuse Kudi Box's first step
+/// and add their own (written for the demo, listed for the owner).
 class DemoActivations {
   DemoActivations(this.now);
 
@@ -266,7 +298,7 @@ class DemoActivations {
   late final kudiBox = Activation(
     id: 'a2',
     business: 'Kudi Box',
-    title: 'Open a Kudi Box account and save ₦1,000',
+    title: 'Open a Kudi Box account and save ₦1,000.00',
     minutes: 10,
     rewardKobo: 150000,
     closesAt: now.add(const Duration(days: 2, hours: 6)),
@@ -280,7 +312,7 @@ class DemoActivations {
         howTo: 'Settings → Verification. About 2 min',
       ),
       ActivationStep(
-        title: 'Make your first save of ₦1,000',
+        title: 'Make your first save of ₦1,000.00',
         hint: 'Any savings plan counts.',
       ),
     ],
@@ -310,12 +342,19 @@ class DemoActivations {
     confirmedAt: [now.subtract(const Duration(days: 1, minutes: 20))],
   );
 
-  /// The app's demo: Kudi Box to start and watch confirm (B8), and Unibooks
-  /// started yesterday with its step 2 unconfirmed, so My activations opens
-  /// the proof flow (B9).
+  /// Started an hour ago, nothing confirmed yet.
+  ActivationProgress get justStarted =>
+      ActivationProgress(startedAt: now.subtract(const Duration(hours: 1)));
+
+  /// Why the business turns a proof down (B9 · Proof · not accepted).
+  static const endsEarly = 'The recording ends before the Verification page.';
+
+  /// The app's demo, as B8 · My activations shows it: Orchid Foods and Kudi
+  /// Box under way (Kudi Box past its window at step 2, so its proof flow
+  /// opens), Unibooks still an offer.
   List<Activation> get all => [
-    orchidFoods,
-    kudiBox,
-    unibooks.withProgress(stuckAtStep2),
+    orchidFoods.withProgress(justStarted),
+    kudiBox.withProgress(stuckAtStep2),
+    unibooks,
   ];
 }

@@ -9,13 +9,11 @@ import '../../data/models.dart';
 import '../wallet/wallet_state.dart';
 
 /// The activations and your progress on each, kept for the session so the
-/// list opens at once the second time (B9 Home goes straight to the list).
-/// Changes the service pushes land here as they happen. A reward that gets
-/// paid is credited to the wallet as a ledger award, so the wallet foots:
-/// DemoData's ledger (lib/data/demo_data.dart, lines 261 to 285: ₦12,500.00
-/// available, ₦62,500.00 earned) plus the reward (₦1,500 makes ₦14,000.00
-/// and ₦64,000.00, as B8 · Reward · credited shows). The live API credits
-/// the ledger itself and a wallet reload brings the same row.
+/// list opens at once the second time. Changes the service pushes land here
+/// as they happen. A reward that gets paid is credited to the wallet as a
+/// ledger award with the activation's [Activation.creditId], so it counts
+/// once whoever pays it; the live API credits the ledger itself and a wallet
+/// reload brings the same row.
 class ActivationsNotifier extends AsyncNotifier<List<Activation>> {
   @override
   Future<List<Activation>> build() async {
@@ -103,8 +101,9 @@ enum ProofStage {
   /// Nothing picked: the ProofTile.
   none,
 
-  /// The pick runs over [ActivationRules.proofLength]: ProofTile Error.
-  tooLong,
+  /// The pick runs over [ActivationRules.proofLength] or
+  /// [ActivationRules.proofBytes]: refused before it uploads.
+  refused,
   uploading,
   ready,
   failed,
@@ -129,11 +128,8 @@ class ProofDraft {
   final String phone;
   final String note;
 
-  /// A recording sits in the slot (uploading, ready or failed).
-  bool get hasVideo =>
-      stage == ProofStage.uploading ||
-      stage == ProofStage.ready ||
-      stage == ProofStage.failed;
+  /// A recording sits in the slot.
+  bool get hasVideo => stage != ProofStage.none;
 
   ProofDraft copyWith({
     ProofStage? stage,
@@ -164,16 +160,16 @@ class ProofDraftNotifier extends Notifier<ProofDraft> {
     return const ProofDraft();
   }
 
-  /// Opens the picker; a recording over the limit turns the tile to Error,
-  /// any other starts uploading.
+  /// Opens the picker; a recording over a limit is refused, any other
+  /// starts uploading.
   Future<void> pick() async {
     final video = await ref
         .read(mediaServiceProvider)
         .pickVideo(about: ref.read(activationProvider(id))?.business);
     if (!ref.mounted || video == null) return;
-    if (video.tooLong) {
+    if (video.refused) {
       state = state.copyWith(
-        stage: ProofStage.tooLong,
+        stage: ProofStage.refused,
         video: video,
         uploadId: () => null,
       );
@@ -184,7 +180,7 @@ class ProofDraftNotifier extends Notifier<ProofDraft> {
 
   void retry() {
     final video = state.video;
-    if (video != null) _send(video);
+    if (video != null && !video.refused) _send(video);
   }
 
   void _send(ProofVideo video) {
