@@ -426,8 +426,8 @@ class _Hero extends StatelessWidget {
         clipper: const _CutTop(),
         child: OverflowBox(
           alignment: Alignment.bottomCenter,
-          minHeight: IqBriefHero.height,
-          maxHeight: IqBriefHero.height,
+          minHeight: IqBriefHero.defaultHeight,
+          maxHeight: IqBriefHero.defaultHeight,
           child: child,
         ),
       ),
@@ -440,7 +440,7 @@ class _CutTop extends CustomClipper<Rect> {
 
   @override
   Rect getClip(Size size) =>
-      Rect.fromLTRB(0, 0, size.width, size.height + IqBriefHero.height);
+      Rect.fromLTRB(0, 0, size.width, size.height + IqBriefHero.defaultHeight);
 
   @override
   bool shouldReclip(_CutTop oldClipper) => false;
