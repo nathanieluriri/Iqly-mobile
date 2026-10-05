@@ -63,11 +63,14 @@ class IqMeta extends StatelessWidget {
             IqIcon(icon, size: iconSize, color: _ink),
             const SizedBox(width: IqSpace.s1),
           ],
-          Text(
-            label,
-            maxLines: 1,
-            softWrap: false,
-            style: IqText.smallStrong.copyWith(color: _text),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              style: IqText.smallStrong.copyWith(color: _text),
+            ),
           ),
         ],
       ),
