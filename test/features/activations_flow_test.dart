@@ -113,14 +113,16 @@ void main() {
         service: _live(thursday),
       );
       expect(find.byType(HomeScreen), findsOneWidget);
-
-      await tester.tap(find.text('Activations'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
-      expect(find.byType(ActivationsScreen), findsOneWidget);
-      expect(find.byType(ActivationsLoading), findsOneWidget);
-      await tester.pump(const Duration(milliseconds: 900));
+      // Discover waits for its Activations block, then opens the list with
+      // what it loaded.
+      await tester.pump(const Duration(milliseconds: 1300));
       await tester.pumpAndSettle();
+      expect(find.text('Activations'), findsOneWidget);
+      expect(find.text('Closes in 5h 40m'), findsOneWidget);
+
+      await tester.tap(find.text('Rate 3 recipes in the Orchid Foods app'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ActivationsScreen), findsOneWidget);
       expect(find.byType(ActivationsLoading), findsNothing);
       expect(find.text('Rate 3 recipes in the Orchid Foods app'), findsOne);
       expect(find.text('Closes in 5h 40m'), findsOneWidget);

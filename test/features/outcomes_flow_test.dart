@@ -278,6 +278,7 @@ void main() {
 
       await _tap(tester, find.text('A tagline for a solar kiosk network'));
       expect(find.byType(BriefDetailScreen), findsOneWidget);
+      expect(find.text('₦150k'), findsOneWidget);
       await _tap(tester, find.bySemanticsLabel('Back'));
 
       container.read(discoverFiltersProvider.notifier).showAll();

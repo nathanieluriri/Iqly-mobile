@@ -88,6 +88,9 @@ abstract final class IqDurations {
   /// The splash dissolve.
   static const handoff = Duration(milliseconds: 400);
 
+  /// After the first Discover load, before the gift's one shine.
+  static const giftShineDelay = Duration(milliseconds: 800);
+
   /// Thread fills, count-ups, poll share bars.
   static const fill = Duration(milliseconds: 600);
 

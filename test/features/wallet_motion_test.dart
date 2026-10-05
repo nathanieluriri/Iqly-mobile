@@ -29,6 +29,7 @@ import 'package:iqly_mobile/ui/receipt_card.dart';
 import 'package:iqly_mobile/ui/timeline_row.dart';
 import 'package:iqly_mobile/ui/top_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:iqly_mobile/data/activations_service.dart';
 
 import '../golden/screens/app_harness.dart';
 import '../golden/screens/wallet_harness.dart';
@@ -70,6 +71,13 @@ Future<(ProviderContainer, GoRouter)> _pumpApp(
       sharedPreferencesProvider.overrideWithValue(prefs),
       repositoryProvider.overrideWithValue(repository ?? WalletRepository()),
       clockProvider.overrideWithValue(() => figmaNow),
+      activationsServiceProvider.overrideWithValue(
+        DemoActivationsService(
+          clock: () => figmaNow,
+          load: Duration.zero,
+          delay: Duration.zero,
+        ),
+      ),
       ...walletOverrides(wallet: wallet),
     ],
   );

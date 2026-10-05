@@ -82,7 +82,7 @@ void main() {
       );
       expect(find.byType(BriefDetailScreen), findsOneWidget);
 
-      await _tap(tester, find.text('Submit your response'));
+      await _tap(tester, find.text('Start your submission'));
       expect(find.byType(SubmitScreen), findsOneWidget);
       expect(find.text('Your submission'), findsOneWidget);
       expect(find.text('Sunline'), findsOneWidget);
@@ -272,7 +272,7 @@ void main() {
       repository: readyToSend(),
       overrides: instantSubmit(),
     );
-    await _tap(tester, find.text('Submit your response'));
+    await _tap(tester, find.text('Start your submission'));
     expect(find.text('A few quick questions'), findsOneWidget);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
@@ -289,7 +289,7 @@ void main() {
     tester,
   ) async {
     await pumpApp(tester, Routes.brief('c1'), overrides: instantSubmit());
-    await _tap(tester, find.text('Submit your response'));
+    await _tap(tester, find.text('View your submission'));
     expect(find.byType(SubmitScreen), findsNothing);
     expect(find.byType(SubmissionDetailScreen), findsOneWidget);
     expect(find.text('Fizzo: short, loud, easy to say'), findsOneWidget);
@@ -346,7 +346,7 @@ void main() {
     tester,
   ) async {
     await pumpApp(tester, Routes.brief('c5'), overrides: instantSubmit());
-    await _tap(tester, find.text('Submit your response'));
+    await _tap(tester, find.text('Start your submission'));
     expect(find.text(SubmitCopy.title), findsOneWidget);
     expect(find.text(SubmitCopy.shortAnswer), findsOneWidget);
     expect(find.text('4 more characters to go'), findsOneWidget);
@@ -387,7 +387,7 @@ void main() {
       repository: repository,
       overrides: instantSubmit(),
     );
-    await _tap(tester, find.text('Submit your response'));
+    await _tap(tester, find.text('Start your submission'));
 
     await _tap(tester, find.bySemanticsLabel('Back'));
     expect(find.text('Leave without sending?'), findsOneWidget);
@@ -418,7 +418,7 @@ void main() {
       repository: draftsRepository(),
       overrides: instantSubmit(),
     );
-    await _tap(tester, find.text('Submit your response'));
+    await _tap(tester, find.text('Start your submission'));
     await _tap(tester, find.bySemanticsLabel('Back'));
     expect(find.byType(IqConfirmSheet), findsNothing);
     expect(find.byType(BriefDetailScreen), findsOneWidget);

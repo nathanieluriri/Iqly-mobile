@@ -25,6 +25,13 @@ class DemoData {
     interests: ['Marketing & advertising', 'Finance & fintech'],
   );
 
+  /// The sample business art the Figma cards fill from (Sample/Logo and
+  /// Sample/Cover). The live API sends image URLs in the same fields.
+  static String logoOf(String slug) => 'assets/samples/logos/$slug.svg';
+
+  static String coverOf(String slug, [int shot = 1]) =>
+      'assets/samples/covers/$slug-$shot.jpg';
+
   late final List<Brief> briefs = [
     Brief(
       id: 'c1',
@@ -36,6 +43,9 @@ class DemoData {
       status: BriefStatus.live,
       deadline: at(5),
       businessName: 'Orchid Foods',
+      minutes: 3,
+      logo: logoOf('orchid-foods'),
+      cover: coverOf('orchid-foods', 2),
       createdAt: at(-9),
       interest: 'marketing_advertising',
     ),
@@ -49,6 +59,9 @@ class DemoData {
       status: BriefStatus.live,
       deadline: at(12),
       businessName: 'Basket NG',
+      minutes: 5,
+      logo: logoOf('basket-ng'),
+      cover: coverOf('basket-ng', 1),
       createdAt: at(-4),
       interest: 'business_entrepreneurship',
     ),
@@ -62,6 +75,9 @@ class DemoData {
       status: BriefStatus.closed,
       deadline: at(-3),
       businessName: null,
+      minutes: 4,
+      logo: logoOf('private'),
+      cover: coverOf('private', 1),
       createdAt: at(-40),
       interest: 'finance_fintech',
     ),
@@ -75,6 +91,9 @@ class DemoData {
       status: BriefStatus.live,
       deadline: at(1),
       businessName: 'Kudi Box',
+      minutes: 10,
+      logo: logoOf('kudi-box'),
+      cover: coverOf('kudi-box', 1),
       createdAt: at(-12),
       interest: 'finance_fintech',
       spotsLeft: 3,
@@ -90,6 +109,9 @@ class DemoData {
       status: BriefStatus.live,
       deadline: at(0, 6),
       businessName: 'Sunline',
+      minutes: 2,
+      logo: logoOf('sunline'),
+      cover: coverOf('sunline', 1),
       createdAt: at(-7),
       interest: 'marketing_advertising',
       spotsLeft: 12,
@@ -106,6 +128,9 @@ class DemoData {
       status: BriefStatus.live,
       deadline: at(20),
       businessName: 'Unibooks',
+      minutes: 5,
+      logo: logoOf('unibooks'),
+      cover: coverOf('unibooks', 1),
       createdAt: at(-2),
       interest: 'education',
     ),
@@ -119,6 +144,9 @@ class DemoData {
       status: BriefStatus.live,
       deadline: at(8),
       businessName: 'Harbour Microfinance',
+      minutes: 8,
+      logo: logoOf('harbour'),
+      cover: coverOf('harbour', 1),
       createdAt: at(-6),
       interest: 'business_entrepreneurship',
     ),
@@ -132,6 +160,9 @@ class DemoData {
       status: BriefStatus.closed,
       deadline: at(-15),
       businessName: 'Volt Riders',
+      minutes: 3,
+      logo: logoOf('volt-riders'),
+      cover: coverOf('volt-riders', 1),
       createdAt: at(-45),
       interest: 'marketing_advertising',
     ),
@@ -145,6 +176,9 @@ class DemoData {
       status: BriefStatus.live,
       deadline: null,
       businessName: 'Swapit',
+      minutes: 5,
+      logo: logoOf('swapit'),
+      cover: coverOf('swapit', 1),
       createdAt: at(-1),
       interest: 'tech_gadgets',
     ),
@@ -158,6 +192,9 @@ class DemoData {
       status: BriefStatus.live,
       deadline: at(3),
       businessName: 'Garri & Co',
+      minutes: 5,
+      logo: logoOf('garri-and-co'),
+      cover: coverOf('garri-and-co', 1),
       createdAt: at(-10),
       interest: 'agriculture_food',
     ),
@@ -171,6 +208,9 @@ class DemoData {
       status: BriefStatus.live,
       deadline: at(15),
       businessName: 'Lagoon Lines',
+      minutes: 6,
+      logo: logoOf('lagoon-lines'),
+      cover: coverOf('lagoon-lines', 1),
       createdAt: at(-3),
       interest: 'business_entrepreneurship',
     ),
@@ -184,6 +224,9 @@ class DemoData {
       status: BriefStatus.live,
       deadline: at(9),
       businessName: 'Harbour Microfinance',
+      minutes: 3,
+      logo: logoOf('harbour'),
+      cover: coverOf('harbour', 2),
       createdAt: at(-5),
       interest: 'finance_fintech',
     ),
@@ -197,19 +240,16 @@ class DemoData {
       status: BriefStatus.live,
       deadline: at(25),
       businessName: 'Classpay',
+      minutes: 10,
+      logo: logoOf('classpay'),
+      cover: coverOf('classpay', 2),
       createdAt: at(-1),
       interest: 'education',
     ),
   ];
 
-  /// Illustrative design proposals (polls, activations, saved briefs, close
+  /// Illustrative design proposals (activations, saved briefs, close
   /// reminders): the API does not serve them yet.
-  static const pollBrands = [
-    PollBrand(businessName: 'Orchid Foods', openPolls: 2, unanswered: 2),
-    PollBrand(businessName: 'Unibooks', openPolls: 1, unanswered: 1),
-    PollBrand(businessName: 'Sunline', openPolls: 1, unanswered: 0),
-  ];
-
   static const activations = ActivationsSummary(closingToday: 1);
 
   static const savedBriefIds = ['c5', 'c4'];
