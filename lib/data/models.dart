@@ -180,6 +180,7 @@ class LedgerEntry {
     this.submissionId,
     this.business,
     this.note,
+    this.referred,
   });
 
   final String id;
@@ -194,6 +195,13 @@ class LedgerEntry {
   /// What the reward row says after "Reward · " when no brief names it
   /// ("activation · step 2 confirmed", "Ngozi E. won a first brief").
   final String? note;
+
+  /// The friend a referral reward is for ("Ngozi E.").
+  final String? referred;
+
+  /// Who the reward is for: the business of an activation or the friend of
+  /// a referral ("Kudi Box", "Ngozi E.").
+  String? get rewardFrom => business ?? referred;
 
   RewardSource get source => submissionId != null
       ? RewardSource.submission
@@ -333,6 +341,8 @@ class User {
     required this.city,
     required this.university,
     required this.interests,
+    this.occupation,
+    this.education,
   });
 
   final String firstName;
@@ -342,6 +352,10 @@ class User {
   final String city;
   final String university;
   final List<String> interests;
+
+  /// Reference.occupations and Reference.education values.
+  final String? occupation;
+  final String? education;
 
   String get name => '$firstName $lastName';
   String get initial => firstName.substring(0, 1);

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:iqly_mobile/data/help_data.dart';
 import 'package:iqly_mobile/data/help_service.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
 import 'package:iqly_mobile/features/help/help_request_screen.dart';
@@ -63,7 +64,7 @@ void main() {
     final haptics = recordHaptics(tester);
     final help = instantHelp();
     await _openFromHome(tester, help: help);
-    expect(find.text('Support replies within 2 hours.'), findsOneWidget);
+    expect(find.text(DemoHelp.replyLine), findsOneWidget);
     expect(find.text('What happened?'), findsOneWidget);
     expect(find.text('0/1,000 characters'), findsOneWidget);
     expect(_button(tester, 'Send to support').disabled, isTrue);
@@ -91,7 +92,7 @@ void main() {
     expect(find.text(figmaMessage), findsOneWidget);
     expect(find.text('Sat, 2:20 pm'), findsOneWidget);
     expect(
-      find.text('ATTACHED · KUDI-BOX-WALLET.MP4 · 0:31 · 12 MB'),
+      find.text('Attached kudi-box-wallet.mp4 · 0:31 · 12 MB'),
       findsOneWidget,
     );
     expect(find.text('iQLY support'), findsOneWidget);
@@ -103,16 +104,10 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Sat, 3:06 pm'), findsOneWidget);
-    expect(find.text('UPDATED BALANCE'), findsOneWidget);
-    final hero = tester.widget<IqBalanceHero>(find.byType(IqBalanceHero));
-    expect(hero.amount, '₦16,500');
-    expect(hero.decimals, '.00');
-    expect(hero.onHold, '₦10,000.00');
-    expect(hero.earned, '₦66,500.00');
-    expect(hero.holdLabel, 'On hold · 1 pending');
-    expect(hero.showWithdraw, isFalse);
+    expect(find.text('Send reply'), findsOneWidget);
 
-    await _tap(tester, find.text('View wallet'));
+    GoRouter.of(tester.element(find.byType(Navigator).first)).go(Routes.wallet);
+    await tester.pumpAndSettle();
     expect(find.byType(WalletScreen), findsOneWidget);
     final wallet = tester.widget<IqWalletCard>(find.byType(IqWalletCard));
     expect(wallet.amount, '₦16,500.00');

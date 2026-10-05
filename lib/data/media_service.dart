@@ -7,7 +7,7 @@ import 'activations_data.dart';
 /// Whether the app may read the phone's videos.
 enum MediaAccess { unasked, allowed, denied }
 
-/// Videos from the device. The proof is a screen recording made with the
+/// Videos and screenshots from the device. The proof is a screen recording made with the
 /// phone's own recorder and chosen with the phone's own picker.
 abstract class MediaService {
   /// [MediaAccess.unasked] until the person answers the photos prompt
@@ -21,10 +21,15 @@ abstract class MediaService {
   /// [about] names the business the recording proves a step for; the demo
   /// names its file after it, the device's picker has the file's own name.
   Future<ProofVideo?> pickVideo({String? about});
+
+  /// A screenshot from the phone's own picker (file_picker, images only);
+  /// its file name, or null when the person backs out.
+  Future<String?> pickImage();
 }
 
-/// The phone's own picker (file_picker). The OS asks for photo access
-/// itself, so the screen's prompt never shows; a refusal reads as denied.
+/// The phone's own picker (file_picker) for proof videos and report
+/// screenshots. The OS asks for photo access itself, so the screen's prompt
+/// never shows; a refusal reads as denied.
 /// Without the plugin, as in tests and on a desktop build, it falls back to
 /// the demo. The picker gives no running time: length stays null and the
 /// size limit is checked here, the length by the API.
@@ -61,6 +66,18 @@ class DeviceMediaService implements MediaService {
       return null;
     }
   }
+
+  @override
+  Future<String?> pickImage() async {
+    try {
+      final files = await FilePicker.pickFiles(type: FileType.image);
+      return files.isEmpty ? null : files.first.name;
+    } on MissingPluginException {
+      return fallback.pickImage();
+    } on UnimplementedError {
+      return fallback.pickImage();
+    }
+  }
 }
 
 class DemoMediaService implements MediaService {
@@ -95,6 +112,16 @@ class DemoMediaService implements MediaService {
   /// name of the business it proves a step for.
   ProofVideo? video;
   int picks = 0;
+
+  /// What the next screenshot pick returns; null backs out.
+  String? image = 'screenshot.png';
+
+  @override
+  Future<String?> pickImage() async {
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    picks++;
+    return image;
+  }
 
   @override
   MediaAccess access;

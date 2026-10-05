@@ -2,11 +2,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/discover/brief_detail_screen.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
+import 'package:iqly_mobile/features/notifications/notification_screen.dart';
 import 'package:iqly_mobile/features/notifications/notifications_screen.dart';
-import 'package:iqly_mobile/features/submissions/submission_detail_screen.dart';
 import 'package:iqly_mobile/features/wallet/wallet_screen.dart';
 import 'package:iqly_mobile/features/withdrawals/withdrawal_failed_screen.dart';
-import 'package:iqly_mobile/features/withdrawals/withdrawal_tracker_screen.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/notification.dart';
 import 'package:iqly_mobile/ui/pressable.dart';
@@ -57,56 +56,38 @@ void main() {
         .map((n) => (n.headline, n.when, n.unread))
         .toList();
     expect(headlines, [
-      ('Closes in 6h', '1h', true),
-      ('₦10,000.00 requested', '2h', true),
-      ('Closes in 1 day', '5h', true),
+      ('Closes in 7h', '1h', true),
+      ('Kudi Box closes tomorrow', '5h', true),
       ('You won ₦12,500.00', '2d', false),
+      ('₦1,500.00 added to your wallet', '3d', true),
       ('₦40,000.00 paid out', '10d', false),
-      ('₦5,000.00 payout failed', '11d', false),
+      ('₦5,000.00 never left your wallet', '11d', false),
     ]);
-    expect(
-      find.text('Sunline · A tagline for a solar kiosk network'),
-      findsOneWidget,
-    );
-    expect(find.text('Access Bank ••6789 · pending'), findsOneWidget);
-    expect(find.text('Sent to Access Bank ••6789 · completed'), findsOneWidget);
-    expect(
-      find.text('Access Bank ••6789 · back in your balance'),
-      findsOneWidget,
-    );
     expect(container.read(unreadNotificationsProvider).value, 0);
 
-    await _tap(tester, find.text('Closes in 6h'));
+    await _tap(tester, find.text('Closes in 7h'));
+    expect(find.byType(NotificationScreen), findsOneWidget);
+    await _tap(tester, find.text('See the brief'));
     expect(find.byType(BriefDetailScreen), findsOneWidget);
-    expect(find.text('A tagline for a solar kiosk network'), findsOneWidget);
+    await _tap(tester, _labelled('Back').last);
     await _back(tester);
-    expect(_row(tester, 'Closes in 6h').unread, isFalse);
-    expect(_row(tester, 'Closes in 1 day').unread, isTrue);
-
-    await _tap(tester, find.text('₦10,000.00 requested'));
-    expect(find.byType(WithdrawalTrackerScreen), findsOneWidget);
-    await _back(tester);
-    expect(_row(tester, '₦10,000.00 requested').unread, isFalse);
-
-    await _tap(tester, find.text('Closes in 1 day'));
-    expect(find.byType(BriefDetailScreen), findsOneWidget);
-    expect(
-      find.text('Redesign the first five minutes of our savings app'),
-      findsOneWidget,
-    );
-    await _back(tester);
+    expect(_row(tester, 'Closes in 7h').unread, isFalse);
+    expect(_row(tester, 'Kudi Box closes tomorrow').unread, isTrue);
 
     await _tap(tester, find.text('You won ₦12,500.00'));
-    expect(find.byType(SubmissionDetailScreen), findsOneWidget);
-    expect(find.text('Sunday is data day'), findsOneWidget);
+    await _tap(tester, find.text('See the result'));
+    expect(find.byType(NotificationScreen), findsNothing);
+    await _tap(tester, _labelled('Back').last);
     await _back(tester);
 
-    await _tap(tester, find.text('₦5,000.00 payout failed'));
+    await _tap(tester, find.text('₦5,000.00 never left your wallet'));
+    await _tap(tester, find.text('See what happened'));
     expect(find.byType(WithdrawalFailedScreen), findsOneWidget);
+    await _tap(tester, _labelled('Back').last);
     await _back(tester);
 
-    await _tap(tester, find.text('₦40,000.00 paid out'));
-    expect(find.byType(NotificationsScreen), findsNothing);
+    await _tap(tester, find.text('₦1,500.00 added to your wallet'));
+    await _tap(tester, find.text('Open wallet'));
     expect(find.byType(WalletScreen), findsOneWidget);
 
     await _tap(tester, _labelled('Notifications'));
@@ -116,7 +97,7 @@ void main() {
           .widgetList<IqNotification>(find.byType(IqNotification))
           .where((n) => n.unread)
           .length,
-      0,
+      1,
     );
   });
 

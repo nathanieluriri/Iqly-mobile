@@ -196,7 +196,6 @@ class Surfaces {
   Future<void> payoutChanged(Withdrawal w, SurfaceInputs inputs) async {
     if (!supported) return;
     final feedId = inputs.feedIdFor(w.id);
-    if (feedId == null) return;
     final state = PayoutActivityState.of(w, notificationId: feedId);
     if (Flags.payoutLiveActivity &&
         defaultTargetPlatform == TargetPlatform.iOS) {

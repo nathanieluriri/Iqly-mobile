@@ -106,50 +106,11 @@ void main() {
     });
   });
 
-  group('DetailsSaveNotifier', () {
-    testWidgets('typing waits for the pause, then saves once', (tester) async {
-      final (container, service) = await _container();
-      final saver = container.read(detailsSaveProvider.notifier);
-      saver.schedule(ProfileService.typingPause);
-      saver.schedule(ProfileService.typingPause);
-      expect(container.read(detailsSaveProvider).status, DetailsSave.pending);
-      await tester.pump(ProfileService.typingPause);
-      await tester.pump();
-      expect(service.saves, 1);
-      expect(container.read(detailsSaveProvider).status, DetailsSave.idle);
-      expect(container.read(detailsSaveProvider).saves, 1);
-    });
-
-    testWidgets('an edit during a save is saved after it', (tester) async {
-      final (container, service) = await _container();
-      service.hold = true;
-      final saver = container.read(detailsSaveProvider.notifier);
-      saver.schedule();
-      await tester.pump(Duration.zero);
-      expect(container.read(detailsSaveProvider).status, DetailsSave.saving);
-
-      saver.schedule();
-      final done = saver.save();
-      service.hold = false;
-      service.release();
-      expect(await done, isTrue);
-      expect(service.saves, 2);
-      expect(container.read(detailsSaveProvider).status, DetailsSave.idle);
-    });
-
-    testWidgets('a refused save is failed until a retry lands', (tester) async {
-      final (container, service) = await _container();
-      service.fail = true;
-      final saver = container.read(detailsSaveProvider.notifier);
-      saver.schedule();
-      await tester.pump(Duration.zero);
-      expect(container.read(detailsSaveProvider).status, DetailsSave.failed);
-      expect(await saver.save(), isFalse);
-
-      service.fail = false;
-      expect(await saver.save(), isTrue);
-      expect(container.read(detailsSaveProvider).status, DetailsSave.idle);
-    });
+  test('the account fills the occupation and education first run left '
+      'empty', () async {
+    final (container, _) = await _container();
+    expect(container.read(profileAnswersProvider).occupation, 'student');
+    expect(container.read(profileAnswersProvider).education, 'hnd_bsc');
   });
 
   test('interestsLine uses the chip labels in the order picked', () {

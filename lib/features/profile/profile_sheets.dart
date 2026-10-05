@@ -9,8 +9,6 @@ import '../../core/motion.dart';
 import '../../theme/theme.dart';
 import '../../ui/button.dart';
 import '../../ui/top_bar.dart';
-import '../onboarding/onboarding_draft.dart';
-import '../onboarding/what_you_like_screen.dart';
 
 /// Date of birth on a day, month, year wheel, built like the first-run
 /// sheets. Pops with the date. The row on the band reads Mob/Title on
@@ -298,64 +296,9 @@ class _Wheel extends StatelessWidget {
   }
 }
 
-/// The first-run interest chips in a sheet. "Use this" stays off under two
-/// picks, as Finish does in first run. Pops with the values.
-class InterestsSheet extends StatefulWidget {
-  const InterestsSheet({super.key, required this.selected});
-
-  final List<String> selected;
-
-  @override
-  State<InterestsSheet> createState() => _InterestsSheetState();
-}
-
-class _InterestsSheetState extends State<InterestsSheet> {
-  late final _picked = [...widget.selected];
-
-  void _toggle(String value) {
-    setState(
-      () =>
-          _picked.contains(value) ? _picked.remove(value) : _picked.add(value),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return _SheetLayout(
-      title: 'Interests',
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(
-          IqSpace.s4,
-          IqSpace.s1,
-          IqSpace.s4,
-          IqSpace.s4,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Pick at least ${OnboardingDraft.minInterests}',
-              style: IqText.body.copyWith(color: IqColors.fg2),
-            ),
-            const SizedBox(height: IqSpace.s5),
-            InterestChips(selected: _picked, onToggle: _toggle),
-          ],
-        ),
-      ),
-      action: IqButton(
-        label: 'Use this',
-        showIcon: false,
-        width: double.infinity,
-        disabled: _picked.length < OnboardingDraft.minInterests,
-        onTap: () => Navigator.of(context).pop(_picked),
-      ),
-    );
-  }
-}
-
 /// The picker sheets' layout. The foot is the University sheet's (188:8340):
 /// the primary, then the ghost's 52 pt slot, so "Use this" sits at the same
-/// height on every picker sheet; these two have no second action.
+/// height on every picker sheet; this one has no second action.
 class _SheetLayout extends StatelessWidget {
   const _SheetLayout({
     required this.title,

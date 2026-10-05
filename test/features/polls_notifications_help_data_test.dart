@@ -98,7 +98,7 @@ void main() {
       );
       expect(
         [for (final n in feed) n.id],
-        ['n2', 'n1', 'n3', 'n4', 'n5', 'n6'],
+        ['n2', 'n3', 'n4', 'n1', 'n5', 'n6'],
       );
       expect(feed.where((n) => n.unread).length, DemoData.unreadNotifications);
       final won = feed.firstWhere((n) => n.event == NotificationEvent.won);
@@ -130,20 +130,14 @@ void main() {
         [
           (
             IqNotificationKind.deadline,
-            'Closes in 6h',
+            'Closes in 7h',
             'Sunline · A tagline for a solar kiosk network',
             '1h',
           ),
           (
-            IqNotificationKind.payout,
-            '₦10,000.00 requested',
-            'Access Bank ••6789 · pending',
-            '2h',
-          ),
-          (
             IqNotificationKind.deadline,
-            'Closes in 1 day',
-            'Kudi Box · Redesign the first five minutes of our savings app',
+            'Kudi Box closes tomorrow',
+            'Redesign the first five minutes of our savings app',
             '5h',
           ),
           (
@@ -154,23 +148,44 @@ void main() {
           ),
           (
             IqNotificationKind.payout,
+            '₦1,500.00 added to your wallet',
+            'Kudi Box · activation reward',
+            '3d',
+          ),
+          (
+            IqNotificationKind.payout,
             '₦40,000.00 paid out',
             'Sent to Access Bank ••6789 · completed',
             '10d',
           ),
           (
             IqNotificationKind.payout,
-            '₦5,000.00 payout failed',
-            'Access Bank ••6789 · back in your balance',
+            '₦5,000.00 never left your wallet',
+            'Withdrawal to Access Bank ••6789 failed',
             '11d',
           ),
         ],
       );
-      expect(items[0].link!.location, '/briefs/c5');
-      expect(items[1].link!.location, '/wallet/withdrawals/w3');
-      expect(items[3].link!.location, '/submissions/s2');
-      expect(items[4].link!.tab, isTrue);
-      expect(items[5].link!.location, '/wallet/withdrawals/w1');
+      for (final (i, item) in items.indexed) {
+        expect(item.link!.location, '/notifications/${item.note.id}');
+        expect(item.page, isNotNull, reason: 'row $i opens its sub page');
+      }
+      expect(items[0].page!.link.location, '/briefs/c5');
+      expect(items[3].page!.link.tab, isTrue);
+      expect(items[2].page!.link.location, '/submissions/s2/result');
+      expect(items[4].page!.link.location, '/wallet/withdrawals/w2');
+      expect(
+        items[4].page!.body,
+        '₦40,000.00 arrived at Access Bank ••6789 on 23 September at 9:41 am. '
+        'Reference IQ-WD-240923-7F3K. It can take your bank a few minutes to '
+        'show it.',
+      );
+      expect(
+        items[2].page!.body,
+        'A business kept private picked your answer to “Why do Lagosians skip '
+        'mobile banking on Sundays?”. ₦12,500.00 is in your wallet now.',
+      );
+      expect(items[5].page!.link.location, '/wallet/withdrawals/w1');
     });
 
     test('a reversed payout says so', () {
@@ -189,7 +204,7 @@ void main() {
         withdrawals: {'w1': reversed},
         now: figmaNow,
       )!;
-      expect(item.title, '₦5,000.00 payout reversed');
+      expect(item.title, '₦5,000.00 is back in your wallet');
     });
 
     test('the bell starts at DemoData.unreadNotifications and clears once '

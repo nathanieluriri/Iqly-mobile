@@ -19,7 +19,7 @@ enum SurfaceChannel {
     'A day before, and an hour before',
   ),
   results('results', 'Results', 'When the business picks winners'),
-  payouts('payouts', 'Payouts', 'When money lands or fails'),
+  payouts('payouts', 'Withdrawals', 'When money lands or fails'),
   newBriefs('new_briefs', 'New briefs for you', 'At most once a day'),
   polls('polls', 'Polls', 'When a poll opens');
 
@@ -116,10 +116,11 @@ int stableId(String key) {
 }
 
 /// Android 350:17527 top and 350:17909: the payout progress. [notificationId]
-/// is the feed row it opens (the Notification sub page).
+/// is the feed row it opens (the Notification sub page); a payout the feed
+/// has no row for (B6 39:24 lists no request) opens its tracker.
 SurfaceNotification? payoutNotification(
   Withdrawal w, {
-  required String notificationId,
+  required String? notificationId,
 }) {
   final state = PayoutActivityState.of(w, notificationId: notificationId);
   if (state == null) return null;
@@ -132,7 +133,9 @@ SurfaceNotification? payoutNotification(
         ? state.detail
         : SurfaceCopy.payoutDetailAndroid(w.destination ?? ''),
     subtext: SurfaceCopy.payoutSubtext,
-    route: DeepLinks.notification(notificationId),
+    route: notificationId == null
+        ? DeepLinks.withdrawal(w.id)
+        : DeepLinks.notification(notificationId),
     progress: state.stepNumber,
     progressMax: PayoutActivityState.stepCount,
     ongoing: !state.finished,

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/device.dart';
 import '../../data/models.dart';
 import '../../data/profile_service.dart';
 import '../../data/repository.dart';
@@ -43,3 +44,8 @@ final accountWalletProvider = FutureProvider<WalletTotals>((ref) async {
   final (ledger, withdrawals) = await (repo.ledger(), repo.withdrawals()).wait;
   return walletTotals(ledger, withdrawals);
 });
+
+/// Whether the phone lets iQLY notify; checked each time preferences open.
+final notificationsAllowedProvider = FutureProvider.autoDispose<bool>(
+  (ref) => ref.watch(deviceServiceProvider).notificationsAllowed(),
+);

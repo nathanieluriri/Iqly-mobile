@@ -13,8 +13,10 @@ import 'features/entry/reset_link_sent_screen.dart';
 import 'features/entry/sign_in_screen.dart';
 import 'features/entry/your_name_screen.dart';
 import 'features/help/help_routes.dart';
+import 'features/more/more_routes.dart';
 import 'features/onboarding/onboarding_routes.dart';
 import 'features/profile/profile_routes.dart';
+import 'features/referrals/referrals_routes.dart';
 import 'features/splash/splash_screen.dart';
 import 'features/submissions/submissions_routes.dart';
 import 'features/submit/submit_routes.dart';
@@ -50,6 +52,7 @@ abstract final class Routes {
   static const selectBank = '/wallet/select-bank';
   static const withdrawal = '/wallet/withdrawals/:id';
   static const withdrawalPending = '/wallet/withdrawals/:id/pending';
+  static const more = '/more';
   static const profile = '/profile';
   static const notifications = '/notifications';
   static const briefDetail = '/briefs/:id';
@@ -62,6 +65,19 @@ abstract final class Routes {
   static const notificationPreferences = '/profile/notifications';
   static const deleteAccount = '/profile/delete-account';
   static const accountClosing = '/account-closing';
+  static const restoreAccount = '/restore-account';
+  static const phoneCode = '/profile/details/phone/code';
+  static const moreSavedBriefs = '/saved-briefs';
+  static const referrals = '/referrals';
+  static const inviteCode = '/referrals/code';
+  static const referralHistory = '/referrals/history';
+  static const helpCentre = '/help-centre';
+  static const reportIssue = '/help-centre/report';
+  static const reportSent = '/help-centre/report/sent';
+  static const support = '/support';
+  static const newConversation = '/support/new';
+  static const terms = '/terms';
+  static const privacy = '/privacy';
 
   static String brief(String id) => '/briefs/$id';
   static String submitTo(String id) => '/briefs/$id/submit';
@@ -105,7 +121,9 @@ GoRouter buildRouter({String initialLocation = Routes.splash}) {
       ...submissionRoutes,
       ...draftRoutes,
       ...pickBriefRoutes,
+      ...moreRoutes,
       ...profileRoutes,
+      ...referralsRoutes,
       ...helpRoutes,
     ],
   );

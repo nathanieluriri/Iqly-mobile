@@ -23,6 +23,8 @@ class DemoData {
     city: 'Ikeja',
     university: 'University of Lagos',
     interests: ['Marketing & advertising', 'Finance & fintech'],
+    occupation: 'student',
+    education: 'hnd_bsc',
   );
 
   /// The sample business art the Figma cards fill from (Sample/Logo and
@@ -345,6 +347,7 @@ class DemoData {
       amountKobo: 50000,
       createdAt: at(-5),
       note: 'Ngozi E. won a first brief',
+      referred: 'Ngozi E.',
     ),
     LedgerEntry(
       id: 'l2',
@@ -365,6 +368,7 @@ class DemoData {
       amountKobo: 50000,
       createdAt: at(-16),
       note: 'Tunde A. won a first brief',
+      referred: 'Tunde A.',
     ),
   ];
 

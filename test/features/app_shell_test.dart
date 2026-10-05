@@ -6,6 +6,7 @@ import 'package:iqly_mobile/features/submissions/my_submissions_screen.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/dock.dart';
 
+import '../golden/golden.dart' show loadAppFonts;
 import '../golden/screens/app_harness.dart';
 
 Future<void> _tab(WidgetTester tester, String label) async {
@@ -27,6 +28,8 @@ ScrollPosition _position(WidgetTester tester, Type screen) => tester
     .position;
 
 void main() {
+  setUpAll(loadAppFonts);
+
   testWidgets('the dock moves between the four tabs and each keeps its state', (
     tester,
   ) async {

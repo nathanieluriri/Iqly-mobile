@@ -12,6 +12,9 @@ enum NotificationEvent {
   /// The ledger paid an award (Kind=Result).
   won,
 
+  /// An activation or referral reward reached the wallet (Kind=Payout).
+  rewardCredited,
+
   /// A withdrawal was asked for (Kind=Payout).
   withdrawalRequested,
 
@@ -57,14 +60,16 @@ class AppNotification {
   );
 }
 
-/// The B6 feed (39:24) on the demo dataset, newest first. The deadlines
-/// point at briefs c5 (Sunline, closing in 6 hours) and c4 (Kudi Box,
-/// tomorrow); the result at ledger award l3 (₦12,500.00 two days ago, paid
-/// for submission s2 on brief c3); the payouts at withdrawals w3
-/// (₦10,000.00 requested two hours ago), w2 (₦40,000.00 paid out ten days
-/// ago) and w1 (₦5,000.00 failed eleven days ago), all in DemoData. When
-/// the two reminders went out (1h and 5h before [now]) and which rows are
-/// unread (today's three, DemoData.unreadNotifications) are the frame's.
+/// The B6 feed (39:24) on the demo dataset, newest first. The first payout
+/// is the Kudi Box activation reward, ledger row l6 (₦1,500.00 three days
+/// ago, as the Wallet frames date it; 39:24 shows it two hours ago); the
+/// deadlines point at briefs c5 (Sunline, closing in 6 hours) and
+/// c4 (Kudi Box, tomorrow); the result at ledger award l3 (₦12,500.00 two
+/// days ago, paid for submission s2 on brief c3); the payouts at withdrawals
+/// w2 (₦40,000.00 paid out ten days ago) and w1 (₦5,000.00 failed eleven
+/// days ago), all in DemoData. When the two reminders went out (1h and 5h
+/// before [now]) and which rows are unread (the two reminders and the
+/// reward, DemoData.unreadNotifications) are the frame's.
 List<AppNotification> demoNotifications({
   required List<LedgerEntry> ledger,
   required List<Withdrawal> withdrawals,
@@ -73,11 +78,11 @@ List<AppNotification> demoNotifications({
   final awardAt = {for (final l in ledger) l.id: l.createdAt};
   final withdrawalAt = {for (final w in withdrawals) w.id: w.createdAt};
   return [
-    if (withdrawalAt['w3'] case final at?)
+    if (awardAt['l6'] case final at?)
       AppNotification(
         id: 'n1',
-        event: NotificationEvent.withdrawalRequested,
-        entryId: 'w3',
+        event: NotificationEvent.rewardCredited,
+        entryId: 'l6',
         at: at,
         unread: true,
       ),
