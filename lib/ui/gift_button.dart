@@ -28,11 +28,12 @@ enum IqGiftButtonShine {
 ///
 /// Motion (designer answer 32): [twinkle] runs the loop once per session,
 /// on the first Discover load, 0.8 s after it settles. The screen decides
-/// when; a still button shows [shine]. Reduced motion holds Shine 2.
+/// when; a still button shows [shine], Shine 1 as in Figma. Reduced motion
+/// holds it.
 class IqGiftButton extends StatefulWidget {
   const IqGiftButton({
     super.key,
-    this.shine = IqGiftButtonShine.two,
+    this.shine = IqGiftButtonShine.one,
     this.twinkle = false,
     this.onTap,
   });
@@ -42,7 +43,7 @@ class IqGiftButton extends StatefulWidget {
   final VoidCallback? onTap;
 
   static const double size = 44;
-  static const Duration loop = Duration(milliseconds: 1200);
+  static const Duration loop = IqDurations.giftTwinkle;
 
   @override
   State<IqGiftButton> createState() => _IqGiftButtonState();

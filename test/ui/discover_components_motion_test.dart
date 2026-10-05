@@ -211,7 +211,10 @@ void main() {
     testWidgets('the underline wipes in when first seen, 240 ms', (
       tester,
     ) async {
-      await _pump(tester, const SizedBox(width: 358, child: IqSectionTitle()));
+      await _pump(
+        tester,
+        const SizedBox(width: 358, child: IqSectionTitle(showUnderline: true)),
+      );
       await tester.pump();
       await tester.pump(_ms * 120);
       final clip = tester.widget<ClipRect>(
@@ -231,11 +234,17 @@ void main() {
     });
 
     testWidgets('the count rolls when it changes', (tester) async {
-      await _pump(tester, const SizedBox(width: 358, child: IqSectionTitle()));
+      await _pump(
+        tester,
+        const SizedBox(width: 358, child: IqSectionTitle(showCount: true)),
+      );
       await tester.pumpAndSettle();
       await _pump(
         tester,
-        const SizedBox(width: 358, child: IqSectionTitle(count: '4')),
+        const SizedBox(
+          width: 358,
+          child: IqSectionTitle(showCount: true, count: '4'),
+        ),
       );
       await tester.pump(_ms * 80);
       expect(tester.hasRunningAnimations, isTrue);
@@ -331,15 +340,15 @@ void main() {
         const IqPullIndicator(state: IqPullIndicatorState.refreshing),
       );
       await tester.pump(_ms * 60);
-      expect(find.text('PULL TO REFRESH'), findsOneWidget);
-      expect(find.text('REFRESHING'), findsOneWidget);
+      expect(find.text('Pull to refresh'), findsOneWidget);
+      expect(find.text('Refreshing'), findsOneWidget);
       expect(
-        _opacity(tester, find.text('REFRESHING')),
+        _opacity(tester, find.text('Refreshing')),
         closeTo(_eo(0.5), 0.01),
       );
       await tester.pump(_ms * 61);
       await tester.pump();
-      expect(find.text('PULL TO REFRESH'), findsNothing);
+      expect(find.text('Pull to refresh'), findsNothing);
     });
 
     testWidgets('Done draws its check, 160 ms', (tester) async {
@@ -369,7 +378,7 @@ void main() {
         const IqPullIndicator(state: IqPullIndicatorState.refreshing),
       );
       await tester.pump();
-      expect(find.text('PULL TO REFRESH'), findsNothing);
+      expect(find.text('Pull to refresh'), findsNothing);
     });
   });
 
@@ -432,22 +441,18 @@ void main() {
         )
         .dx;
 
-    testWidgets('the pill is mid-slide at 100 ms of 200', (tester) async {
+    testWidgets('a switch is instant: the pill jumps (doc rev 55)', (
+      tester,
+    ) async {
       await _pump(tester, const IqDock());
       final start = pillLeft(tester);
       await _pump(tester, const IqDock(active: IqDockActive.wallet));
-      await tester.pumpAndSettle();
-      final end = pillLeft(tester);
-      await _pump(tester, const IqDock());
-      await tester.pumpAndSettle();
-      await _pump(tester, const IqDock(active: IqDockActive.wallet));
-      await tester.pump(_ms * 100);
-      expect(pillLeft(tester), closeTo(start + (end - start) * _eo(0.5), 0.5));
+      await tester.pump();
+      expect(pillLeft(tester), greaterThan(start));
+      expect(tester.hasRunningAnimations, isFalse);
     });
 
-    testWidgets('the lit glyph grows from .85; a tab change ticks', (
-      tester,
-    ) async {
+    testWidgets('a tab change ticks once', (tester) async {
       final haptics = recordHaptics(tester);
       var active = IqDockActive.discover;
       await tester.pumpWidget(
@@ -464,46 +469,21 @@ void main() {
           ),
         ),
       );
-      double glyph() => tester
-          .widget<Transform>(
-            find
-                .ancestor(
-                  of: find.byWidgetPredicate(
-                    (w) => w is IqIcon && w.icon == IqIcons.wallet,
-                  ),
-                  matching: find.byType(Transform),
-                )
-                .first,
-          )
-          .transform
-          .entry(0, 0);
       await tester.tap(find.text('Wallet'));
-      await tester.pump();
-      await tester.pump(_ms * 100);
-      expect(
-        glyph(),
-        closeTo(IqScale.dockGlyph + (1 - IqScale.dockGlyph) * _eo(0.5), 0.01),
-      );
       await tester.pumpAndSettle();
-      expect(glyph(), 1);
       await tester.tap(find.text('Wallet'));
       await tester.pumpAndSettle();
       expect(haptics, ['HapticFeedbackType.selectionClick']);
-    });
-
-    testWidgets('reduced motion: the pill jumps', (tester) async {
-      _reduce(tester);
-      await _pump(tester, const IqDock());
-      await _pump(tester, const IqDock(active: IqDockActive.wallet));
-      await tester.pump();
-      expect(tester.hasRunningAnimations, isFalse);
     });
   });
 
   group('TopBar', () {
     testWidgets('a new greeting crossfades in, 150 ms', (tester) async {
-      await _pump(tester, const IqTopBar(greeting: ' '));
-      await _pump(tester, const IqTopBar(greeting: '5 sent'));
+      await _pump(tester, const IqTopBar(greeting: ' ', showGreeting: true));
+      await _pump(
+        tester,
+        const IqTopBar(greeting: '5 sent', showGreeting: true),
+      );
       await tester.pump(_ms * 75);
       expect(_opacity(tester, find.text('5 sent')), closeTo(_eo(0.5), 0.01));
       await tester.pumpAndSettle();

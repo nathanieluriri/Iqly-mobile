@@ -36,7 +36,7 @@ void main() {
   testWidgets('Your details, a save the account refused', (tester) async {
     final service = TestProfileService()..fail = true;
     await pumpProfileApp(tester, Routes.yourDetails, service: service);
-    await tester.tap(find.text('GENDER'));
+    await tester.tap(find.text('Gender'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Female'));
     await tester.pumpAndSettle();

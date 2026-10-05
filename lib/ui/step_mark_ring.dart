@@ -5,20 +5,11 @@ import 'package:flutter/material.dart';
 import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
+import 'step_mark.dart';
 
-enum IqStepMarkStep {
-  oneOfThree(0, 3),
-  twoOfThree(1, 3),
-  threeOfThree(2, 3),
-  single(0, 1);
-
-  const IqStepMarkStep(this.current, this.count);
-
-  final int current;
-  final int count;
-}
-
-/// Exp/StepMark: the Hinge-style step marker. The current step is a 44 pt
+/// The pre-5 Oct Exp/StepMark, kept for the entry and onboarding screens
+/// until their row PRs move to the bar [IqStepMark]. The Hinge-style step
+/// marker. The current step is a 44 pt
 /// ring around a brush [icon]; the other steps are 6 pt dots, done and
 /// upcoming alike.
 ///
@@ -32,8 +23,8 @@ enum IqStepMarkStep {
 /// +80 over 200. [shuttle] runs the same morph across a push. [swingIcon]
 /// swings the icon once at +200 (the notifications ask's bell, spec 6.9).
 /// Reduced motion: the new step shows at once and nothing swings.
-class IqStepMark extends StatefulWidget {
-  const IqStepMark({
+class IqStepMarkRing extends StatefulWidget {
+  const IqStepMarkRing({
     super.key,
     this.step = IqStepMarkStep.oneOfThree,
     this.icon = IqIcons.profile,
@@ -57,17 +48,18 @@ class IqStepMark extends StatefulWidget {
   ) => AnimatedBuilder(
     animation: progress,
     builder: (context, _) => _Morph(
-      from: from as IqStepMark,
-      to: to as IqStepMark,
+      from: from as IqStepMarkRing,
+      to: to as IqStepMarkRing,
       t: progress.value,
     ),
   );
 
   @override
-  State<IqStepMark> createState() => _IqStepMarkState();
+  State<IqStepMarkRing> createState() => _IqStepMarkState();
 }
 
-class _IqStepMarkState extends State<IqStepMark> with TickerProviderStateMixin {
+class _IqStepMarkState extends State<IqStepMarkRing>
+    with TickerProviderStateMixin {
   late final AnimationController _morph = AnimationController(
     vsync: this,
     duration: IqDurations.screen,
@@ -77,7 +69,7 @@ class _IqStepMarkState extends State<IqStepMark> with TickerProviderStateMixin {
     vsync: this,
     duration: IqMomentTiming.swingAt + IqMomentTiming.swing,
   );
-  late IqStepMark _from = widget;
+  late IqStepMarkRing _from = widget;
   bool _swung = false;
 
   @override
@@ -92,7 +84,7 @@ class _IqStepMarkState extends State<IqStepMark> with TickerProviderStateMixin {
   }
 
   @override
-  void didUpdateWidget(IqStepMark old) {
+  void didUpdateWidget(IqStepMarkRing old) {
     super.didUpdateWidget(old);
     if (old.step == widget.step && old.icon == widget.icon) return;
     if (MediaQuery.disableAnimationsOf(context) ||
@@ -150,8 +142,8 @@ class _Morph extends StatelessWidget {
     this.swing = 0,
   });
 
-  final IqStepMark from;
-  final IqStepMark to;
+  final IqStepMarkRing from;
+  final IqStepMarkRing to;
   final double t;
   final double swing;
 
@@ -185,15 +177,18 @@ class _Morph extends StatelessWidget {
       final double ring;
       final double fill;
       if (settled || was == isNow) {
-        size = isNow ? IqStepMark.ring : IqStepMark.dot;
+        size = isNow ? IqStepMarkRing.ring : IqStepMarkRing.dot;
         ring = isNow ? 1 : 0;
         fill = isNow ? 0 : 1;
       } else if (isNow) {
-        size = IqStepMark.dot + (IqStepMark.ring - IqStepMark.dot) * g;
+        size =
+            IqStepMarkRing.dot + (IqStepMarkRing.ring - IqStepMarkRing.dot) * g;
         ring = ((g - 0.4) / 0.6).clamp(0.0, 1.0);
         fill = 1 - (g / 0.4).clamp(0.0, 1.0);
       } else {
-        size = IqStepMark.ring - (IqStepMark.ring - IqStepMark.dot) * g;
+        size =
+            IqStepMarkRing.ring -
+            (IqStepMarkRing.ring - IqStepMarkRing.dot) * g;
         ring = 1 - (g / 0.6).clamp(0.0, 1.0);
         fill = ((g - 0.6) / 0.4).clamp(0.0, 1.0);
       }
@@ -224,7 +219,7 @@ class _Morph extends StatelessWidget {
   Widget _slot(double size, double ring, double fill, List<Widget> icons) {
     return SizedBox(
       width: size,
-      height: IqStepMark.ring,
+      height: IqStepMarkRing.ring,
       child: Stack(
         clipBehavior: Clip.none,
         alignment: Alignment.center,
@@ -278,8 +273,8 @@ class _Morph extends StatelessWidget {
     if (scale != 1) glyph = Transform.scale(scale: scale, child: glyph);
     if (opacity < 1) glyph = Opacity(opacity: opacity, child: glyph);
     return OverflowBox(
-      maxWidth: IqStepMark.ring,
-      maxHeight: IqStepMark.ring,
+      maxWidth: IqStepMarkRing.ring,
+      maxHeight: IqStepMarkRing.ring,
       child: glyph,
     );
   }

@@ -330,6 +330,7 @@ class _OfferPage extends StatelessWidget {
               _Facts(activation: a),
               _gap,
               IqSectionTitle(
+                showCount: true,
                 title: 'What to do',
                 count: '${steps.length}',
                 showLink: false,
@@ -553,6 +554,7 @@ class _StepsPage extends StatelessWidget {
               ActivationHeader(eyebrow: a.business, title: a.title),
               _gap,
               IqSectionTitle(
+                showCount: true,
                 title: 'What to do',
                 count: '${a.steps.length}',
                 showLink: false,

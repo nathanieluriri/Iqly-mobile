@@ -226,7 +226,13 @@ void main() {
       final prefs = await openWhereYouLive(tester, {});
       await _tap(tester, find.text('Select city'));
       expect(find.byType(OptionSheet), findsOneWidget);
-      expect(find.text('State of residence'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(OptionSheet),
+          matching: find.text('State of residence'),
+        ),
+        findsOneWidget,
+      );
       await tester.scrollUntilVisible(
         find.text('Lagos'),
         200,

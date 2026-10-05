@@ -9,7 +9,7 @@ enum IqDockActive {
   discover('Discover', IqIcons.discover),
   submissions('Submissions', IqIcons.submissions),
   wallet('Wallet', IqIcons.wallet),
-  profile('Profile', IqIcons.profile);
+  more('More', IqIcons.more);
 
   const IqDockActive(this.label, this.icon);
 
@@ -19,14 +19,17 @@ enum IqDockActive {
 
 /// Exp/Dock: the floating tab dock, 358 wide, four equal tabs with labels
 /// always on. The lit tab is a lighter purple pill with an orange glyph and
-/// a white label; the others sit at 72%. The pill slides to the tapped tab,
-/// 200 ms ease-out, the colours cross over with it and the newly lit glyph
-/// grows from .85 (spec 3.6, build extension); a tab change gives the select
-/// haptic. A cut under reduced motion. Float it 16 pt above the home
-/// indicator.
+/// a white label; the others keep a cream glyph over a 70% label. More is
+/// the fourth tab (designer answer 1); Profile now lives inside it.
+///
+/// Motion (designer doc rev 55, replacing the spec 3.6 slide): a dock
+/// switch is instant, pill, colours and glyph at once; a tab change gives
+/// the select haptic. Float it 16 pt above the home indicator.
 ///
 /// Figma over brief: the lit tab is a sidebar-accent pill, not an orange disc.
 /// Figma over its description: the lit label is primary-fg white, not cream.
+/// Figma slip: Active=Discover inks the resting More glyph orange; every
+/// other variant rests it cream like its neighbours, which is what this does.
 class IqDock extends StatelessWidget {
   const IqDock({
     super.key,
@@ -39,11 +42,10 @@ class IqDock extends StatelessWidget {
 
   static const double width = 358;
   static const double height = 64;
-  static const Duration slide = IqDurations.swap;
 
   @override
   Widget build(BuildContext context) {
-    final duration = motion(context, slide);
+    const duration = Duration.zero;
     return Container(
       width: width,
       height: height,
@@ -113,7 +115,7 @@ class _Tab extends StatelessWidget {
   final Duration duration;
   final VoidCallback? onTap;
 
-  static final _rest = IqColors.sidebarFg.withValues(alpha: 0.72);
+  static final _restLabel = IqColors.sidebarFg.withValues(alpha: 0.7);
 
   @override
   Widget build(BuildContext context) {
@@ -142,7 +144,7 @@ class _Tab extends StatelessWidget {
                   child: IqIcon(
                     item.icon,
                     size: 24,
-                    color: Color.lerp(_rest, IqColors.accent, t)!,
+                    color: Color.lerp(IqColors.sidebarFg, IqColors.accent, t)!,
                   ),
                 ),
                 const SizedBox(height: IqSpace.s0p5),
@@ -152,7 +154,7 @@ class _Tab extends StatelessWidget {
                   softWrap: false,
                   overflow: TextOverflow.visible,
                   style: IqText.label.copyWith(
-                    color: Color.lerp(_rest, IqColors.primaryFg, t),
+                    color: Color.lerp(_restLabel, IqColors.primaryFg, t),
                   ),
                 ),
               ],

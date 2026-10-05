@@ -63,7 +63,7 @@ void main() {
     final help = instantHelp();
     await _openFromHome(tester, help: help);
     expect(find.text('Support replies within 2 hours.'), findsOneWidget);
-    expect(find.text('WHAT HAPPENED?'), findsOneWidget);
+    expect(find.text('What happened?'), findsOneWidget);
     expect(find.text('0/1,000 characters'), findsOneWidget);
     expect(_button(tester, 'Send to support').disabled, isTrue);
 
@@ -88,7 +88,7 @@ void main() {
     expect(find.text('Kudi Box activation'), findsOneWidget);
     expect(find.text('Support replied'), findsOneWidget);
     expect(find.text(figmaMessage), findsOneWidget);
-    expect(find.text('SAT, 2:20 PM'), findsOneWidget);
+    expect(find.text('Sat, 2:20 pm'), findsOneWidget);
     expect(
       find.text('ATTACHED · KUDI-BOX-WALLET.MP4 · 0:31 · 12 MB'),
       findsOneWidget,
@@ -101,7 +101,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('SAT, 3:06 PM'), findsOneWidget);
+    expect(find.text('Sat, 3:06 pm'), findsOneWidget);
     expect(find.text('UPDATED BALANCE'), findsOneWidget);
     final hero = tester.widget<IqBalanceHero>(find.byType(IqBalanceHero));
     expect(hero.amount, '₦14,000');

@@ -12,19 +12,28 @@ void main() {
       tester,
       'section_title',
       const SizedBox(width: 358, child: IqSectionTitle()),
-      size: const Size(358, 33),
+      size: const Size(358, 32),
     );
   });
 
-  testWidgets('without count and link', (tester) async {
+  testWidgets('with count and underline', (tester) async {
+    await expectComponentGolden(
+      tester,
+      'section_title_count',
+      const SizedBox(
+        width: 358,
+        child: IqSectionTitle(showCount: true, showUnderline: true),
+      ),
+      size: const Size(358, 32),
+    );
+  });
+
+  testWidgets('without link', (tester) async {
     await expectComponentGolden(
       tester,
       'section_title_bare',
-      const SizedBox(
-        width: 358,
-        child: IqSectionTitle(showCount: false, showLink: false),
-      ),
-      size: const Size(358, 33),
+      const SizedBox(width: 358, child: IqSectionTitle(showLink: false)),
+      size: const Size(358, 32),
     );
   });
 
