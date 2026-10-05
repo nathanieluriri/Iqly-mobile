@@ -204,7 +204,7 @@ class Surfaces {
       return;
     }
     final feedId = inputs.feedIdFor(w.id);
-    if (!Flags.pushNotifications || feedId == null) return;
+    if (!Flags.pushNotifications) return;
     final note = payoutNotification(w, notificationId: feedId);
     if (note == null) {
       await _notifications.cancel(id: stableId('payout:${w.id}'));

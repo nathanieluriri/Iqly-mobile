@@ -6,7 +6,7 @@
     <string name="channel_closing_soon_description">A day before, and an hour before</string>
     <string name="channel_results">Results</string>
     <string name="channel_results_description">When the business picks winners</string>
-    <string name="channel_payouts">Payouts</string>
+    <string name="channel_payouts">Withdrawals</string>
     <string name="channel_payouts_description">When money lands or fails</string>
     <string name="channel_new_briefs">New briefs for you</string>
     <string name="channel_new_briefs_description">At most once a day</string>

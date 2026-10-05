@@ -19,7 +19,7 @@ void main() {
     final w3 = data.withdrawals.firstWhere((w) => w.id == 'w3');
     final note = payoutNotification(
       w3,
-      notificationId: inputs.feedIdFor('w3')!,
+      notificationId: inputs.feedIdFor('w3'),
     )!;
     expect(note.title, '₦10,000.00 on its way');
     expect(
@@ -31,8 +31,11 @@ void main() {
     expect(note.progress, 1);
     expect(note.progressMax, 3);
     expect(note.ongoing, isTrue);
-    expect(note.route, '/notifications/n1');
-    expect(SurfaceNotification.routeFor(note.payload), '/notifications/n1');
+    expect(note.route, '/wallet/withdrawals/w3');
+    expect(
+      SurfaceNotification.routeFor(note.payload),
+      '/wallet/withdrawals/w3',
+    );
   });
 
   test('a sent payout fills two of three steps', () {
