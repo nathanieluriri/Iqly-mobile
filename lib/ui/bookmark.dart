@@ -11,20 +11,22 @@ enum IqBookmarkState { off, on }
 enum IqBookmarkTone { paper, ink }
 
 /// Exp/Bookmark: save a brief. A 44 x 44 tap target around the 22 px brush
-/// bookmark. Paper on light cards, Ink on the dark hero ticket. On is the
-/// orange marker fill under an orange outline (saved, not a warning) and
-/// is the same in both tones. Tapping flips [state] through [onChanged]
+/// bookmark. Paper on light cards, Ink on the dark hero ticket. On drops
+/// the orange marker under the icon (saved, not a warning); on Ink the
+/// outline turns orange too. Tapping flips [state] through [onChanged]
 /// with the select haptic.
 ///
 /// Motion (spec 5.12, build extension): the icon presses to .9 (100 ms, back
-/// in 160). When the person saves, the outline inks orange (120 ms) and the
-/// marker drops into the page top to bottom (240 ms ease-out); unsaving fades
-/// the marker (150 ms ease-in) as the outline returns. A state that arrives
+/// in 160). When the person saves, the Ink outline inks orange (120 ms) and
+/// the marker drops into the page top to bottom (240 ms ease-out); unsaving
+/// fades the marker (150 ms ease-in) as the outline returns. A state that arrives
 /// from data, not a tap, shows at once. Reduced motion: colours and fill at
 /// once, no press scale.
 ///
 /// Figma over brief: the bookmark icon is stroked and recoloured via its stroke.
 /// Figma over brief: the Ink outline is Color/sidebar-fg.
+/// Figma over brief: Paper On (199:1330) keeps the brand ink; the solid
+/// icon covers the orange marker, so only the Ink tone shows orange.
 class IqBookmark extends StatefulWidget {
   const IqBookmark({
     super.key,
@@ -98,11 +100,11 @@ class _IqBookmarkState extends State<IqBookmark> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final on = _on;
     final reduced = MediaQuery.disableAnimationsOf(context);
-    final outline = on
+    final outline = widget.tone == IqBookmarkTone.paper
+        ? IqColors.brand
+        : on
         ? IqColors.accent
-        : widget.tone == IqBookmarkTone.ink
-        ? IqColors.sidebarFg
-        : IqColors.brand;
+        : IqColors.sidebarFg;
     return Semantics(
       toggled: on,
       child: IqPressable(
