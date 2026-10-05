@@ -99,15 +99,11 @@ class IqBriefCard extends StatelessWidget {
   Widget _metaRow(double top) {
     return Padding(
       padding: EdgeInsets.only(top: top),
-      child: ClipRect(
-        child: Row(
-          children: [
-            for (var i = 0; i < meta.length; i++) ...[
-              if (i > 0) const SizedBox(width: IqSpace.s1p5),
-              meta[i],
-            ],
-          ],
-        ),
+      child: Wrap(
+        spacing: IqSpace.s1p5,
+        runSpacing: IqSpace.s1p5,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: meta,
       ),
     );
   }
@@ -129,7 +125,7 @@ class IqBriefCard extends StatelessWidget {
           logoInset: 3,
         ),
         Container(
-          height: bodyHeight,
+          constraints: BoxConstraints(minHeight: bodyHeight),
           color: closingSoon ? IqColors.accentSoft : null,
           padding: const EdgeInsets.fromLTRB(
             IqSpace.s4,
@@ -139,6 +135,7 @@ class IqBriefCard extends StatelessWidget {
           ),
           child: ClipRect(
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Padding(
@@ -184,10 +181,12 @@ class IqBriefCard extends StatelessWidget {
           ),
           const SizedBox(width: IqSpace.s3),
           Expanded(
-            child: SizedBox(
-              height: 77,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 77),
               child: ClipRect(
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
