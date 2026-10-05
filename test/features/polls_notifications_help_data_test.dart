@@ -46,27 +46,27 @@ void main() {
       expect(voted.chosen, 0);
     });
 
-    test('the businesses foot to DemoData.pollBrands', () {
-      final businesses = demoPolls(figmaNow);
-      expect(
-        [for (final b in businesses) b.brand.businessName],
-        [for (final b in DemoData.pollBrands) b.businessName],
-      );
-      for (final (i, brand) in DemoData.pollBrands.indexed) {
-        expect(businesses[i].polls.length, brand.openPolls);
-        expect(businesses[i].unanswered, brand.unanswered);
-      }
-    });
-
-    test('rows and eyebrows read as the frames do', () {
+    test('the tiles read as the frames do', () {
       final [orchid, unibooks, sunline] = demoPolls(figmaNow);
-      expect(businessLine(orchid, figmaNow), '2 open polls');
-      expect(businessLine(unibooks, figmaNow), '1 open poll');
-      expect(businessLine(sunline, figmaNow), 'You voted · results in 1 day');
-      expect(sheetEyebrow(orchid), '2 open polls');
-      final half = orchid.withPoll(orchid.polls.first.withVote(0));
-      expect(sheetEyebrow(half), '1 of 2 answered');
-      expect(businessLine(half, figmaNow), '1 open poll');
+      expect(orchid.headline, 'Which flavour should we launch first?');
+      expect(questions(orchid.polls.length), '2 questions');
+      expect(unibooks.headline, 'Where do you buy your course books?');
+      expect(questions(unibooks.polls.length), '1 question');
+      expect(sunline.headline, 'When should a kiosk open in the morning?');
+      expect(sunline.allAnswered, isTrue);
+      expect(pollDetail(orchid), '1 poll · 2 questions · about 10 seconds');
+      final done = orchid
+          .withPoll(orchid.polls.first.withVote(0))
+          .withPoll(orchid.polls.last.withVote(1));
+      expect(
+        pollDoneDetail(done),
+        '2 answers sent. Orchid Foods shares the results in about a week.',
+      );
+      expect(pollsClosed(sunline, figmaNow), isFalse);
+      expect(
+        pollsClosed(sunline, figmaNow.add(const Duration(days: 2))),
+        isTrue,
+      );
       expect(pollTimeLeft(const Duration(days: 2)), '2 days');
       expect(pollTimeLeft(const Duration(hours: 23, minutes: 59)), '23h');
       expect(pollTimeLeft(const Duration(minutes: 12)), '12 min');
@@ -323,6 +323,6 @@ void main() {
         .read(pollsProvider)
         .value!
         .firstWhere((b) => b.id == 'unibooks');
-    expect(unibooks.brand.unanswered, 0);
+    expect(unibooks.allAnswered, isTrue);
   });
 }

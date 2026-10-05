@@ -22,6 +22,7 @@ import 'package:iqly_mobile/ui/dock.dart';
 import 'package:iqly_mobile/ui/timeline_row.dart';
 import 'package:iqly_mobile/ui/wallet_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:iqly_mobile/data/activations_service.dart';
 
 import '../golden/screens/app_harness.dart';
 import '../golden/screens/wallet_harness.dart';
@@ -53,6 +54,13 @@ Future<GoRouter> _pumpApp(
       sharedPreferencesProvider.overrideWithValue(prefs),
       repositoryProvider.overrideWithValue(repository ?? WalletRepository()),
       clockProvider.overrideWithValue(() => figmaNow),
+      activationsServiceProvider.overrideWithValue(
+        DemoActivationsService(
+          clock: () => figmaNow,
+          load: Duration.zero,
+          delay: Duration.zero,
+        ),
+      ),
       ...walletOverrides(),
     ],
   );

@@ -19,9 +19,9 @@ import 'home_screen.dart';
 import 'saved_briefs_screen.dart';
 
 /// The four dock tabs as a StatefulShellRoute, so each tab keeps its stack
-/// and scroll; the tabs cross with the fade-through and the shell arrives by
-/// hand-off. Tapping the lit tab pops it to its root, or, at its root,
-/// scrolls its list to the top (spec 3.6).
+/// and scroll; a dock switch is a cut and the shell arrives by hand-off.
+/// Tapping the lit tab pops it to its root, or, at its root, scrolls its
+/// list to the top (spec 3.6).
 RouteBase appShellRoute(GlobalKey<NavigatorState> rootKey) =>
     StatefulShellRoute(
       pageBuilder: (context, state, shell) => handoffPage(
@@ -36,7 +36,7 @@ RouteBase appShellRoute(GlobalKey<NavigatorState> rootKey) =>
           child: shell,
         ),
       ),
-      navigatorContainerBuilder: FadeThroughBranches.builder,
+      navigatorContainerBuilder: TabBranches.builder,
       branches: [
         StatefulShellBranch(
           routes: [

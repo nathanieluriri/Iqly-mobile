@@ -12,30 +12,32 @@ import '../../data/repository.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/bookmark.dart';
+import '../../ui/brief_card.dart';
 import '../../ui/chip.dart';
+import '../../ui/meta.dart';
 import '../../ui/ticket_card.dart';
 import '../../ui/top_bar.dart';
-import '../onboarding/onboarding_draft.dart';
+import 'business_art.dart';
 import 'discover_state.dart';
 
-/// Exp/TopBar Home: greeting, "Discover" and the bell with the unread count.
-/// The greeting names the person by the first name typed at sign-up on this
-/// device, else the account's.
+/// Exp/TopBar Home: "Discover", the gift and the bell with the unread
+/// count. [giftShine] runs the gift's one shine.
 class DiscoverTopBar extends ConsumerWidget {
-  const DiscoverTopBar({super.key});
+  const DiscoverTopBar({super.key, this.giftShine = false});
+
+  final bool giftShine;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final unread = ref.watch(unreadNotificationsProvider).value ?? 0;
-    final now = ref.watch(clockProvider)();
     return IqTopBar(
-      greeting: greeting(now, ref.watch(greetingNameProvider)),
       title: 'Discover',
       count: '$unread',
       showCount: unread > 0,
-      onBell: () => context.push(Routes.notifications),
       showWallet: false,
-      showGreeting: true,
+      showGift: true,
+      giftTwinkle: giftShine,
+      onBell: () => context.push(Routes.notifications),
     );
   }
 }
@@ -129,6 +131,62 @@ class BriefTicket extends ConsumerWidget {
       urgencyTone: urgencyTone(left, closed: closed),
       showBookmark: Flags.savedBriefs,
       bookmarkState: saved ? IqBookmarkState.on : IqBookmarkState.off,
+      onBookmarkChanged: (state) => ref
+          .read(savedBriefsProvider.notifier)
+          .setSaved(brief, state == IqBookmarkState.on),
+      onTap: () => context.push(Routes.brief(brief.id), extra: brief),
+    );
+  }
+}
+
+/// The chips a brief card shows: the pool, the time it takes and, while it
+/// has one, the deadline (Urgent within 3 days, else plain). Closed briefs
+/// read "Closed".
+List<Widget> briefMeta(Brief brief, DateTime now) {
+  final left = timeLeft(brief.deadline, now);
+  final closed = !brief.isLive || (left != null && left <= Duration.zero);
+  final minutes = brief.minutes;
+  return [
+    IqMeta(kind: IqMetaKind.reward, label: rewardShort(brief.rewardPoolKobo)),
+    if (minutes != null) IqMeta(kind: IqMetaKind.time, label: '$minutes min'),
+    if (closed || left != null)
+      IqMeta(
+        kind: !closed && left! <= DeadlineRules.closingSoon
+            ? IqMetaKind.urgent
+            : IqMetaKind.deadline,
+        label: closesIn(left, closed: closed),
+      ),
+  ];
+}
+
+/// The business as the product names it: anonymous briefs read "Private
+/// business".
+String businessLabel(Brief brief) => brief.businessName ?? 'Private business';
+
+/// A brief as an Exp/BriefCard (Feature) with its live deadline and
+/// bookmark. Tapping opens brief detail, handing it the brief so the push
+/// draws the page from its first frame.
+class BriefFeatureCard extends ConsumerWidget {
+  const BriefFeatureCard({super.key, required this.brief});
+
+  final Brief brief;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final now = ref.watch(clockProvider)();
+    final saved =
+        ref.watch(savedBriefsProvider).value?.any((b) => b.id == brief.id) ??
+        false;
+    return IqBriefCard(
+      kind: IqBriefCardKind.feature,
+      brand: businessLabel(brief),
+      title: brief.title,
+      cover: businessCover(brief.cover),
+      logo: businessLogo(brief.logo),
+      meta: briefMeta(brief, now),
+      closingSoon: isClosingSoon(brief, now),
+      showBookmark: Flags.savedBriefs,
+      bookmark: saved ? IqBookmarkState.on : IqBookmarkState.off,
       onBookmarkChanged: (state) => ref
           .read(savedBriefsProvider.notifier)
           .setSaved(brief, state == IqBookmarkState.on),
