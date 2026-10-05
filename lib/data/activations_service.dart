@@ -56,7 +56,8 @@ abstract class ActivationsService {
 /// nothing changes until [refresh].
 ///
 /// [loadFailures], [startFailures], [uploadFailures] and [sendFailures]
-/// fail that many calls first, for the failed states.
+/// fail that many calls first, for the failed states; [refusals] turns that
+/// many proofs down when they are checked (B9 · Proof · not accepted).
 class DemoActivationsService implements ActivationsService {
   DemoActivationsService({
     List<Activation>? seed,
@@ -69,6 +70,7 @@ class DemoActivationsService implements ActivationsService {
     this.startFailures = 0,
     this.uploadFailures = 0,
     this.sendFailures = 0,
+    this.refusals = 0,
   }) : _clock = clock ?? DateTime.now {
     for (final a in seed ?? DemoActivations(_clock()).all) {
       _store[a.id] = a;
@@ -83,6 +85,7 @@ class DemoActivationsService implements ActivationsService {
   int startFailures;
   int uploadFailures;
   int sendFailures;
+  int refusals;
   final DateTime Function() _clock;
 
   final _store = <String, Activation>{};
@@ -179,7 +182,16 @@ class DemoActivationsService implements ActivationsService {
     final current = this[id];
     final run = current.progress!;
     final proof = run.proof;
-    if (current.credited || proof == null) return;
+    if (current.credited || proof == null || !proof.accepted) return;
+    if (refusals > 0) {
+      refusals--;
+      _put(
+        current.withProgress(
+          run.copyWith(proof: proof.refused(DemoActivations.endsEarly)),
+        ),
+      );
+      return;
+    }
     final now = _clock();
     _put(
       current.withProgress(
@@ -205,7 +217,9 @@ class DemoActivationsService implements ActivationsService {
       case ActivationPhase.offer ||
           ActivationPhase.started ||
           ActivationPhase.notConfirmed ||
-          ActivationPhase.credited:
+          ActivationPhase.notAccepted ||
+          ActivationPhase.credited ||
+          ActivationPhase.expired:
         break;
     }
     return this[id];

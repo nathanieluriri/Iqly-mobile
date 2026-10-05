@@ -42,7 +42,8 @@ class IqSectionTitle extends StatefulWidget {
   final String link;
   final VoidCallback? onSeeAll;
 
-  static const double linkHitWidth = 72;
+  static const double chevronSize = 16;
+  static const double minLinkHitWidth = 44;
 
   @override
   State<IqSectionTitle> createState() => _IqSectionTitleState();
@@ -90,6 +91,23 @@ class _IqSectionTitleState extends State<IqSectionTitle>
   void dispose() {
     _wipe.dispose();
     super.dispose();
+  }
+
+  double _linkHitWidth(BuildContext context) {
+    final painter = TextPainter(
+      text: TextSpan(text: widget.link, style: IqText.smallStrong),
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+    final width =
+        painter.width.ceilToDouble() +
+        IqSpace.s0p5 +
+        IqSectionTitle.chevronSize;
+    painter.dispose();
+    return width < IqSectionTitle.minLinkHitWidth
+        ? IqSectionTitle.minLinkHitWidth
+        : width;
   }
 
   @override
@@ -154,7 +172,7 @@ class _IqSectionTitleState extends State<IqSectionTitle>
                               const SizedBox(width: IqSpace.s0p5),
                               const IqIcon(
                                 IqIcons.forward,
-                                size: 16,
+                                size: IqSectionTitle.chevronSize,
                                 color: IqColors.brand,
                               ),
                             ],
@@ -186,7 +204,7 @@ class _IqSectionTitleState extends State<IqSectionTitle>
                   top: 0,
                   right: 0,
                   bottom: 0,
-                  width: IqSectionTitle.linkHitWidth,
+                  width: _linkHitWidth(context),
                   child: IqPressable(
                     onTap: widget.onSeeAll,
                     semanticLabel: widget.link,

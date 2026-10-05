@@ -200,11 +200,10 @@ class _IqChatBubbleState extends State<IqChatBubble>
         FadeTransition(
           opacity: bubbleIn,
           child: Text(
-            widget.time.toUpperCase(),
-            style: IqText.mono.copyWith(color: IqColors.fg3),
+            widget.time,
+            style: IqText.small.copyWith(color: IqColors.fg3),
           ),
         ),
-        Text(widget.time, style: IqText.small.copyWith(color: IqColors.fg3)),
       ],
     );
   }

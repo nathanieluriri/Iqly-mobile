@@ -31,6 +31,7 @@ Future<void> _golden(
     media: media,
     repository: repository,
   );
+  await precacheImages(tester);
   if (act != null) {
     await act(tester);
     await tester.pumpAndSettle();
@@ -49,6 +50,15 @@ void main() {
   final thursday = Figma.thursday;
   final friday = Figma.friday;
 
+  DemoActivationsService underWay(DateTime now) => instantActivations(
+    now: now,
+    seed: Figma.world(
+      now,
+      kudiBox: Figma.step1,
+      orchidFoods: Figma.orchidStarted,
+    ),
+  );
+
   group('B8 activations', () {
     testWidgets('activations (141:4597, 161:16268)', (tester) async {
       await _golden(
@@ -56,32 +66,23 @@ void main() {
         'activations_list',
         Routes.activations,
         now: thursday,
-      );
-    });
-
-    testWidgets('activations, scrolled: Kudi Box under way', (tester) async {
-      await _golden(
-        tester,
-        'activations_list_mine',
-        Routes.activations,
-        now: thursday,
-        service: instantActivations(
-          now: thursday,
-          seed: Figma.world(thursday, kudiBox: Figma.step1),
-        ),
-        act: (tester) =>
-            tester.drag(find.byType(ListView), const Offset(0, -400)),
+        service: underWay(thursday),
       );
     });
 
     testWidgets('loading (165:7704)', (tester) async {
-      await _golden(
+      await pumpActivations(
         tester,
-        'activations_loading',
         Routes.activations,
         now: thursday,
         service: HangingActivations(now: thursday),
-        act: (tester) => tester.pump(const Duration(milliseconds: 400)),
+        settle: false,
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 400));
+      await expectMatchesGolden(
+        find.byType(MaterialApp),
+        'goldens/activations_loading.png',
       );
     });
 
@@ -105,12 +106,57 @@ void main() {
       );
     });
 
+    testWidgets('my activations, Active (485:38281)', (tester) async {
+      await _golden(
+        tester,
+        'activations_mine',
+        myActivationsPath,
+        now: thursday,
+        service: underWay(thursday),
+      );
+    });
+
+    testWidgets('my activations, Done (no frame)', (tester) async {
+      await _golden(
+        tester,
+        'activations_mine_done',
+        myActivationsPath,
+        now: thursday,
+        service: instantActivations(
+          now: thursday,
+          seed: [
+            ...Figma.world(thursday, kudiBox: Figma.step1).take(2),
+            DemoActivations(thursday).unibooks.withProgress(
+              ActivationProgress(
+                startedAt: Figma.startedAt,
+                confirmedAt: [Figma.step1At, Figma.step1At],
+                paidAt: Figma.step1At,
+              ),
+            ),
+          ],
+        ),
+        act: (tester) => tester.tap(find.text('Done')),
+      );
+    });
+
     testWidgets('activation detail (141:4941, 161:16280)', (tester) async {
       await _golden(
         tester,
         'activations_detail',
         activationPath('a2'),
         now: thursday,
+      );
+    });
+
+    testWidgets('expired (485:38428)', (tester) async {
+      final ended = DemoActivations(thursday).kudiBox.closesAt
+          .add(const Duration(days: 2));
+      await _golden(
+        tester,
+        'activations_expired',
+        activationPath('a2'),
+        now: ended,
+        service: instantActivations(now: ended, seed: Figma.world(thursday)),
       );
     });
 
@@ -156,10 +202,12 @@ void main() {
   });
 
   group('B9 proof', () {
-    DemoActivationsService stuck() => instantActivations(
-      now: friday,
-      seed: Figma.world(friday, kudiBox: Figma.step1),
-    );
+    DemoActivationsService stuck({int uploadFailures = 0}) =>
+        instantActivations(
+          now: friday,
+          seed: Figma.world(friday, kudiBox: Figma.step1),
+          uploadFailures: uploadFailures,
+        );
 
     testWidgets('step not confirmed (154:6202)', (tester) async {
       await _golden(
@@ -178,6 +226,21 @@ void main() {
         proofPath('a2'),
         now: friday,
         service: stuck(),
+      );
+    });
+
+    testWidgets('photo permission (485:38820)', (tester) async {
+      await _golden(
+        tester,
+        'activations_proof_permission',
+        proofPath('a2'),
+        now: friday,
+        service: stuck(),
+        media: DemoMediaService(delay: Duration.zero),
+        act: (tester) async {
+          await tester.tap(find.byType(IqProofTile));
+          await tester.pump(const Duration(milliseconds: 400));
+        },
       );
     });
 
@@ -207,6 +270,33 @@ void main() {
       );
     });
 
+    testWidgets('upload failed (485:38534)', (tester) async {
+      await _golden(
+        tester,
+        'activations_proof_upload_failed',
+        proofPath('a2'),
+        now: friday,
+        service: stuck(uploadFailures: 1),
+        act: _pickRecording,
+      );
+    });
+
+    testWidgets('video too long (485:38622)', (tester) async {
+      await _golden(
+        tester,
+        'activations_proof_too_long',
+        proofPath('a2'),
+        now: friday,
+        service: stuck(),
+        media: DemoMediaService(
+          delay: Duration.zero,
+          access: MediaAccess.allowed,
+          video: DemoMediaService.tooLong,
+        ),
+        act: _pickRecording,
+      );
+    });
+
     testWidgets('proof submitted (141:5549)', (tester) async {
       await _golden(
         tester,
@@ -216,6 +306,19 @@ void main() {
         service: instantActivations(
           now: friday,
           seed: Figma.world(friday, kudiBox: Figma.proofSent),
+        ),
+      );
+    });
+
+    testWidgets('proof not accepted (485:38715)', (tester) async {
+      await _golden(
+        tester,
+        'activations_proof_not_accepted',
+        activationPath('a2'),
+        now: friday,
+        service: instantActivations(
+          now: friday,
+          seed: Figma.world(friday, kudiBox: Figma.proofRefused),
         ),
       );
     });
@@ -235,31 +338,12 @@ void main() {
         ),
       );
     });
-
-    testWidgets('a recording over 60 s (kit ProofTile Error)', (tester) async {
-      await _golden(
-        tester,
-        'activations_proof_too_long',
-        proofPath('a2'),
-        now: friday,
-        service: stuck(),
-        media: DemoMediaService(
-          delay: Duration.zero,
-          video: const ProofVideo(
-            name: 'kudi-box-signup.mp4',
-            bytes: 31000000,
-            length: Duration(seconds: 74),
-          ),
-        ),
-        act: _pickRecording,
-      );
-    });
   });
 
   test('the Discover row counts what the list shows closing today', () {
     final open = DemoActivations(figmaNow).all;
     final today = open.where(
-      (a) => a.closesAt.difference(figmaNow) < const Duration(days: 1),
+      (a) => a.closesAt.difference(figmaNow) < ActivationRules.closingSoon,
     );
     expect(today.length, DemoData.activations.closingToday);
   });

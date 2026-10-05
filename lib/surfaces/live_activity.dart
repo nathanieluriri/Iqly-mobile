@@ -41,8 +41,13 @@ class PayoutActivityState {
   ];
 
   /// Null for a withdrawal that failed or came back: there is nothing on
-  /// its way, so the activity ends.
-  static PayoutActivityState? of(Withdrawal w) {
+  /// its way, so the activity ends. A tap opens the payout's Notification
+  /// sub page ([notificationId]), as the Android payout notification does,
+  /// or its tracker when the feed has no row for it.
+  static PayoutActivityState? of(
+    Withdrawal w, {
+    required String? notificationId,
+  }) {
     if (w.failed) return null;
     final to = w.destination ?? '';
     final amount = naira(w.amountKobo);
@@ -62,7 +67,9 @@ class PayoutActivityState {
           ? 'Arrived at $to at ${_clock(arrivedAt)}'
           : SurfaceCopy.payoutDetailLive(to),
       step: step,
-      route: DeepLinks.withdrawal(w.id),
+      route: notificationId == null
+          ? DeepLinks.withdrawal(w.id)
+          : DeepLinks.notification(notificationId),
     );
   }
 

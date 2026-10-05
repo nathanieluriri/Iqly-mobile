@@ -10,6 +10,23 @@ void main() {
 
   const size = Size(204, 56);
 
+  for (final kind in [IqButtonKind.primary, IqButtonKind.ghost]) {
+    testWidgets('${kind.name} 44 tall', (tester) async {
+      await expectComponentGolden(
+        tester,
+        'button_${kind.name}_44',
+        IqButton(
+          kind: kind,
+          label: 'Open Kudi Box',
+          showIcon: false,
+          height: 44,
+          onTap: () {},
+        ),
+        size: const Size(204, 48),
+      );
+    });
+  }
+
   for (final kind in IqButtonKind.values) {
     testWidgets('${kind.name} default', (tester) async {
       await expectComponentGolden(

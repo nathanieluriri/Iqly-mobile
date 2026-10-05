@@ -16,4 +16,14 @@ void main() {
       padding: 0,
     );
   });
+
+  testWidgets('brief_hero_detail', (tester) async {
+    await expectComponentGolden(
+      tester,
+      'brief_hero_detail',
+      const SizedBox(width: 390, child: IqBriefHero(height: 232)),
+      size: const Size(390, 260),
+      padding: 0,
+    );
+  });
 }

@@ -122,7 +122,7 @@ SurfaceNotification? payoutNotification(
   Withdrawal w, {
   required String? notificationId,
 }) {
-  final state = PayoutActivityState.of(w);
+  final state = PayoutActivityState.of(w, notificationId: notificationId);
   if (state == null) return null;
   return SurfaceNotification(
     key: 'payout:${w.id}',

@@ -10,13 +10,10 @@ import 'package:iqly_mobile/features/activations/activations_state.dart';
 import 'package:iqly_mobile/features/activations/activations_widgets.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/theme/theme.dart';
-import 'package:iqly_mobile/ui/balance_hero.dart';
-import 'package:iqly_mobile/ui/claim_stamp.dart';
 import 'package:iqly_mobile/ui/icon.dart';
 import 'package:iqly_mobile/ui/pressable.dart';
 import 'package:iqly_mobile/ui/proof_tile.dart';
 import 'package:iqly_mobile/ui/step_row.dart';
-import 'package:iqly_mobile/ui/tilt.dart';
 import 'package:iqly_mobile/ui/top_bar.dart';
 import 'package:iqly_mobile/ui/video_preview.dart';
 
@@ -43,33 +40,15 @@ Future<void> _run(
 Finder _button(String label) =>
     find.byWidgetPredicate((w) => w is IqPressable && w.semanticLabel == label);
 
-Finder _ticket(String id) => find.byKey(ValueKey(id), skipOffstage: false);
+Finder _card(String id) => find.byKey(ValueKey(id), skipOffstage: false);
 
-/// The ticket's own entrance: its fade, then its rise.
-double _ticketOpacity(WidgetTester tester, String id) => tester
+/// The card's arrival in its list: the Stagger fade, then its rise.
+double _cardOpacity(WidgetTester tester, String id) => tester
     .widget<FadeTransition>(
-      find
-          .descendant(
-            of: _ticket(id),
-            matching: find.byType(FadeTransition, skipOffstage: false),
-          )
-          .first,
+      find.ancestor(of: _card(id), matching: find.byType(FadeTransition)).first,
     )
     .opacity
     .value;
-
-double _ticketRise(WidgetTester tester, String id) => tester
-    .widget<Transform>(
-      find
-          .descendant(
-            of: _ticket(id),
-            matching: find.byType(Transform, skipOffstage: false),
-          )
-          .first,
-    )
-    .transform
-    .getTranslation()
-    .y;
 
 /// A StateDissolve layer, keyed by its state ('_Layout.credited', 'tile').
 Finder _layerOf(String key) => find.byWidgetPredicate(
@@ -82,45 +61,14 @@ Finder _layerOf(String key) => find.byWidgetPredicate(
 double _layer(WidgetTester tester, String key) =>
     tester.widget<FadeTransition>(_layerOf(key)).opacity.value;
 
-double _stampOpacity(WidgetTester tester) => tester
-    .widget<Opacity>(
-      find
-          .descendant(
-            of: find.byType(IqClaimStamp),
-            matching: find.byType(Opacity),
-          )
-          .first,
-    )
-    .opacity;
-
-double _stampScale(WidgetTester tester) => tester
-    .widget<Transform>(
-      find
-          .descendant(
-            of: find.byType(IqClaimStamp),
-            matching: find.byType(Transform),
-          )
-          .first,
-    )
-    .transform
-    .getMaxScaleOnAxis();
-
-double _stampDegrees(WidgetTester tester) => tester
-    .widget<IqTilt>(
-      find.descendant(
-        of: find.byType(IqClaimStamp),
-        matching: find.byType(IqTilt),
-      ),
-    )
-    .degrees;
-
 List<IqStepRowState> _steps(WidgetTester tester) => [
   for (final row in tester.widgetList<IqStepRow>(find.byType(IqStepRow)))
     row.state,
 ];
 
-IqBalanceHero _hero(WidgetTester tester) =>
-    tester.widget<IqBalanceHero>(find.byType(IqBalanceHero));
+/// [title] on a Page top bar, not the same words in the content.
+Finder _barTitle(String title) =>
+    find.descendant(of: find.byType(IqTopBar), matching: find.text(title));
 
 bool _between(double value) => value > 0 && value < 1;
 
@@ -198,22 +146,23 @@ void main() {
           step: null,
         ),
       );
+      const card = 'Rate 3 recipes in the Orchid Foods app';
       await tester.pump(const Duration(milliseconds: 290));
-      expect(find.text('LOADING…'), findsNothing);
+      expect(find.byType(ActivationsLoading), findsNothing);
       await tester.pump(const Duration(milliseconds: 20));
-      expect(find.text('LOADING…'), findsOneWidget);
+      expect(find.byType(ActivationsLoading), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 300));
-      expect(find.text('LOADING…'), findsOneWidget, reason: 'held 600');
-      expect(find.text('SHORT TASKS FROM BUSINESSES'), findsNothing);
+      expect(find.byType(ActivationsLoading), findsOneWidget, reason: '600');
+      expect(find.text(card), findsNothing);
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pump();
-      expect(find.text('SHORT TASKS FROM BUSINESSES'), findsOneWidget);
+      expect(find.text(card), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 600));
-      expect(find.text('LOADING…'), findsNothing);
+      expect(find.byType(ActivationsLoading), findsNothing);
     });
 
-    testWidgets('data inside 300 ms comes straight in; tickets arrive 40 ms '
-        'a slot apart, fading as they rise 12', (tester) async {
+    testWidgets('data inside 300 ms comes straight in; cards arrive 40 ms '
+        'apart, closing soonest first', (tester) async {
       await pumpActivations(
         tester,
         Routes.activations,
@@ -221,29 +170,17 @@ void main() {
         reducedMotion: false,
         settle: false,
       );
-      expect(find.text('LOADING…'), findsNothing);
+      expect(find.byType(ActivationsLoading), findsNothing);
       final starts = <String, int>{};
-      final rises = <(double, double)>[];
       await _run(tester, 600, (at) {
         for (final id in ['a1', 'a2', 'a3']) {
-          if (_ticketOpacity(tester, id) > 0) starts.putIfAbsent(id, () => at);
-        }
-        final opacity = _ticketOpacity(tester, 'a1');
-        if (_between(opacity)) {
-          rises.add((opacity, _ticketRise(tester, 'a1')));
+          if (_cardOpacity(tester, id) > 0) starts.putIfAbsent(id, () => at);
         }
       });
-      // The Hero sits in reading slot 2, Kudi Box in 4 and Unibooks in 5.
-      expect(starts['a1'], inInclusiveRange(80, 100));
-      expect(starts['a2']! - starts['a1']!, 80);
+      expect(starts['a2']! - starts['a1']!, 40);
       expect(starts['a3']! - starts['a2']!, 40);
-      expect(rises, isNotEmpty);
-      for (final (opacity, rise) in rises) {
-        expect(rise, closeTo(12 * (1 - opacity), 0.01));
-      }
       for (final id in ['a1', 'a2', 'a3']) {
-        expect(_ticketOpacity(tester, id), 1);
-        expect(_ticketRise(tester, id), 0);
+        expect(_cardOpacity(tester, id), 1);
       }
     });
   });
@@ -271,8 +208,8 @@ void main() {
     });
 
     testWidgets('a confirmed step pops to Done, the next goes Active 120 ms '
-        'later; paid, the stamp lands at +120 with the success haptic and '
-        'the wallet rolls at +400', (tester) async {
+        'later; paid, the reward dissolves in with the success haptic at '
+        '+120', (tester) async {
       final haptics = recordHaptics(tester);
       await pumpActivations(
         tester,
@@ -311,29 +248,19 @@ void main() {
       await tester.pump(const Duration(milliseconds: 3870));
       expect(find.text('Your reward'), findsOneWidget);
       await _run(tester, 60);
-      expect(_stampOpacity(tester), 0);
       expect(haptics, [_commit]);
-      expect(_hero(tester).amount, '₦15,000');
+      expect(_between(_layer(tester, '_Layout.credited')), isTrue);
 
       await _run(tester, 100);
       expect(haptics, [_commit, _success]);
-      expect(_between(_stampOpacity(tester)), isTrue);
-      expect(_stampScale(tester), greaterThan(1));
-      expect(_hero(tester).amount, '₦15,000');
 
       await _run(tester, 300);
-      expect(_stampOpacity(tester), 1);
-      expect(_stampScale(tester), closeTo(1, 0.001));
-      expect(_stampDegrees(tester), closeTo(IqClaimStamp.tilt, 0.001));
-      expect(_hero(tester).amount, '₦16,500');
-      expect(_hero(tester).earned, '₦66,500.00');
+      expect(_layer(tester, '_Layout.credited'), 1);
       await tester.pump(const Duration(milliseconds: 500));
     });
 
     testWidgets('paid while another page covers it: no moment and no haptic; '
-        'back on it, the stamp lands over a wallet already paid', (
-      tester,
-    ) async {
+        'back on it, the reward is already in place', (tester) async {
       final haptics = recordHaptics(tester);
       final container = await pumpActivations(
         tester,
@@ -346,6 +273,7 @@ void main() {
           seed: Figma.world(friday, kudiBox: Figma.proofSent),
         ),
       );
+      const proof = 'Not credited yet?';
       await tester.pump(const Duration(milliseconds: 600));
       await tester.scrollUntilVisible(
         find.text('Ask for help'),
@@ -356,7 +284,7 @@ void main() {
       await tester.tap(find.text('Ask for help'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
-      expect(find.text('Your proof'), findsNothing);
+      expect(find.text(proof), findsNothing);
 
       container.read(activationsProvider.notifier).refresh('a2');
       await _run(tester, 1000);
@@ -364,21 +292,18 @@ void main() {
 
       await tester.tap(_button('Back'));
       await tester.pump();
-      final stamp = <(double, double)>[];
-      await _run(tester, 600, (at) {
-        stamp.add((_stampOpacity(tester), _stampScale(tester)));
-        expect(_hero(tester).amount, '₦16,500', reason: 'at $at ms');
+      await _run(tester, 20, (at) {
+        expect(find.text(proof), findsNothing, reason: 'at $at ms');
+        expect(_layer(tester, '_Layout.credited'), 1, reason: 'at $at ms');
       });
+      await _run(tester, 400);
       expect(find.text('Your reward'), findsOneWidget);
-      expect(stamp.first.$1, 0);
-      expect(stamp.where((s) => _between(s.$1) && s.$2 > 1), isNotEmpty);
-      expect(stamp.last.$1, 1);
-      expect(stamp.last.$2, closeTo(1, 0.001));
       expect(haptics, isNot(contains(_success)));
     });
 
-    testWidgets('reduced motion: a 150 ms crossfade to the reward, the stamp '
-        'fades in at rest, the balance is new at once', (tester) async {
+    testWidgets('reduced motion: a 150 ms crossfade to the reward', (
+      tester,
+    ) async {
       final haptics = recordHaptics(tester);
       await pumpActivations(
         tester,
@@ -392,21 +317,14 @@ void main() {
       await tester.tap(find.text('Verify your BVN in the app'));
       await tester.pump();
       final layer = <double>[];
-      final stamp = <double>[];
       await _run(tester, 600, (at) {
         if (_layerOf('_Layout.credited').evaluate().isEmpty) return;
         layer.add(_layer(tester, '_Layout.credited'));
-        expect(_hero(tester).amount, '₦16,500');
-        stamp.add(_stampOpacity(tester));
-        expect(_stampScale(tester), 1);
-        expect(_stampDegrees(tester), IqClaimStamp.tilt);
       });
       final fading = layer.where(_between).length;
       expect(fading, inInclusiveRange(13, 16), reason: '150 ms of frames');
       expect(layer.last, 1);
       expect(find.text('Verify your BVN in the app'), findsNothing);
-      expect(stamp.where(_between), isNotEmpty);
-      expect(stamp.last, 1);
       expect(haptics, [_success]);
     });
   });
@@ -564,7 +482,7 @@ void main() {
     });
 
     testWidgets('sent: Your proof is already in place under the leaving '
-        'page, and its stamp lands as it shows', (tester) async {
+        'page', (tester) async {
       final haptics = recordHaptics(tester);
       await pumpActivations(
         tester,
@@ -584,17 +502,9 @@ void main() {
       expect(haptics, [_success]);
       await _run(tester, 100);
       expect(find.text('Upload proof of step 2'), findsNothing);
-      expect(find.text('Your proof'), findsWidgets);
-      expect(_stampOpacity(tester), 0);
-      final stamp = <(double, double)>[];
-      await _run(
-        tester,
-        500,
-        (at) => stamp.add((_stampOpacity(tester), _stampScale(tester))),
-      );
-      expect(stamp.where((s) => _between(s.$1) && s.$2 > 1), isNotEmpty);
-      expect(stamp.last.$1, 1);
-      expect(stamp.last.$2, closeTo(1, 0.001));
+      expect(find.text('Not credited yet?'), findsOneWidget);
+      await _run(tester, 500);
+      expect(find.text('Upload proof'), findsNothing);
     });
 
     testWidgets('sent from the activation: it is Your proof from the pop’s '
@@ -623,8 +533,8 @@ void main() {
       for (var at = 16; at <= 400; at += 16) {
         await tester.pump(const Duration(milliseconds: 16));
         expect(_layerOf('_Layout.steps'), findsNothing, reason: 'at $at ms');
-        if (_layerOf('_Layout.checking').evaluate().isNotEmpty) {
-          expect(_layer(tester, '_Layout.checking'), 1, reason: 'at $at ms');
+        if (_layerOf('_Layout.proof').evaluate().isNotEmpty) {
+          expect(_layer(tester, '_Layout.proof'), 1, reason: 'at $at ms');
         }
         flight.addAll([
           for (final frame in tester.renderObjectList<RenderBox>(
@@ -634,7 +544,7 @@ void main() {
         ]);
       }
       expect(find.text('Upload proof'), findsNothing);
-      expect(find.text('Your proof'), findsOneWidget);
+      expect(find.text('Not credited yet?'), findsOneWidget);
       final to = tester.getTopLeft(find.byType(ProofFrame)).dy;
       expect(flight.where((y) => y > from + 1 && y < to - 1), isNotEmpty);
     });
@@ -657,13 +567,13 @@ void main() {
           );
         }
         for (final MapEntry(:key, :value) in titles.entries) {
-          value.addAll(_drawn(find.text(key)).where((d) => d.$2 > 0.01));
+          value.addAll(_drawn(_barTitle(key)).where((d) => d.$2 > 0.01));
         }
       }
       await tester.pump(const Duration(milliseconds: 500));
       final upload = titles['Upload proof']!;
       final yours = titles['Your proof']!;
-      final rest = tester.getTopLeft(find.text('Your proof'));
+      final rest = tester.getTopLeft(_barTitle('Your proof'));
       expect(
         yours.map((d) => d.$1.topLeft),
         everyElement(offsetMoreOrLessEquals(rest, epsilon: 0.5)),

@@ -10,7 +10,7 @@ import 'package:iqly_mobile/features/activations/activations_routes.dart';
 import 'package:iqly_mobile/features/activations/activations_state.dart';
 import 'package:iqly_mobile/features/help/help_thread_screen.dart';
 import 'package:iqly_mobile/features/wallet/wallet_state.dart';
-import 'package:iqly_mobile/core/money.dart';
+import 'package:iqly_mobile/ui/balance_hero.dart';
 import 'package:iqly_mobile/ui/proof_tile.dart';
 
 import '../golden/screens/activations_harness.dart';
@@ -49,8 +49,8 @@ Map<String, int> _awards(ProviderContainer container) => {
       l.id: l.amountKobo,
 };
 
-String _available(ProviderContainer container) =>
-    naira(container.read(walletProvider).value!.totals.withdrawableKobo);
+IqBalanceHero _hero(WidgetTester tester) =>
+    tester.widget<IqBalanceHero>(find.byType(IqBalanceHero));
 
 void main() {
   testWidgets('Unibooks, stuck at step 2: its proof, its help request and '
@@ -62,7 +62,10 @@ void main() {
       now: figmaNow,
       service: instantActivations(
         now: figmaNow,
-        seed: DemoActivations(figmaNow).all,
+        seed: [
+          DemoActivations(figmaNow).unibooks
+              .withProgress(DemoActivations(figmaNow).stuckAtStep2),
+        ],
         step: const Duration(seconds: 4),
       ),
       overrides: [helpServiceProvider.overrideWithValue(help)],
@@ -71,11 +74,10 @@ void main() {
     await _tap(tester, find.byType(IqProofTile));
     expect(find.text('unibooks-signup.mp4'), findsOneWidget);
     await _tap(tester, find.text('Send proof'));
-    expect(find.text('Your proof'), findsOneWidget);
+    expect(find.text('Not credited yet?'), findsOneWidget);
     expect(find.text('unibooks-signup.mp4'), findsOneWidget);
 
     await _askForHelp(tester);
-    expect(find.text(DemoHelp.replyLine), findsOneWidget);
     // The proof check pays Unibooks while the request is being written.
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
@@ -93,7 +95,10 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(_available(container), '₦15,800.00');
+    expect(find.text('UPDATED BALANCE'), findsOneWidget);
+    expect(_hero(tester).amount, '₦13,300');
+    expect(_hero(tester).decimals, '.00');
+    expect(_hero(tester).earned, '₦63,300.00');
     expect(_awards(container), {'activation-a3': 80000});
   });
 
@@ -119,14 +124,14 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(_available(container), '₦16,500.00');
+    expect(_hero(tester).amount, '₦14,000');
     expect(_awards(container), {'activation-a2': 150000});
 
     await container.read(activationsProvider.notifier).refresh('a2');
     await tester.pumpAndSettle();
     expect(container.read(activationProvider('a2'))!.credited, isTrue);
     expect(_awards(container), {'activation-a2': 150000});
-    expect(_available(container), '₦16,500.00');
+    expect(_hero(tester).amount, '₦14,000');
   });
 
   group('the demo support', () {

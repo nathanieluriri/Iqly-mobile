@@ -79,13 +79,16 @@ class IqChip extends StatelessWidget {
                 tween: ColorTween(end: selected ? IqColors.brand : IqColors.fg),
                 duration: ink,
                 curve: curve,
-                builder: (context, color, _) => Text(
-                  label,
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.ellipsis,
-                  style: IqText.bodyStrong.copyWith(
-                    color: color ?? IqColors.fg,
+                builder: (context, color, _) => Align(
+                  widthFactor: 1,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.ellipsis,
+                    style: IqText.bodyStrong.copyWith(
+                      color: color ?? IqColors.fg,
+                    ),
                   ),
                 ),
               ),
