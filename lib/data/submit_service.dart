@@ -1,3 +1,5 @@
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/deadline.dart';
@@ -57,11 +59,16 @@ abstract class SubmitService {
   Future<SubmitResult> submit(SubmitRequest request);
 }
 
-/// The device's file picker. The live one wraps file_picker; the demo hands
-/// back one photo.
+/// The phone's own file picker.
 abstract class AttachmentPicker {
   /// The files picked, or none when the person cancels.
   Future<List<AttachmentFile>> pick();
+}
+
+/// Sends one attachment up, reporting progress from 0 to 1. True once it
+/// is stored.
+abstract class AttachmentUploader {
+  Future<bool> upload(AttachmentFile file, void Function(double) progress);
 }
 
 class DemoSubmitService implements SubmitService {
@@ -169,16 +176,68 @@ class DemoSubmitService implements SubmitService {
   }
 }
 
+/// The system picker (file_picker). Without the plugin, as in tests and
+/// on a desktop build without it, it falls back to [fallback].
+class DeviceAttachmentPicker implements AttachmentPicker {
+  DeviceAttachmentPicker({AttachmentPicker? fallback})
+    : fallback = fallback ?? DemoAttachmentPicker();
+
+  final AttachmentPicker fallback;
+
+  @override
+  Future<List<AttachmentFile>> pick() async {
+    try {
+      final files = await FilePicker.pickFiles();
+      return [
+        for (final file in files)
+          AttachmentFile(
+            name: file.name,
+            bytes: file.lengthSync() ?? await file.length() ?? 0,
+          ),
+      ];
+    } on MissingPluginException {
+      return fallback.pick();
+    }
+  }
+}
+
 class DemoAttachmentPicker implements AttachmentPicker {
   final picks = <List<AttachmentFile>>[];
 
   /// What the next pick returns.
-  List<AttachmentFile> next = const [SubmitDemo.pickedFile];
+  List<AttachmentFile> next = SubmitDemo.picked;
 
   @override
   Future<List<AttachmentFile>> pick() async {
     picks.add(next);
     return next;
+  }
+}
+
+/// Uploads in five steps over [duration]; names in [failing] fail once.
+class DemoAttachmentUploader implements AttachmentUploader {
+  DemoAttachmentUploader({
+    this.duration = const Duration(milliseconds: 1500),
+    Set<String>? failing,
+  }) : failing = failing ?? {};
+
+  final Duration duration;
+  final Set<String> failing;
+
+  @override
+  Future<bool> upload(
+    AttachmentFile file,
+    void Function(double) progress,
+  ) async {
+    const steps = 5;
+    for (var i = 1; i <= steps; i++) {
+      if (duration > Duration.zero) {
+        await Future<void>.delayed(duration ~/ steps);
+      }
+      if (failing.remove(file.name)) return false;
+      progress(i / steps);
+    }
+    return true;
   }
 }
 
@@ -192,5 +251,9 @@ final submitServiceProvider = Provider<SubmitService>((ref) {
 });
 
 final attachmentPickerProvider = Provider<AttachmentPicker>(
-  (ref) => DemoAttachmentPicker(),
+  (ref) => DeviceAttachmentPicker(),
+);
+
+final attachmentUploaderProvider = Provider<AttachmentUploader>(
+  (ref) => DemoAttachmentUploader(),
 );
