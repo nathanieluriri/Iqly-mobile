@@ -29,6 +29,9 @@ flutter:
     - assets/brand/
     - assets/icons/
     - assets/illustrations/
+    - assets/samples/avatars/
+    - assets/samples/covers/
+    - assets/samples/logos/
     - assets/splash/
     - assets/vectors/
 
