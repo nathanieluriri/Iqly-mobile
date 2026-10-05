@@ -10,7 +10,7 @@ import '../../ui/list_row.dart';
 import 'onboarding_draft.dart';
 import 'onboarding_layout.dart';
 
-/// B11 · Home · setup nudge (188:8570): the "Finish setting up" row Discover
+/// B11 · Home · setup nudge (188:8570): the "Finish setting up" group Discover
 /// shows under the feed chips while first run is unfinished, with [gap]
 /// under it. Once onboarding is done it folds away with its gap (spec 6.19:
 /// 200 ms ease-in, playing the next time Home is on screen, since its clock
@@ -40,19 +40,23 @@ class _SetupNudgeState extends ConsumerState<SetupNudge> {
       open: !done,
       child: Padding(
         padding: EdgeInsets.only(bottom: widget.gap),
-        child: IqListRow(
-          label: 'Finish setting up',
-          description: '$left ${left == 1 ? 'step' : 'steps'} left',
-          icon: IqIcons.profile,
-          divider: false,
-          onTap: () {
-            final step = draft.firstIncomplete;
-            if (step == null) {
-              context.go(Routes.onboardingDone);
-            } else {
-              goToStep(context, ref, step);
-            }
-          },
+        child: OnboardingGroup(
+          children: [
+            IqListRow(
+              label: 'Finish setting up',
+              description: '$left ${left == 1 ? 'step' : 'steps'} left',
+              icon: IqIcons.profile,
+              divider: false,
+              onTap: () {
+                final step = draft.firstIncomplete;
+                if (step == null) {
+                  context.go(Routes.onboardingDone);
+                } else {
+                  goToStep(context, ref, step);
+                }
+              },
+            ),
+          ],
         ),
       ),
     );

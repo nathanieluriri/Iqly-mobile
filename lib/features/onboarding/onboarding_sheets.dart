@@ -66,12 +66,35 @@ Future<T?> showOnboardingSheet<T>(
 
 const double _sheetTop = 120;
 
-final stateOptions = [for (final s in Reference.states) RefOption(s, s)];
+/// How a state reads on screen: Figma 480:20318 names the capital
+/// territory "Abuja (FCT)"; the stored value stays the shipped name.
+String stateLabel(String state) =>
+    state == 'FCT - Abuja' ? 'Abuja (FCT)' : state;
 
-/// A list of options (state of residence, education): tapping a row picks
-/// it and closes the sheet 120 ms later, unless [onSelected] takes the pick
-/// instead; the sheet ignores taps in between (spec 3.3). It is as tall as
-/// its rows, scrolling once they outgrow the sheet.
+final stateOptions = [
+  for (final s in Reference.states) RefOption(s, stateLabel(s)),
+];
+
+/// The states for State of residence: the four Figma 480:20318 lists first,
+/// then the rest in the shipped order.
+final residenceOptions = () {
+  const first = ['Lagos', 'FCT - Abuja', 'Rivers', 'Oyo'];
+  return [
+    for (final s in first) RefOption(s, stateLabel(s)),
+    for (final o in stateOptions)
+      if (!first.contains(o.value)) o,
+  ];
+}();
+
+/// A list of options (state of residence, education).
+///
+/// Without [confirm], tapping a row picks it and closes the sheet 120 ms
+/// later, unless [onSelected] takes the pick instead; the sheet ignores taps
+/// in between (spec 3.3), and it is as tall as its rows.
+///
+/// With [confirm] (B11 480:20164, 480:20318), a tap selects the row and the
+/// foot button of that label takes it; [search] adds the search field over
+/// the rows (480:20318).
 class OptionSheet extends StatefulWidget {
   const OptionSheet({
     super.key,
@@ -79,12 +102,16 @@ class OptionSheet extends StatefulWidget {
     required this.options,
     this.selected,
     this.onSelected,
+    this.confirm,
+    this.search,
   });
 
   final String title;
   final List<RefOption> options;
   final String? selected;
   final ValueChanged<String>? onSelected;
+  final String? confirm;
+  final String? search;
 
   @override
   State<OptionSheet> createState() => _OptionSheetState();
@@ -93,9 +120,15 @@ class OptionSheet extends StatefulWidget {
 class _OptionSheetState extends State<OptionSheet>
     with SingleTickerProviderStateMixin {
   late final AnimationController _beat = AnimationController(vsync: this);
+  final _query = TextEditingController();
   String? _picked;
+  late String? _chosen = widget.selected;
 
   void _pick(String value) {
+    if (widget.confirm != null) {
+      setState(() => _chosen = value);
+      return;
+    }
     if (_picked != null) return;
     setState(() => _picked = value);
     void done() {
@@ -116,11 +149,26 @@ class _OptionSheetState extends State<OptionSheet>
   @override
   void dispose() {
     _beat.dispose();
+    _query.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final confirm = widget.confirm;
+    return confirm == null ? _instant(context) : _confirming(context, confirm);
+  }
+
+  Widget _row(RefOption option, String? selected) => IqOptionRow(
+    label: option.label,
+    showNote: false,
+    state: option.value == selected
+        ? IqOptionRowState.selected
+        : IqOptionRowState.standard,
+    onTap: () => _pick(option.value),
+  );
+
+  Widget _instant(BuildContext context) {
     final options = widget.options;
     final selected = _picked ?? widget.selected;
     final bottom = IqSpace.s4 + MediaQuery.paddingOf(context).bottom;
@@ -151,23 +199,46 @@ class _OptionSheetState extends State<OptionSheet>
                   itemCount: options.length,
                   separatorBuilder: (context, i) =>
                       const SizedBox(height: IqSpace.s1),
-                  itemBuilder: (context, i) {
-                    final option = options[i];
-                    return IqOptionRow(
-                      label: option.label,
-                      showNote: false,
-                      state: option.value == selected
-                          ? IqOptionRowState.selected
-                          : IqOptionRowState.standard,
-                      onTap: () => _pick(option.value),
-                    );
-                  },
+                  itemBuilder: (context, i) => _row(options[i], selected),
                 ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _confirming(BuildContext context, String confirm) {
+    final search = widget.search;
+    final q = _query.text.trim().toLowerCase();
+    final options = [
+      for (final o in widget.options)
+        if (q.isEmpty || o.label.toLowerCase().contains(q)) o,
+    ];
+    final chosen = _chosen;
+    return _SheetLayout(
+      title: widget.title,
+      search: search == null
+          ? null
+          : IqField(
+              label: search,
+              value: search,
+              controller: _query,
+              textInputAction: TextInputAction.search,
+              onChanged: (_) => setState(() {}),
+            ),
+      rows: [for (final o in options) _row(o, chosen)],
+      empty: '',
+      actions: [
+        IqButton(
+          label: confirm,
+          showIcon: false,
+          width: double.infinity,
+          disabled: chosen == null,
+          onTap: () => Navigator.of(context).pop(chosen),
+        ),
+      ],
     );
   }
 
@@ -213,23 +284,25 @@ List<String> _matching(List<String> names, String query) {
   return names.where((n) => q.isEmpty || n.toLowerCase().contains(q)).toList();
 }
 
-String _count(int n, String one, String many) =>
-    '$n ${n == 1 ? one : many}'.toUpperCase();
-
 /// B11 · Step 2 · University search (188:8340). The search field takes the
 /// keyboard once the sheet has risen; picking a row selects it and puts the
 /// keyboard away so "Use this" shows (the Figma frame is that moment).
+/// "Add my university" hands the typed name to [onAdd] (the Add your
+/// university page, 480:20477) after closing the sheet; without [onAdd] the
+/// typed name is the pick.
 class UniversitySheet extends StatefulWidget {
   const UniversitySheet({
     super.key,
     this.selected,
     this.state,
     this.initialQuery = '',
+    this.onAdd,
   });
 
   final String? selected;
   final String? state;
   final String initialQuery;
+  final ValueChanged<String>? onAdd;
 
   @override
   State<UniversitySheet> createState() => _UniversitySheetState();
@@ -263,12 +336,22 @@ class _UniversitySheetState extends State<UniversitySheet> {
     setState(() => _selected = name);
   }
 
+  void _add(String query) {
+    final onAdd = widget.onAdd;
+    if (onAdd == null) {
+      Navigator.of(context).pop(query);
+      return;
+    }
+    Navigator.of(context).pop();
+    onAdd(query);
+  }
+
   @override
   Widget build(BuildContext context) {
     final query = _query.text.trim();
     final results = searchUniversities(query, state: widget.state);
     final selected = results.contains(_selected) ? _selected : null;
-    return _SearchSheetLayout(
+    return _SheetLayout(
       title: 'University',
       search: IqField(
         label: 'Search universities…',
@@ -278,9 +361,6 @@ class _UniversitySheetState extends State<UniversitySheet> {
         textInputAction: TextInputAction.search,
         onChanged: (_) => setState(() {}),
       ),
-      count: query.isEmpty || results.isEmpty
-          ? null
-          : _count(results.length, 'match', 'matches'),
       empty: 'No university found.',
       rows: [
         for (final name in results)
@@ -294,28 +374,31 @@ class _UniversitySheetState extends State<UniversitySheet> {
             onTap: () => _pick(name),
           ),
       ],
-      use: IqButton(
-        label: 'Use this',
-        showIcon: false,
-        width: double.infinity,
-        disabled: selected == null,
-        onTap: () => Navigator.of(context).pop(selected),
-      ),
-      add: IqButton(
-        label: 'Add my university',
-        kind: IqButtonKind.ghost,
-        showIcon: false,
-        width: double.infinity,
-        disabled: query.isEmpty,
-        onTap: () => Navigator.of(context).pop(query),
-      ),
+      actions: [
+        IqButton(
+          label: 'Use this',
+          showIcon: false,
+          width: double.infinity,
+          disabled: selected == null,
+          onTap: () => Navigator.of(context).pop(selected),
+        ),
+        IqButton(
+          label: 'Add my university',
+          kind: IqButtonKind.ghost,
+          showIcon: false,
+          width: double.infinity,
+          disabled: widget.onAdd == null && query.isEmpty,
+          onTap: () => _add(query),
+        ),
+      ],
     );
   }
 }
 
-/// The city search for [state], built like the university search. "Add my
-/// city" (Figma's "Add my university" pattern) offers the typed name when
-/// the list does not have it, and stays in place, off, otherwise.
+/// The city search for [state], built like the State sheet (480:20318) with
+/// "Add my city" (Figma's "Add my university" pattern), which offers the
+/// typed name when the list does not have it and stays in place, off,
+/// otherwise. Figma draws City as a text field; the owner keeps the list.
 class CitySheet extends StatefulWidget {
   const CitySheet({super.key, required this.state, this.selected});
 
@@ -362,21 +445,16 @@ class _CitySheetState extends State<CitySheet> {
     final results = searchCities(widget.state, query);
     final selected = results.contains(_selected) ? _selected : null;
     final canAdd = query.isNotEmpty && listedCity(widget.state, query) == null;
-    return _SearchSheetLayout(
+    return _SheetLayout(
       title: 'City',
       search: IqField(
         label: 'Search cities',
-        value: '',
+        value: 'Search cities',
         controller: _query,
         focusNode: _focus,
         textInputAction: TextInputAction.search,
         onChanged: (_) => setState(() {}),
       ),
-      count: results.isEmpty
-          ? null
-          : query.isEmpty
-          ? _count(results.length, 'city', 'cities')
-          : _count(results.length, 'match', 'matches'),
       empty: 'No city found.',
       rows: [
         for (final name in results)
@@ -389,21 +467,23 @@ class _CitySheetState extends State<CitySheet> {
             onTap: () => _pick(name),
           ),
       ],
-      use: IqButton(
-        label: 'Use this',
-        showIcon: false,
-        width: double.infinity,
-        disabled: selected == null,
-        onTap: () => Navigator.of(context).pop(selected),
-      ),
-      add: IqButton(
-        label: 'Add my city',
-        kind: IqButtonKind.ghost,
-        showIcon: false,
-        width: double.infinity,
-        disabled: !canAdd,
-        onTap: () => Navigator.of(context).pop(query),
-      ),
+      actions: [
+        IqButton(
+          label: 'Use this',
+          showIcon: false,
+          width: double.infinity,
+          disabled: selected == null,
+          onTap: () => Navigator.of(context).pop(selected),
+        ),
+        IqButton(
+          label: 'Add my city',
+          kind: IqButtonKind.ghost,
+          showIcon: false,
+          width: double.infinity,
+          disabled: !canAdd,
+          onTap: () => Navigator.of(context).pop(query),
+        ),
+      ],
     );
   }
 }
@@ -439,14 +519,14 @@ class _CityPickerFlowState extends State<CityPickerFlow> {
   Widget build(BuildContext context) {
     final state = _state;
     return AnimatedSwitcher(
-      duration: motion(context, IqDurations.swap),
+      duration: motion(context, IqDurations.crossfade),
       switchInCurve: IqCurves.easeOut,
       switchOutCurve: IqCurves.easeOut,
       child: state == null
           ? OptionSheet(
               key: const ValueKey('state'),
-              title: 'State of residence',
-              options: stateOptions,
+              title: 'State',
+              options: residenceOptions,
               onSelected: _pickState,
             )
           : CitySheet(
@@ -464,37 +544,36 @@ class _CityPickerFlowState extends State<CityPickerFlow> {
 void _putKeyboardAway() =>
     SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
 
-/// Title, search field, count line, results and the foot actions shared by
-/// the university and city sheets. The foot (primary at y 720, ghost at y
-/// 780 in Figma 188:8340) stays at the bottom of the sheet, under the
-/// keyboard while it is up; the results take the room above the keyboard
-/// and dragging them puts the keyboard away. The count rolls as it changes
-/// and an empty result fades in (spec 6.15).
-class _SearchSheetLayout extends StatelessWidget {
-  const _SearchSheetLayout({
+/// The B11 picker sheet body (480:20164, 480:20318, 188:8340): the sheet
+/// bar, an optional search field 4 under it, the rows 12 under that (4 apart),
+/// and the foot actions (12 over the first, 8 apart) at the bottom of the
+/// sheet, under the keyboard while it is up. The rows take the room above
+/// the keyboard and dragging them puts it away; an empty result fades in.
+class _SheetLayout extends StatelessWidget {
+  const _SheetLayout({
     required this.title,
     required this.search,
-    required this.count,
     required this.empty,
     required this.rows,
-    required this.use,
-    required this.add,
+    required this.actions,
   });
 
   final String title;
-  final Widget search;
-  final String? count;
+  final Widget? search;
   final String empty;
   final List<Widget> rows;
-  final Widget use;
-  final Widget add;
+  final List<Widget> actions;
 
   @override
   Widget build(BuildContext context) {
-    final count = this.count;
+    final search = this.search;
     final bottom = math.max(MediaQuery.paddingOf(context).bottom, IqSpace.s3);
     const footTop = IqSpace.s3;
-    final foot = footTop + IqButton.height * 2 + IqSpace.s2 + bottom;
+    final foot =
+        footTop +
+        IqButton.height * actions.length +
+        IqSpace.s2 * (actions.length - 1) +
+        bottom;
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -504,30 +583,15 @@ class _SearchSheetLayout extends StatelessWidget {
           title: title,
           onClose: () => Navigator.of(context).pop(),
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            IqSpace.s4,
-            IqSpace.s1,
-            IqSpace.s4,
-            0,
-          ),
-          child: search,
-        ),
-        if (count != null)
+        if (search != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(
               IqSpace.s4,
-              IqSpace.s3,
+              IqSpace.s1,
               IqSpace.s4,
               0,
             ),
-            child: Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: RollingText(
-                count,
-                style: IqText.mono.copyWith(color: IqColors.fg2),
-              ),
-            ),
+            child: search,
           ),
         Expanded(
           child: Padding(
@@ -556,9 +620,9 @@ class _SearchSheetLayout extends StatelessWidget {
                       key: const ValueKey('rows'),
                       keyboardDismissBehavior:
                           ScrollViewKeyboardDismissBehavior.onDrag,
-                      padding: const EdgeInsets.fromLTRB(
+                      padding: EdgeInsets.fromLTRB(
                         IqSpace.s4,
-                        IqSpace.s3,
+                        search == null ? IqSpace.s1 : IqSpace.s3,
                         IqSpace.s4,
                         IqSpace.s4,
                       ),
@@ -576,9 +640,10 @@ class _SearchSheetLayout extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              use,
-              const SizedBox(height: IqSpace.s2),
-              add,
+              for (var i = 0; i < actions.length; i++) ...[
+                if (i > 0) const SizedBox(height: IqSpace.s2),
+                actions[i],
+              ],
             ],
           ),
         ),

@@ -7,60 +7,61 @@ import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../theme/theme.dart';
+import '../../ui/banner.dart';
 import '../../ui/button.dart';
-import '../../ui/icon.dart';
 import '../../ui/illustration.dart';
-import '../../ui/next_fab.dart';
 import '../../ui/step_mark.dart';
-import '../../ui/step_mark_ring.dart';
 import '../../ui/top_bar.dart';
+import '../entry/entry_widgets.dart';
 import 'onboarding_draft.dart';
 
-/// Opens [step]; [back] plays the move as a step back.
-void goToStep(
-  BuildContext context,
-  WidgetRef ref,
-  OnboardingStep step, {
-  bool back = false,
-}) {
+/// Pushes [step] over the page that opens it, so back returns there
+/// (answer 26).
+void goToStep(BuildContext context, WidgetRef ref, OnboardingStep step) {
   ref.read(onboardingDraftProvider.notifier).visit(step);
-  context.go(step.route, extra: back ? NavDirection.back : null);
+  context.push(step.route);
 }
 
-/// One question per screen: back, the step mark with the autosave check, a
-/// Mob/Display question, the control, then Skip and the next button.
+/// Back to the opener, or [fallback] when the step was opened on its own
+/// (a cold launch into Resume, say).
+void leaveStep(BuildContext context, String fallback) {
+  if (context.canPop()) {
+    context.pop();
+  } else {
+    context.go(fallback, extra: NavDirection.back);
+  }
+}
+
+/// One question per screen (B11 188:8171, 188:8255, 223:10826, 188:8390):
+/// Page top bar, the step mark 21 into a 48 pt strip, the Mob/Display
+/// question 16 under it (24 with a caption, whose header Figma pads by 8),
+/// the control 24 under that (20 under a caption), then Continue and "Skip for now" at the foot. An error [banner]
+/// sits 16 under the strip, the question 24 under it (480:20079).
 ///
 /// Motion (MOTION-SPEC 4.1): between steps the chrome holds still while the
-/// question rides the push, the control trailing the title by 40 ms: back,
-/// Skip and the next button stay, the step mark morphs, the autosave check
-/// and the next button crossfade to the arriving step's look. Tapping the
-/// next button while it is off shakes the [caption] that says what is
-/// missing ("Pick at least 2"); no haptic.
+/// question rides the push, the control trailing the title by 40 ms; the
+/// step mark and the foot buttons stay, the step mark crossing to the
+/// arriving step's bars. Tapping Continue while it is off shakes the
+/// [caption] that says what is missing ("Pick at least 2"); no haptic.
 class OnboardingStepScaffold extends StatefulWidget {
   const OnboardingStepScaffold({
     super.key,
     required this.step,
-    required this.icon,
-    required this.saved,
     required this.title,
     required this.child,
     required this.onBack,
     required this.onSkip,
     required this.onNext,
     required this.nextEnabled,
-    this.answer,
     this.caption,
+    this.banner,
     this.nextLabel = 'Continue',
   });
 
   final IqStepMarkStep step;
-  final IqIcons icon;
-  final bool saved;
-
-  /// What the step has saved; a new answer re-stamps the autosave check.
-  final Object? answer;
   final String title;
   final String? caption;
+  final String? banner;
   final Widget child;
   final VoidCallback onBack;
   final VoidCallback onSkip;
@@ -75,132 +76,118 @@ class OnboardingStepScaffold extends StatefulWidget {
 class _OnboardingStepScaffoldState extends State<OnboardingStepScaffold> {
   int _missing = 0;
 
+  /// The last banner shown, kept while it folds away.
+  String _banner = '';
+
   @override
   Widget build(BuildContext context) {
     final caption = widget.caption;
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) widget.onBack();
-      },
-      child: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.dark,
-        child: Scaffold(
-          backgroundColor: IqColors.bg,
-          resizeToAvoidBottomInset: false,
-          body: SafeArea(
-            maintainBottomViewPadding: true,
-            child: CenteredContent(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  IqTopBar(
-                    variant: IqTopBarVariant.page,
-                    title: '',
-                    onBack: widget.onBack,
+    final banner = widget.banner;
+    if (banner != null) _banner = banner;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        backgroundColor: IqColors.bg,
+        resizeToAvoidBottomInset: false,
+        body: SafeArea(
+          maintainBottomViewPadding: true,
+          child: CenteredContent(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                IqTopBar(
+                  variant: IqTopBarVariant.page,
+                  title: '',
+                  onBack: widget.onBack,
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    IqSpace.s4,
+                    21,
+                    IqSpace.s4,
+                    21,
                   ),
-                  SizedBox(
-                    height: 48,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: IqSpace.s4,
-                      ),
-                      child: Row(
-                        children: [
-                          ChromeHero(
-                            tag: ChromeTags.stepMark,
-                            shuttle: IqStepMarkRing.shuttle,
-                            child: IqStepMarkRing(
-                              step: widget.step,
-                              icon: widget.icon,
-                            ),
-                          ),
-                          const Spacer(),
-                          ChromeHero(
-                            tag: ChromeTags.autosave,
-                            shuttle: ChromeHero.crossfade(AutosaveCheck.shows),
-                            child: AutosaveCheck(
-                              saved: widget.saved,
-                              answer: widget.answer,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: EdgeInsets.fromLTRB(
-                        IqSpace.s4,
-                        caption == null ? IqSpace.s4 : IqSpace.s6,
-                        IqSpace.s4,
-                        IqSpace.s4,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            widget.title,
-                            style: IqText.display.copyWith(color: IqColors.fg),
-                          ),
-                          if (caption != null) ...[
-                            const SizedBox(height: IqSpace.s1p5),
-                            Shake(
-                              trigger: _missing,
-                              child: Text(
-                                caption,
-                                style: IqText.body.copyWith(
-                                  color: IqColors.fg2,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: IqSpace.s5),
-                          ] else
-                            const SizedBox(height: IqSpace.s6),
-                          PushTrail(child: widget.child),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Padding(
+                  child: StepMarkChrome(step: widget.step),
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(
                       IqSpace.s4,
                       IqSpace.s4,
                       IqSpace.s4,
-                      28,
+                      IqSpace.s4,
                     ),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        ChromeHero(
-                          tag: ChromeTags.skip,
-                          child: IqButton(
-                            label: 'Skip',
-                            kind: IqButtonKind.ghost,
-                            showIcon: false,
-                            width: 45,
-                            onTap: widget.onSkip,
+                        Semantics(
+                          liveRegion: true,
+                          child: IqBanner(
+                            kind: IqBannerKind.error,
+                            title: _banner,
+                            showAction: false,
+                            visible: banner != null,
+                            margin: const EdgeInsets.only(bottom: IqSpace.s6),
                           ),
                         ),
-                        const Spacer(),
-                        ChromeHero(
-                          tag: ChromeTags.next,
-                          shuttle: ChromeHero.crossfade(IqNextFab.lit),
-                          child: IqNextFab(
-                            state: widget.nextEnabled
-                                ? IqNextFabState.enabled
-                                : IqNextFabState.disabled,
-                            semanticLabel: widget.nextLabel,
-                            onTap: widget.onNext,
-                            onTapDisabled: caption == null
-                                ? null
-                                : () => setState(() => _missing++),
+                        if (caption != null) const SizedBox(height: IqSpace.s2),
+                        Semantics(
+                          header: true,
+                          child: Text(
+                            widget.title,
+                            style: IqText.display.copyWith(color: IqColors.fg),
                           ),
                         ),
+                        if (caption != null) ...[
+                          const SizedBox(height: IqSpace.s1p5),
+                          Shake(
+                            trigger: _missing,
+                            child: Text(
+                              caption,
+                              style: IqText.body.copyWith(color: IqColors.fg2),
+                            ),
+                          ),
+                          const SizedBox(height: IqSpace.s5),
+                        ] else
+                          const SizedBox(height: IqSpace.s6),
+                        PushTrail(child: widget.child),
                       ],
                     ),
                   ),
-                ],
-              ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    IqSpace.s4,
+                    IqSpace.s3,
+                    IqSpace.s4,
+                    IqSpace.s6,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ChromeHero(
+                        tag: ChromeTags.next,
+                        child: _Next(
+                          label: widget.nextLabel,
+                          enabled: widget.nextEnabled,
+                          onTap: widget.onNext,
+                          onTapDisabled: caption == null
+                              ? null
+                              : () => setState(() => _missing++),
+                        ),
+                      ),
+                      ChromeHero(
+                        tag: ChromeTags.skip,
+                        child: GhostAction(
+                          label: 'Skip for now',
+                          onTap: widget.onSkip,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -209,135 +196,109 @@ class _OnboardingStepScaffoldState extends State<OnboardingStepScaffold> {
   }
 }
 
-/// Autosave is a check, never a sentence (brief section 0). Motion
-/// (MOTION-SPEC 5.10): the step's first save stamps it in, .6 to 1 with a
-/// small overshoot (200 ms); each later save, a new [answer], re-stamps it
-/// from 1.15 (160 ease-out); a cleared answer fades it out (150 ease-in).
-/// Reduced motion: it shows and goes at once.
-class AutosaveCheck extends StatefulWidget {
-  const AutosaveCheck({super.key, required this.saved, this.answer});
+/// The step's primary button. Off, it still takes a tap so the step can
+/// say what is missing.
+class _Next extends StatelessWidget {
+  const _Next({
+    required this.label,
+    required this.enabled,
+    required this.onTap,
+    this.onTapDisabled,
+  });
 
-  final bool saved;
-  final Object? answer;
-
-  static const duration = IqDurations.swap;
-
-  /// Whether [look] (an [AutosaveCheck]) shows the check.
-  static bool shows(Widget look) => (look as AutosaveCheck).saved;
-
-  @override
-  State<AutosaveCheck> createState() => _AutosaveCheckState();
-}
-
-class _AutosaveCheckState extends State<AutosaveCheck>
-    with TickerProviderStateMixin {
-  late final _pop = AnimationController(
-    vsync: this,
-    duration: AutosaveCheck.duration,
-    value: widget.saved ? 1 : 0,
-  );
-  late final _scale = _pop.drive(
-    Tween<double>(
-      begin: IqScale.pop,
-      end: 1,
-    ).chain(CurveTween(curve: IqCurves.stamp)),
-  );
-  late final _opacity = _pop.drive(
-    CurveTween(curve: const Interval(0, 0.5, curve: IqCurves.easeOut)),
-  );
-  late final _restamp = AnimationController(
-    vsync: this,
-    duration: IqDurations.tick,
-    value: 1,
-  );
-  late final _land = _restamp.drive(
-    Tween<double>(
-      begin: IqScale.stampLand,
-      end: 1,
-    ).chain(CurveTween(curve: IqCurves.easeOut)),
-  );
-
-  @override
-  void didUpdateWidget(AutosaveCheck old) {
-    super.didUpdateWidget(old);
-    final reduced = MediaQuery.disableAnimationsOf(context);
-    if (widget.saved != old.saved) {
-      if (reduced) {
-        _pop.value = widget.saved ? 1 : 0;
-      } else if (widget.saved) {
-        _pop.forward(from: 0);
-      }
-    } else if (widget.saved && widget.answer != old.answer && !reduced) {
-      _restamp.forward(from: 0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _pop.dispose();
-    _restamp.dispose();
-    super.dispose();
-  }
+  final String label;
+  final bool enabled;
+  final VoidCallback onTap;
+  final VoidCallback? onTapDisabled;
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      label: widget.saved ? 'Saved' : null,
-      child: AnimatedOpacity(
-        opacity: widget.saved ? 1 : 0,
-        duration: widget.saved
-            ? Duration.zero
-            : motion(context, IqDurations.crossfade),
-        curve: IqCurves.easeIn,
-        child: FadeTransition(
-          opacity: _opacity,
-          child: ScaleTransition(
-            scale: _scale,
-            child: ScaleTransition(
-              scale: _land,
-              child: const IqIcon(IqIcons.check, size: 20, color: IqColors.ok),
-            ),
-          ),
-        ),
-      ),
+    final button = IqButton(
+      label: label,
+      showIcon: false,
+      width: double.infinity,
+      disabled: !enabled,
+      onTap: onTap,
+    );
+    final onTapDisabled = this.onTapDisabled;
+    if (enabled || onTapDisabled == null) return button;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTapDisabled,
+      child: button,
     );
   }
 }
 
-/// Welcome, Resume and Done: an illustration, a mono eyebrow and a display
-/// title over the content, with full-width actions at the foot.
+/// The Figma "group" around Exp/ListRows (188:8099, 188:8570): card fill,
+/// a 1 pt line stroke and 16 corners, the rows inset by the stroke.
+class OnboardingGroup extends StatelessWidget {
+  const OnboardingGroup({super.key, required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: IqColors.card,
+        border: Border.all(color: IqColors.line),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      clipBehavior: Clip.antiAlias,
+      padding: const EdgeInsets.all(1),
+      child: Column(mainAxisSize: MainAxisSize.min, children: children),
+    );
+  }
+}
+
+/// Welcome, Resume and Done (188:8099, 188:8443, 188:8490): an Exp/Figure
+/// hero 24 under the status bar, a Mob/Display title and the content, with
+/// full-width actions at the foot (primary over a 44 pt ghost, 8 apart).
 ///
-/// Motion (MOTION-SPEC 6.11, 6.17, 5.32): the screen's entrance runs on one
-/// controller of [entrance]: the eyebrow appears at +80 and the title at
-/// +120, and the screen sets its own illustration and content beats; the
-/// actions come with the page. A screen come back to stands still.
+/// Motion (MOTION-SPEC 6.11, 6.17, 5.32): one controller of [entrance]: the
+/// figure rises in at 0, the title appears at +120 and the screen sets its
+/// own content beats; the actions come with the page. A screen come back to
+/// stands still.
 class OnboardingHeroScaffold extends StatelessWidget {
   const OnboardingHeroScaffold({
     super.key,
-    required this.hero,
-    required this.eyebrow,
+    required this.figure,
     required this.title,
     required this.content,
-    required this.actions,
-    this.gap = IqSpace.s4,
+    required this.primary,
+    required this.onPrimary,
+    this.ghost,
+    this.onGhost,
+    this.heroHeight = 208,
+    this.figureTop = IqSpace.s2,
+    this.titleGap = IqSpace.s4,
     this.entrance,
   });
 
-  final Widget hero;
-  final String eyebrow;
+  final IqFigures figure;
   final String title;
   final List<Widget> content;
-  final List<Widget> actions;
+  final String primary;
+  final VoidCallback onPrimary;
+  final String? ghost;
+  final VoidCallback? onGhost;
 
-  /// Space between the stacked blocks: 16 on Welcome and Resume, 12 on Done.
-  final double gap;
+  /// The hero slot; the figure (188 x 200) is clipped to it (Done is 171).
+  final double heroHeight;
+  final double figureTop;
+  final double titleGap;
 
   /// How long the entrance runs, to the end of its last beat; by default
   /// the end of a line appearing at +160.
   final Duration? entrance;
 
+  static const double figureWidth = 188.24;
+
   @override
   Widget build(BuildContext context) {
+    final ghost = this.ghost;
+    final arriving = arrivalOf(context) == NavDirection.forward;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
@@ -361,33 +322,41 @@ class OnboardingHeroScaffold extends StatelessWidget {
                       length:
                           entrance ??
                           IqMomentTiming.bodyAt + IqDurations.appear,
-                      play: arrivalOf(context) == NavDirection.forward,
+                      play: arriving,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          hero,
-                          SizedBox(height: gap),
-                          Beat(
-                            at: IqMomentTiming.eyebrowAt,
-                            child: Text(
-                              eyebrow.toUpperCase(),
-                              style: IqText.mono.copyWith(color: IqColors.fg2),
-                            ),
-                          ),
-                          SizedBox(height: gap),
-                          Beat(
-                            at: IqMomentTiming.titleAt,
-                            child: Text(
-                              title,
-                              style: IqText.display.copyWith(
-                                color: IqColors.fg,
+                          SizedBox(
+                            height: heroHeight,
+                            child: ClipRect(
+                              child: OverflowBox(
+                                alignment: Alignment.topCenter,
+                                maxHeight: double.infinity,
+                                child: Padding(
+                                  padding: EdgeInsets.only(top: figureTop),
+                                  child: IqFigure(
+                                    figure,
+                                    width: figureWidth,
+                                    arrive: arriving,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
-                          for (final child in content) ...[
-                            SizedBox(height: gap),
-                            child,
-                          ],
+                          SizedBox(height: titleGap),
+                          Beat(
+                            at: IqMomentTiming.titleAt,
+                            child: Semantics(
+                              header: true,
+                              child: Text(
+                                title,
+                                style: IqText.display.copyWith(
+                                  color: IqColors.fg,
+                                ),
+                              ),
+                            ),
+                          ),
+                          ...content,
                         ],
                       ),
                     ),
@@ -404,9 +373,15 @@ class OnboardingHeroScaffold extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      for (var i = 0; i < actions.length; i++) ...[
-                        if (i > 0) const SizedBox(height: IqSpace.s2),
-                        actions[i],
+                      IqButton(
+                        label: primary,
+                        showIcon: false,
+                        width: double.infinity,
+                        onTap: onPrimary,
+                      ),
+                      if (ghost != null) ...[
+                        const SizedBox(height: IqSpace.s2),
+                        GhostAction(label: ghost, onTap: onGhost ?? () {}),
                       ],
                     ],
                   ),
@@ -419,12 +394,3 @@ class OnboardingHeroScaffold extends StatelessWidget {
     );
   }
 }
-
-/// How a moment's illustration comes in: its entrance on a fresh arrival,
-/// none on a screen come back to.
-IqIllustrationEntrance heroEntrance(
-  BuildContext context, [
-  IqIllustrationEntrance entrance = IqIllustrationEntrance.rise,
-]) => arrivalOf(context) == NavDirection.forward
-    ? entrance
-    : IqIllustrationEntrance.none;
