@@ -4,32 +4,31 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/deadline.dart';
-import '../../core/money.dart';
 import '../../core/motion.dart';
-import '../../core/relative_time.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
+import '../../ui/brief_hero.dart';
 import '../../ui/button.dart';
+import '../../ui/meta.dart';
 import '../../ui/skeleton.dart';
 import '../../ui/top_bar.dart';
-import 'submission_widgets.dart';
+import 'brief_art.dart';
 import 'submissions_state.dart';
 
-/// B4 Submission detail (35:146).
-///
-/// Motion (spec 6.30, 4.3, 4.4): the push brings the row's status marker
-/// into the header as a shared element, while the title, brief line,
-/// facts, answer and hint settle 40 ms apart; back flies the marker home.
-/// From a row or from the sent moment the submission is already on the
-/// device, so it draws from the first frame; only a cold open waits
-/// behind LoadingGate. The Page bar holds its back button across a push to
-/// the brief.
+/// B4 Submission detail (35:146), a sub page: the brief's photo with the
+/// business logo, who it is for and the status, your title, when you sent
+/// it and the brief, the pool and deadline, your answer and when results
+/// come. View the brief opens Brief detail. From a card the submission is
+/// already on the device, so it draws from the first frame; only a cold
+/// open waits behind LoadingGate.
 class SubmissionDetailScreen extends ConsumerWidget {
   const SubmissionDetailScreen({super.key, required this.id});
 
   final String id;
+
+  static const double heroHeight = 160;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -74,6 +73,7 @@ class SubmissionDetailScreen extends ConsumerWidget {
                     child: IqButton(
                       label: 'View the brief',
                       kind: IqButtonKind.secondary,
+                      showIcon: false,
                       width: double.infinity,
                       onTap: () => context.push(
                         Routes.brief(item.submission.briefId),
@@ -90,38 +90,42 @@ class SubmissionDetailScreen extends ConsumerWidget {
   }
 }
 
-/// The detail's lines while a cold open loads: the status, the title, the
-/// brief line and the three facts.
 class _Skeleton extends StatelessWidget {
   const _Skeleton();
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(IqSpace.s4, IqSpace.s2, IqSpace.s4, 0),
-      child: LayoutBuilder(
-        builder: (context, box) {
-          Widget line(double share) => IqSkeleton(
-            kind: IqSkeletonKind.line,
-            width: box.maxWidth * share,
-          );
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              line(0.3),
-              const SizedBox(height: IqSpace.s3),
-              line(1),
-              const SizedBox(height: IqSpace.s2),
-              line(0.7),
-              const SizedBox(height: IqSpace.s6),
-              for (var i = 0; i < 3; i++) ...[
-                line(1),
-                const SizedBox(height: IqSpace.s6),
-              ],
-            ],
-          );
-        },
-      ),
+    return LayoutBuilder(
+      builder: (context, box) {
+        Widget line(double share) => IqSkeleton(
+          kind: IqSkeletonKind.line,
+          width: (box.maxWidth - IqSpace.s8) * share,
+        );
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: SubmissionDetailScreen.heroHeight),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                IqSpace.s4,
+                IqSpace.s8,
+                IqSpace.s4,
+                0,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  line(0.3),
+                  const SizedBox(height: IqSpace.s3),
+                  line(1),
+                  const SizedBox(height: IqSpace.s2),
+                  line(0.7),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -135,110 +139,133 @@ class _Body extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final brief = item.brief;
-    final business = brief?.businessName ?? 'the business';
+    Widget gap() => const SizedBox(height: IqSpace.s3);
     return Stagger(
       move: StaggerMove.settle,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: IqSpace.s2),
-            SubmissionStatusHero(id: item.id, status: item.status, wipe: false),
-            const SizedBox(height: IqSpace.s2),
-            StaggerItem(
-              index: 0,
-              child: Text(
-                item.submission.title,
-                style: IqText.title.copyWith(color: IqColors.fg),
-              ),
+            IqBriefHero(
+              height: SubmissionDetailScreen.heroHeight,
+              showDots: false,
+              cover: briefCover(brief),
+              logo: briefLogo(brief),
             ),
-            const SizedBox(height: IqSpace.s2),
-            StaggerItem(
-              index: 1,
-              child: Text(
-                item.briefLine,
-                style: IqText.small.copyWith(color: IqColors.fg2),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                IqSpace.s4,
+                0,
+                IqSpace.s4,
+                IqSpace.s6,
               ),
-            ),
-            const SizedBox(height: IqSpace.s6),
-            StaggerItem(
-              index: 2,
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _Fact('Sent', timeAgo(item.submission.createdAt, now)),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 66),
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            brief?.businessName ?? 'Private business',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: IqText.smallStrong.copyWith(
+                              color: IqColors.fg,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: IqSpace.s2p5),
+                        IqMeta(kind: IqMetaKind.time, label: item.status.label),
+                      ],
+                    ),
+                  ),
+                  gap(),
+                  StaggerItem(
+                    index: 0,
+                    child: Text(
+                      item.submission.title,
+                      style: IqText.headline.copyWith(color: IqColors.fg),
+                    ),
+                  ),
+                  gap(),
+                  StaggerItem(
+                    index: 1,
+                    child: Text(
+                      [
+                        sentAgo(item.submission.createdAt, now),
+                        if (brief != null) 'For: ${brief.title}',
+                      ].join(' · '),
+                      style: IqText.small.copyWith(color: IqColors.fg3),
+                    ),
+                  ),
                   if (brief != null) ...[
-                    const Hairline(),
-                    _Fact('Reward pool', rewardPool(brief.rewardPoolKobo)),
-                    const Hairline(),
-                    _Fact(
-                      'Brief closes',
-                      closesInWords(
-                        timeLeft(brief.deadline, now),
-                        closed: !brief.isLive,
+                    gap(),
+                    StaggerItem(
+                      index: 2,
+                      child: Row(
+                        children: [
+                          IqMeta(
+                            kind: IqMetaKind.reward,
+                            label: nairaShort(brief.rewardPoolKobo),
+                          ),
+                          const SizedBox(width: IqSpace.s1p5),
+                          IqMeta(
+                            kind: IqMetaKind.deadline,
+                            label: closesIn(
+                              timeLeft(brief.deadline, now),
+                              closed: !brief.isLive,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  gap(),
+                  StaggerItem(
+                    index: 3,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: IqSpace.s4,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: IqColors.line),
+                        borderRadius: BorderRadius.circular(IqRadius.xl2),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Your answer',
+                            style: IqText.smallStrong.copyWith(
+                              color: IqColors.fg3,
+                            ),
+                          ),
+                          const SizedBox(height: IqSpace.s1p5),
+                          Text(
+                            item.submission.body,
+                            style: IqText.body.copyWith(color: IqColors.fg),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (item.underReview) ...[
+                    gap(),
+                    StaggerItem(
+                      index: 4,
+                      child: Text(
+                        'Results after the brief closes.',
+                        style: IqText.small.copyWith(color: IqColors.fg3),
                       ),
                     ),
                   ],
                 ],
               ),
             ),
-            const SizedBox(height: IqSpace.s4),
-            StaggerItem(
-              index: 3,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Your answer'.toUpperCase(),
-                    style: IqText.mono.copyWith(color: IqColors.fg3),
-                  ),
-                  const SizedBox(height: IqSpace.s2),
-                  Text(
-                    item.submission.body,
-                    style: IqText.body.copyWith(color: IqColors.fg),
-                  ),
-                ],
-              ),
-            ),
-            if (item.underReview) ...[
-              const SizedBox(height: IqSpace.s4),
-              StaggerItem(
-                index: 4,
-                child: Text(
-                  'Results land here when $business decides.',
-                  style: IqText.small.copyWith(color: IqColors.fg3),
-                ),
-              ),
-            ],
-            const SizedBox(height: IqSpace.s4),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Fact extends StatelessWidget {
-  const _Fact(this.label, this.value);
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return MergeSemantics(
-      child: SizedBox(
-        height: 43,
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                label.toUpperCase(),
-                style: IqText.mono.copyWith(color: IqColors.fg3),
-              ),
-            ),
-            const SizedBox(width: IqSpace.s3),
-            Text(value, style: IqText.figureSmall.copyWith(color: IqColors.fg)),
           ],
         ),
       ),

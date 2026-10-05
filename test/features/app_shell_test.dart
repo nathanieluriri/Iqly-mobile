@@ -39,7 +39,7 @@ void main() {
     await _tab(tester, 'Submissions');
     expect(find.byType(MySubmissionsScreen), findsOneWidget);
     expect(find.byType(HomeScreen), findsNothing);
-    _position(tester, MySubmissionsScreen).jumpTo(120);
+    await tester.tap(find.text('Winners · 2'));
     await tester.pumpAndSettle();
 
     await _tab(tester, 'Wallet');
@@ -54,7 +54,7 @@ void main() {
     expect(_position(tester, HomeScreen).pixels, 600);
 
     await _tab(tester, 'Submissions');
-    expect(_position(tester, MySubmissionsScreen).pixels, 120);
+    expect(find.text('₦62,500.00 won from 2 briefs'), findsOneWidget);
 
     await _tab(tester, 'Discover');
     _position(tester, HomeScreen).jumpTo(0);

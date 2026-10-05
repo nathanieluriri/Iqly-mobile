@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/discover/discover_state.dart';
+import 'package:iqly_mobile/features/submissions/submission_widgets.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/dock.dart';
 
@@ -97,15 +98,15 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.text('LOADING…'), findsNothing);
+    expect(find.byType(SkeletonSubmissionCard), findsNothing);
     await _at(tester, tap, 301);
-    expect(find.text('LOADING…'), findsOneWidget);
+    expect(find.byType(SkeletonSubmissionCard), findsWidgets);
     await _at(tester, tap, 1199);
     expect(find.text('Bring the shop to the hostel'), findsNothing);
     await _at(tester, tap, 1201);
     await tester.pumpAndSettle();
     expect(find.text('Bring the shop to the hostel'), findsOneWidget);
-    expect(find.text('LOADING…'), findsNothing);
+    expect(find.byType(SkeletonSubmissionCard), findsNothing);
   });
 }
 
