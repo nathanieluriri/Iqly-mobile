@@ -46,8 +46,8 @@ void main() {
     expect(find.text('Wallet'), findsWidgets);
     expect(find.byType(MySubmissionsScreen), findsNothing);
 
-    await _tab(tester, 'Profile');
-    expect(find.text('Profile'), findsWidgets);
+    await _tab(tester, 'More');
+    expect(find.text('More'), findsWidgets);
 
     await _tab(tester, 'Discover');
     expect(find.byType(HomeScreen), findsOneWidget);

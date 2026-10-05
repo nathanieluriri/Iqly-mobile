@@ -190,7 +190,7 @@ void main() {
       final row = find.byType(IqActivityRowWithdrawal).first;
       expect(_arrive(tester, hero), closeTo(_eo(0.5), 0.01));
       expect(_arrive(tester, row), closeTo(_eo(0.5), 0.01));
-      expect(tester.getTopLeft(hero).dy, 150);
+      expect(tester.getTopLeft(hero).dy, 114);
       await tester.pump(_ms * 76);
       expect(_arrive(tester, row), 1);
     });

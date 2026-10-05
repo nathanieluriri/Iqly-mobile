@@ -13,7 +13,7 @@ void main() {
       tester,
       'chat_bubble_you',
       const SizedBox(width: 358, child: IqChatBubble()),
-      size: const Size(358, 110),
+      size: const Size(358, 114),
     );
   });
 
@@ -32,7 +32,7 @@ void main() {
           time: 'Today, 3:05 pm',
         ),
       ),
-      size: const Size(358, 167),
+      size: const Size(358, 171),
     );
   });
 
@@ -43,7 +43,7 @@ void main() {
       stillMotion(
         const SizedBox(width: 358, child: IqChatBubble(showAttachment: true)),
       ),
-      size: const Size(358, 387),
+      size: const Size(358, 391),
     );
   });
 

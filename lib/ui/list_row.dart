@@ -19,6 +19,7 @@ enum IqListRowTone { standard, danger }
 /// Figma over brief: a Danger tone exists (red tile and label, no chevron).
 /// Figma over brief: the Icon prop is an instance swap.
 /// Figma over its description: rows are 64 tall, not 56.
+/// Figma over brief: the tile glyph is brand ink, not primary.
 class IqListRow extends StatelessWidget {
   const IqListRow({
     super.key,
@@ -74,7 +75,7 @@ class IqListRow extends StatelessWidget {
                     child: IqIcon(
                       icon ?? (danger ? IqIcons.close : IqIcons.profile),
                       size: 22,
-                      color: danger ? IqColors.err : IqColors.primary,
+                      color: danger ? IqColors.err : IqColors.brand,
                     ),
                   ),
                   const SizedBox(width: 14),

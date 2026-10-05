@@ -18,7 +18,7 @@ enum IqPullIndicatorState { pull, refreshing, done }
 /// in place over 120 ms, so one indicator serves the whole refresh (spec
 /// 4.6, 5.16).
 ///
-/// Figma over brief: the Pull arrow and Done check are plain vectors, not brush icons; Done reads "UP TO DATE · <time>" in Color/ok.
+/// Figma over brief: the Pull arrow and Done check are plain vectors, not brush icons; Done reads "Up to date · <time>" in Color/ok. Labels are Mob/Small strong in sentence case since the 5 Oct update.
 /// Build extension: the armed arrow turn and the state crossfades.
 class IqPullIndicator extends StatefulWidget {
   const IqPullIndicator({
@@ -176,11 +176,11 @@ class _IqPullIndicatorState extends State<IqPullIndicator>
             const SizedBox(width: IqSpace.s2),
             Flexible(
               child: Text(
-                label.toUpperCase(),
+                label,
                 maxLines: 1,
                 softWrap: false,
                 overflow: TextOverflow.ellipsis,
-                style: IqText.mono.copyWith(color: ink),
+                style: IqText.smallStrong.copyWith(color: ink),
               ),
             ),
           ],

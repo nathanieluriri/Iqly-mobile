@@ -14,8 +14,8 @@ enum IqFieldState { empty, active, valid, error }
 /// Figma Size=Default is [standard].
 enum IqFieldSize { standard, large }
 
-/// Exp/Field: the one text entry component, a mono label over the value, a
-/// brush underline and a help line. Text wraps a real [TextField]; [value]
+/// Exp/Field: the one text entry component, a Mob/Label label over the
+/// value, an underline and a help line. Text wraps a real [TextField]; [value]
 /// is the placeholder Figma shows in the Empty state. [state] forces a look;
 /// left null (or Empty) the field turns Active while it has focus. Picker is
 /// a tap target that opens the caller's sheet through [onTap].
@@ -24,6 +24,9 @@ enum IqFieldSize { standard, large }
 /// Figma over brief: the mock caret is on Size=Large Active only (a focused field still shows the live cursor).
 /// Figma over brief: Picker Valid hides the help line.
 /// Figma over brief: the Active label is Color/primary, the Error label Color/err-strong.
+/// Figma over brief: since the 5 Oct update the label is Mob/Label in
+/// sentence case (not mono caps) and Active draws a straight 2 pt accent
+/// line, not the brush; Error keeps the err brush.
 /// Screens hide the status icon and the note on some Valid instances (B0
 /// Your name, Sign in): [showStatus] and [showNote] carry those overrides.
 ///
@@ -201,11 +204,11 @@ class _IqFieldState extends State<IqField> {
       duration: colour,
       curve: IqCurves.easeOut,
       builder: (context, color, _) => Text(
-        (_isText ? widget.label : widget.pickerLabel).toUpperCase(),
+        _isText ? widget.label : widget.pickerLabel,
         maxLines: 1,
         softWrap: false,
         overflow: TextOverflow.ellipsis,
-        style: IqText.mono.copyWith(color: color ?? labelColor),
+        style: IqText.label.copyWith(color: color ?? labelColor),
       ),
     );
 
@@ -441,8 +444,37 @@ class _Brush extends StatelessWidget {
           ? const SizedBox.shrink(key: ValueKey('none'))
           : Wipe(
               key: ValueKey(state),
-              child: IqVector('assets/vectors/field-stroke.svg', color: color),
+              child: state == IqFieldState.active
+                  ? const _FocusLine()
+                  : IqVector('assets/vectors/field-stroke.svg', color: color),
             ),
+    );
+  }
+}
+
+/// Figma's Active focus-line: a 2 pt accent rule 4 below the underline top,
+/// which sits 2.86 into the brush box.
+class _FocusLine extends StatelessWidget {
+  const _FocusLine();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Positioned(
+          left: 0,
+          right: 0,
+          top: 2.86,
+          height: 2,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: IqColors.accent,
+              borderRadius: BorderRadius.circular(1),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -39,9 +39,9 @@ void main() {
     );
     final card = tester.getRect(find.byType(IqTipCard));
     final action = tester.getRect(find.text('OK, got it'));
-    // 36 + three title lines of 34 + 20 + hairline + 20 + 18 + 28.
-    expect(card.height, 225);
-    expect(action.top - card.top, 179);
+    // 36 + three title lines of 35.84 + 20 + hairline + 20 + 18 + 28.
+    expect(card.height, closeTo(230.5, 0.5));
+    expect(action.top - card.top, closeTo(184.5, 0.5));
     expect(card.bottom - action.bottom, 28);
   });
 

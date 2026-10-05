@@ -4,18 +4,23 @@ import 'package:flutter/scheduler.dart';
 import '../core/motion.dart';
 import '../core/transitions.dart';
 import '../theme/theme.dart';
+import 'gift_button.dart';
 import 'icon.dart';
 import 'pressable.dart';
+import 'wallet_chip.dart';
 
 enum IqTopBarVariant { home, page, sheet }
 
-/// Exp/TopBar. Home: greeting, display title and the bell with an unread
-/// count. Page: round back, centred title, optional trailing action. Sheet:
+/// Exp/TopBar. Home: the headline title, the wallet chip, the gift and the
+/// bell with an unread count, on one 44 row. Page: round back, centred title, optional trailing action. Sheet:
 /// grabber, title and a 44 pt close. Fills the width; the status bar and
 /// safe area belong to the screen.
 ///
 /// [showBack] carries the screens whose Page bar has no back layer (B5
 /// Withdrawal pending): the title then centres from the left padding.
+///
+/// Figma over brief: Home is 60 tall now; the greeting is a hidden layer
+/// ([showGreeting]) and the title is Mob/Headline, not Mob/Display.
 ///
 /// Motion (spec 5.22, 5.18, 4.3; build extension): the round buttons fill
 /// panel while pressed (100 ms, back in 160); a new greeting crossfades in
@@ -33,11 +38,18 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
     this.greeting = 'Good afternoon, Adaeze',
     this.count = '2',
     this.showCount = true,
+    this.showGreeting = false,
+    this.showWallet = true,
+    this.walletAmount = '₦12,500',
+    this.showGift = false,
+    this.giftTwinkle = false,
     this.showTrailing = false,
     this.showBack = true,
     this.trailingIcon = IqIcons.filter,
     this.trailingLabel = 'Filter',
     this.onBell,
+    this.onWallet,
+    this.onGift,
     this.onBack,
     this.onTrailing,
     this.onClose,
@@ -48,6 +60,13 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
   final String greeting;
   final String count;
   final bool showCount;
+  final bool showGreeting;
+  final bool showWallet;
+  final String walletAmount;
+  final bool showGift;
+
+  /// Runs the gift's one twinkle (designer answer 32); the screen decides.
+  final bool giftTwinkle;
   final bool showTrailing;
   final bool showBack;
   final IqIcons trailingIcon;
@@ -55,6 +74,8 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
   /// Screen reader label for the trailing action; match it to [trailingIcon].
   final String trailingLabel;
   final VoidCallback? onBell;
+  final VoidCallback? onWallet;
+  final VoidCallback? onGift;
   final VoidCallback? onBack;
   final VoidCallback? onTrailing;
   final VoidCallback? onClose;
@@ -112,7 +133,7 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Size get preferredSize => Size.fromHeight(switch (variant) {
-    IqTopBarVariant.home => 96,
+    IqTopBarVariant.home => 60,
     IqTopBarVariant.page => 56,
     IqTopBarVariant.sheet => 76,
   });
@@ -151,40 +172,48 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
         horizontal: IqSpace.s5,
         vertical: IqSpace.s2,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Expanded(child: _Greeting(greeting)),
-              _RoundButton(
-                onTap: onBell,
-                semanticLabel: 'Notifications',
-                fill: IqColors.card,
-                stroke: IqColors.line,
-                radius: 22,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  alignment: Alignment.center,
-                  children: [
-                    const IqIcon(IqIcons.bell, size: 24, color: IqColors.brand),
-                    Positioned(
-                      left: 16,
-                      top: -14,
-                      child: _Badge(count: count, shown: showCount),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              style: IqText.headline.copyWith(color: IqColors.brand),
+            ),
           ),
-          const SizedBox(height: IqSpace.s0p5),
-          Text(
-            title,
-            maxLines: 1,
-            softWrap: false,
-            overflow: TextOverflow.ellipsis,
-            style: IqText.display.copyWith(color: IqColors.brand),
+          if (showGreeting) ...[
+            const SizedBox(width: IqSpace.s2),
+            Flexible(child: _Greeting(greeting)),
+          ],
+          if (showWallet) ...[
+            const SizedBox(width: IqSpace.s2),
+            IqWalletChip(amount: walletAmount, onTap: onWallet),
+          ],
+          if (showGift) ...[
+            const SizedBox(width: IqSpace.s2),
+            IqGiftButton(twinkle: giftTwinkle, onTap: onGift),
+          ],
+          const SizedBox(width: IqSpace.s2),
+          _RoundButton(
+            onTap: onBell,
+            semanticLabel: 'Notifications',
+            fill: IqColors.card,
+            stroke: IqColors.line,
+            radius: 22,
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                const IqIcon(IqIcons.bell, size: 24, color: IqColors.brand),
+                Positioned(
+                  left: 16,
+                  top: -14,
+                  child: _Badge(count: count, shown: showCount),
+                ),
+              ],
+            ),
           ),
         ],
       ),

@@ -15,6 +15,7 @@ dependencies:
   go_router: ^18.0.2
   intl: ^0.20.3
   shared_preferences: ^2.5.5
+  file_picker: ^13.1.0
 
 dev_dependencies:
   flutter_test:
@@ -29,14 +30,17 @@ flutter:
     - assets/brand/
     - assets/icons/
     - assets/illustrations/
+    - assets/samples/avatars/
+    - assets/samples/covers/
+    - assets/samples/logos/
     - assets/splash/
     - assets/vectors/
 
   fonts:
-    - family: Bricolage Grotesque 34pt
+    - family: Bricolage Grotesque 32pt
       fonts:
-        - asset: assets/fonts/BricolageGrotesque-34pt.ttf
-          weight: 800
+        - asset: assets/fonts/BricolageGrotesque-32pt.ttf
+          weight: 700
     - family: Bricolage Grotesque 30pt
       fonts:
         - asset: assets/fonts/BricolageGrotesque-30pt.ttf
@@ -44,7 +48,7 @@ flutter:
     - family: Bricolage Grotesque 28pt
       fonts:
         - asset: assets/fonts/BricolageGrotesque-28pt.ttf
-          weight: 500
+          weight: 700
     - family: Bricolage Grotesque 22pt
       fonts:
         - asset: assets/fonts/BricolageGrotesque-22pt.ttf

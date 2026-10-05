@@ -13,7 +13,9 @@ void main() {
   });
 
   test('every exported icon is in the enum', () {
-    final names = IqIcons.values.map((i) => i.name).toSet();
+    final names = IqIcons.values
+        .map((i) => i.asset.split('/').last.replaceAll('.svg', ''))
+        .toSet();
     final extra = Directory('assets/icons')
         .listSync()
         .whereType<File>()

@@ -8,11 +8,15 @@ import 'vector.dart';
 
 enum IqPollOptionState { standard, selected, result, chosen }
 
-/// Exp/PollOption: one answer on a poll. Before voting it is a brush outline
-/// pill ([onTap] picks it, with the select haptic); Selected is filled ink
-/// with a check. Result and Chosen show the share bar, whose fill stops at
+/// Exp/PollOption: one answer on a poll. Before voting it is a white box
+/// with a line outline ([onTap] picks it, with the select haptic); Selected
+/// is a tint box with a 1.5 pt brand outline and a brand check. Result and Chosen show the share bar, whose fill stops at
 /// [share] (0 to 1) with the Figma 2.4 point soft edge, and the rounded
 /// percentage. Figma State=Default is [IqPollOptionState.standard].
+///
+/// Figma over brief: since the 5 Oct update Default and Selected are plain
+/// 12 radius boxes (no brush, no ink fill); Result and Chosen keep their
+/// brush outline over a 1 pt line box.
 ///
 /// A new state moves in its parts (MOTION-SPEC §5.27): the ground crosses
 /// over, 120 ms for a pick (ink fills in) and 300 for the result looks, the
@@ -59,7 +63,7 @@ class IqPollOption extends StatelessWidget {
       IqPollOptionState.standard ||
       IqPollOptionState.result => IqText.body.copyWith(color: IqColors.fg),
       IqPollOptionState.selected => IqText.bodyStrong.copyWith(
-        color: IqColors.primaryFg,
+        color: IqColors.fg,
       ),
       IqPollOptionState.chosen => IqText.bodyStrong.copyWith(
         color: IqColors.fg,
@@ -156,11 +160,7 @@ class IqPollOption extends StatelessWidget {
           : _pop,
       child: _marked
           ? TweenAnimationBuilder<Color?>(
-              tween: ColorTween(
-                end: state == IqPollOptionState.selected
-                    ? IqColors.primaryFg
-                    : IqColors.brand,
-              ),
+              tween: ColorTween(end: IqColors.brand),
               duration: change,
               curve: IqCurves.easeOut,
               builder: (context, ink, _) =>
@@ -182,22 +182,14 @@ class IqPollOption extends StatelessWidget {
   List<Widget> _ground() {
     switch (state) {
       case IqPollOptionState.standard:
-        return [
-          _outline('assets/vectors/poll-option-outline.svg', IqColors.brand),
-        ];
+        return [_box(IqColors.card, Border.all(color: IqColors.line))];
       case IqPollOptionState.selected:
         return [
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: IqColors.brand,
-                borderRadius: BorderRadius.circular(26),
-              ),
-            ),
-          ),
+          _box(IqColors.tint, Border.all(color: IqColors.brand, width: 1.5)),
         ];
       case IqPollOptionState.result:
         return [
+          _box(null, Border.all(color: IqColors.line)),
           _share(IqColors.panel),
           Positioned(
             left: 0,
@@ -212,11 +204,22 @@ class IqPollOption extends StatelessWidget {
         ];
       case IqPollOptionState.chosen:
         return [
+          _box(null, Border.all(color: IqColors.line)),
           _share(IqColors.accentSoft),
           _outline('assets/vectors/poll-option-outline.svg', IqColors.brand),
         ];
     }
   }
+
+  Widget _box(Color? fill, Border border) => Positioned.fill(
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        color: fill,
+        border: border,
+        borderRadius: BorderRadius.circular(12),
+      ),
+    ),
+  );
 
   Widget _outline(String asset, Color color) => Positioned(
     left: 0,

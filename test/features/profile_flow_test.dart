@@ -85,18 +85,18 @@ void main() {
     expect(find.text(YourDetailsScreen.readyText), findsOneWidget);
     expect(service.details.phone, '+234 809 000 1111');
 
-    await _tap(tester, find.text('STATE OF ORIGIN'));
+    await _tap(tester, find.text('State of origin'));
     expect(find.text('State of origin'), findsWidgets);
     await _tap(tester, find.text('Anambra'));
     expect(find.text('Anambra'), findsOneWidget);
     expect(service.details.stateOfOrigin, 'Anambra');
 
-    await _tap(tester, find.text('GENDER'));
+    await _tap(tester, find.text('Gender'));
     await _tap(tester, find.text('Female'));
     expect(find.text('Female'), findsOneWidget);
     expect(service.details.gender, 'female');
 
-    await _tap(tester, find.text('INTERESTS'));
+    await _tap(tester, find.text('Interests'));
     await _tap(tester, find.text('Technology'));
     await _tap(tester, find.text('Use this'));
     expect(
@@ -115,7 +115,7 @@ void main() {
     expect(container.read(feedInterestsProvider), interests);
     expect(service.answers?.interests, interests);
 
-    await _tap(tester, find.text('STATE OF RESIDENCE'));
+    await _tap(tester, find.text('State of residence'));
     await tester.scrollUntilVisible(
       find.text('Ogun'),
       200,
@@ -127,13 +127,13 @@ void main() {
     expect(container.read(onboardingDraftProvider).profile.state, 'Ogun');
     expect(container.read(onboardingDraftProvider).profile.city, '');
 
-    await _tap(tester, find.text('CITY'));
+    await _tap(tester, find.text('City'));
     await _tap(tester, find.text('Abeokuta'));
     await _tap(tester, find.text('Use this'));
     expect(find.text('Abeokuta'), findsOneWidget);
     expect(container.read(onboardingDraftProvider).profile.city, 'Abeokuta');
 
-    await _tap(tester, find.text('DATE OF BIRTH'));
+    await _tap(tester, find.text('Date of birth'));
     expect(find.text('Date of birth'), findsWidgets);
     await _tap(tester, find.text('Use this'));
     expect(find.text('14 March 1998'), findsOneWidget);
@@ -166,7 +166,7 @@ void main() {
       expect(typing(), isTrue);
       expect(tester.testTextInput.isVisible, isTrue);
 
-      await _tap(tester, find.text('GENDER'));
+      await _tap(tester, find.text('Gender'));
       expect(typing(), isFalse);
       expect(tester.testTextInput.isVisible, isFalse);
       if (pick) {
@@ -175,7 +175,7 @@ void main() {
         await tester.tapAt(const Offset(195, 60));
         await tester.pumpAndSettle();
       }
-      expect(find.text('Gender'), findsNothing);
+      expect(find.text('Gender'), findsOneWidget);
       expect(typing(), isFalse);
       expect(tester.testTextInput.isVisible, isFalse);
     }
@@ -186,7 +186,7 @@ void main() {
     final service = TestProfileService()..fail = true;
     await pumpProfileApp(tester, Routes.yourDetails, service: service);
 
-    await _tap(tester, find.text('GENDER'));
+    await _tap(tester, find.text('Gender'));
     await _tap(tester, find.text('Male'));
     expect(find.text(YourDetailsScreen.errorText), findsOneWidget);
 
@@ -203,7 +203,7 @@ void main() {
   testWidgets('Save changes waits for a save still on its way', (tester) async {
     final service = TestProfileService()..hold = true;
     await pumpProfileApp(tester, Routes.yourDetails, service: service);
-    await _tap(tester, find.text('GENDER'));
+    await _tap(tester, find.text('Gender'));
     await _tap(tester, find.text('Prefer not to say'));
 
     await tester.tap(find.text('Save changes'));
@@ -357,7 +357,7 @@ void main() {
     await _tap(tester, find.bySemanticsLabel('Close'));
     expect(find.byType(WithdrawSheet), findsNothing);
     expect(find.byType(WalletScreen), findsOneWidget);
-    await _tap(tester, find.text('Profile'));
+    await _tap(tester, find.text('More'));
     expect(find.byType(ProfileScreen), findsOneWidget);
 
     await _tap(tester, _bell);

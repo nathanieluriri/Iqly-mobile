@@ -5,6 +5,7 @@ import '../theme/theme.dart';
 import 'highlight.dart';
 import 'icon.dart';
 import 'pressable.dart';
+import 'sample_logo.dart';
 
 enum IqNotificationKind { deadline, spots, result, payout }
 
@@ -19,6 +20,9 @@ enum IqNotificationKind { deadline, spots, result, payout }
 /// ease-in (a cut under reduced motion).
 ///
 /// Figma over brief: adds Divider and the kind-specific detail props.
+/// Figma over brief: since the 5 Oct update the mark is a circle, the time
+/// is Mob/Small (not mono caps), Spots inks brand, and [showLogo] swaps the
+/// glyph for the business logo ([logo]).
 class IqNotification extends StatelessWidget {
   const IqNotification({
     super.key,
@@ -30,6 +34,8 @@ class IqNotification extends StatelessWidget {
     this.when = '2h',
     this.unread = true,
     this.divider = true,
+    this.showLogo = false,
+    this.logo = const IqSampleLogo(IqSampleLogoBrand.sunline),
     this.highlightDelay = Duration.zero,
     this.onTap,
   });
@@ -42,6 +48,8 @@ class IqNotification extends StatelessWidget {
   final String when;
   final bool unread;
   final bool divider;
+  final bool showLogo;
+  final Widget logo;
   final Duration highlightDelay;
   final VoidCallback? onTap;
 
@@ -59,7 +67,7 @@ class IqNotification extends StatelessWidget {
       IqNotificationKind.spots => (
         IqColors.tintStrong,
         IqIcons.polls,
-        IqColors.primary,
+        IqColors.brand,
         IqHighlightTone.lilac,
         '12 spots left',
         detail,
@@ -101,9 +109,11 @@ class IqNotification extends StatelessWidget {
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: markFill,
-                      borderRadius: BorderRadius.circular(12),
+                      shape: BoxShape.circle,
                     ),
-                    child: IqIcon(icon, size: 22, color: iconInk),
+                    child: showLogo
+                        ? ClipOval(child: SizedBox.expand(child: logo))
+                        : IqIcon(icon, size: 22, color: iconInk),
                   ),
                   const SizedBox(width: IqSpace.s3),
                   Expanded(
@@ -132,8 +142,8 @@ class IqNotification extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        when.toUpperCase(),
-                        style: IqText.mono.copyWith(color: IqColors.fg2),
+                        when,
+                        style: IqText.small.copyWith(color: IqColors.fg2),
                       ),
                       const SizedBox(height: IqSpace.s1p5),
                       AnimatedScale(

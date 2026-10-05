@@ -34,6 +34,8 @@ class DiscoverTopBar extends ConsumerWidget {
       count: '$unread',
       showCount: unread > 0,
       onBell: () => context.push(Routes.notifications),
+      showWallet: false,
+      showGreeting: true,
     );
   }
 }
