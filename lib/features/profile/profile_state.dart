@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,13 +21,13 @@ final profileAnswersProvider = Provider<OnboardingProfile>((ref) {
   final draft = ref.watch(onboardingDraftProvider).profile;
   final user = ref.watch(onboardingUserProvider).value;
   final ownPlace = draft.state != null;
-  return OnboardingProfile(
-    occupation: draft.occupation,
+  return draft.copyWith(
+    occupation: draft.occupation ?? user?.occupation,
     state: draft.state ?? user?.state,
     city: ownPlace || draft.city.trim().isNotEmpty
         ? draft.city
         : user?.city ?? '',
-    education: draft.education,
+    education: draft.education ?? user?.education,
     university: draft.university ?? user?.university,
     interests: ref.watch(feedInterestsProvider),
   );
@@ -69,86 +68,35 @@ final accountDetailsProvider =
       AccountDetailsNotifier.new,
     );
 
-enum DetailsSave { idle, pending, saving, failed }
-
-class DetailsSaveState {
-  const DetailsSaveState({this.status = DetailsSave.idle, this.saves = 0});
-
-  final DetailsSave status;
-
-  /// Completed saves; each one pops the autosave check.
-  final int saves;
-
-  bool get settled => status == DetailsSave.idle;
-
-  DetailsSaveState to(DetailsSave status, {bool saved = false}) =>
-      DetailsSaveState(status: status, saves: saves + (saved ? 1 : 0));
+/// An Edit page's Save: [details] and the first-run answers [change]d,
+/// on the device at once and then on the account. Throws when the account
+/// refuses; the device keeps the edit either way.
+Future<void> saveProfile(
+  WidgetRef ref, {
+  AccountDetails Function(AccountDetails details)? details,
+  OnboardingProfile Function(OnboardingProfile answers)? answers,
+}) async {
+  final account = ref.read(accountDetailsProvider.notifier);
+  var current = await ref.read(accountDetailsProvider.future);
+  if (details != null) {
+    current = details(current);
+    account.edit(current);
+  }
+  if (answers != null) {
+    final next = answers(ref.read(profileAnswersProvider));
+    ref.read(onboardingDraftProvider.notifier).setProfile(next);
+  }
+  await ref
+      .read(profileServiceProvider)
+      .saveDetails(current, ref.read(profileAnswersProvider));
 }
 
-/// Your details autosaves: every edit reaches the device at once and the
-/// account shortly after (typing waits for a pause). It outlives the
-/// screen, so leaving mid-save still saves.
-class DetailsSaveNotifier extends Notifier<DetailsSaveState> {
-  Timer? _timer;
-  Future<bool>? _running;
-
-  @override
-  DetailsSaveState build() {
-    ref.onDispose(() => _timer?.cancel());
-    return const DetailsSaveState();
-  }
-
-  void schedule([Duration delay = Duration.zero]) {
-    _timer?.cancel();
-    state = state.to(DetailsSave.pending);
-    _timer = Timer(delay, save);
-  }
-
-  /// True once the account has every edit, including any made meanwhile.
-  Future<bool> save() async {
-    while (true) {
-      _timer?.cancel();
-      _timer = null;
-      final running = _running;
-      if (running != null) {
-        await running;
-        continue;
-      }
-      if (state.status == DetailsSave.idle) return true;
-      final run = _running = _send();
-      final ok = await run;
-      _running = null;
-      if (!ok) return false;
-    }
-  }
-
-  Future<bool> _send() async {
-    state = state.to(DetailsSave.saving);
-    try {
-      final details = await ref.read(accountDetailsProvider.future);
-      final answers = ref.read(profileAnswersProvider);
-      await ref.read(profileServiceProvider).saveDetails(details, answers);
-    } on Exception {
-      state = state.to(DetailsSave.failed);
-      return false;
-    }
-    if (state.status == DetailsSave.saving) {
-      state = state.to(DetailsSave.idle, saved: true);
-    }
-    return true;
-  }
-
-  void reset() {
-    _timer?.cancel();
-    _timer = null;
-    state = const DetailsSaveState();
-  }
+/// Ends the session on the API (not awaited) and forgets the account on
+/// this device.
+Future<void> signOut(WidgetRef ref) async {
+  ref.read(profileServiceProvider).signOut().ignore();
+  await forgetAccount(ref);
 }
-
-final detailsSaveProvider =
-    NotifierProvider<DetailsSaveNotifier, DetailsSaveState>(
-      DetailsSaveNotifier.new,
-    );
 
 final profileBankProvider = FutureProvider<SavedBank?>(
   (ref) => ref.watch(repositoryProvider).savedBank(),
@@ -176,7 +124,6 @@ String interestsLine(List<String> values) => [
 /// answers and the cached details. Sign out and account deletion end here.
 Future<void> forgetAccount(WidgetRef ref) async {
   final session = ref.read(sessionProvider.notifier);
-  ref.read(detailsSaveProvider.notifier).reset();
   ref.read(onboardingDraftProvider.notifier).clear();
   await forgetSubmitDrafts(ref.read(sharedPreferencesProvider));
   await ref.read(accountDetailsProvider.notifier).clear();

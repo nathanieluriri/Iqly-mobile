@@ -1,161 +1,101 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/flags.dart';
-import '../../core/motion.dart';
-import '../../core/responsive.dart';
-import '../../data/profile_service.dart';
-import '../../data/repository.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
+import '../../ui/highlight.dart';
 import '../../ui/icon.dart';
 import '../../ui/list_row.dart';
+import '../../ui/sample_avatar.dart';
 import '../../ui/section_title.dart';
-import '../../ui/top_bar.dart';
-import '../discover/app_shell.dart';
-import '../onboarding/onboarding_draft.dart';
-import 'profile_state.dart';
+import '../more/more_screen.dart';
+import '../more/more_state.dart';
+import '../more/more_widgets.dart';
 
-/// B7 · Profile (40:24), the Profile tab: the name as the title and the
-/// email as the greeting, then Account and Session. Saved briefs,
-/// Notifications and Delete account sit behind their flags. The rows
-/// arrive 40 apart on the first visit in the session (the tab keeps its
-/// state, so revisits do not replay it).
-///
-/// Figma over its own row: Saved briefs has its divider off, so no line
-/// separates it from Notifications.
-/// Figma has no reaction on Sign out; it ends the session and hands off to
-/// the landing (row note: shipped string).
-class ProfileScreen extends ConsumerStatefulWidget {
+/// B7 · Your profile (40:24), trimmed (designer answer 45): the pass header
+/// (avatar, name, email, wins), then Your details, Notification
+/// preferences (Flags.notificationPreferences) and Sign out, which asks on
+/// the Sign out? sheet first.
+class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   @override
-  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
-}
-
-class _ProfileScreenState extends ConsumerState<ProfileScreen> {
-  bool _signingOut = false;
-
-  /// The device forgets the account at once; the API call that ends the
-  /// session there does not hold the hand-off to the landing.
-  Future<void> _signOut() async {
-    if (_signingOut) return;
-    _signingOut = true;
-    ref.read(profileServiceProvider).signOut().ignore();
-    await forgetAccount(ref);
-    if (mounted) context.go(Routes.landing);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final user = ref.watch(onboardingUserProvider).value;
-    final unread = ref.watch(unreadNotificationsProvider).value ?? 0;
-    final bank = ref.watch(profileBankProvider).value;
-
-    final account = [
-      IqListRow(
-        label: 'Your details',
-        description: 'Phone, date of birth, interests',
-        icon: IqIcons.profile,
-        onTap: () => context.push(Routes.yourDetails),
-      ),
-      IqListRow(
-        label: 'Bank account',
-        description: bank == null ? '' : bankLine(bank),
-        showDescription: bank != null,
-        icon: IqIcons.bank,
-        onTap: () => context.go(Routes.withdraw),
-      ),
-      if (Flags.savedBriefs)
-        IqListRow(
-          label: 'Saved briefs',
-          description: 'Available offline',
-          icon: IqIcons.search,
-          divider: false,
-          onTap: () => context.go(Routes.savedBriefs),
-        ),
-      if (Flags.notificationPreferences)
-        IqListRow(
-          label: 'Notifications',
-          description: 'Closing soon, results, payouts',
-          icon: IqIcons.bell,
-          divider: false,
-          onTap: () => context.push(Routes.notificationPreferences),
-        ),
-    ];
-    final session = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const IqSectionTitle(
-          title: 'Session',
-          showCount: false,
-          showLink: false,
-        ),
-        IqListRow(
-          label: 'Sign out',
-          tone: IqListRowTone.danger,
-          showDescription: false,
-          divider: Flags.deleteAccount,
-          onTap: _signOut,
-        ),
-        if (Flags.deleteAccount)
-          IqListRow(
-            label: 'Delete account',
-            tone: IqListRowTone.danger,
-            showDescription: false,
-            divider: false,
-            onTap: () => context.push(Routes.deleteAccount),
-          ),
-      ],
-    );
-    final slots = [
-      const IqSectionTitle(title: 'Account', showCount: false, showLink: false),
-      ...account,
-      session,
-    ];
-
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
-      child: Scaffold(
-        backgroundColor: IqColors.bg,
-        resizeToAvoidBottomInset: false,
-        body: SafeArea(
-          bottom: false,
-          child: CenteredContent(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                IqTopBar(
-                  title: user?.name ?? '',
-                  greeting: user?.email ?? ' ',
-                  count: '$unread',
-                  showCount: unread > 0,
-                  onBell: () => context.push(Routes.notifications),
-                  showWallet: false,
-                  showGreeting: true,
-                ),
-                Expanded(
-                  child: Stagger(
-                    child: ListView(
-                      padding: EdgeInsets.fromLTRB(
-                        IqSpace.s4,
-                        0,
-                        IqSpace.s4,
-                        AppShell.contentInset(context),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pass = ref.watch(contributorPassProvider).value;
+    final wins = pass?.wins ?? 0;
+    return SubPage(
+      title: 'Your profile',
+      body: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
+        children: [
+          SizedBox(
+            height: 81,
+            child: pass == null
+                ? null
+                : Row(
+                    children: [
+                      const IqSampleAvatar(size: 64),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              pass.user.name,
+                              style: IqText.title.copyWith(color: IqColors.fg),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              pass.user.email,
+                              style: IqText.small.copyWith(color: IqColors.fg2),
+                            ),
+                            const SizedBox(height: 2),
+                            IqHighlight(
+                              text: wins == 1
+                                  ? '1 win so far'
+                                  : '$wins wins so far',
+                            ),
+                          ],
+                        ),
                       ),
-                      children: [
-                        for (final (i, slot) in slots.indexed)
-                          StaggerItem(index: i, child: slot),
-                      ],
-                    ),
+                    ],
                   ),
-                ),
-              ],
-            ),
           ),
-        ),
+          const SizedBox(height: IqSpace.s3),
+          const IqSectionTitle(
+            title: 'Account',
+            showCount: false,
+            showLink: false,
+          ),
+          const SizedBox(height: IqSpace.s3),
+          RowGroup(
+            outlined: true,
+            children: [
+              IqListRow(
+                label: 'Your details',
+                description: 'Phone, date of birth, interests',
+                icon: IqIcons.profile,
+                onTap: () => context.push(Routes.yourDetails),
+              ),
+              if (Flags.notificationPreferences)
+                IqListRow(
+                  label: 'Notification preferences',
+                  description: 'Closing soon, results, payouts',
+                  icon: IqIcons.bell,
+                  onTap: () => context.push(Routes.notificationPreferences),
+                ),
+              IqListRow(
+                label: 'Sign out',
+                showDescription: false,
+                icon: IqIcons.logout,
+                onTap: () => confirmSignOut(context, ref),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
