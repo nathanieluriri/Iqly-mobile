@@ -14,8 +14,10 @@ enum IqChatBubbleFrom { you, support }
 /// Exp/VideoPreview, [attachment] to override it).
 ///
 /// A new bubble scales from .96 at its tail corner and fades in, 220 ms
-/// ease-out; the attachment fades in 120 ms after it. Reduced motion: fade
-/// only. Set [animate] false for bubbles already on screen.
+/// ease-out, its time stamp fading in with it; the attachment fades in 120
+/// ms after it. Support's sticker and name stay put: the typing bubble
+/// before a reply already shows them. Reduced motion: fade only. Set
+/// [animate] false for bubbles already on screen.
 ///
 /// Figma over its note: the attachment fills the bubble width (272 or 270)
 /// instead of keeping the master's 358 thumbnail.
@@ -195,7 +197,13 @@ class _IqChatBubbleState extends State<IqChatBubble>
           ),
         ),
         const SizedBox(height: IqSpace.s1p5),
-        Text(widget.time, style: IqText.small.copyWith(color: IqColors.fg3)),
+        FadeTransition(
+          opacity: bubbleIn,
+          child: Text(
+            widget.time,
+            style: IqText.small.copyWith(color: IqColors.fg3),
+          ),
+        ),
       ],
     );
   }

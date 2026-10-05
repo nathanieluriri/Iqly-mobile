@@ -110,7 +110,12 @@ class IqField extends StatefulWidget {
 class _IqFieldState extends State<IqField> {
   FocusNode? _ownFocus;
 
+  TextEditingController? _ownController;
+
   FocusNode get _focus => widget.focusNode ?? (_ownFocus ??= FocusNode());
+
+  TextEditingController get _controller =>
+      widget.controller ?? (_ownController ??= TextEditingController());
 
   @override
   void initState() {
@@ -131,6 +136,7 @@ class _IqFieldState extends State<IqField> {
   void dispose() {
     _focus.removeListener(_onFocus);
     _ownFocus?.dispose();
+    _ownController?.dispose();
     super.dispose();
   }
 
@@ -145,6 +151,82 @@ class _IqFieldState extends State<IqField> {
       return _focus.hasFocus ? IqFieldState.active : IqFieldState.empty;
     }
     return forced ?? IqFieldState.empty;
+  }
+
+  // A TextField cannot end a line in an ellipsis, so at rest a single line
+  // value too wide for the field is painted over the field's transparent
+  // text, as Figma truncates it. The mirror is paint only: finders and
+  // semantics still see the one field.
+  Widget _textValue(String text, TextStyle style) {
+    final canTruncate =
+        widget.maxLines == 1 &&
+        !widget.obscureText &&
+        !_focus.hasFocus &&
+        text.isNotEmpty;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (!canTruncate) return _textStack(text, style, false);
+        final painter = TextPainter(
+          text: TextSpan(text: text, style: style),
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+          maxLines: 1,
+        )..layout(maxWidth: constraints.maxWidth);
+        final overflows = painter.didExceedMaxLines;
+        painter.dispose();
+        return _textStack(text, style, overflows);
+      },
+    );
+  }
+
+  Widget _textStack(String text, TextStyle style, bool atRest) {
+    return Stack(
+      children: [
+        TextField(
+          controller: _controller,
+          focusNode: _focus,
+          onChanged: widget.onChanged,
+          onSubmitted: widget.onSubmitted,
+          keyboardType: widget.keyboardType,
+          textInputAction: widget.textInputAction,
+          inputFormatters: widget.inputFormatters,
+          autofocus: widget.autofocus,
+          obscureText: widget.obscureText,
+          autocorrect: !widget.obscureText,
+          enableSuggestions: !widget.obscureText,
+          autofillHints: widget.autofillHints,
+          maxLines: widget.maxLines,
+          minLines: widget.minLines,
+          style: style.copyWith(
+            color: atRest ? IqColors.fg.withValues(alpha: 0) : IqColors.fg,
+          ),
+          cursorColor: IqColors.brand,
+          cursorWidth: 2,
+          cursorHeight: _large ? 26 : null,
+          decoration: InputDecoration.collapsed(
+            hintText: widget.value,
+            hintStyle: style.copyWith(color: IqColors.fg3),
+          ),
+        ),
+        if (atRest)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: ExcludeSemantics(
+                child: RichText(
+                  text: TextSpan(
+                    text: text,
+                    style: style.copyWith(color: IqColors.fg),
+                  ),
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  textScaler: MediaQuery.textScalerOf(context),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
   @override
@@ -166,29 +248,9 @@ class _IqFieldState extends State<IqField> {
         (!_isText || !_focus.hasFocus);
 
     final valueLine = _isText
-        ? TextField(
-            controller: widget.controller,
-            focusNode: _focus,
-            onChanged: widget.onChanged,
-            onSubmitted: widget.onSubmitted,
-            keyboardType: widget.keyboardType,
-            textInputAction: widget.textInputAction,
-            inputFormatters: widget.inputFormatters,
-            autofocus: widget.autofocus,
-            obscureText: widget.obscureText,
-            autocorrect: !widget.obscureText,
-            enableSuggestions: !widget.obscureText,
-            autofillHints: widget.autofillHints,
-            maxLines: widget.maxLines,
-            minLines: widget.minLines,
-            style: valueStyle.copyWith(color: IqColors.fg),
-            cursorColor: IqColors.brand,
-            cursorWidth: 2,
-            cursorHeight: _large ? 26 : null,
-            decoration: InputDecoration.collapsed(
-              hintText: widget.value,
-              hintStyle: valueStyle.copyWith(color: IqColors.fg3),
-            ),
+        ? ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _controller,
+            builder: (context, value, _) => _textValue(value.text, valueStyle),
           )
         : _PickerValue(
             text: state == IqFieldState.empty

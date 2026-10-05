@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="IqWidgetText">
+        <item name="android:fontFamily">@font/plus_jakarta_sans_regular</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:textColor">@color/iq_fg</item>
+        <item name="android:textSize">13sp</item>
+    </style>
+    <style name="IqWidgetText.Strong">
+        <item name="android:fontFamily">@font/plus_jakarta_sans_semibold</item>
+    </style>
+    <style name="IqWidgetText.Meta">
+        <item name="android:textColor">@color/iq_fg_2</item>
+    </style>
+    <style name="IqWidgetText.Muted">
+        <item name="android:textColor">@color/iq_fg_3</item>
+    </style>
+    <style name="IqWidgetText.Figure">
+        <item name="android:fontFamily">@font/bricolage_grotesque_30pt</item>
+        <item name="android:textSize">30sp</item>
+        <item name="android:letterSpacing">-0.025</item>
+    </style>
+</resources>

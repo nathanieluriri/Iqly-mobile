@@ -7,7 +7,7 @@
 		<key>CFBundleDevelopmentRegion</key>
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>
-		<string>Iqly Mobile</string>
+		<string>iQLY</string>
 		<key>CFBundleExecutable</key>
 		<string>$(EXECUTABLE_NAME)</string>
 		<key>CFBundleIdentifier</key>
@@ -22,9 +22,28 @@
 		<string>$(FLUTTER_BUILD_NAME)</string>
 		<key>CFBundleSignature</key>
 		<string>????</string>
+		<key>CFBundleURLTypes</key>
+		<array>
+			<dict>
+				<key>CFBundleURLName</key>
+				<string>net.iqly.surfaces</string>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>iqly</string>
+				</array>
+			</dict>
+		</array>
 		<key>CFBundleVersion</key>
 		<string>$(FLUTTER_BUILD_NUMBER)</string>
+		<key>FlutterDeepLinkingEnabled</key>
+		<false/>
 		<key>LSRequiresIPhoneOS</key>
+		<true/>
+		<key>NSFaceIDUsageDescription</key>
+		<string>iQLY uses Face ID to confirm it is you before a withdrawal.</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>To add your screen recording. You can change this later in Settings.</string>
+		<key>NSSupportsLiveActivities</key>
 		<true/>
 		<key>UIApplicationSceneManifest</key>
 		<dict>

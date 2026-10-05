@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/core/motion.dart';
+import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/confirm_sheet.dart';
 
 import 'golden.dart';
@@ -42,6 +44,42 @@ void main() {
     await tester.tap(find.text('Keep it'));
     await tester.pumpAndSettle();
     expect(results, [true, false]);
+  });
+
+  testWidgets('showIqConfirmSheet takes confirmKind and rises in 300 ms', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => showIqConfirmSheet(
+                context,
+                confirmLabel: 'Allow photos',
+                confirmKind: IqButtonKind.primary,
+              ),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    final route = ModalRoute.of(
+      tester.element(find.byType(IqConfirmSheet, skipOffstage: false)),
+    )!;
+    expect(route.transitionDuration, IqDurations.sheetRise);
+    expect(route.reverseTransitionDuration, IqDurations.sheetDrop);
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<IqButton>(find.widgetWithText(IqButton, 'Allow photos'))
+          .kind,
+      IqButtonKind.primary,
+    );
   });
 
   testWidgets('a second Remove tap or a scrim tap pops only the sheet', (

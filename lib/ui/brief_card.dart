@@ -17,7 +17,16 @@ enum IqBriefCardKind { feature, carousel, row }
 /// tint under the text and an orange outline; these lead the Briefs list.
 ///
 /// [cover] and [logo] are the Figma instance swaps: any image fills them,
-/// clipped to the Figma frame (the logo to a circle).
+/// clipped to the Figma frame (the logo to a circle). [time] adds the Time
+/// chip ("2 min") after the prize, as Figma orders the facts, unless [meta]
+/// already carries one.
+///
+/// Figma over brief: the closing tint sits under the media, so the logo
+/// stays whole over it.
+///
+/// Figma over the first build: the body grows with a two-line ask (409:91
+/// is 124 tall, 409:95 is 327) and the meta chips wrap, as the Figma meta
+/// frame does.
 class IqBriefCard extends StatelessWidget {
   const IqBriefCard({
     super.key,
@@ -35,6 +44,7 @@ class IqBriefCard extends StatelessWidget {
     this.bookmark = IqBookmarkState.off,
     this.onBookmarkChanged,
     this.closingSoon = false,
+    this.time,
     this.onTap,
   });
 
@@ -48,6 +58,7 @@ class IqBriefCard extends StatelessWidget {
   final IqBookmarkState bookmark;
   final ValueChanged<IqBookmarkState>? onBookmarkChanged;
   final bool closingSoon;
+  final String? time;
   final VoidCallback? onTap;
 
   double get width => kind == IqBriefCardKind.carousel ? 272 : 358;
@@ -96,18 +107,29 @@ class IqBriefCard extends StatelessWidget {
     );
   }
 
+  List<Widget> get _facts {
+    final time = this.time;
+    if (time == null ||
+        meta.any((m) => m is IqMeta && m.kind == IqMetaKind.time)) {
+      return meta;
+    }
+    final at = meta.indexWhere(
+      (m) => !(m is IqMeta && m.kind == IqMetaKind.reward),
+    );
+    return [...meta]..insert(
+      at < 0 ? meta.length : at,
+      IqMeta(kind: IqMetaKind.time, label: time),
+    );
+  }
+
   Widget _metaRow(double top) {
     return Padding(
       padding: EdgeInsets.only(top: top),
-      child: ClipRect(
-        child: Row(
-          children: [
-            for (var i = 0; i < meta.length; i++) ...[
-              if (i > 0) const SizedBox(width: IqSpace.s1p5),
-              meta[i],
-            ],
-          ],
-        ),
+      child: Wrap(
+        spacing: IqSpace.s1p5,
+        runSpacing: IqSpace.s1p5,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: _facts,
       ),
     );
   }
@@ -117,7 +139,7 @@ class IqBriefCard extends StatelessWidget {
     final mediaHeight = feature ? 200.0 : 164.0;
     final bodyHeight = feature ? 107.0 : 127.0;
     final logoSize = feature ? 48.0 : 40.0;
-    return Column(
+    final column = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         CoverWithLogo(
@@ -129,40 +151,51 @@ class IqBriefCard extends StatelessWidget {
           logoInset: 3,
         ),
         Container(
-          height: bodyHeight,
-          color: closingSoon ? IqColors.accentSoft : null,
+          constraints: BoxConstraints(minHeight: bodyHeight),
           padding: const EdgeInsets.fromLTRB(
             IqSpace.s4,
             3,
             IqSpace.s4,
             IqSpace.s4,
           ),
-          child: ClipRect(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: EdgeInsets.only(left: logoSize, bottom: 6),
-                  child: Text(
-                    brand,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: IqText.smallStrong.copyWith(color: IqColors.fg2),
-                  ),
-                ),
-                const SizedBox(height: IqSpace.s1),
-                Text(
-                  title,
-                  maxLines: 2,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: EdgeInsets.only(left: logoSize, bottom: 6),
+                child: Text(
+                  brand,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: IqText.cardTitle.copyWith(color: IqColors.fg),
+                  style: IqText.smallStrong.copyWith(color: IqColors.fg2),
                 ),
-                const SizedBox(height: IqSpace.s1),
-                _metaRow(IqSpace.s2),
-              ],
-            ),
+              ),
+              const SizedBox(height: IqSpace.s1),
+              Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: IqText.cardTitle.copyWith(color: IqColors.fg),
+              ),
+              const SizedBox(height: IqSpace.s1),
+              _metaRow(IqSpace.s2),
+            ],
           ),
         ),
+      ],
+    );
+    if (!closingSoon) return column;
+    return Stack(
+      children: [
+        Positioned(
+          left: 0,
+          right: 0,
+          top: mediaHeight - 1,
+          bottom: 0,
+          child: const ColoredBox(color: IqColors.accentSoft),
+        ),
+        column,
       ],
     );
   }
@@ -184,29 +217,28 @@ class IqBriefCard extends StatelessWidget {
           ),
           const SizedBox(width: IqSpace.s3),
           Expanded(
-            child: SizedBox(
-              height: 77,
-              child: ClipRect(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      brand,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: IqText.smallStrong.copyWith(color: IqColors.fg2),
-                    ),
-                    const SizedBox(height: IqSpace.s1),
-                    Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: IqText.bodyStrong.copyWith(color: IqColors.fg),
-                    ),
-                    const SizedBox(height: IqSpace.s1),
-                    _metaRow(IqSpace.s1),
-                  ],
-                ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 77),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    brand,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: IqText.smallStrong.copyWith(color: IqColors.fg2),
+                  ),
+                  const SizedBox(height: IqSpace.s1),
+                  Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: IqText.bodyStrong.copyWith(color: IqColors.fg),
+                  ),
+                  const SizedBox(height: IqSpace.s1),
+                  _metaRow(IqSpace.s1),
+                ],
               ),
             ),
           ),

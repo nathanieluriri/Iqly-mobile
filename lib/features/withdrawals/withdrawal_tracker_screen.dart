@@ -75,7 +75,7 @@ class WithdrawalTrackerScreen extends ConsumerWidget {
                   child: SizedBox(
                     height: 44,
                     child: OverflowBox(
-                      maxHeight: IqButton.height,
+                      maxHeight: IqButton.defaultHeight,
                       child: IqButton(
                         label: 'Get help with this withdrawal',
                         kind: IqButtonKind.ghost,

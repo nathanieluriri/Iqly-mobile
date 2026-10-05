@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'core/transitions.dart';
 import 'features/discover/discover_routes.dart';
+import 'features/drafts/drafts_routes.dart';
 import 'features/entry/forgot_password_screen.dart';
 import 'features/entry/landing_screen.dart';
 import 'features/entry/notifications_ask_screen.dart';
@@ -16,6 +17,7 @@ import 'features/onboarding/onboarding_routes.dart';
 import 'features/profile/profile_routes.dart';
 import 'features/splash/splash_screen.dart';
 import 'features/submissions/submissions_routes.dart';
+import 'features/submit/submit_routes.dart';
 
 abstract final class Routes {
   static const splash = '/splash';
@@ -48,6 +50,8 @@ abstract final class Routes {
   static const notifications = '/notifications';
   static const briefDetail = '/briefs/:id';
   static const submit = '/briefs/:id/submit';
+  static const pickBrief = '/pick-a-brief';
+  static const drafts = '/drafts';
   static const polls = '/polls';
   static const activations = '/activations';
   static const yourDetails = '/profile/details';
@@ -88,6 +92,8 @@ GoRouter buildRouter({String initialLocation = Routes.splash}) {
       ..._entryRoutes,
       ...onboardingRoutes,
       ...submissionRoutes,
+      ...draftRoutes,
+      ...pickBriefRoutes,
       ...profileRoutes,
       ...helpRoutes,
     ],
