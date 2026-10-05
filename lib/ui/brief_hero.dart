@@ -27,8 +27,8 @@ class IqBriefHero extends StatelessWidget {
   final int assets;
   final int current;
 
-  /// Screens resize the instance (Submission detail 35:146 sets 160); the
-  /// logo keeps its 28 overhang.
+  /// The photo's height; screens resize the instance (brief detail: 232,
+  /// Submission detail 35:146: 160). The logo keeps its 28 overhang.
   final double height;
 
   static const double defaultHeight = 280;

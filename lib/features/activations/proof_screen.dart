@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../data/activations_data.dart';
+import '../../data/media_service.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/button.dart';
@@ -21,27 +22,27 @@ import 'activations_routes.dart';
 import 'activations_state.dart';
 import 'activations_widgets.dart';
 
-/// B9 · Proof · empty (141:5210), ready (141:5372) and remove recording?
-/// (141:5492), with the kit's states between them: uploading and upload
-/// failed (Exp/VideoPreview), and a recording over 60 s (Exp/ProofTile
-/// Error, with the error haptic).
+/// B9 · Upload proof: empty (141:5210), ready (141:5372), remove
+/// recording? (141:5492), upload failed (485:38534), video too long
+/// (485:38622) and photo permission (485:38820), with the kit's uploading
+/// state between them.
 ///
-/// The empty tile breathes and holds the screen's pulse. A pick flashes
-/// the tile accent-soft, then the tile morphs into the polaroid (320 ms
-/// ease-in-out, contents crossfading, MOTION-SPEC §4.4): the thread fills
-/// as it uploads and the play sticker pops when it is ready; play opens the
-/// player with the frame flying in. Remove asks first on the frame's
-/// brand-dark scrim; Remove recording tilts the polaroid 3° as it fades
-/// (200) while the sheet drops, then the tile appears (220). Send proof is
-/// Secondary until a recording is ready (tapped early, the tile shakes with
-/// the error haptic), then Primary; once sent, the success haptic and back
-/// to the activation, which now reads Your proof. Reduced motion: the tile
-/// and the polaroid crossfade in place (150), nothing tilts or rises.
+/// The empty tile breathes and holds the screen's pulse. The first pick
+/// asks for photo access on the frame's sheet (Don't Allow leaves the tile
+/// as it was); then the phone's picker opens. A pick morphs the tile into
+/// the polaroid (320 ms ease-in-out): the thread fills as it uploads and
+/// the play sticker pops when it is ready. A recording over 60 seconds (or
+/// 50 MB) is refused before it uploads: the polaroid shows Failed with the
+/// banner under it, and Retry picks again. Remove asks first; Remove
+/// recording tilts the polaroid as it fades and the tile comes back. Send
+/// proof is disabled until a recording is in; tapped before it is ready,
+/// the slot shakes with the error haptic. Once sent, the success haptic and
+/// back to the activation, which now reads Your proof.
 ///
-/// Figma over this build: 141:5492 labels the first field "Kudi Box
-/// reference (optional)"; the build keeps the phone number of the empty
-/// and ready frames. The textarea frame is drawn with Exp/Field, the one
-/// text entry component.
+/// Figma over this build: 141:5492 shows the phone field's placeholder as
+/// "e.g. 0801 234 5678"; the build keeps "0801 234 5678" of the other
+/// frames. The textarea frame is drawn with Exp/Field, the one text entry
+/// component.
 class ProofScreen extends ConsumerStatefulWidget {
   const ProofScreen({super.key, required this.id});
 
@@ -62,11 +63,8 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
   bool _sending = false;
   bool _failed = false;
 
-  /// 141:5492 dims the screen with brand-dark at 50%, not the brand of the
-  /// other sheets.
-  static final _scrim = IqColors.brandDark.withValues(
-    alpha: IqOpacity.sheetScrim,
-  );
+  /// 141:5492 and 485:38820 dim the screen with ink at 50%.
+  static final _scrim = IqColors.fg.withValues(alpha: IqOpacity.sheetScrim);
 
   ProofDraftNotifier get _draft =>
       ref.read(proofDraftProvider(widget.id).notifier);
@@ -76,6 +74,35 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
     _phone.dispose();
     _note.dispose();
     super.dispose();
+  }
+
+  /// The frame's photos prompt before the first pick, then the picker.
+  Future<void> _pick() async {
+    final media = ref.read(mediaServiceProvider);
+    if (media.access != MediaAccess.allowed) {
+      final allow = await showIqConfirmSheet(
+        context,
+        title: '“iQLY” Would Like to Access Your Photos',
+        body:
+            'To add your screen recording. You can change this later in '
+            'Settings.',
+        confirmLabel: 'Allow Full Access',
+        cancelLabel: 'Don’t Allow',
+        scrim: _scrim,
+      );
+      media.answer(allow: allow);
+      if (!allow || !mounted) return;
+    }
+    await _draft.pick();
+  }
+
+  /// A refused recording cannot be retried: Retry picks another.
+  void _retry(ProofDraft draft) {
+    if (draft.stage == ProofStage.refused) {
+      _pick();
+    } else {
+      _draft.retry();
+    }
   }
 
   Future<void> _remove() async {
@@ -127,23 +154,22 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
     }
     if (!mounted) return;
     IqHaptics.success.play();
+    _draft.clear();
     context.pop();
   }
 
   @override
   Widget build(BuildContext context) {
     ref.listen(proofDraftProvider(widget.id), (previous, next) {
-      if (next.stage == ProofStage.tooLong &&
-          previous?.stage != ProofStage.tooLong) {
+      if (next.stage == ProofStage.refused &&
+          previous?.stage != ProofStage.refused) {
         errorHaptic();
       }
     });
     final activation = ref.watch(activationProvider(widget.id));
     final draft = ref.watch(proofDraftProvider(widget.id));
     final step = (activation?.waitingStep ?? activation?.confirmed ?? 0) + 1;
-    final ready = draft.stage == ProofStage.ready;
-    final busy =
-        draft.stage == ProofStage.uploading || draft.stage == ProofStage.failed;
+    final refused = draft.stage == ProofStage.refused ? draft.video : null;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
@@ -175,21 +201,22 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
                             if (_failed) ...[
                               IqBanner(
                                 kind: IqBannerKind.error,
-                                title: 'Couldn’t send. Check your connection.',
+                                title: "Couldn't send. Check your connection.",
                                 action: 'Try again',
                                 onAction: () => _send(activation, draft),
                               ),
-                              const SizedBox(height: IqSpace.s3),
+                              const SizedBox(height: IqSpace.s4),
                             ],
                             Text(
-                              'Record step $step. iQLY checks it, then pays '
-                              '${reward(activation)}.',
+                              'Record step $step. ${activation.business} '
+                              'confirms it, then we pay ${reward(activation)}.',
                               style: IqText.body.copyWith(color: IqColors.fg2),
                             ),
                             const SizedBox(height: IqSpace.s4),
-                            Eyebrow(
+                            Text(
                               'Proof of step $step · up to '
                               '${ActivationRules.proofLength.inSeconds} seconds',
+                              style: IqText.label.copyWith(color: IqColors.fg2),
                             ),
                             const SizedBox(height: IqSpace.s4),
                             Shake(
@@ -197,14 +224,22 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
                               child: _ProofSlot(
                                 draft: draft,
                                 heroTag: proofHeroTag(activation.id),
-                                onPick: _draft.pick,
-                                onRetry: _draft.retry,
+                                onPick: _pick,
+                                onRetry: () => _retry(draft),
                                 onRemove: _remove,
                                 onPlay: () => context.push(
                                   proofPlayerPath(activation.id),
                                 ),
                               ),
                             ),
+                            if (refused != null) ...[
+                              const SizedBox(height: IqSpace.s4),
+                              IqBanner(
+                                kind: IqBannerKind.error,
+                                title: _refusal(refused),
+                                showAction: false,
+                              ),
+                            ],
                             const SizedBox(height: IqSpace.s4),
                             IqField(
                               label:
@@ -239,18 +274,16 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
                   children: [
                     IqButton(
                       label: 'Send proof',
-                      kind: ready
-                          ? IqButtonKind.primary
-                          : IqButtonKind.secondary,
                       showIcon: false,
                       width: double.infinity,
                       loading: _sending,
-                      onTap: activation == null || busy
+                      disabled: !draft.hasVideo,
+                      onTap: activation == null
                           ? null
                           : () => _send(activation, draft),
                     ),
                     Text(
-                      'You did these steps yourself.',
+                      'By sending, you confirm you did these steps yourself.',
                       style: IqText.small.copyWith(color: IqColors.fg3),
                     ),
                   ],
@@ -261,6 +294,21 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
         ),
       ),
     );
+  }
+
+  /// 485:38622: "Your video is 1:42. Keep it under 60 seconds and end on the
+  /// Verification page." A recording over 50 MB gets the same line with its
+  /// size (no frame draws it).
+  static String _refusal(ProofVideo video) {
+    final length = video.length;
+    if (video.tooLong && length != null) {
+      return 'Your video is ${videoLength(length)}. Keep it under '
+          '${ActivationRules.proofLength.inSeconds} seconds and end on the '
+          'Verification page.';
+    }
+    return 'Your video is ${videoSize(video.bytes)}. Keep it under '
+        '${videoSize(ActivationRules.proofBytes)} and end on the '
+        'Verification page.';
   }
 }
 
@@ -307,16 +355,19 @@ class _ProofSlot extends StatelessWidget {
         IqVideoPreviewState.ready,
         '$size · uploaded, ready to send',
       ),
-      ProofStage.failed => (IqVideoPreviewState.failed, null),
+      ProofStage.failed ||
+      ProofStage.refused => (IqVideoPreviewState.failed, null),
       _ => (
         IqVideoPreviewState.uploading,
         'Uploading… ${(draft.progress * 100).round()}% of $size',
       ),
     };
+    final length = video.length;
     return IqVideoPreview(
       key: const ValueKey('preview'),
       state: state,
       name: video.name,
+      duration: length == null ? '' : videoLength(length),
       meta: meta,
       progress: draft.progress,
       thumbnail: const ProofFrame(),
@@ -329,12 +380,9 @@ class _ProofSlot extends StatelessWidget {
 
   Widget _tile() => IqProofTile(
     key: const ValueKey('tile'),
-    state: draft.stage == ProofStage.tooLong
-        ? IqProofTileState.error
-        : IqProofTileState.empty,
-    hint: draft.stage == ProofStage.tooLong
-        ? null
-        : 'Up to 60 s. Show the result.',
+    hint:
+        "Up to 60 s. End on the Verified screen. Don't show your BVN, PIN or "
+        'card number.',
     onTap: onPick,
   );
 

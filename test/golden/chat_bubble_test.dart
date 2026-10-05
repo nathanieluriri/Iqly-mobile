@@ -80,7 +80,7 @@ void main() {
       return opacity;
     }
 
-    final stamp = find.text('TODAY, 2:20 PM');
+    final stamp = find.text('Today, 2:20 pm');
     final body = find.textContaining('I did all three steps');
     expect(seen(body), 0);
     expect(seen(stamp), 0);

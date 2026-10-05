@@ -12,64 +12,53 @@ import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../data/activations_data.dart';
 import '../../data/device.dart';
-import '../../data/models.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
-import '../../ui/balance_hero.dart';
 import '../../ui/banner.dart';
+import '../../ui/brief_hero.dart';
 import '../../ui/button.dart';
-import '../../ui/claim_stamp.dart';
-import '../../ui/countdown.dart';
+import '../../ui/illustration.dart';
+import '../../ui/meta.dart';
 import '../../ui/pressable.dart';
 import '../../ui/progress_thread.dart';
+import '../../ui/sample_logo.dart';
 import '../../ui/section_title.dart';
-import '../../ui/spots_stamp.dart';
 import '../../ui/step_row.dart';
 import '../../ui/timeline_row.dart';
 import '../../ui/top_bar.dart';
 import '../../ui/video_preview.dart';
 import '../help/help_routes.dart';
-import '../wallet/wallet_format.dart' show nairaParts;
-import '../wallet/wallet_state.dart';
 import 'activation_format.dart';
 import 'activations_routes.dart';
 import 'activations_state.dart';
 import 'activations_widgets.dart';
 
-enum _Layout { offer, steps, checking, credited }
+enum _Layout { offer, steps, proof, credited }
 
 _Layout _layoutOf(ActivationPhase phase) => switch (phase) {
-  ActivationPhase.offer => _Layout.offer,
+  ActivationPhase.offer || ActivationPhase.expired => _Layout.offer,
   ActivationPhase.started ||
   ActivationPhase.confirming ||
   ActivationPhase.notConfirmed => _Layout.steps,
-  ActivationPhase.checking => _Layout.checking,
+  ActivationPhase.checking || ActivationPhase.notAccepted => _Layout.proof,
   ActivationPhase.credited => _Layout.credited,
 };
 
-/// One activation, one screen whose state follows the service:
-/// B8 · Activation detail (141:4941, also B9 161:16280) before it starts;
-/// just started (179:8001), in progress (141:5090) and B9 · step not
-/// confirmed (154:6202) while steps wait; B9 · Proof · submitted (141:5549)
-/// while proof is checked; Reward · credited (154:6312 after the business
+/// One activation, one sub page whose state follows the service:
+/// B8 · Activation detail (141:4941, also B9 161:16280) before it starts
+/// and expired (485:38428) once it closed; just started (179:8001), in
+/// progress (141:5090) and B9 · step not confirmed (154:6202) while steps
+/// wait; B9 · Proof · submitted (141:5549) and not accepted (485:38715)
+/// once proof is in; Reward · credited (154:6312 after the business
 /// confirms, 141:5693 after proof).
 ///
 /// Start activation gives the commit haptic and the offer dissolves into
-/// just started. The prototypes' 4 s advances arrive as live changes: a
-/// confirmed step pops to Done and the next goes Active 120 ms later (its
-/// Highlight wipes in). A step left unconfirmed for 24 hours turns the
-/// screen to step not confirmed, with Upload proof of step 2. Being paid
-/// dissolves to the reward: the PAID stamp lands at +120 with the success
-/// haptic, the wallet rolls to its new balance at +400 and the timeline
-/// arrives. Paid while a page covers the screen, nothing plays and no
-/// haptic sounds (spec 2.7); coming back, the screen opens on the reward
-/// and the stamp lands as it shows (spec 5.30), the wallet already at its
-/// new balance. Tapping the waiting step or the Checking row asks for the
-/// latest state, as those taps advance the prototypes.
-///
-/// Figma over this build: Open Kudi Box has no reaction; it opens the
-/// business's link. Proof submitted is this screen once proof is in, so
-/// its back goes to the list, as in Figma.
+/// just started. A confirmed step pops to Done and the next goes Active
+/// 120 ms later. A step left unconfirmed for 24 hours turns the screen to
+/// step not confirmed. Being paid dissolves to the reward with the success
+/// haptic; paid while a page covers the screen, it is already there when
+/// that page leaves. Tapping the waiting step or the Checking row asks for
+/// the latest state.
 class ActivationScreen extends ConsumerStatefulWidget {
   const ActivationScreen({super.key, required this.id});
 
@@ -87,8 +76,6 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
   bool _starting = false;
   bool _startFailed = false;
   bool _paidHere = false;
-  bool _paidUnseen = false;
-  bool _sentHere = false;
 
   @override
   void dispose() {
@@ -100,17 +87,9 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
   void _onChange(Activation? before, Activation? after) {
     if (before == null || after == null) return;
     final now = ref.read(clockProvider)();
-    final was = before.phaseAt(now);
-    final phase = after.phaseAt(now);
-    if (phase != was) {
-      final seen = !covered(context);
-      setState(() {
-        if (phase == ActivationPhase.credited) {
-          _paidHere = seen;
-          _paidUnseen = !seen;
-        }
-        if (phase == ActivationPhase.checking) _sentHere = true;
-      });
+    if (after.phaseAt(now) == ActivationPhase.credited &&
+        before.phaseAt(now) != ActivationPhase.credited) {
+      setState(() => _paidHere = !covered(context));
     }
     final next = after.waitingStep;
     if (after.confirmed > before.confirmed && next != null) {
@@ -181,6 +160,11 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
     }
   }
 
+  void _recordAgain() {
+    ref.read(proofDraftProvider(widget.id).notifier).clear();
+    context.push(proofPath(widget.id));
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen<Activation?>(activationProvider(widget.id), _onChange);
@@ -190,16 +174,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
     final _Layout? layout;
     if (activation == null) {
       layout = null;
-      page = Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          IqTopBar(
-            variant: IqTopBarVariant.page,
-            title: 'Activation',
-            onBack: _back,
-          ),
-        ],
-      );
+      page = _Page(title: 'Activation', onBack: _back, body: const SizedBox());
     } else {
       final phase = activation.phaseAt(now);
       _watchWindow(activation, now);
@@ -223,16 +198,15 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
           onOpen: () => _open(activation),
           onProof: () => context.push(proofPath(activation.id)),
         ),
-        _Layout.checking => _CheckingPage(
+        _Layout.proof => _ProofPage(
           activation: activation,
-          landed: _sentHere,
           onBack: _back,
           onRefresh: _refresh,
+          onRecordAgain: _recordAgain,
         ),
         _Layout.credited => _CreditedPage(
           activation: activation,
           moment: _paidHere,
-          landed: _paidUnseen,
           onBack: _back,
         ),
       };
@@ -255,17 +229,78 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
   }
 }
 
-const _gap = SizedBox(height: IqSpace.s4);
+/// The sub page frame: the Page top bar, the body, the action bar.
+class _Page extends StatelessWidget {
+  const _Page({
+    required this.title,
+    required this.onBack,
+    required this.body,
+    this.status,
+    this.actions = const [],
+    this.divider = false,
+  });
 
-const _scrollPadding = EdgeInsets.fromLTRB(
-  IqSpace.s4,
-  0,
-  IqSpace.s4,
-  IqSpace.s6,
-);
+  final String title;
+  final VoidCallback onBack;
+  final Widget body;
+  final Widget? status;
+  final List<Widget> actions;
+  final bool divider;
 
-/// B8 · Activation detail (141:4941): the offer and how it pays, the steps
-/// and the rules, Start activation in the bar.
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        IqTopBar(variant: IqTopBarVariant.page, title: title, onBack: onBack),
+        ?status,
+        Expanded(child: body),
+        if (actions.isNotEmpty) ActionBar(divider: divider, children: actions),
+      ],
+    );
+  }
+}
+
+const _padding = EdgeInsets.fromLTRB(IqSpace.s4, 0, IqSpace.s4, IqSpace.s6);
+
+/// The business beside its name and "Activation".
+class _BrandRow extends StatelessWidget {
+  const _BrandRow({required this.business, this.logo = true});
+
+  final String business;
+  final bool logo;
+
+  @override
+  Widget build(BuildContext context) {
+    return MergeSemantics(
+      child: Row(
+        children: [
+          if (logo) ...[
+            ClipOval(child: IqSampleLogo(businessArt(business), size: 36)),
+            const SizedBox(width: 10),
+          ],
+          Text(
+            business,
+            style: IqText.smallStrong.copyWith(color: IqColors.fg),
+          ),
+          const SizedBox(width: 10),
+          Text('Activation', style: IqText.small.copyWith(color: IqColors.fg3)),
+        ],
+      ),
+    );
+  }
+}
+
+List<Widget> _gapped(List<Widget> children, double gap) => [
+  for (final (i, child) in children.indexed) ...[
+    if (i > 0) SizedBox(height: gap),
+    child,
+  ],
+];
+
+/// B8 · Activation detail (141:4941) and expired (485:38428): the
+/// business's photo with its logo, the offer, how it pays and the steps,
+/// Start activation in the bar (disabled once it has ended).
 class _OfferPage extends StatelessWidget {
   const _OfferPage({
     required this.activation,
@@ -286,171 +321,154 @@ class _OfferPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final a = activation;
-    final steps = a.steps;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        IqTopBar(
-          variant: IqTopBarVariant.page,
-          title: 'Activation',
-          onBack: onBack,
-        ),
-        Expanded(
-          child: ListView(
-            padding: _scrollPadding,
-            children: [
-              if (failed) ...[
-                IqBanner(
-                  kind: IqBannerKind.error,
-                  title: 'Couldn’t start. Check your connection.',
-                  action: 'Try again',
-                  onAction: onStart,
-                ),
-                const SizedBox(height: IqSpace.s3),
-              ],
-              ActivationHeader(eyebrow: a.business, title: a.title),
-              _gap,
-              Align(
-                alignment: Alignment.centerLeft,
-                child: IqCountdown(
-                  time: countdownText(activationLeft(a, now)),
-                  tone: countdownTone(a, now),
-                ),
-              ),
-              const SizedBox(height: IqSpace.s3),
-              IqSpotsStamp(
-                left: a.spotsLeft,
-                total: a.spotsTotal,
-                tone: IqSpotsStampTone.of(a.spotsLeft, a.spotsTotal),
-                showOf: false,
-              ),
-              _gap,
-              RewardLine(earn: earn(a), alignEnd: true),
-              _gap,
-              _Facts(activation: a),
-              _gap,
-              IqSectionTitle(
-                showCount: true,
-                title: 'What to do',
-                count: '${steps.length}',
-                showLink: false,
-              ),
-              _gap,
-              for (final (i, step) in steps.indexed) ...[
-                if (i > 0) _gap,
-                IqStepRow(
-                  number: '${i + 1}',
-                  title: step.title,
-                  body: step.howTo ?? step.hint,
-                  divider: i < steps.length - 1,
-                ),
-              ],
-              _gap,
-              const _Rules(),
-            ],
-          ),
-        ),
-        ActionBar(
-          children: [
-            IqButton(
-              label: 'Start activation',
-              showIcon: false,
-              width: double.infinity,
-              loading: starting,
-              disabled: a.full || a.closedAt(now),
-              onTap: onStart,
+    final ended = a.closedAt(now);
+    final art = businessArt(a.business);
+    return _Page(
+      title: 'Activation',
+      onBack: onBack,
+      divider: true,
+      body: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          _Hero(
+            child: IqBriefHero(
+              cover: activationCover(a.business),
+              logo: IqSampleLogo(art),
+              showDots: false,
             ),
-          ],
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              IqSpace.s4,
+              5,
+              IqSpace.s4,
+              IqSpace.s6,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: _gapped([
+                Padding(
+                  padding: const EdgeInsets.only(left: 66),
+                  child: _BrandRow(business: a.business, logo: false),
+                ),
+                if (failed)
+                  IqBanner(
+                    kind: IqBannerKind.error,
+                    title: "Couldn't start. Check your connection.",
+                    action: 'Try again',
+                    onAction: onStart,
+                  ),
+                Text(
+                  a.title,
+                  style: IqText.headline.copyWith(color: IqColors.fg),
+                ),
+                Wrap(
+                  spacing: IqSpace.s1p5,
+                  runSpacing: IqSpace.s1p5,
+                  children: [
+                    IqMeta(kind: IqMetaKind.reward, label: rewardChip(a)),
+                    IqMeta(kind: IqMetaKind.time, label: minutesText(a)),
+                    IqMeta(
+                      kind: closingSoon(a, now)
+                          ? IqMetaKind.urgent
+                          : IqMetaKind.deadline,
+                      label: deadlineText(a, now),
+                    ),
+                  ],
+                ),
+                Text(
+                  'Paid to your iQLY wallet once ${a.business} confirms, '
+                  'usually within 24 hours.',
+                  style: IqText.body.copyWith(color: IqColors.fg),
+                ),
+                const IqSectionTitle(title: 'What to do', showLink: false),
+                for (final (i, step) in a.steps.indexed)
+                  IqStepRow(
+                    number: '${i + 1}',
+                    title: step.title,
+                    body: step.howTo ?? step.hint,
+                    divider: i < a.steps.length - 1,
+                  ),
+              ], 14),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        IqButton(
+          label: ended ? 'This activation has ended' : 'Start activation',
+          showIcon: false,
+          width: double.infinity,
+          loading: starting,
+          disabled: ended || a.full,
+          onTap: onStart,
         ),
       ],
     );
   }
 }
 
-/// HOW YOU GET PAID: Verification stacked over its value (the frame keeps
-/// a two-line box for it), then Paid to and Paid when beside theirs.
-class _Facts extends StatelessWidget {
-  const _Facts({required this.activation});
+/// The 232 hero of the frames. Exp/BriefHero is fixed at 280 with its logo
+/// 28 below the photo, so the screen shows it from its foot and the top 48
+/// of the photo stays out of view, which lands the logo where Figma puts it.
+class _Hero extends StatelessWidget {
+  const _Hero({required this.child});
 
-  final Activation activation;
+  final Widget child;
+
+  static const double height = 232;
 
   @override
   Widget build(BuildContext context) {
-    final label = IqText.small.copyWith(color: IqColors.fg3);
-    final value = IqText.smallStrong.copyWith(color: IqColors.fg);
-    const hairline = ColoredBox(
-      color: IqColors.line,
-      child: SizedBox(height: 1, width: double.infinity),
-    );
-    Widget side(String name, String text) => MergeSemantics(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: IqSpace.s3),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(name, style: label),
-            const SizedBox(width: IqSpace.s3),
-            Expanded(
-              child: Text(text, textAlign: TextAlign.right, style: value),
-            ),
-          ],
+    return SizedBox(
+      height: height,
+      child: ClipRect(
+        clipper: const _CutTop(),
+        child: OverflowBox(
+          alignment: Alignment.bottomCenter,
+          minHeight: IqBriefHero.height,
+          maxHeight: IqBriefHero.height,
+          child: child,
         ),
       ),
     );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Eyebrow('How you get paid'),
-        MergeSemantics(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: IqSpace.s3),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Verification', style: label),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: 36),
-                  child: Text(
-                    'By ${activation.business}, automatically',
-                    style: value,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        hairline,
-        side('Paid to', 'Your iQLY wallet'),
-        hairline,
-        side(
-          'Paid when',
-          '${activation.business} confirms, usually within 24 hours',
-        ),
-      ],
-    );
   }
 }
 
-class _Rules extends StatelessWidget {
-  const _Rules();
+class _CutTop extends CustomClipper<Rect> {
+  const _CutTop();
 
-  static const rules = [
-    'One completion per person.',
-    'Missed step? Proof within 48 hours.',
-    'Can’t be confirmed? Ask iQLY for help.',
-  ];
+  @override
+  Rect getClip(Size size) =>
+      Rect.fromLTRB(0, 0, size.width, size.height + IqBriefHero.height);
+
+  @override
+  bool shouldReclip(_CutTop oldClipper) => false;
+}
+
+/// The business's logo, name and the title, as the step and proof frames
+/// head their content (8 above and below, 8 between).
+class _Header extends StatelessWidget {
+  const _Header({required this.activation, this.above});
+
+  final Activation activation;
+  final Widget? above;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Eyebrow('Rules'),
-        for (final rule in rules) ...[
-          const SizedBox(height: IqSpace.s1),
-          Text(rule, style: IqText.small.copyWith(color: IqColors.fg2)),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: IqSpace.s2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          above ?? _BrandRow(business: activation.business),
+          const SizedBox(height: IqSpace.s2),
+          Text(
+            activation.title,
+            style: IqText.title.copyWith(color: IqColors.fg),
+          ),
         ],
-      ],
+      ),
     );
   }
 }
@@ -504,7 +522,7 @@ class _StepsPage extends StatelessWidget {
         title: step.title,
         body: _stuck
             ? 'Not confirmed after a day'
-            : 'Confirming, usually minutes',
+            : '${a.business} is checking. Usually a few minutes.',
         divider: divider,
       );
       if (_stuck) return row;
@@ -527,123 +545,114 @@ class _StepsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final a = activation;
     final waiting = a.waitingStep;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        IqTopBar(
-          variant: IqTopBarVariant.page,
-          title: 'Activation',
-          onBack: onBack,
+    return _Page(
+      title: 'Activation',
+      onBack: onBack,
+      status: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: IqSpace.s4,
+          vertical: IqSpace.s2,
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: IqSpace.s4,
-            vertical: IqSpace.s2,
-          ),
-          child: IqProgressThread(
-            status: _stuck
-                ? 'Step ${waiting! + 1} not confirmed yet'
-                : confirmedLine(a),
-            count: _stuck ? waitingCount(a, now) : leftCount(a, now),
-          ),
+        child: IqProgressThread(
+          status: _stuck
+              ? 'Step ${waiting! + 1} not confirmed yet'
+              : progressLine(a),
+          count: _stuck ? waitingCount(a, now) : deadlineText(a, now),
         ),
-        Expanded(
-          child: ListView(
-            padding: _scrollPadding,
-            children: [
-              ActivationHeader(eyebrow: a.business, title: a.title),
-              _gap,
-              IqSectionTitle(
-                showCount: true,
-                title: 'What to do',
-                count: '${a.steps.length}',
-                showLink: false,
-              ),
-              _gap,
-              for (var i = 0; i < a.steps.length; i++) ...[
-                if (i > 0) _gap,
-                _step(i),
+      ),
+      body: ListView(
+        padding: _padding,
+        children: _gapped([
+          _Header(activation: a),
+          const IqSectionTitle(title: 'What to do', showLink: false),
+          for (var i = 0; i < a.steps.length; i++) _step(i),
+          MergeSemantics(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Earn ${reward(a)}',
+                  style: IqText.bodyStrong.copyWith(color: IqColors.brand),
+                ),
+                const SizedBox(width: IqSpace.s2),
+                Flexible(
+                  child: Text(
+                    'when all ${a.steps.length} steps are confirmed',
+                    style: IqText.small.copyWith(color: IqColors.fg2),
+                  ),
+                ),
               ],
-              _gap,
-              RewardLine(earn: earn(a)),
-            ],
-          ),
-        ),
-        ActionBar(
-          children: [
-            if (_stuck)
-              IqButton(
-                label: 'Upload proof of step ${waiting! + 1}',
-                showIcon: false,
-                width: double.infinity,
-                onTap: onProof,
-              ),
-            IqButton(
-              label: 'Open ${a.business}',
-              kind: _stuck ? IqButtonKind.ghost : IqButtonKind.primary,
-              showIcon: false,
-              width: double.infinity,
-              onTap: onOpen,
             ),
-          ],
+          ),
+        ], IqSpace.s4),
+      ),
+      actions: [
+        if (_stuck)
+          IqButton(
+            label: 'Upload proof of step ${waiting! + 1}',
+            showIcon: false,
+            width: double.infinity,
+            onTap: onProof,
+          ),
+        IqButton(
+          label: 'Open ${a.business}',
+          kind: _stuck ? IqButtonKind.ghost : IqButtonKind.primary,
+          showIcon: false,
+          width: double.infinity,
+          onTap: onOpen,
         ),
       ],
     );
   }
 }
 
-/// B9 · Proof · submitted (141:5549): CHECKING lands when the screen opens
-/// on the change and its dot holds the pulse (the Current ring stays
-/// still, PulseScope order); the recording without its remove sticker;
-/// Ask for help goes to Help.
-class _CheckingPage extends StatelessWidget {
-  const _CheckingPage({
+/// B9 · Proof · submitted (141:5549) and not accepted (485:38715): what the
+/// proof is waiting on, the recording without its remove sticker, and the
+/// way to support. Not accepted puts the business's reason on the Error
+/// banner with Record again, which opens a fresh Upload proof.
+class _ProofPage extends StatelessWidget {
+  const _ProofPage({
     required this.activation,
-    required this.landed,
     required this.onBack,
     required this.onRefresh,
+    required this.onRecordAgain,
   });
 
   final Activation activation;
-  final bool landed;
   final VoidCallback onBack;
   final VoidCallback onRefresh;
+  final VoidCallback onRecordAgain;
 
   @override
   Widget build(BuildContext context) {
     final a = activation;
     final proof = a.progress!.proof!;
     final video = proof.video;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        IqTopBar(
-          variant: IqTopBarVariant.page,
-          title: 'Your proof',
-          onBack: onBack,
-        ),
-        Expanded(
-          child: ListView(
-            padding: _scrollPadding,
+    final refused = proof.notAccepted;
+    final label = IqText.bodyStrong.copyWith(color: IqColors.fg3);
+    return _Page(
+      title: 'Your proof',
+      onBack: onBack,
+      body: ListView(
+        padding: _padding,
+        children: _gapped([
+          if (refused != null)
+            IqBanner(
+              kind: IqBannerKind.error,
+              title: 'Proof not accepted. $refused',
+              action: 'Record again',
+              onAction: onRecordAgain,
+            ),
+          _Header(
+            activation: a,
+            above: IqMeta(
+              kind: IqMetaKind.time,
+              label: 'Checking with ${a.business}',
+            ),
+          ),
+          const IqSectionTitle(title: 'Progress', showLink: false),
+          Column(
             children: [
-              ActivationHeader(
-                above: Align(
-                  alignment: Alignment.centerLeft,
-                  child: IqClaimStamp(
-                    kind: IqClaimStampKind.checking,
-                    landAfter: landed ? Duration.zero : null,
-                  ),
-                ),
-                eyebrow: 'Step ${proof.step + 1} · ${a.business}',
-                title: a.title,
-              ),
-              _gap,
-              const IqSectionTitle(
-                title: 'Progress',
-                showCount: false,
-                showLink: false,
-              ),
-              _gap,
               IqTimelineRow(
                 title: 'Proof received',
                 meta: dayTime(proof.receivedAt),
@@ -664,63 +673,59 @@ class _CheckingPage extends StatelessWidget {
               IqTimelineRow(
                 state: IqTimelineRowState.upcoming,
                 title: 'Paid to your wallet',
-                meta: '${reward(a)} after confirmation',
+                meta: '${naira(a.rewardKobo)} after confirmation',
                 showLine: false,
               ),
-              _gap,
-              const Eyebrow('Your proof'),
-              _gap,
-              IqVideoPreview(
-                name: video.name,
-                meta:
-                    '${videoLength(video.length)} · ${videoSize(video.bytes)}',
-                showRemove: false,
-                thumbnail: const ProofFrame(),
-                heroTag: proofHeroTag(a.id),
-                onPlay: () => context.push(proofPlayerPath(a.id)),
-              ),
-              _gap,
-              const Eyebrow('Not credited yet?'),
+            ],
+          ),
+          Text('Your proof', style: label),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Not credited yet?', style: label),
               const SizedBox(height: IqSpace.s2),
               Text(
-                'Support replies within 2 hours.',
+                'Support usually replies within an hour on weekdays, within '
+                'a day at weekends.',
                 style: IqText.small.copyWith(color: IqColors.fg2),
               ),
               const SizedBox(height: IqSpace.s2),
               IqButton(
                 label: 'Ask for help',
-                kind: IqButtonKind.secondary,
                 showIcon: false,
                 width: double.infinity,
                 onTap: () => context.push(helpPath(about: a.id)),
               ),
             ],
           ),
-        ),
-      ],
+          IqVideoPreview(
+            name: video.name,
+            duration: video.length == null ? '' : videoLength(video.length!),
+            meta: videoFacts(video),
+            showRemove: false,
+            thumbnail: const ProofFrame(),
+            heroTag: proofHeroTag(a.id),
+            onPlay: () => context.push(proofPlayerPath(a.id)),
+          ),
+        ], IqSpace.s4),
+      ),
     );
   }
 }
 
 /// Reward · credited (154:6312 when the business confirmed every step,
-/// 141:5693 when proof was checked): the PAID stamp, the wallet with the
-/// reward in it, the timeline, and the way on.
+/// 141:5693 when proof was checked): the Cheer, the reward in the wallet,
+/// the timeline, and the way on. Paid while the screen was open, the
+/// success haptic plays as the figure arrives.
 class _CreditedPage extends StatefulWidget {
   const _CreditedPage({
     required this.activation,
     required this.moment,
-    required this.landed,
     required this.onBack,
   });
 
   final Activation activation;
-
-  /// The payment landed while the screen was open: play the moment.
   final bool moment;
-
-  /// The payment landed while a page covered the screen: the stamp lands
-  /// as the screen shows, with nothing else.
-  final bool landed;
   final VoidCallback onBack;
 
   @override
@@ -784,146 +789,52 @@ class _CreditedPageState extends State<_CreditedPage> {
   @override
   Widget build(BuildContext context) {
     final a = widget.activation;
-    final moment = widget.moment;
-    final rows = _timeline();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        IqTopBar(
-          variant: IqTopBarVariant.page,
-          title: 'Your reward',
-          onBack: widget.onBack,
-        ),
-        Expanded(
-          child: Stagger(
-            play: moment,
-            child: ListView(
-              padding: _scrollPadding,
+    return _Page(
+      title: 'Your reward',
+      onBack: widget.onBack,
+      body: ListView(
+        padding: _padding,
+        children: _gapped([
+          const Center(
+            child: IqFigure(IqFigures.cheer, width: 188.2353, arrive: true),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: IqSpace.s2),
+            child: Column(
               children: [
-                ActivationHeader(
-                  above: Align(
-                    alignment: Alignment.centerLeft,
-                    child: IqClaimStamp(
-                      kind: IqClaimStampKind.credited,
-                      label: 'Paid ${reward(a)}',
-                      landAfter: moment
-                          ? IqDurations.chain
-                          : widget.landed
-                          ? Duration.zero
-                          : null,
-                    ),
-                  ),
-                  eyebrow: a.business,
-                  title: a.title,
+                Text(
+                  '${naira(a.rewardKobo)} is yours',
+                  textAlign: TextAlign.center,
+                  style: IqText.display.copyWith(color: IqColors.fg),
                 ),
-                _gap,
-                const Eyebrow('Wallet'),
-                _gap,
-                _RewardWallet(activation: a, moment: moment),
-                _gap,
-                const Eyebrow('Progress'),
-                _gap,
-                for (final (i, row) in rows.indexed)
-                  StaggerItem(
-                    index: Stagger.moving - rows.length + i,
-                    child: row,
-                  ),
+                const SizedBox(height: IqSpace.s2),
+                Text(
+                  '${a.business} confirmed all ${a.steps.length} steps. '
+                  "It's in your wallet.",
+                  textAlign: TextAlign.center,
+                  style: IqText.body.copyWith(color: IqColors.fg2),
+                ),
               ],
             ),
           ),
+          Column(children: _timeline()),
+        ], IqSpace.s4),
+      ),
+      actions: [
+        IqButton(
+          label: 'View wallet',
+          kind: IqButtonKind.ghost,
+          showIcon: false,
+          width: double.infinity,
+          onTap: () => context.go(Routes.wallet),
         ),
-        ActionBar(
-          children: [
-            IqButton(
-              label: 'View wallet',
-              showIcon: false,
-              width: double.infinity,
-              onTap: () => context.go(Routes.wallet),
-            ),
-            IqButton(
-              label: 'Find another activation',
-              kind: IqButtonKind.ghost,
-              showIcon: false,
-              width: double.infinity,
-              onTap: _findAnother,
-            ),
-          ],
+        IqButton(
+          label: 'Find another activation',
+          showIcon: false,
+          width: double.infinity,
+          onTap: _findAnother,
         ),
       ],
-    );
-  }
-}
-
-/// The wallet as it stands, 146 tall with no Withdraw. During the moment
-/// it shows the balance before the reward until +400, then the changed
-/// digits roll (MOTION-SPEC §7.6, money rolls only on change). Reduced
-/// motion: the new balance at once.
-class _RewardWallet extends ConsumerStatefulWidget {
-  const _RewardWallet({required this.activation, required this.moment});
-
-  final Activation activation;
-  final bool moment;
-
-  /// The stamp lands at +120 for 240, then one beat: the roll at +400.
-  static final Duration roll =
-      IqDurations.chain + IqDurations.mark + IqDurations.stagger;
-
-  @override
-  ConsumerState<_RewardWallet> createState() => _RewardWalletState();
-}
-
-class _RewardWalletState extends ConsumerState<_RewardWallet> {
-  bool _before = false;
-  Timer? _roll;
-
-  @override
-  void initState() {
-    super.initState();
-    _before = widget.moment;
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (!_before || _roll != null) return;
-    if (MediaQuery.disableAnimationsOf(context)) {
-      _before = false;
-      return;
-    }
-    _roll = Timer(_RewardWallet.roll, () {
-      if (mounted) setState(() => _before = false);
-    });
-  }
-
-  @override
-  void dispose() {
-    _roll?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final data = ref.watch(walletProvider).value;
-    if (data == null) return const SizedBox(height: 146);
-    final a = widget.activation;
-    var totals = data.totals;
-    final paidIn = data.ledger.any((l) => l.id == a.creditId);
-    if (_before && paidIn) {
-      totals = WalletTotals(
-        totalEarnedKobo: totals.totalEarnedKobo - a.rewardKobo,
-        pendingWithdrawalsKobo: totals.pendingWithdrawalsKobo,
-        withdrawableKobo: totals.withdrawableKobo - a.rewardKobo,
-      );
-    }
-    final (whole, decimals) = nairaParts(totals.withdrawableKobo);
-    return IqBalanceHero(
-      amount: whole,
-      decimals: decimals,
-      onHold: naira(totals.pendingWithdrawalsKobo),
-      earned: naira(totals.totalEarnedKobo),
-      holdLabel: 'On hold · ${data.onHoldCount} pending',
-      showWithdraw: false,
-      figureBuilder: (text, style) => RollingText(text, style: style),
     );
   }
 }

@@ -1,95 +1,36 @@
 import 'package:flutter/material.dart';
 
 import '../../core/motion.dart';
+import '../../data/activations_data.dart';
 import '../../theme/theme.dart';
-import '../../ui/highlight.dart';
-
-/// The Mob/Mono fg3 label the activation frames put over each block.
-class Eyebrow extends StatelessWidget {
-  const Eyebrow(this.text, {super.key});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Text(
-    text.toUpperCase(),
-    style: IqText.mono.copyWith(color: IqColors.fg3),
-  );
-}
-
-/// The header frame of the activation screens: 8 above, the business as an
-/// eyebrow (or [above] it, a stamp), the title in Mob/Title, 8 below.
-class ActivationHeader extends StatelessWidget {
-  const ActivationHeader({
-    super.key,
-    required this.eyebrow,
-    required this.title,
-    this.above,
-  });
-
-  final String eyebrow;
-  final String title;
-  final Widget? above;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: IqSpace.s2),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (above != null) ...[above!, const SizedBox(height: IqSpace.s2)],
-          Eyebrow(eyebrow),
-          const SizedBox(height: IqSpace.s2),
-          Text(title, style: IqText.title.copyWith(color: IqColors.fg)),
-        ],
-      ),
-    );
-  }
-}
-
-/// The orange Highlight "Earn ₦1,500" beside "per completion". The offer
-/// sets the words on the marker's foot ([alignEnd]); the step screens set
-/// them level with its top, as their frames do.
-class RewardLine extends StatelessWidget {
-  const RewardLine({super.key, required this.earn, this.alignEnd = false});
-
-  final String earn;
-  final bool alignEnd;
-
-  @override
-  Widget build(BuildContext context) {
-    return MergeSemantics(
-      child: Row(
-        crossAxisAlignment: alignEnd
-            ? CrossAxisAlignment.end
-            : CrossAxisAlignment.start,
-        children: [
-          IqHighlight(text: earn),
-          const SizedBox(width: IqSpace.s2),
-          Flexible(
-            child: Text(
-              'per completion',
-              style: IqText.small.copyWith(color: IqColors.fg2),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+import '../../ui/brief_card.dart';
+import '../../ui/button.dart';
+import '../../ui/cover_with_logo.dart';
+import '../../ui/illustration.dart';
+import '../../ui/meta.dart';
+import '../../ui/sample_logo.dart';
+import '../../ui/skeleton.dart';
+import 'activation_format.dart';
 
 /// The paper action bar at the foot of a screen: 12 above and below, the
 /// actions 8 apart, full width.
 class ActionBar extends StatelessWidget {
-  const ActionBar({super.key, required this.children});
+  const ActionBar({super.key, required this.children, this.divider = false});
 
   final List<Widget> children;
 
+  /// The hairline over the bar, where the content scrolls under it.
+  final bool divider;
+
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: IqColors.bg,
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: IqColors.bg,
+        border: divider
+            ? const Border(top: BorderSide(color: IqColors.line))
+            : null,
+      ),
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: IqSpace.s4,
@@ -255,6 +196,205 @@ class ProofFrame extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// An activation as the B8 lists draw it: Exp/BriefCard, Feature for the
+/// first card and Row for the rest, the reward, the time it takes (Feature
+/// only) and the deadline, on the Urgent pill when it closes within a day.
+/// A paid activation (My activations, Done) shows Done in place of the
+/// deadline.
+class ActivationCard extends StatelessWidget {
+  const ActivationCard({
+    super.key,
+    required this.activation,
+    required this.now,
+    this.feature = false,
+    this.onTap,
+  });
+
+  final Activation activation;
+  final DateTime now;
+  final bool feature;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = activation;
+    final art = businessArt(a.business);
+    return IqBriefCard(
+      kind: feature ? IqBriefCardKind.feature : IqBriefCardKind.row,
+      brand: a.business,
+      title: a.title,
+      cover: activationCover(a.business),
+      logo: IqSampleLogo(art),
+      meta: [
+        IqMeta(kind: IqMetaKind.reward, label: rewardChip(a)),
+        if (feature) IqMeta(kind: IqMetaKind.time, label: minutesText(a)),
+        if (a.credited)
+          const IqMeta(kind: IqMetaKind.done, label: 'Paid to your wallet')
+        else
+          IqMeta(
+            kind: closingSoon(a, now) ? IqMetaKind.urgent : IqMetaKind.deadline,
+            label: deadlineText(a, now),
+          ),
+      ],
+      onTap: onTap,
+    );
+  }
+}
+
+/// 165:7704: a Feature skeleton card (the 168 photo, three lines and three
+/// pills) over two Row skeletons (the 72 square and three lines), each on
+/// the BriefCard's line card.
+class ActivationsLoading extends StatelessWidget {
+  const ActivationsLoading({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
+      child: Semantics(
+        label: 'Loading',
+        child: SkeletonPulse(
+          builder: (context, opacity) {
+            Widget bar(double width, double height, {double? radius}) =>
+                FadeTransition(
+                  opacity: opacity,
+                  child: Container(
+                    width: width,
+                    height: height,
+                    decoration: BoxDecoration(
+                      color: IqColors.panel,
+                      borderRadius: BorderRadius.circular(radius ?? height / 2),
+                    ),
+                  ),
+                );
+            Widget row() => LineCard(
+              inset: true,
+              child: Padding(
+                padding: const EdgeInsets.all(IqSpace.s4),
+                child: Row(
+                  children: [
+                    bar(72, 72, radius: IqRadius.xl),
+                    const SizedBox(width: IqSpace.s3),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        bar(110, 12),
+                        const SizedBox(height: IqSpace.s2),
+                        bar(200, 14),
+                        const SizedBox(height: IqSpace.s2),
+                        bar(130, 24),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                LineCard(
+                  inset: true,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      FadeTransition(
+                        opacity: opacity,
+                        child: Container(height: 168, color: IqColors.panel),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            bar(120, 12),
+                            const SizedBox(height: 10),
+                            bar(280, 16),
+                            const SizedBox(height: 10),
+                            bar(200, 16),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                bar(96, 26),
+                                const SizedBox(width: IqSpace.s2),
+                                bar(64, 26),
+                                const SizedBox(width: IqSpace.s2),
+                                bar(80, 26),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: IqSpace.s3),
+                row(),
+                const SizedBox(height: IqSpace.s3),
+                row(),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+/// The empty-state block of 165:7855 and 165:8008: an Exp/Figure (188 x
+/// 200), 12, the title (Mob/Title), 12, the line, then the button 12 below.
+class ActivationsEmpty extends StatelessWidget {
+  const ActivationsEmpty({
+    super.key,
+    required this.figure,
+    required this.title,
+    this.body,
+    this.action,
+    this.onAction,
+    this.top = IqSpace.s6,
+  });
+
+  final IqFigures figure;
+  final String title;
+  final String? body;
+  final String? action;
+  final VoidCallback? onAction;
+  final double top;
+
+  @override
+  Widget build(BuildContext context) {
+    final action = this.action;
+    final body = this.body;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(0, top, 0, IqSpace.s6),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IqFigure(figure, width: 188.2353, arrive: true),
+          const SizedBox(height: IqSpace.s3),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: IqText.title.copyWith(color: IqColors.fg),
+          ),
+          if (body != null) ...[
+            const SizedBox(height: IqSpace.s3),
+            Text(
+              body,
+              textAlign: TextAlign.center,
+              style: IqText.body.copyWith(color: IqColors.fg2),
+            ),
+          ],
+          if (action != null) ...[
+            const SizedBox(height: IqSpace.s3),
+            IqButton(label: action, showIcon: false, onTap: onAction),
+          ],
+        ],
       ),
     );
   }

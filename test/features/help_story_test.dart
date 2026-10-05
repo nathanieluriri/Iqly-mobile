@@ -62,7 +62,10 @@ void main() {
       now: figmaNow,
       service: instantActivations(
         now: figmaNow,
-        seed: DemoActivations(figmaNow).all,
+        seed: [
+          DemoActivations(figmaNow).unibooks
+              .withProgress(DemoActivations(figmaNow).stuckAtStep2),
+        ],
         step: const Duration(seconds: 4),
       ),
       overrides: [helpServiceProvider.overrideWithValue(help)],
@@ -71,11 +74,10 @@ void main() {
     await _tap(tester, find.byType(IqProofTile));
     expect(find.text('unibooks-signup.mp4'), findsOneWidget);
     await _tap(tester, find.text('Send proof'));
-    expect(find.text('Your proof'), findsOneWidget);
+    expect(find.text('Not credited yet?'), findsOneWidget);
     expect(find.text('unibooks-signup.mp4'), findsOneWidget);
 
     await _askForHelp(tester);
-    expect(find.text('Support replies within 2 hours.'), findsOneWidget);
     // The proof check pays Unibooks while the request is being written.
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();

@@ -17,6 +17,16 @@ void main() {
     );
   });
 
+  testWidgets('brief_hero_detail', (tester) async {
+    await expectComponentGolden(
+      tester,
+      'brief_hero_detail',
+      const SizedBox(width: 390, child: IqBriefHero(height: 232)),
+      size: const Size(390, 260),
+      padding: 0,
+    );
+  });
+
   testWidgets('resized to 160, the logo keeps its overhang (35:146)', (
     tester,
   ) async {
