@@ -17,6 +17,7 @@ class IqBriefHero extends StatelessWidget {
     this.showLogo = true,
     this.assets = 3,
     this.current = 0,
+    this.height = defaultHeight,
   });
 
   final Widget cover;
@@ -26,7 +27,11 @@ class IqBriefHero extends StatelessWidget {
   final int assets;
   final int current;
 
-  static const double height = 280;
+  /// Screens resize the instance (Submission detail 35:146 sets 160); the
+  /// logo keeps its 28 overhang.
+  final double height;
+
+  static const double defaultHeight = 280;
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +74,7 @@ class IqBriefHero extends StatelessWidget {
           if (showLogo)
             Positioned(
               left: IqSpace.s4,
-              top: 252,
+              top: height - 28,
               child: Container(
                 width: 56,
                 height: 56,
