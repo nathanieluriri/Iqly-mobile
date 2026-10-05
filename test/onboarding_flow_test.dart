@@ -24,8 +24,6 @@ import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/tip_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'golden/screens/onboarding_harness.dart';
-
 class _RecordingService implements OnboardingService {
   OnboardingProfile? saved;
 
@@ -91,7 +89,6 @@ void main() {
   testWidgets('first run walks Welcome to Done and the notifications ask', (
     tester,
   ) async {
-    allowBriefCardOverflow();
     final (prefs, service) = await _launch(tester);
     expect(find.byType(WelcomeScreen), findsOneWidget);
 
@@ -234,7 +231,6 @@ void main() {
 
   testWidgets('Skip for now opens the next step only, and back returns to '
       'the opener', (tester) async {
-    allowBriefCardOverflow();
     await _launch(tester);
     await _tap(tester, find.text('Start'));
     for (final screen in [

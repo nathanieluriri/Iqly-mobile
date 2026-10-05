@@ -75,7 +75,6 @@ void main() {
     });
 
     testWidgets('Done at $ms', (tester) async {
-      allowBriefCardOverflow();
       _phone(tester);
       final prefs = await onboardingPrefs(draft: sampleWhatYouLike);
       await tester.pumpWidget(

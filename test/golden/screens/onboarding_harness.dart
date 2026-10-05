@@ -84,15 +84,3 @@ final sampleWhatYouLike = {
   'interests': ['marketing_advertising', 'finance_fintech'],
   'lastStep': 'whatYouLike',
 };
-
-/// Exp/BriefCard on this branch has a fixed body that a two-line ask
-/// overflows (Done's Kudi Box card); the Discover lane's kit fix (b1a99b2)
-/// lets the body grow. Until it lands, overflow reports are let through.
-void allowBriefCardOverflow() {
-  final previous = FlutterError.onError;
-  FlutterError.onError = (details) {
-    if (details.exceptionAsString().contains('overflowed')) return;
-    previous?.call(details);
-  };
-  addTearDown(() => FlutterError.onError = previous);
-}

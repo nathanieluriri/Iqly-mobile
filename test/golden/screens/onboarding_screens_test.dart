@@ -162,7 +162,6 @@ void main() {
   });
 
   testWidgets('188:8490 Done', (tester) async {
-    allowBriefCardOverflow();
     final prefs = await onboardingPrefs(draft: sampleWhatYouLike);
     await expectGolden(
       tester,

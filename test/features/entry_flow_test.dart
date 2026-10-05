@@ -18,7 +18,6 @@ import 'package:iqly_mobile/ui/box_field.dart';
 import 'package:iqly_mobile/ui/provider_button.dart';
 import 'package:iqly_mobile/ui/tip_card.dart';
 
-import '../golden/screens/onboarding_harness.dart';
 import 'entry_harness.dart';
 
 Future<ProviderContainer> _boot(
@@ -200,7 +199,6 @@ void main() {
   testWidgets('back from the notifications ask returns to onboarding Done', (
     tester,
   ) async {
-    allowBriefCardOverflow();
     await _boot(
       tester,
       prefs: {'session.signedIn': true},
