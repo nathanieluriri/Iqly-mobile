@@ -494,7 +494,7 @@ class _SearchSheetLayout extends StatelessWidget {
     final count = this.count;
     final bottom = math.max(MediaQuery.paddingOf(context).bottom, IqSpace.s3);
     const footTop = IqSpace.s3;
-    final foot = footTop + IqButton.height * 2 + IqSpace.s2 + bottom;
+    final foot = footTop + IqButton.defaultHeight * 2 + IqSpace.s2 + bottom;
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

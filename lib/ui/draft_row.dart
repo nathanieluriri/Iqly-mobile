@@ -122,26 +122,58 @@ class IqDraftRow extends StatelessWidget {
   }
 }
 
+/// Figma draws three 70 pt segments 4 apart; each done fill runs 9 past its
+/// segment, bridging the gap, and the next segment paints over the rest. A
+/// fill that continues a done step is square on the left so no seam shows.
 class _Progress extends StatelessWidget {
   const _Progress({required this.done});
 
   final List<bool> done;
 
+  static const double segment = 70;
+  static const double overrun = 9;
+
   @override
   Widget build(BuildContext context) {
+    final shape = BorderRadius.circular(2);
     return SizedBox(
       height: IqSpace.s1,
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           for (var i = 0; i < done.length; i++) ...[
             if (i > 0) const SizedBox(width: IqSpace.s1),
-            Expanded(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: done[i] ? IqColors.brand : IqColors.line,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+            SizedBox(
+              width: segment,
+              child: Stack(
+                clipBehavior: Clip.none,
+                fit: StackFit.expand,
+                children: [
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: IqColors.line,
+                      borderRadius: shape,
+                    ),
+                  ),
+                  if (done[i])
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      right: -overrun,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: IqColors.brand,
+                          borderRadius: i > 0 && done[i - 1]
+                              ? const BorderRadius.horizontal(
+                                  right: Radius.circular(2),
+                                )
+                              : shape,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ],
