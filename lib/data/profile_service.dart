@@ -82,9 +82,18 @@ abstract class ProfileService {
 
   static const undoWindow = Duration(days: 30);
 
+  /// Reopens an account that is closing, within [undoWindow].
+  Future<void> restoreAccount();
+
   /// Typing autosaves once it pauses this long, so a phone number is one
   /// call, not one per digit.
   static const typingPause = Duration(milliseconds: 800);
+
+  /// A new code can be asked for this long after the last one was sent.
+  static const codeResendAfter = Duration(seconds: 45);
+
+  /// The resend countdown's step.
+  static const countdownStep = Duration(seconds: 1);
 }
 
 /// Answers with the Figma values (B7 · Your details 40:141: the phone,
@@ -107,6 +116,7 @@ class DemoProfileService implements ProfileService {
   };
   int signOuts = 0;
   int deletions = 0;
+  int restores = 0;
 
   Future<void> _wait() =>
       delay == Duration.zero ? Future.value() : Future<void>.delayed(delay);
@@ -147,6 +157,12 @@ class DemoProfileService implements ProfileService {
   Future<void> deleteAccount() async {
     await _wait();
     deletions++;
+  }
+
+  @override
+  Future<void> restoreAccount() async {
+    await _wait();
+    restores++;
   }
 }
 

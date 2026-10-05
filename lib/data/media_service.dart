@@ -13,6 +13,11 @@ abstract class MediaService {
   /// business the recording proves a step for; the demo names its file
   /// after it, the device's picker has the file's own name.
   Future<ProofVideo?> pickVideo({String? about});
+
+  /// A screenshot from the phone's own photo picker (image_picker,
+  /// pickImage from the gallery); its file name, or null when the person
+  /// backs out.
+  Future<String?> pickImage();
 }
 
 class DemoMediaService implements MediaService {
@@ -39,6 +44,16 @@ class DemoMediaService implements MediaService {
   /// name of the business it proves a step for.
   ProofVideo? video;
   int picks = 0;
+
+  /// What the next screenshot pick returns; null backs out.
+  String? image = 'screenshot.png';
+
+  @override
+  Future<String?> pickImage() async {
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    picks++;
+    return image;
+  }
 
   @override
   Future<ProofVideo?> pickVideo({String? about}) async {

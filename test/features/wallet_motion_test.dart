@@ -168,7 +168,7 @@ void main() {
       await tester.pump(_ms * 130);
       expect(_arrive(tester, hero), closeTo(_eo(130 / 260), 0.01));
       expect(_arrive(tester, title), closeTo(_eo(90 / 260), 0.01));
-      expect(_arrive(tester, row), closeTo(_eo(50 / 260), 0.01));
+      expect(_arrive(tester, row), closeTo(_eo(10 / 260), 0.01));
       await tester.pump(_ms * 331);
       expect(_arrive(tester, row), 1);
 
@@ -400,7 +400,7 @@ void main() {
     ) async {
       final (container, router) = await _pumpApp(tester, Routes.wallet);
       await tester.pump(_ms * 500);
-      expect(find.text('₦12,500'), findsOneWidget);
+      expect(find.text('₦15,000'), findsOneWidget);
 
       router.push(Routes.withdraw);
       await tester.pump();
@@ -409,18 +409,18 @@ void main() {
           .read(walletProvider.notifier)
           .add(RequestedWalletRepository.requested);
       await tester.pump(_ms * 500);
-      expect(find.text('₦12,500'), findsOneWidget);
+      expect(find.text('₦15,000'), findsOneWidget);
 
       router.pop();
       await tester.pump();
       await tester.pump(_ms * 100);
-      expect(find.text('₦12,500'), findsOneWidget);
+      expect(find.text('₦15,000'), findsOneWidget);
       await tester.pump(_ms * 140);
       await tester.pump(_ms * 80);
-      expect(find.text('₦12,500'), findsOneWidget);
-      expect(find.text('₦7,500'), findsOneWidget);
-      expect(find.text('5'), findsOneWidget);
-      expect(find.text('6'), findsOneWidget);
+      expect(find.text('₦15,000'), findsOneWidget);
+      expect(find.text('₦10,000'), findsOneWidget);
+      expect(find.text('8'), findsOneWidget);
+      expect(find.text('9'), findsOneWidget);
 
       double slot() => tester
           .widget<SizeTransition>(
@@ -435,8 +435,8 @@ void main() {
       expect(slot(), 0);
       await tester.pump(_ms * 120);
       expect(slot(), closeTo(_eo(0.5), 0.01));
-      expect(find.text('₦7,500'), findsOneWidget);
-      expect(find.text('₦12,500'), findsNothing);
+      expect(find.text('₦10,000'), findsOneWidget);
+      expect(find.text('₦15,000'), findsNothing);
       expect(find.text('ON HOLD · 2 PENDING'), findsOneWidget);
       await tester.pump(_ms * 121);
       expect(slot(), 1);
@@ -464,8 +464,8 @@ void main() {
       await tester.pump();
       await tester.pump(_ms * 151);
       await tester.pump();
-      expect(find.text('₦7,500'), findsOneWidget);
-      expect(find.text('₦12,500'), findsNothing);
+      expect(find.text('₦10,000'), findsOneWidget);
+      expect(find.text('₦15,000'), findsNothing);
       await tester.pumpAndSettle();
       expect(tester.hasRunningAnimations, isFalse);
     });

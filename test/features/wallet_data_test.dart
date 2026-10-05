@@ -198,7 +198,7 @@ void main() {
           for (final item in data.activity)
             item.award?.amountKobo ?? item.withdrawal!.amountKobo,
         ],
-        [1000000, 1250000, 4000000, 500000, 5000000],
+        [150000, 1000000, 1250000, 50000, 50000, 4000000, 500000, 5000000],
       );
       expect(data.bankLine, 'Access Bank ••6789');
       expect(data.onHoldCount, 1);
@@ -208,7 +208,7 @@ void main() {
       final container = _container();
       final notifier = container.read(walletProvider.notifier);
       final before = (await container.read(walletProvider.future)).totals;
-      expect(naira(before.withdrawableKobo), '₦12,500.00');
+      expect(naira(before.withdrawableKobo), '₦15,000.00');
 
       final requested = (await instantWallet().withdraw(
         amountKobo: 500000,
@@ -216,9 +216,9 @@ void main() {
       )).withdrawal!;
       notifier.add(requested);
       var totals = container.read(walletProvider).value!.totals;
-      expect(naira(totals.withdrawableKobo), '₦7,500.00');
+      expect(naira(totals.withdrawableKobo), '₦10,000.00');
       expect(naira(totals.pendingWithdrawalsKobo), '₦15,000.00');
-      expect(naira(totals.totalEarnedKobo), '₦62,500.00');
+      expect(naira(totals.totalEarnedKobo), '₦65,000.00');
 
       notifier.replace(
         requested.copyWith(
@@ -227,7 +227,7 @@ void main() {
         ),
       );
       totals = container.read(walletProvider).value!.totals;
-      expect(naira(totals.withdrawableKobo), '₦7,500.00');
+      expect(naira(totals.withdrawableKobo), '₦10,000.00');
       expect(naira(totals.pendingWithdrawalsKobo), '₦10,000.00');
       final data = container.read(walletProvider).value!;
       final paidOut = data.withdrawals
@@ -246,7 +246,7 @@ void main() {
       final pending = data.withdrawal('w3')!;
       notifier.replace(pending.copyWith(status: WithdrawalStatus.failed));
       final totals = container.read(walletProvider).value!.totals;
-      expect(naira(totals.withdrawableKobo), '₦22,500.00');
+      expect(naira(totals.withdrawableKobo), '₦25,000.00');
       expect(totals.pendingWithdrawalsKobo, 0);
     });
 

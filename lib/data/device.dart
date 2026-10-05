@@ -6,6 +6,12 @@ abstract class DeviceService {
   /// permission_handler or firebase_messaging.
   Future<bool> requestNotificationPermission();
 
+  /// Whether the phone lets iQLY notify (permission_handler).
+  Future<bool> notificationsAllowed();
+
+  /// The phone's notification settings for iQLY (app_settings).
+  Future<void> openNotificationSettings();
+
   /// android_intent_plus (main/APP_EMAIL) and url_launcher (message: on iOS);
   /// mailto: would open a compose sheet, not the inbox.
   Future<void> openEmailApp();
@@ -19,6 +25,14 @@ class DemoDeviceService implements DeviceService {
 
   final Duration delay;
   final List<Uri> opened = [];
+  bool notificationsOn = true;
+  int settingsOpened = 0;
+
+  @override
+  Future<bool> notificationsAllowed() async => notificationsOn;
+
+  @override
+  Future<void> openNotificationSettings() async => settingsOpened++;
 
   @override
   Future<bool> requestNotificationPermission() async {

@@ -71,12 +71,12 @@ void main() {
     );
     expect(find.byType(WalletScreen), findsOneWidget);
     expect(find.text('Access Bank ••6789'), findsOneWidget);
-    expect(_hero(tester).amount, '₦12,500');
+    expect(_hero(tester).amount, '₦15,000');
     expect(_hero(tester).decimals, '.00');
     expect(_hero(tester).onHold, '₦10,000.00');
-    expect(_hero(tester).earned, '₦62,500.00');
+    expect(_hero(tester).earned, '₦65,000.00');
     expect(find.text('ON HOLD · 1 PENDING'), findsOneWidget);
-    expect(find.text('5'), findsOneWidget);
+    expect(find.text('8'), findsOneWidget);
     for (final row in [
       '₦10,000.00',
       '+₦12,500.00',
@@ -84,10 +84,13 @@ void main() {
       '₦5,000.00',
       '+₦50,000.00',
     ]) {
-      await tester.ensureVisible(find.text(row).last);
+      for (var i = 0; i < 10 && find.text(row).evaluate().isEmpty; i++) {
+        await tester.drag(find.byType(ListView).last, const Offset(0, -120));
+        await tester.pumpAndSettle();
+      }
       expect(find.text(row), findsWidgets);
     }
-    expect(find.text('2h ago'), findsOneWidget);
+    expect(find.text('2h ago'), findsNWidgets(2));
     expect(find.text('pending'), findsOneWidget);
     expect(find.text('completed'), findsOneWidget);
     expect(find.text('failed'), findsOneWidget);
@@ -119,7 +122,7 @@ void main() {
     expect(find.text('₦5,000.00'), findsOneWidget);
     expect(find.text('to Access Bank ••6789'), findsOneWidget);
     expect(find.text('AVAILABLE AFTER'), findsOneWidget);
-    expect(find.text('₦7,500.00'), findsOneWidget);
+    expect(find.text('₦10,000.00'), findsWidgets);
     expect(wallet.requests.single.amountKobo, 500000);
     expect(wallet.requests.single.account.accountNumber, '0123456789');
     expect(haptics, [_commit, _success]);
@@ -127,11 +130,11 @@ void main() {
     await _tap(tester, find.text('Back to wallet'));
     await _settle(tester);
     expect(find.byType(WithdrawalPendingScreen), findsNothing);
-    expect(_hero(tester).amount, '₦7,500');
+    expect(_hero(tester).amount, '₦10,000');
     expect(_hero(tester).onHold, '₦15,000.00');
-    expect(_hero(tester).earned, '₦62,500.00');
+    expect(_hero(tester).earned, '₦65,000.00');
     expect(find.text('ON HOLD · 2 PENDING'), findsOneWidget);
-    expect(find.text('6'), findsOneWidget);
+    expect(find.text('9'), findsOneWidget);
     expect(find.text('Just now'), findsOneWidget);
     expect(find.text('pending'), findsNWidgets(2));
   });
@@ -213,7 +216,7 @@ void main() {
       overrides: walletOverrides(wallet: wallet),
     );
     await _settle(tester);
-    const help = 'Minimum ₦1,000 · available ₦12,500.00';
+    const help = 'Minimum ₦1,000 · available ₦15,000.00';
     expect(find.text(help), findsNothing);
 
     await _tap(tester, find.text('Withdraw').last);
@@ -226,16 +229,16 @@ void main() {
     expect(find.text(help), findsOneWidget);
     expect(wallet.requests, isEmpty);
 
-    await _type(tester, _amountField(), '12500.01');
-    expect(find.text('₦12,500.01'), findsOneWidget);
+    await _type(tester, _amountField(), '15000.01');
+    expect(find.text('₦15,000.01'), findsOneWidget);
     expect(find.text(help), findsOneWidget);
     expect(tester.widget<IqField>(_amountField()).state, IqFieldState.error);
 
-    await _type(tester, _amountField(), '12500');
+    await _type(tester, _amountField(), '15000');
     expect(find.text(help), findsNothing);
     expect(find.text('Ready · bank saved'), findsOneWidget);
     await _tap(tester, find.text('Withdraw').last);
-    expect(wallet.requests.single.amountKobo, 1250000);
+    expect(wallet.requests.single.amountKobo, 1500000);
     expect(find.text('₦0.00'), findsOneWidget);
   });
 
@@ -351,7 +354,9 @@ void main() {
       await _tap(tester, find.bySemanticsLabel('Back'));
       await _settle(tester);
       expect(find.text('completed'), findsNWidgets(2));
-      expect(_hero(tester).amount, '₦12,500');
+      await tester.drag(find.byType(ListView).last, const Offset(0, 600));
+      await tester.pumpAndSettle();
+      expect(_hero(tester).amount, '₦15,000');
       expect(_hero(tester).onHold, '₦0.00');
       expect(find.text('ON HOLD · 0 PENDING'), findsOneWidget);
 
@@ -520,7 +525,7 @@ void main() {
     await _settle(tester);
     expect(find.byType(WithdrawalPendingScreen), findsNothing);
     expect(find.byType(WalletScreen), findsOneWidget);
-    expect(_hero(tester).amount, '₦10,500');
+    expect(_hero(tester).amount, '₦13,000');
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
   });
 }

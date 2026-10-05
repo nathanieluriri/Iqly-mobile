@@ -130,20 +130,20 @@ void main() {
         [
           (
             IqNotificationKind.deadline,
-            'Closes in 6h',
+            'Closes in 7h',
             'Sunline · A tagline for a solar kiosk network',
             '1h',
           ),
           (
             IqNotificationKind.payout,
-            '₦10,000.00 requested',
-            'Access Bank ••6789 · pending',
+            '₦1,500.00 added to your wallet',
+            'Kudi Box · activation reward',
             '2h',
           ),
           (
             IqNotificationKind.deadline,
-            'Closes in 1 day',
-            'Kudi Box · Redesign the first five minutes of our savings app',
+            'Kudi Box closes tomorrow',
+            'Redesign the first five minutes of our savings app',
             '5h',
           ),
           (
@@ -160,17 +160,32 @@ void main() {
           ),
           (
             IqNotificationKind.payout,
-            '₦5,000.00 payout failed',
-            'Access Bank ••6789 · back in your balance',
+            '₦5,000.00 never left your wallet',
+            'Withdrawal to Access Bank ••6789 failed',
             '11d',
           ),
         ],
       );
-      expect(items[0].link!.location, '/briefs/c5');
-      expect(items[1].link!.location, '/wallet/withdrawals/w3');
-      expect(items[3].link!.location, '/submissions/s2');
-      expect(items[4].link!.tab, isTrue);
-      expect(items[5].link!.location, '/wallet/withdrawals/w1');
+      for (final (i, item) in items.indexed) {
+        expect(item.link!.location, '/notifications/${item.note.id}');
+        expect(item.page, isNotNull, reason: 'row $i opens its sub page');
+      }
+      expect(items[0].page!.link.location, '/briefs/c5');
+      expect(items[1].page!.link.tab, isTrue);
+      expect(items[3].page!.link.location, '/submissions/s2/result');
+      expect(items[4].page!.link.location, '/wallet/withdrawals/w2');
+      expect(
+        items[4].page!.body,
+        '₦40,000.00 arrived at Access Bank ••6789 on 23 September at 9:41 am. '
+        'Reference IQ-WD-240923-7F3K. It can take your bank a few minutes to '
+        'show it.',
+      );
+      expect(
+        items[3].page!.body,
+        'A business kept private picked your answer to “Why do Lagosians skip '
+        'mobile banking on Sundays?”. ₦12,500.00 is in your wallet now.',
+      );
+      expect(items[5].page!.link.location, '/wallet/withdrawals/w1');
     });
 
     test('a reversed payout says so', () {
@@ -189,7 +204,7 @@ void main() {
         withdrawals: {'w1': reversed},
         now: figmaNow,
       )!;
-      expect(item.title, '₦5,000.00 payout reversed');
+      expect(item.title, '₦5,000.00 is back in your wallet');
     });
 
     test('the bell starts at DemoData.unreadNotifications and clears once '
@@ -216,7 +231,7 @@ void main() {
     test('the credited reward takes the DemoData wallet to the frame', () {
       final data = DemoData(now: figmaNow);
       final before = walletTotals(data.ledger, data.withdrawals);
-      expect(before.withdrawableKobo, 1250000);
+      expect(before.withdrawableKobo, 1500000);
       final credit = LedgerEntry(
         id: kudiBox.creditId,
         type: LedgerType.award,
@@ -224,9 +239,9 @@ void main() {
         createdAt: figmaNow,
       );
       final after = walletTotals([credit, ...data.ledger], data.withdrawals);
-      expect(after.withdrawableKobo, 1400000);
+      expect(after.withdrawableKobo, 1650000);
       expect(after.pendingWithdrawalsKobo, 1000000);
-      expect(after.totalEarnedKobo, 6400000);
+      expect(after.totalEarnedKobo, 6650000);
     });
 
     test('the recording reads 0:31 and 12 MB', () {
@@ -288,7 +303,7 @@ void main() {
         ..credit(credit);
       final wallet = container.read(walletProvider).value!;
       expect(wallet.ledger.where((l) => l.id == kudiBox.creditId).length, 1);
-      expect(wallet.totals.withdrawableKobo, 1400000);
+      expect(wallet.totals.withdrawableKobo, 1650000);
     });
   });
 

@@ -39,6 +39,19 @@ abstract class HelpService {
 
   /// The person marks [ticketId] as resolved.
   Future<HelpTicket> resolve(String ticketId);
+
+  /// The one support inbox: every conversation, latest message first.
+  Future<List<HelpTicket>> conversations();
+
+  /// The person opened [ticketId].
+  Future<void> markRead(String ticketId);
+
+  /// Sends a report (B21 · Report an issue) and returns its ticket number.
+  Future<String> report({
+    required String topic,
+    required String details,
+    String? screenshot,
+  });
 }
 
 /// Picks the frame's recording and uploads it in four steps, answers sends
@@ -58,7 +71,11 @@ class DemoHelpService implements HelpService {
     String? firstName,
     DateTime Function()? clock,
   }) : firstName = firstName ?? DemoData.user.firstName,
-       _clock = clock ?? DateTime.now;
+       _clock = clock ?? DateTime.now {
+    for (final ticket in DemoHelp.conversations(this.firstName)) {
+      _save(ticket);
+    }
+  }
 
   final Duration delay;
   final Duration uploadStep;
@@ -68,6 +85,7 @@ class DemoHelpService implements HelpService {
   final DateTime Function() _clock;
 
   final requests = <HelpRequest>[];
+  final reports = <({String topic, String details, String? screenshot})>[];
   final _tickets = <String, HelpTicket>{};
   final _about = <String, Activation>{};
   int _next = 1;
@@ -174,6 +192,29 @@ class DemoHelpService implements HelpService {
         ],
       ),
     );
+  }
+
+  @override
+  Future<List<HelpTicket>> conversations() async =>
+      _tickets.values.toList()
+        ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
+  @override
+  Future<void> markRead(String ticketId) async {
+    final ticket = _tickets[ticketId];
+    if (ticket != null && ticket.unread) _save(ticket.copyWith(unread: false));
+  }
+
+  /// B21 · Report sent (431:19726) numbers the first report IQ-HELP-2041.
+  @override
+  Future<String> report({
+    required String topic,
+    required String details,
+    String? screenshot,
+  }) async {
+    await _wait(delay);
+    reports.add((topic: topic, details: details, screenshot: screenshot));
+    return 'IQ-HELP-${2040 + reports.length}';
   }
 
   @override

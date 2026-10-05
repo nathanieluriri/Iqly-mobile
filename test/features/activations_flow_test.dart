@@ -137,9 +137,9 @@ void main() {
       expect(find.text('Paid ₦1,500'), findsOneWidget);
       expect(find.text('Steps confirmed by Kudi Box'), findsOneWidget);
       expect(find.text('Thu, 1:55 pm · 3 of 3 steps'), findsOneWidget);
-      expect(_hero(tester).amount, '₦14,000');
+      expect(_hero(tester).amount, '₦16,500');
       expect(_hero(tester).decimals, '.00');
-      expect(_hero(tester).earned, '₦64,000.00');
+      expect(_hero(tester).earned, '₦66,500.00');
       expect(_hero(tester).onHold, '₦10,000.00');
       expect(find.text('Withdraw'), findsNothing);
       expect(haptics, [_commit, _success]);
@@ -148,9 +148,9 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       await tester.pumpAndSettle();
       expect(find.byType(WalletScreen), findsOneWidget);
-      expect(_hero(tester).amount, '₦14,000');
-      expect(_hero(tester).earned, '₦64,000.00');
-      expect(find.text('+₦1,500.00'), findsOneWidget);
+      expect(_hero(tester).amount, '₦16,500');
+      expect(_hero(tester).earned, '₦66,500.00');
+      expect(find.text('+₦1,500.00'), findsNWidgets(2));
     },
   );
 
@@ -282,14 +282,14 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Your reward'), findsOneWidget);
       expect(find.text('Confirmed Fri, 2:10 pm'), findsOneWidget);
-      expect(_hero(tester).amount, '₦14,000');
+      expect(_hero(tester).amount, '₦16,500');
       expect(haptics.last, _success);
 
       await _tap(tester, find.text('View wallet'));
       await tester.pump(const Duration(seconds: 1));
       await tester.pumpAndSettle();
       expect(find.byType(WalletScreen), findsOneWidget);
-      expect(find.text('+₦1,500.00'), findsOneWidget);
+      expect(find.text('+₦1,500.00'), findsNWidgets(2));
     },
   );
 

@@ -22,6 +22,8 @@ class DemoData {
     city: 'Ikeja',
     university: 'University of Lagos',
     interests: ['Marketing & advertising', 'Finance & fintech'],
+    occupation: 'student',
+    education: 'hnd_bsc',
   );
 
   late final List<Brief> briefs = [
@@ -259,15 +261,40 @@ class DemoData {
   ];
 
   /// Award 50,000 (13d ago), failed 5,000 (11d), paid out 40,000 (10d),
-  /// award 12,500 (2d), 10,000 requested (2h). Earned 62,500.00, paid out
-  /// 40,000.00, on hold 10,000.00, available 12,500.00.
+  /// referral rewards 500 (6d) and 500 (4d), award 12,500 (2d), activation
+  /// reward 1,500 (2h), 10,000 requested (2h). Earned 65,000.00, paid out
+  /// 40,000.00, on hold 10,000.00, available 15,000.00 (designer answer 6).
   late final List<LedgerEntry> ledger = [
+    LedgerEntry(
+      id: 'l6',
+      type: LedgerType.award,
+      amountKobo: 150000,
+      createdAt: now.subtract(const Duration(hours: 2)),
+      reward: LedgerReward.activation,
+      rewardFrom: 'Kudi Box',
+    ),
     LedgerEntry(
       id: 'l3',
       type: LedgerType.award,
       amountKobo: 1250000,
       createdAt: at(-2),
       submissionId: 's2',
+    ),
+    LedgerEntry(
+      id: 'l5',
+      type: LedgerType.award,
+      amountKobo: 50000,
+      createdAt: at(-4),
+      reward: LedgerReward.referral,
+      rewardFrom: 'Amaka O.',
+    ),
+    LedgerEntry(
+      id: 'l4',
+      type: LedgerType.award,
+      amountKobo: 50000,
+      createdAt: at(-6),
+      reward: LedgerReward.referral,
+      rewardFrom: 'Ngozi E.',
     ),
     LedgerEntry(
       id: 'l2',

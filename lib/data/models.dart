@@ -45,6 +45,11 @@ enum WithdrawalStatus { pending, processing, completed, failed, reversed }
 
 enum LedgerType { award, withdrawal }
 
+/// What an award row that is not a brief win pays: an activation reward or
+/// a referral reward (designer answer 6, "Reward · activation", "Reward ·
+/// referral").
+enum LedgerReward { activation, referral }
+
 class Brief {
   const Brief({
     required this.id,
@@ -173,10 +178,19 @@ class LedgerEntry {
     required this.amountKobo,
     required this.createdAt,
     this.submissionId,
+    this.reward,
+    this.rewardFrom,
   });
 
   final String id;
   final LedgerType type;
+
+  /// Set on rewards; null on brief awards and withdrawals.
+  final LedgerReward? reward;
+
+  /// Who the reward is for: the business of an activation or the friend of
+  /// a referral ("Kudi Box", "Ngozi E.").
+  final String? rewardFrom;
 
   /// The winning submission an award pays out; null for withdrawals.
   final String? submissionId;
@@ -297,6 +311,8 @@ class User {
     required this.city,
     required this.university,
     required this.interests,
+    this.occupation,
+    this.education,
   });
 
   final String firstName;
@@ -306,6 +322,10 @@ class User {
   final String city;
   final String university;
   final List<String> interests;
+
+  /// Reference.occupations and Reference.education values.
+  final String? occupation;
+  final String? education;
 
   String get name => '$firstName $lastName';
   String get initial => firstName.substring(0, 1);

@@ -19,6 +19,24 @@ class OnboardingProfile {
   final String? education;
   final String? university;
   final List<String> interests;
+
+  /// Keeps every field the change does not name, so an edit to one answer
+  /// never drops another.
+  OnboardingProfile copyWith({
+    String? occupation,
+    String? state,
+    String? city,
+    String? education,
+    String? university,
+    List<String>? interests,
+  }) => OnboardingProfile(
+    occupation: occupation ?? this.occupation,
+    state: state ?? this.state,
+    city: city ?? this.city,
+    education: education ?? this.education,
+    university: university ?? this.university,
+    interests: interests ?? this.interests,
+  );
 }
 
 /// Sends the first-run answers to the contributor's profile.
