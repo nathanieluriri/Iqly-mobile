@@ -342,18 +342,14 @@ class DemoActivations {
     confirmedAt: [now.subtract(const Duration(days: 1, minutes: 20))],
   );
 
-  /// Started an hour ago, nothing confirmed yet.
-  ActivationProgress get justStarted =>
-      ActivationProgress(startedAt: now.subtract(const Duration(hours: 1)));
-
   /// Why the business turns a proof down (B9 · Proof · not accepted).
   static const endsEarly = 'The recording ends before the Verification page.';
 
-  /// The app's demo, as B8 · My activations shows it: Orchid Foods and Kudi
-  /// Box under way (Kudi Box past its window at step 2, so its proof flow
-  /// opens), Unibooks still an offer.
+  /// The app's demo: Kudi Box under way and past its window at step 2, so
+  /// its proof flow opens; Orchid Foods and Unibooks still offers, as B3
+  /// Pick a brief shows Orchid Foods.
   List<Activation> get all => [
-    orchidFoods.withProgress(justStarted),
+    orchidFoods,
     kudiBox.withProgress(stuckAtStep2),
     unibooks,
   ];

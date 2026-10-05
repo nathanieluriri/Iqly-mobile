@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/features/activations/activation_screen.dart';
 import 'package:iqly_mobile/features/activations/activations_screen.dart';
-import 'package:iqly_mobile/features/activations/my_activations_screen.dart';
 import 'package:iqly_mobile/features/activations/proof_player_screen.dart';
 import 'package:iqly_mobile/features/activations/proof_screen.dart';
 import 'package:iqly_mobile/ui/proof_tile.dart';
@@ -11,7 +10,7 @@ import '../harness.dart';
 import '../steps.dart';
 
 /// A returning contributor signs in and opens Activations from Discover,
-/// then My activations. Kudi Box's step 2 went unconfirmed past a day, so
+/// then My activations, which opens Kudi Box, their one activation. Its step 2 went unconfirmed past a day, so
 /// they upload proof: the tile becomes the recording as it uploads, the
 /// preview player opens from its play sticker, Send proof hands back to the
 /// activation, and a tap on the Checking row brings the reward.
@@ -27,12 +26,6 @@ void main() {
     await d.reveal(mine, listIn(find.byType(ActivationsScreen)));
     await d.hold(0.5);
     await d.tap(mine, label: 'my-activations');
-
-    await d.arrive(find.byType(MyActivationsScreen), hold: 1);
-    await d.tap(
-      find.text('Open a Kudi Box account and save ₦1,000.00'),
-      label: 'kudi-box',
-    );
 
     await d.arrive(find.byType(ActivationScreen), hold: 1.2);
     await d.tap(find.text('Upload proof of step 2'));
