@@ -216,7 +216,7 @@ void main() {
     test('the credited reward takes the DemoData wallet to the frame', () {
       final data = DemoData(now: figmaNow);
       final before = walletTotals(data.ledger, data.withdrawals);
-      expect(before.withdrawableKobo, 1250000);
+      expect(before.withdrawableKobo, 1500000);
       final credit = LedgerEntry(
         id: kudiBox.creditId,
         type: LedgerType.award,
@@ -224,9 +224,9 @@ void main() {
         createdAt: figmaNow,
       );
       final after = walletTotals([credit, ...data.ledger], data.withdrawals);
-      expect(after.withdrawableKobo, 1400000);
+      expect(after.withdrawableKobo, 1650000);
       expect(after.pendingWithdrawalsKobo, 1000000);
-      expect(after.totalEarnedKobo, 6400000);
+      expect(after.totalEarnedKobo, 6650000);
     });
 
     test('the recording reads 0:31 and 12 MB', () {
@@ -288,7 +288,7 @@ void main() {
         ..credit(credit);
       final wallet = container.read(walletProvider).value!;
       expect(wallet.ledger.where((l) => l.id == kudiBox.creditId).length, 1);
-      expect(wallet.totals.withdrawableKobo, 1400000);
+      expect(wallet.totals.withdrawableKobo, 1650000);
     });
   });
 

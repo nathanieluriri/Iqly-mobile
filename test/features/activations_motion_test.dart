@@ -263,20 +263,20 @@ void main() {
       await _run(tester, 60);
       expect(_stampOpacity(tester), 0);
       expect(haptics, [_commit]);
-      expect(_hero(tester).amount, '₦12,500');
+      expect(_hero(tester).amount, '₦15,000');
 
       await _run(tester, 100);
       expect(haptics, [_commit, _success]);
       expect(_between(_stampOpacity(tester)), isTrue);
       expect(_stampScale(tester), greaterThan(1));
-      expect(_hero(tester).amount, '₦12,500');
+      expect(_hero(tester).amount, '₦15,000');
 
       await _run(tester, 300);
       expect(_stampOpacity(tester), 1);
       expect(_stampScale(tester), closeTo(1, 0.001));
       expect(_stampDegrees(tester), closeTo(IqClaimStamp.tilt, 0.001));
-      expect(_hero(tester).amount, '₦14,000');
-      expect(_hero(tester).earned, '₦64,000.00');
+      expect(_hero(tester).amount, '₦16,500');
+      expect(_hero(tester).earned, '₦66,500.00');
       await tester.pump(const Duration(milliseconds: 500));
     });
 
@@ -317,7 +317,7 @@ void main() {
       final stamp = <(double, double)>[];
       await _run(tester, 600, (at) {
         stamp.add((_stampOpacity(tester), _stampScale(tester)));
-        expect(_hero(tester).amount, '₦14,000', reason: 'at $at ms');
+        expect(_hero(tester).amount, '₦16,500', reason: 'at $at ms');
       });
       expect(find.text('Your reward'), findsOneWidget);
       expect(stamp.first.$1, 0);
@@ -346,7 +346,7 @@ void main() {
       await _run(tester, 600, (at) {
         if (_layerOf('_Layout.credited').evaluate().isEmpty) return;
         layer.add(_layer(tester, '_Layout.credited'));
-        expect(_hero(tester).amount, '₦14,000');
+        expect(_hero(tester).amount, '₦16,500');
         stamp.add(_stampOpacity(tester));
         expect(_stampScale(tester), 1);
         expect(_stampDegrees(tester), IqClaimStamp.tilt);

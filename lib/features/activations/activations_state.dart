@@ -12,10 +12,10 @@ import '../wallet/wallet_state.dart';
 /// list opens at once the second time (B9 Home goes straight to the list).
 /// Changes the service pushes land here as they happen. A reward that gets
 /// paid is credited to the wallet as a ledger award, so the wallet foots:
-/// DemoData's ledger (lib/data/demo_data.dart, lines 261 to 285: ₦12,500.00
-/// available, ₦62,500.00 earned) plus the reward (₦1,500 makes ₦14,000.00
-/// and ₦64,000.00, as B8 · Reward · credited shows). The live API credits
-/// the ledger itself and a wallet reload brings the same row.
+/// DemoData's ledger (₦15,000.00 available, ₦65,000.00 earned, designer
+/// answer 6) plus the reward (₦1,500 makes ₦16,500.00 and ₦66,500.00; the
+/// B8 · Reward · credited frame still reads the older ₦14,000.00). The live
+/// API credits the ledger itself and a wallet reload brings the same row.
 class ActivationsNotifier extends AsyncNotifier<List<Activation>> {
   @override
   Future<List<Activation>> build() async {
@@ -78,6 +78,8 @@ class ActivationsNotifier extends AsyncNotifier<List<Activation>> {
             type: LedgerType.award,
             amountKobo: activation.rewardKobo,
             createdAt: activation.progress!.paidAt!,
+            business: activation.business,
+            note: 'activation',
           ),
         );
   }
