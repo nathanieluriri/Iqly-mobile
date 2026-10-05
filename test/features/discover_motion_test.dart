@@ -720,7 +720,7 @@ void main() {
         settle: false,
       );
       expect(figure, findsNothing);
-      await rises(tester, IqFigures.shrug);
+      await rises(tester, IqFigures.writer);
       expect(find.text('No open briefs right now'), findsOneWidget);
     });
 

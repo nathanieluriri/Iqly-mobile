@@ -489,7 +489,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final proposals = _proposals();
     return [
       if (proposals.isNotEmpty) ...[
-        for (final item in proposals) item.child,
+        for (final (i, item) in proposals.indexed) ...[
+          if (i > 0) SizedBox(height: item.gap),
+          item.child,
+        ],
         _sectionGap,
         _briefsTitle(),
         const SizedBox(height: IqSpace.s3),
@@ -636,12 +639,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     if (view.isEmpty) {
       final narrowed = filters.narrowed;
       return [
-        ...proposals,
         _Item(
           'empty',
           _inset(
             _EmptyState(
-              figure: IqFigures.shrug,
+              figure: narrowed ? IqFigures.shrug : IqFigures.writer,
               top: IqSpace.s10,
               title: narrowed
                   ? 'No briefs match these filters'
@@ -660,7 +662,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   : null,
             ),
           ),
-          gap: lead,
         ),
       ];
     }

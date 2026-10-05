@@ -32,12 +32,12 @@ class DiscoverTopBar extends ConsumerWidget {
     final unread = ref.watch(unreadNotificationsProvider).value ?? 0;
     return IqTopBar(
       title: 'Discover',
-      greeting: '',
       count: '$unread',
       showCount: unread > 0,
-      onBell: () => context.push(Routes.notifications),
       showWallet: false,
-      showGreeting: true,
+      showGift: true,
+      giftTwinkle: giftShine,
+      onBell: () => context.push(Routes.notifications),
     );
   }
 }
