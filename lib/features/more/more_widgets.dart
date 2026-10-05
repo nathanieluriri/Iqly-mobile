@@ -33,6 +33,7 @@ class SubPage extends StatelessWidget {
       IqSpace.s3,
     ),
     this.onBack,
+    this.hasFields = true,
   });
 
   final String title;
@@ -41,12 +42,17 @@ class SubPage extends StatelessWidget {
   final EdgeInsets actionsPadding;
   final VoidCallback? onBack;
 
+  /// False for a page without text entry: it then holds still while a
+  /// keyboard left over from the page before drops away.
+  final bool hasFields;
+
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
         backgroundColor: IqColors.bg,
+        resizeToAvoidBottomInset: hasFields,
         body: SafeArea(
           child: CenteredContent(
             child: Column(

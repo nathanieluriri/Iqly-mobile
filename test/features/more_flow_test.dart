@@ -241,6 +241,19 @@ void main() {
     expect(find.text('Chat with iQLY support'), findsOneWidget);
   });
 
+  testWidgets('Report sent holds still under the keyboard left over from '
+      'the report', (tester) async {
+    await pumpMore(tester, Routes.helpCentre);
+    await _tap(tester, find.text('Report an issue'));
+    tester.view.viewInsets = const FakeViewPadding(bottom: 336);
+    await tester.pump();
+    GoRouter.of(tester.element(find.byType(Navigator).first))
+        .pushReplacement(Routes.reportSent, extra: 'IQ-HELP-2041');
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Report sent'), findsOneWidget);
+  });
+
   testWidgets('a report takes a screenshot from the phone and comes back to '
       'Help', (tester) async {
     await pumpMore(tester, Routes.helpCentre);
