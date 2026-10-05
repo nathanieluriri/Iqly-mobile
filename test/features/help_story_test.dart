@@ -96,9 +96,9 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('UPDATED BALANCE'), findsOneWidget);
-    expect(_hero(tester).amount, '₦13,300');
+    expect(_hero(tester).amount, '₦15,800');
     expect(_hero(tester).decimals, '.00');
-    expect(_hero(tester).earned, '₦63,300.00');
+    expect(_hero(tester).earned, '₦65,800.00');
     expect(_awards(container), {'activation-a3': 80000});
   });
 
@@ -124,14 +124,14 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(_hero(tester).amount, '₦14,000');
+    expect(_hero(tester).amount, '₦16,500');
     expect(_awards(container), {'activation-a2': 150000});
 
     await container.read(activationsProvider.notifier).refresh('a2');
     await tester.pumpAndSettle();
     expect(container.read(activationProvider('a2'))!.credited, isTrue);
     expect(_awards(container), {'activation-a2': 150000});
-    expect(_hero(tester).amount, '₦14,000');
+    expect(_hero(tester).amount, '₦16,500');
   });
 
   group('the demo support', () {

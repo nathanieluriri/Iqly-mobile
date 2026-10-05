@@ -56,6 +56,16 @@ abstract class WalletService {
   /// [withdrawal] now and every change after (approved, sent, arrived or
   /// failed). The live API pushes or polls; the screen just listens.
   Stream<Withdrawal> watch(Withdrawal withdrawal);
+
+  /// Whether [pin] is the person's 4-digit iQLY PIN.
+  Future<bool> confirmPin(String pin);
+
+  /// Saves a verified account; it is not the default until [setDefault].
+  Future<SavedBank> addAccount(SavedBank account);
+
+  /// Makes [account] the default payout account. A withdrawal already on
+  /// its way still goes where it was sent.
+  Future<void> setDefault(SavedBank account);
 }
 
 /// As on the web demo, an account number ending in 0 cannot be verified;
@@ -66,8 +76,12 @@ class DemoWalletService implements WalletService {
   DemoWalletService({
     this.delay = const Duration(milliseconds: 700),
     this.payoutStep = const Duration(seconds: 1),
+    this.failWith,
     DateTime Function()? clock,
   }) : _clock = clock ?? DateTime.now;
+
+  /// Every withdrawal request fails this way while set.
+  WalletFailure? failWith;
 
   static const unverifiableAccountNumber = '0123456780';
 
@@ -78,6 +92,9 @@ class DemoWalletService implements WalletService {
   final DateTime Function() _clock;
 
   final requests = <({int amountKobo, SavedBank account})>[];
+  final pins = <String>[];
+  final added = <SavedBank>[];
+  final defaults = <SavedBank>[];
   int _next = 4;
 
   Future<void> _wait(Duration duration) => duration == Duration.zero
@@ -105,6 +122,8 @@ class DemoWalletService implements WalletService {
     required SavedBank account,
   }) async {
     await _wait(delay);
+    final failure = failWith;
+    if (failure != null) return WithdrawResult.failure(failure);
     requests.add((amountKobo: amountKobo, account: account));
     final now = _clock();
     final id = _next++;
@@ -122,6 +141,7 @@ class DemoWalletService implements WalletService {
         reference: 'IQ-WD-${DateFormat('yyMMdd').format(now)}-$tail',
         bankName: account.bankName,
         accountNumber: account.accountNumber,
+        held: added.any((a) => a.accountNumber == account.accountNumber),
       ),
     );
   }
@@ -132,7 +152,7 @@ class DemoWalletService implements WalletService {
     final step = payoutStep;
     if (step == null || !withdrawal.onHold) return;
     var current = withdrawal;
-    if (current.approvedAt == null) {
+    if (current.held && current.approvedAt == null) {
       await _wait(step);
       current = current.copyWith(
         status: WithdrawalStatus.processing,
@@ -153,6 +173,27 @@ class DemoWalletService implements WalletService {
       status: WithdrawalStatus.completed,
       completedAt: _clock(),
     );
+  }
+
+  /// The demo takes any four digits.
+  @override
+  Future<bool> confirmPin(String pin) async {
+    await _wait(delay);
+    pins.add(pin);
+    return RegExp(r'^\d{4}$').hasMatch(pin);
+  }
+
+  @override
+  Future<SavedBank> addAccount(SavedBank account) async {
+    await _wait(delay);
+    added.add(account);
+    return account;
+  }
+
+  @override
+  Future<void> setDefault(SavedBank account) async {
+    await _wait(delay);
+    defaults.add(account);
   }
 }
 

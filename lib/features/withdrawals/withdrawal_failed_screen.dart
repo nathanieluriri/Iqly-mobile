@@ -13,23 +13,15 @@ import '../../ui/banner.dart';
 import '../../ui/button.dart';
 import '../../ui/top_bar.dart';
 import '../wallet/wallet_routes.dart';
-import 'withdrawal_screen.dart';
 import 'withdrawal_widgets.dart';
 
-/// B14 · Withdrawal · failed (194:9835): the bank's reason in the Error
-/// banner, the hero amount, the receipt without a tag, and the steps up to
-/// "Failed at the bank". Check bank details opens Select bank; the pick
-/// opens the Withdraw sheet with the same amount, to the same bank or
-/// another one.
+/// B14 · Withdrawal · failed (194:9835) and reversed (no frame; built on
+/// the failed one, designer answer 7): the bank's reason in the Error
+/// banner, the amount, the receipt without a tag and the steps up to the
+/// failure. Fix bank account opens Select bank.
 ///
-/// Motion (spec 7.9, 4.3): the banner slides down, the receipt arrives and
-/// draws its tear line, and the failed step on err never breathes (a
-/// failure does not pulse). Check bank details pushes Select bank, the back
-/// button holding while the titles cross.
-///
-/// Figma over the row note: there is no separate Retry button; Check bank
-/// details is the retry. The banner adds "Nothing left your wallet." to
-/// the bank's words: a failed withdrawal releases its hold.
+/// Failed means nothing left the wallet; reversed means it left and came
+/// back. The banner says which.
 class WithdrawalFailedScreen extends ConsumerWidget {
   const WithdrawalFailedScreen({super.key, required this.withdrawal});
 
@@ -37,17 +29,10 @@ class WithdrawalFailedScreen extends ConsumerWidget {
 
   static String reasonLine(Withdrawal withdrawal) {
     final reason = withdrawal.failureReason;
-    return reason == null
-        ? 'Nothing left your wallet.'
-        : '$reason Nothing left your wallet.';
-  }
-
-  Future<void> _checkBankDetails(BuildContext context) async {
-    final bank = await context.push<Bank>(Routes.selectBank);
-    if (bank == null || !context.mounted) return;
-    context.go(
-      withdrawLocation(amountKobo: withdrawal.amountKobo, bankCode: bank.code),
-    );
+    final outcome = withdrawal.status == WithdrawalStatus.reversed
+        ? 'Back in your wallet.'
+        : 'Nothing left your wallet.';
+    return reason == null ? outcome : '$reason $outcome';
   }
 
   @override
@@ -65,7 +50,7 @@ class WithdrawalFailedScreen extends ConsumerWidget {
                 IqTopBar(
                   variant: IqTopBarVariant.page,
                   title: 'Withdrawal',
-                  onBack: () => leaveWithdrawal(context),
+                  onBack: () => leaveWallet(context),
                 ),
                 Expanded(
                   child: Stagger(
@@ -105,10 +90,10 @@ class WithdrawalFailedScreen extends ConsumerWidget {
                     IqSpace.s3,
                   ),
                   child: IqButton(
-                    label: 'Check bank details',
+                    label: 'Fix bank account',
                     showIcon: false,
                     width: double.infinity,
-                    onTap: () => _checkBankDetails(context),
+                    onTap: () => context.push(Routes.selectBank),
                   ),
                 ),
               ],

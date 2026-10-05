@@ -9,7 +9,8 @@ enum IqQuickActionKind { primary, standard }
 
 /// Exp/QuickAction: a rectangular quick action under the wallet. One
 /// Primary (Withdraw), the rest Default (Bank account, Filter). Figma
-/// Kind=Default is [IqQuickActionKind.standard].
+/// Kind=Default is [IqQuickActionKind.standard]. [disabled] is the empty
+/// wallet's Withdraw (165:8921): the action at .4, not tappable.
 class IqQuickAction extends StatelessWidget {
   const IqQuickAction({
     super.key,
@@ -17,20 +18,24 @@ class IqQuickAction extends StatelessWidget {
     this.label = 'Withdraw',
     this.icon = IqIcons.arrow,
     this.onTap,
+    this.disabled = false,
   });
 
   final IqQuickActionKind kind;
   final String label;
   final IqIcons icon;
   final VoidCallback? onTap;
+  final bool disabled;
 
   static const Size size = Size(114, 68);
+  static const double disabledOpacity = 0.4;
 
   @override
   Widget build(BuildContext context) {
     final primary = kind == IqQuickActionKind.primary;
-    return IqPressable(
+    final action = IqPressable(
       onTap: onTap,
+      enabled: !disabled,
       semanticLabel: label,
       builder: (context, pressed) => AnimatedContainer(
         duration: pressed ? IqDurations.dim : IqDurations.release,
@@ -63,5 +68,6 @@ class IqQuickAction extends StatelessWidget {
         ),
       ),
     );
+    return disabled ? Opacity(opacity: disabledOpacity, child: action) : action;
   }
 }

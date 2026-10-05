@@ -62,7 +62,6 @@ void main() {
         expect(validWithdrawal(100000, available), isTrue);
         expect(validWithdrawal(1250000, available), isTrue);
         expect(validWithdrawal(1250001, available), isFalse);
-        expect(amountHelp(available), 'Minimum ₦1,000 · available ₦12,500.00');
       },
     );
 
@@ -117,21 +116,47 @@ void main() {
         WithdrawalFailedScreen.reasonLine(byId['w1']!),
         'Account name didn’t match. Nothing left your wallet.',
       );
+      expect(
+        WithdrawalFailedScreen.reasonLine(byId['w0']!),
+        'The bank sent it back. Back in your wallet.',
+      );
     });
 
-    test('steps done follow approval, transfer and arrival', () {
+    test('steps done follow transfer and arrival; approval only when held', () {
       final w = DemoData(now: figmaNow).withdrawals.first;
+      expect(w.held, isFalse);
       expect(withdrawalStepsDone(w), 1);
-      expect(
-        withdrawalStepsDone(
-          w.copyWith(status: WithdrawalStatus.processing, approvedAt: figmaNow),
-        ),
-        2,
-      );
-      expect(withdrawalStepsDone(w.copyWith(sentAt: figmaNow)), 3);
+      expect(withdrawalStepsDone(w.copyWith(sentAt: figmaNow)), 2);
       expect(
         withdrawalStepsDone(w.copyWith(status: WithdrawalStatus.completed)),
-        4,
+        3,
+      );
+      expect(
+        [for (final s in withdrawalSteps(w, figmaNow)) s.title],
+        ['Requested', 'Sent to your bank', 'Arrived'],
+      );
+      final held = Withdrawal(
+        id: 'h',
+        amountKobo: 1,
+        status: WithdrawalStatus.pending,
+        createdAt: figmaNow,
+        held: true,
+      );
+      expect(
+        [for (final s in withdrawalSteps(held, figmaNow)) s.title],
+        ['Requested', 'Awaiting approval', 'Sent to your bank', 'Arrived'],
+      );
+      expect(withdrawalStepsDone(held.copyWith(approvedAt: figmaNow)), 2);
+      final byId = {
+        for (final x in DemoData(now: figmaNow).withdrawals) x.id: x,
+      };
+      expect(
+        [for (final s in withdrawalSteps(byId['w1']!, figmaNow)) s.title],
+        ['Requested', 'Approved by iQLY', 'Failed at the bank'],
+      );
+      expect(
+        [for (final s in withdrawalSteps(byId['w0']!, figmaNow)) s.title],
+        ['Requested', 'Sent to your bank', 'Reversed by the bank'],
       );
     });
   });
@@ -170,7 +195,7 @@ void main() {
       expect(w.reference, startsWith('IQ-WD-261003-'));
     });
 
-    test('a watched one on hold is approved, sent and arrives', () async {
+    test('a watched one on hold is sent and arrives', () async {
       final service = DemoWalletService(
         delay: Duration.zero,
         payoutStep: Duration.zero,
@@ -181,16 +206,28 @@ void main() {
       expect(seen.map((w) => w.status), [
         WithdrawalStatus.pending,
         WithdrawalStatus.processing,
-        WithdrawalStatus.processing,
         WithdrawalStatus.completed,
       ]);
+      final held = await service
+          .watch(
+            Withdrawal(
+              id: pending.id,
+              amountKobo: pending.amountKobo,
+              status: pending.status,
+              createdAt: pending.createdAt,
+              held: true,
+            ),
+          )
+          .toList();
+      expect(held.length, 4);
+      expect(held[1].approvedAt, figmaNow);
       expect(seen.last.completedAt, figmaNow);
       expect(await instantWallet().watch(pending).length, 1);
     });
   });
 
   group('wallet state', () {
-    test('activity is awards and withdrawals, newest first', () async {
+    test('activity is rewards and withdrawals, newest first', () async {
       final container = _container();
       final data = await container.read(walletProvider.future);
       expect(
@@ -198,10 +235,45 @@ void main() {
           for (final item in data.activity)
             item.award?.amountKobo ?? item.withdrawal!.amountKobo,
         ],
-        [150000, 1000000, 1250000, 50000, 50000, 4000000, 500000, 5000000],
+        [
+          1000000,
+          1250000,
+          150000,
+          50000,
+          4000000,
+          500000,
+          5000000,
+          200000,
+          50000,
+        ],
       );
-      expect(data.bankLine, 'Access Bank ••6789');
+      expect(data.savedBank?.label, 'Access Bank ••6789');
+      expect(data.accounts.map((a) => a.label), [
+        'Access Bank ••6789',
+        'Guaranty Trust Bank ••4410',
+      ]);
       expect(data.onHoldCount, 1);
+      expect(data.winningSubmissions, 2);
+    });
+
+    test('the demo foots: ₦65,000.00 earned, ₦15,000.00 available', () async {
+      final container = _container();
+      final data = await container.read(walletProvider.future);
+      final totals = data.totals;
+      expect(naira(totals.totalEarnedKobo), '₦65,000.00');
+      expect(naira(totals.pendingWithdrawalsKobo), '₦10,000.00');
+      expect(naira(totals.withdrawableKobo), '₦15,000.00');
+      final paidOut = data.withdrawals
+          .where((w) => w.status == WithdrawalStatus.completed)
+          .fold(0, (sum, w) => sum + w.amountKobo);
+      expect(
+        totals.totalEarnedKobo,
+        paidOut + totals.pendingWithdrawalsKobo + totals.withdrawableKobo,
+      );
+      expect({
+        for (final l in data.ledger)
+          if (l.type == LedgerType.award) l.source,
+      }, RewardSource.values.toSet());
     });
 
     test('figures foot through a withdrawal and its arrival', () async {
@@ -238,6 +310,31 @@ void main() {
         paidOut + totals.pendingWithdrawalsKobo + totals.withdrawableKobo,
       );
     });
+
+    test(
+      'a new account joins after the default; switching moves it first',
+      () async {
+        final container = _container();
+        final notifier = container.read(walletProvider.notifier);
+        await container.read(walletProvider.future);
+        const kuda = SavedBank(
+          bankCode: '50211',
+          bankName: 'Kuda Bank',
+          accountName: 'ADAEZE OKAFOR',
+          accountNumber: '1234567891',
+        );
+        notifier.addAccount(kuda);
+        expect(
+          container.read(walletProvider).value!.accounts.last.label,
+          'Kuda Bank ••7891',
+        );
+        notifier.setDefault(kuda);
+        final data = container.read(walletProvider).value!;
+        expect(data.savedBank, kuda);
+        expect(data.accounts.length, 3);
+        expect(kuda.holder, 'Adaeze Okafor');
+      },
+    );
 
     test('a failed withdrawal releases its hold', () async {
       final container = _container();

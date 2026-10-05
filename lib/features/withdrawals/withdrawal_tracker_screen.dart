@@ -1,69 +1,32 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/deadline.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../data/models.dart';
-import '../../data/share_service.dart';
+import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/button.dart';
 import '../../ui/top_bar.dart';
-import 'withdrawal_screen.dart';
+import '../wallet/wallet_routes.dart';
 import 'withdrawal_widgets.dart';
 
-/// B14 · Withdrawal · tracker (194:9752): the hero amount, the receipt
-/// (To, Reference, Date and the status tag) and the four steps. Share
-/// receipt exports the receipt card as an image to the system share sheet.
+/// B14 · Withdrawal · tracker (194:9752) and arrived (485:39669): the
+/// amount, the receipt with its Pending or Arrived tag, and the steps.
+/// "Get help with this withdrawal" opens Help.
 ///
-/// Motion (spec 7.9): the amount comes with the page, no count; the receipt
-/// arrives and draws its tear line; the steps stand still and Awaiting
-/// approval breathes its ring while it holds the screen's pulse.
-///
-/// Figma: Share receipt has no reaction in the prototype; the app shares
-/// the card, as the ReceiptCard description says ("Share receipt exports
-/// this card").
-class WithdrawalTrackerScreen extends ConsumerStatefulWidget {
+/// Motion (spec 7.9): the receipt arrives and draws its tear line; a step
+/// that completes while the page is open inks in place.
+class WithdrawalTrackerScreen extends ConsumerWidget {
   const WithdrawalTrackerScreen({super.key, required this.withdrawal});
 
   final Withdrawal withdrawal;
 
   @override
-  ConsumerState<WithdrawalTrackerScreen> createState() =>
-      _WithdrawalTrackerScreenState();
-}
-
-class _WithdrawalTrackerScreenState
-    extends ConsumerState<WithdrawalTrackerScreen> {
-  final _receipt = GlobalKey();
-  bool _sharing = false;
-
-  Future<void> _share() async {
-    final boundary =
-        _receipt.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-    if (boundary == null || _sharing) return;
-    setState(() => _sharing = true);
-    final share = ref.read(shareServiceProvider);
-    final image = await boundary.toImage(pixelRatio: 3);
-    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-    image.dispose();
-    if (bytes != null) {
-      final w = widget.withdrawal;
-      await share.shareImage(
-        bytes.buffer.asUint8List(),
-        name: 'iqly-receipt-${w.reference ?? w.id}.png',
-      );
-    }
-    if (mounted) setState(() => _sharing = false);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final withdrawal = widget.withdrawal;
+  Widget build(BuildContext context, WidgetRef ref) {
     final now = ref.watch(clockProvider)();
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
@@ -77,7 +40,7 @@ class _WithdrawalTrackerScreenState
                 IqTopBar(
                   variant: IqTopBarVariant.page,
                   title: 'Withdrawal',
-                  onBack: () => leaveWithdrawal(context),
+                  onBack: () => leaveWallet(context),
                 ),
                 Expanded(
                   child: Stagger(
@@ -90,12 +53,9 @@ class _WithdrawalTrackerScreenState
                           const SizedBox(height: IqSpace.s3),
                           StaggerItem(
                             index: 0,
-                            child: RepaintBoundary(
-                              key: _receipt,
-                              child: WithdrawalReceipt(
-                                withdrawal: withdrawal,
-                                now: now,
-                              ),
+                            child: WithdrawalReceipt(
+                              withdrawal: withdrawal,
+                              now: now,
                             ),
                           ),
                           const SizedBox(height: IqSpace.s3),
@@ -112,13 +72,18 @@ class _WithdrawalTrackerScreenState
                     IqSpace.s4,
                     IqSpace.s3,
                   ),
-                  child: IqButton(
-                    label: 'Share receipt',
-                    kind: IqButtonKind.ghost,
-                    showIcon: false,
-                    width: double.infinity,
-                    loading: _sharing,
-                    onTap: _share,
+                  child: SizedBox(
+                    height: 44,
+                    child: OverflowBox(
+                      maxHeight: IqButton.defaultHeight,
+                      child: IqButton(
+                        label: 'Get help with this withdrawal',
+                        kind: IqButtonKind.ghost,
+                        showIcon: false,
+                        width: double.infinity,
+                        onTap: () => context.push(Routes.help),
+                      ),
+                    ),
                   ),
                 ),
               ],

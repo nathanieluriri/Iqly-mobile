@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../data/models.dart';
-import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/field.dart';
 import '../../ui/icon.dart';
@@ -16,11 +15,10 @@ import 'wallet_routes.dart';
 import 'wallet_state.dart';
 
 /// B5 · Select bank (38:20): the banks as Paystack lists them, searchable by
-/// name; the saved one says so. A pick goes back to the Withdraw sheet with
-/// that bank; opened on its own (Check bank details on a failed
-/// withdrawal), it opens the sheet for it. The search field and the first
-/// rows settle with the push (spec 1.3); from the failed withdrawal the
-/// back button holds while the titles cross (spec 4.3).
+/// name; the saved one says so. A pick opens Add a bank account for it
+/// (483:22323); once that saves, this page goes too and pops true, back to
+/// whatever opened it (the Bank account sheet, a failed withdrawal). The
+/// search field and the first rows settle with the push (spec 1.3).
 class SelectBankScreen extends ConsumerStatefulWidget {
   const SelectBankScreen({super.key});
 
@@ -38,19 +36,14 @@ class _SelectBankScreenState extends ConsumerState<SelectBankScreen> {
     super.dispose();
   }
 
-  void _pick(Bank bank) {
-    if (context.canPop()) {
-      context.pop(bank);
-    } else {
-      context.go(withdrawLocation(bankCode: bank.code));
-    }
-  }
-
-  void _back() {
-    if (context.canPop()) {
-      context.pop();
-    } else {
-      context.go(Routes.wallet);
+  Future<void> _pick(Bank bank) async {
+    final saved = await context.push<bool>(addBankPath(bank.code));
+    if (saved == true && mounted) {
+      if (context.canPop()) {
+        context.pop(true);
+      } else {
+        context.go(bankAccountPath);
+      }
     }
   }
 
@@ -78,7 +71,7 @@ class _SelectBankScreenState extends ConsumerState<SelectBankScreen> {
                   IqTopBar(
                     variant: IqTopBarVariant.page,
                     title: 'Select bank',
-                    onBack: _back,
+                    onBack: () => leaveWallet(context),
                   ),
                   StaggerItem(
                     index: 0,
@@ -96,31 +89,42 @@ class _SelectBankScreenState extends ConsumerState<SelectBankScreen> {
                     ),
                   ),
                   Expanded(
-                    child: ListView.builder(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: IqSpace.s4,
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(
+                        IqSpace.s4,
+                        IqSpace.s4,
+                        IqSpace.s4,
+                        IqSpace.s4,
                       ),
                       keyboardDismissBehavior:
                           ScrollViewKeyboardDismissBehavior.onDrag,
-                      itemCount: banks.length,
-                      itemBuilder: (context, i) {
-                        final bank = banks[i];
-                        final isSaved = bank.code == saved?.bankCode;
-                        return StaggerItem(
-                          index: i + 1,
-                          child: IqListRow(
-                            key: ValueKey(bank.code),
-                            label: bank.name,
-                            description: isSaved
-                                ? 'Saved · ${saved!.accountName}'
-                                : '',
-                            showDescription: isSaved,
-                            icon: IqIcons.bank,
-                            divider: i < banks.length - 1,
-                            onTap: () => _pick(bank),
-                          ),
-                        );
-                      },
+                      child: Container(
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
+                          color: IqColors.card,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: IqColors.line),
+                        ),
+                        child: Column(
+                          children: [
+                            for (final (i, bank) in banks.indexed)
+                              StaggerItem(
+                                index: i + 1,
+                                child: IqListRow(
+                                  key: ValueKey(bank.code),
+                                  label: bank.name,
+                                  description: bank.code == saved?.bankCode
+                                      ? 'Saved · ${saved!.holder}'
+                                      : '',
+                                  showDescription: bank.code == saved?.bankCode,
+                                  icon: IqIcons.bank,
+                                  divider: i < banks.length - 1,
+                                  onTap: () => _pick(bank),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ],

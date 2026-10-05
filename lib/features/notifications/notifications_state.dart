@@ -260,7 +260,7 @@ NotificationItem? wordNotification(
       if (reward == null) return null;
       final amount = naira(reward.amountKobo);
       final from = reward.rewardFrom ?? '';
-      final referral = reward.reward == LedgerReward.referral;
+      final referral = reward.source == RewardSource.referral;
       return item(
         IqNotificationKind.payout,
         '$amount added to your wallet',

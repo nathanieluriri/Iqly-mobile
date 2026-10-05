@@ -11,6 +11,7 @@ import '../../data/repository.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/achievement_card.dart';
+import '../../ui/button.dart';
 import '../../ui/confirm_sheet.dart';
 import '../../ui/icon.dart';
 import '../../ui/list_row.dart';
@@ -61,6 +62,7 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
           'account and submissions are not affected.',
       confirmLabel: 'Clear $size',
       cancelLabel: 'Keep it',
+      confirmKind: IqButtonKind.primary,
     );
     if (clear) await ref.read(cacheProvider.notifier).clear();
   }

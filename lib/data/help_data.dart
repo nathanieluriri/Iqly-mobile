@@ -110,13 +110,6 @@ class HelpRequest {
   final Activation? activation;
 }
 
-/// The B10 thread (141:5818, 141:5876), about the activation the person
-/// asked from. In the frames it is Kudi Box, whose B8 reward is ₦1,500:
-/// support confirms the three steps and credits the reward on the ledger
-/// row the activation's own payout uses, so it counts once whichever pays
-/// it. On the DemoData wallet (available ₦12,500.00, one ₦10,000.00
-/// withdrawal on hold, earned ₦62,500.00) that gives the frame's updated
-/// balance: ₦14,000.00 available, ₦10,000.00 on hold, ₦64,000.00 earned.
 /// One common question and its answer.
 class Faq {
   const Faq(this.question, this.answer);
@@ -125,6 +118,14 @@ class Faq {
   final String answer;
 }
 
+/// The B10 thread (141:5818, 141:5876), about the activation the person
+/// asked from. In the frames it is Kudi Box, whose B8 reward is ₦1,500:
+/// support confirms the three steps and credits the reward on the ledger
+/// row the activation's own payout uses, so it counts once whichever pays
+/// it. On the DemoData wallet (available ₦15,000.00, one ₦10,000.00
+/// withdrawal on hold, earned ₦65,000.00) that gives ₦16,500.00 available,
+/// ₦10,000.00 on hold, ₦66,500.00 earned (the frame reads the older
+/// ₦14,000.00 and ₦64,000.00).
 abstract final class DemoHelp {
   /// B21 · Help centre (431:19394): the four common questions, and the one
   /// more that searching "withdraw" finds (436:19729). Only the first answer

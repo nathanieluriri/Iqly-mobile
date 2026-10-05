@@ -2,17 +2,36 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/transitions.dart';
-import '../../data/models.dart';
 import '../../router.dart';
+import '../../ui/wallet_card.dart';
 import '../withdrawals/withdrawal_screen.dart';
+import 'activity_screen.dart';
+import 'add_bank_screen.dart';
+import 'bank_account_sheet.dart';
 import 'select_bank_screen.dart';
+import 'wallet_balance_screen.dart';
 import 'wallet_screen.dart';
 import 'withdraw_sheet.dart';
 import 'withdrawal_pending_screen.dart';
 
+/// The tracker, arrived, failed and reversed states of one withdrawal. The
+/// payout notification links here; keep the path stable.
 String withdrawalPath(String id) => '/wallet/withdrawals/$id';
 
 String withdrawalPendingPath(String id) => '/wallet/withdrawals/$id/pending';
+
+const walletOnItsWayPath = '/wallet/on-its-way';
+const walletEarnedPath = '/wallet/earned';
+const bankAccountPath = '/wallet/bank-account';
+
+enum ActivityTab { all, rewards, withdrawals }
+
+String activityPath([ActivityTab tab = ActivityTab.all]) =>
+    tab == ActivityTab.all
+    ? '/wallet/activity'
+    : '/wallet/activity?tab=${tab.name}';
+
+String addBankPath(String bankCode) => '/wallet/add-bank?bank=$bankCode';
 
 /// The Withdraw sheet, prefilled for a retry: [amountKobo] in the amount
 /// field and [bankCode] as the destination.
@@ -24,10 +43,9 @@ String withdrawLocation({int? amountKobo, String? bankCode}) => Uri(
   },
 ).toString();
 
-/// The Wallet tab. Its other screens open over the shell (their frames have
-/// no dock) but sit under /wallet, so a direct `go` draws the Wallet below
-/// them, as the Withdraw sheet frame does. Select bank and the withdrawal
-/// screens push; Withdraw rises as a sheet on the .5 scrim (spec 3.1, 3.3).
+/// The Wallet tab. Everything under it is a sub page or a sheet over the
+/// shell (Page bar, Back, no dock): pages push 300 / 240, sheets rise 300
+/// and drop 200 on the .5 scrim.
 GoRoute walletTabRoute(GlobalKey<NavigatorState> rootKey) => GoRoute(
   path: Routes.wallet,
   pageBuilder: (context, state) => pushPage(state, const WalletScreen()),
@@ -48,10 +66,54 @@ GoRoute walletTabRoute(GlobalKey<NavigatorState> rootKey) => GoRoute(
       },
     ),
     GoRoute(
+      path: 'bank-account',
+      parentNavigatorKey: rootKey,
+      pageBuilder: (context, state) =>
+          sheetPage(state, const BankAccountSheet(), scrim: IqScrim.sheet),
+    ),
+    GoRoute(
+      path: 'on-its-way',
+      parentNavigatorKey: rootKey,
+      pageBuilder: (context, state) => pushPage(
+        state,
+        const WalletBalanceScreen(balance: IqWalletCardBalance.onItsWay),
+      ),
+    ),
+    GoRoute(
+      path: 'earned',
+      parentNavigatorKey: rootKey,
+      pageBuilder: (context, state) => pushPage(
+        state,
+        const WalletBalanceScreen(balance: IqWalletCardBalance.earned),
+      ),
+    ),
+    GoRoute(
+      path: 'activity',
+      parentNavigatorKey: rootKey,
+      pageBuilder: (context, state) => pushPage(
+        state,
+        ActivityScreen(
+          initial:
+              ActivityTab.values
+                  .where((t) => t.name == state.uri.queryParameters['tab'])
+                  .firstOrNull ??
+              ActivityTab.all,
+        ),
+      ),
+    ),
+    GoRoute(
       path: 'select-bank',
       parentNavigatorKey: rootKey,
       pageBuilder: (context, state) =>
-          pushPage<Bank>(state, const SelectBankScreen()),
+          pushPage<bool>(state, const SelectBankScreen()),
+    ),
+    GoRoute(
+      path: 'add-bank',
+      parentNavigatorKey: rootKey,
+      pageBuilder: (context, state) => pushPage<bool>(
+        state,
+        AddBankScreen(bankCode: state.uri.queryParameters['bank'] ?? ''),
+      ),
     ),
     GoRoute(
       path: 'withdrawals/:id/pending',
@@ -69,3 +131,12 @@ GoRoute walletTabRoute(GlobalKey<NavigatorState> rootKey) => GoRoute(
     ),
   ],
 );
+
+/// Back to the opener; with nothing to go back to, the Wallet.
+void leaveWallet(BuildContext context) {
+  if (context.canPop()) {
+    context.pop();
+  } else {
+    context.go(Routes.wallet, extra: NavDirection.back);
+  }
+}

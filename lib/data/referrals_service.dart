@@ -55,7 +55,7 @@ class InviteCodeResult {
 }
 
 /// Referrals (B20): the person's code, their invites, and adding a friend's
-/// code. Referral rewards themselves are ledger rows (LedgerReward.referral).
+/// code. Referral rewards themselves are ledger rows (RewardSource.referral).
 abstract class ReferralsService {
   Future<Referrals> referrals();
   Future<InviteCodeResult> applyCode(String code);
@@ -81,8 +81,8 @@ abstract class ReferralsService {
       'we both get ₦500 when you win your first brief. ${link(code)}';
 }
 
-/// The B20 frames' people. Ngozi E. and Amaka O. won a first brief, so their
-/// ₦500 rewards are the DemoData ledger rows l4 and l5; Tunde F. joined two
+/// The B20 frames' people. Ngozi E. and Tunde A. won a first brief, so their
+/// ₦500 rewards are the DemoData ledger rows l5 and l4; Tunde F. joined two
 /// weeks ago, Bola A. has not joined. TUNDE07 applies (Chidi A. invited
 /// you); EMEKA15 has expired; any other code does not exist.
 class DemoReferralsService implements ReferralsService {
@@ -117,7 +117,7 @@ class DemoReferralsService implements ReferralsService {
     memberSince: DateTime(2026, 9, 2),
     invites: [
       const Invite(name: 'Ngozi E.', status: InviteStatus.won),
-      const Invite(name: 'Amaka O.', status: InviteStatus.won),
+      const Invite(name: 'Tunde A.', status: InviteStatus.won),
       Invite(
         name: 'Tunde F.',
         status: InviteStatus.joined,
@@ -151,7 +151,9 @@ class DemoReferralsService implements ReferralsService {
 
 /// The referral rewards in [ledger], the "Earned" on Referral history.
 int referralEarnedKobo(List<LedgerEntry> ledger) => ledger
-    .where((l) => l.reward == LedgerReward.referral)
+    .where(
+      (l) => l.type == LedgerType.award && l.source == RewardSource.referral,
+    )
     .fold(0, (sum, l) => sum + l.amountKobo);
 
 final referralsServiceProvider = Provider<ReferralsService>(

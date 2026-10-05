@@ -280,19 +280,12 @@ class DemoData {
     ),
   ];
 
-  /// Award 50,000 (13d ago), failed 5,000 (11d), paid out 40,000 (10d),
-  /// referral rewards 500 (6d) and 500 (4d), award 12,500 (2d), activation
-  /// reward 1,500 (2h), 10,000 requested (2h). Earned 65,000.00, paid out
-  /// 40,000.00, on hold 10,000.00, available 15,000.00 (designer answer 6).
+  /// Designer answers 6 and 7: rewards from briefs, an activation and
+  /// referrals; one withdrawal of each state. Earned 50,000 + 12,500 +
+  /// 1,500 + 500 + 500 = 65,000.00; paid out 40,000.00; on its way
+  /// 10,000.00; available 65,000 - 40,000 - 10,000 = 15,000.00. The failed
+  /// and the reversed withdrawals left nothing out of the wallet.
   late final List<LedgerEntry> ledger = [
-    LedgerEntry(
-      id: 'l6',
-      type: LedgerType.award,
-      amountKobo: 150000,
-      createdAt: now.subtract(const Duration(hours: 2)),
-      reward: LedgerReward.activation,
-      rewardFrom: 'Kudi Box',
-    ),
     LedgerEntry(
       id: 'l3',
       type: LedgerType.award,
@@ -301,20 +294,20 @@ class DemoData {
       submissionId: 's2',
     ),
     LedgerEntry(
+      id: 'l6',
+      type: LedgerType.award,
+      amountKobo: 150000,
+      createdAt: at(-3),
+      business: 'Kudi Box',
+      note: 'activation · step 2 confirmed',
+    ),
+    LedgerEntry(
       id: 'l5',
       type: LedgerType.award,
       amountKobo: 50000,
-      createdAt: at(-4),
-      reward: LedgerReward.referral,
-      rewardFrom: 'Amaka O.',
-    ),
-    LedgerEntry(
-      id: 'l4',
-      type: LedgerType.award,
-      amountKobo: 50000,
-      createdAt: at(-6),
-      reward: LedgerReward.referral,
-      rewardFrom: 'Ngozi E.',
+      createdAt: at(-5),
+      note: 'Ngozi E. won a first brief',
+      referred: 'Ngozi E.',
     ),
     LedgerEntry(
       id: 'l2',
@@ -329,12 +322,20 @@ class DemoData {
       createdAt: at(-13),
       submissionId: 's3',
     ),
+    LedgerEntry(
+      id: 'l4',
+      type: LedgerType.award,
+      amountKobo: 50000,
+      createdAt: at(-16),
+      note: 'Tunde A. won a first brief',
+      referred: 'Tunde A.',
+    ),
   ];
 
   /// References, banks, step times and the failure reason come from the B14
   /// receipts (demo.ts has amounts, statuses and dates only). At the Figma
   /// 9:41 the pending one was requested today at 7:40 am and the failed one
-  /// 11 days ago at 2:05 pm, approved at 4:40 pm.
+  /// 11 days ago at 2:05 pm, held and approved at 4:40 pm.
   late final List<Withdrawal> withdrawals = [
     Withdrawal(
       id: 'w3',
@@ -364,6 +365,18 @@ class DemoData {
       accountNumber: savedBank.accountNumber,
       approvedAt: at(-11).add(const Duration(hours: 6, minutes: 59)),
       failureReason: 'Account name didn’t match.',
+      held: true,
+    ),
+    Withdrawal(
+      id: 'w0',
+      amountKobo: 200000,
+      status: WithdrawalStatus.reversed,
+      createdAt: at(-15),
+      reference: 'IQ-WD-240918-5R2T',
+      bankName: savedBank.bankName,
+      accountNumber: savedBank.accountNumber,
+      sentAt: at(-15).add(const Duration(minutes: 3)),
+      failureReason: 'The bank sent it back.',
     ),
   ];
 
@@ -389,4 +402,15 @@ class DemoData {
     accountName: 'ADAEZE OKAFOR',
     accountNumber: '0123456789',
   );
+
+  /// The B5 Bank account sheet: the default first.
+  static const savedBanks = [
+    savedBank,
+    SavedBank(
+      bankCode: '058',
+      bankName: 'Guaranty Trust Bank',
+      accountName: 'ADAEZE OKAFOR',
+      accountNumber: '0234564410',
+    ),
+  ];
 }

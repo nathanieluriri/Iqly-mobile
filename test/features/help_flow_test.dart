@@ -9,6 +9,7 @@ import 'package:iqly_mobile/features/help/help_thread_screen.dart';
 import 'package:iqly_mobile/features/wallet/wallet_screen.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/balance_hero.dart';
+import 'package:iqly_mobile/ui/wallet_card.dart';
 import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/confirm_sheet.dart';
 import 'package:iqly_mobile/ui/proof_tile.dart';
@@ -108,10 +109,13 @@ void main() {
     GoRouter.of(tester.element(find.byType(Navigator).first)).go(Routes.wallet);
     await tester.pumpAndSettle();
     expect(find.byType(WalletScreen), findsOneWidget);
-    final wallet = tester.widget<IqBalanceHero>(find.byType(IqBalanceHero));
-    expect(wallet.amount, '₦16,500');
-    expect(wallet.earned, '₦66,500.00');
-    expect(find.text('+₦1,500.00'), findsNWidgets(2));
+    final wallet = tester.widget<IqWalletCard>(find.byType(IqWalletCard));
+    expect(wallet.amount, '₦16,500.00');
+    expect(
+      find.text('₦10,000.00 on its way · ₦66,500.00 earned so far'),
+      findsOneWidget,
+    );
+    expect(find.text('+₦1,500.00'), findsWidgets);
   });
 
   testWidgets('B10: Mark as resolved goes back to the screen that asked', (

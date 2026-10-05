@@ -25,9 +25,14 @@ enum IqWalletRowStatus {
 /// Exp/WalletRow: an activity row. Rewards lead with the business logo and
 /// the brief; withdrawals lead with the bank and a status chip.
 ///
+/// The logo is not clipped: each mark carries its own shape, as in Figma
+/// (sample logos are round, the referral logomark tile is a rounded square).
+///
 /// Figma over brief: the kit draws Pending, Completed and Failed only. The
 /// designer made Failed and Reversed distinct states (answer 7); Reversed
 /// has no Figma chip yet, so it uses the plain Meta chip until one lands.
+/// A failed amount is struck through in fg3 (Figma Status=Failed); Reversed
+/// follows it, as nothing left the wallet either.
 class IqWalletRow extends StatelessWidget {
   const IqWalletRow({
     super.key,
@@ -57,6 +62,10 @@ class IqWalletRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final award = kind == IqWalletRowKind.award;
+    final returned =
+        !award &&
+        (status == IqWalletRowStatus.failed ||
+            status == IqWalletRowStatus.reversed);
     return IqPressable(
       onTap: onTap,
       semanticLabel: award
@@ -75,7 +84,7 @@ class IqWalletRow extends StatelessWidget {
               child: Row(
                 children: [
                   if (award)
-                    ClipOval(child: SizedBox.square(dimension: 40, child: logo))
+                    SizedBox.square(dimension: 40, child: logo)
                   else
                     Container(
                       width: 40,
@@ -125,7 +134,15 @@ class IqWalletRow extends StatelessWidget {
                         amount,
                         maxLines: 1,
                         style: IqText.bodyStrong.copyWith(
-                          color: award ? IqColors.ok : IqColors.fg,
+                          color: award
+                              ? IqColors.ok
+                              : returned
+                              ? IqColors.fg3
+                              : IqColors.fg,
+                          decoration: returned
+                              ? TextDecoration.lineThrough
+                              : null,
+                          decorationColor: IqColors.fg3,
                         ),
                       ),
                       const SizedBox(height: IqSpace.s1),
