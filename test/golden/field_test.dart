@@ -38,6 +38,54 @@ void main() {
     }
   }
 
+  for (final size in IqFieldSize.values) {
+    final name = 'field_text_valid_${size.name}_long';
+    testWidgets(name, (tester) async {
+      await expectComponentGolden(
+        tester,
+        name,
+        SizedBox(
+          width: 358,
+          child: IqField(
+            state: IqFieldState.valid,
+            size: size,
+            label: 'Business name',
+            controller: TextEditingController(
+              text: 'Lagoon Lines Ferry and Water Taxi Services Limited',
+            ),
+          ),
+        ),
+        size: Size(358, size == IqFieldSize.large ? 94 : 86),
+      );
+    });
+  }
+
+  testWidgets('a long value ends in an ellipsis at rest, not while typing', (
+    tester,
+  ) async {
+    const long = 'Lagoon Lines Ferry and Water Taxi Services Limited';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 200,
+            child: IqField(controller: TextEditingController(text: long)),
+          ),
+        ),
+      ),
+    );
+    final rest = find.byWidgetPredicate(
+      (w) =>
+          w is RichText &&
+          w.text.toPlainText() == long &&
+          w.overflow == TextOverflow.ellipsis,
+    );
+    expect(rest, findsOneWidget);
+    await tester.tap(find.byType(IqField));
+    await tester.pump();
+    expect(rest, findsNothing);
+  });
+
   testWidgets('text field takes input and turns Active on focus', (
     tester,
   ) async {

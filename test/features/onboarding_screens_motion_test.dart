@@ -15,6 +15,7 @@ import 'package:iqly_mobile/features/onboarding/onboarding_sheets.dart';
 import 'package:iqly_mobile/features/onboarding/what_you_like_screen.dart';
 import 'package:iqly_mobile/features/onboarding/where_you_live_screen.dart';
 import 'package:iqly_mobile/router.dart';
+import 'package:iqly_mobile/theme/theme.dart';
 import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/brief_card.dart';
 import 'package:iqly_mobile/ui/illustration.dart';
@@ -456,6 +457,53 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       expect(find.byType(DoneScreen), findsOneWidget);
       expect(haptics, [_select, _select, _success]);
+    });
+
+    testWidgets('Finish peels at the second pick, as Next does on the other '
+        'steps (spec 5.3)', (tester) async {
+      await _open(
+        tester,
+        Routes.onboardingWhatYouLike,
+        draft: {'occupation': 'student', 'lastStep': 'whatYouLike'},
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Technology'));
+      await tester.pumpAndSettle();
+      Color disc() =>
+          (tester
+                      .widget<DecoratedBox>(
+                        find.descendant(
+                          of: find.descendant(
+                            of: _primary,
+                            matching: find.byType(AnimatedContainer),
+                          ),
+                          matching: find.byType(DecoratedBox),
+                        ),
+                      )
+                      .decoration
+                  as BoxDecoration)
+              .color!;
+      double sticker() => tester
+          .widget<Opacity>(
+            find.descendant(of: _primary, matching: find.byType(Opacity)).first,
+          )
+          .opacity;
+      expect(disc(), IqColors.panel);
+      expect(sticker(), 0);
+
+      await tester.tap(find.text('Business'));
+      final discs = <Color>[];
+      final stickers = <double>[];
+      for (var at = 0; at <= 240; at += 16) {
+        await tester.pump(const Duration(milliseconds: 16));
+        discs.add(disc());
+        stickers.add(sticker());
+      }
+      bool between(Color c) => c != IqColors.panel && c != IqColors.brand;
+      expect(discs.where(between).length, greaterThanOrEqualTo(5));
+      expect(stickers.where((s) => s > 0 && s < 1).length, greaterThan(5));
+      expect(discs.last, IqColors.brand);
+      expect(stickers.last, 1);
     });
   });
 

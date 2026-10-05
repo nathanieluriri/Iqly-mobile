@@ -571,7 +571,7 @@ class _SheetLayout extends StatelessWidget {
     const footTop = IqSpace.s3;
     final foot =
         footTop +
-        IqButton.height * actions.length +
+        IqButton.defaultHeight * actions.length +
         IqSpace.s2 * (actions.length - 1) +
         bottom;
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;

@@ -318,7 +318,7 @@ class GhostAction extends StatelessWidget {
     return SizedBox(
       height: height,
       child: OverflowBox(
-        maxHeight: IqButton.height,
+        maxHeight: IqButton.defaultHeight,
         child: IqButton(
           label: label,
           kind: IqButtonKind.ghost,

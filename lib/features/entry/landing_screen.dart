@@ -491,7 +491,7 @@ class _LandingScreenState extends ConsumerState<LandingScreen>
               20,
               20,
               20,
-              20 + IqSpace.s3 * 2 + IqButton.height,
+              20 + IqSpace.s3 * 2 + IqButton.defaultHeight,
             ),
             onSubmitted: (_) => _continueTapped(),
           ),

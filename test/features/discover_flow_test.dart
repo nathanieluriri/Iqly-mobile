@@ -84,6 +84,7 @@ void main() {
     await _tap(tester, find.text('Submit your response'));
     expect(find.byType(SubmitScreen), findsOneWidget);
     await _tap(tester, find.bySemanticsLabel(RegExp('Back')));
+    await _tap(tester, find.text('Discard draft'));
     await _tap(tester, find.bySemanticsLabel(RegExp('Back')));
     expect(find.byType(SavedBriefsScreen), findsOneWidget);
 
