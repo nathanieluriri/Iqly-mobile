@@ -21,6 +21,9 @@ abstract class IqlyRepository {
   Future<List<Withdrawal>> withdrawals();
   Future<List<Bank>> banks();
   Future<SavedBank?> savedBank();
+
+  /// Every saved payout account, the default first.
+  Future<List<SavedBank>> savedBanks();
   Future<int> unreadNotifications();
 
   /// Behind Flags.activations.
@@ -118,6 +121,9 @@ class DemoRepository implements IqlyRepository {
 
   @override
   Future<SavedBank?> savedBank() async => DemoData.savedBank;
+
+  @override
+  Future<List<SavedBank>> savedBanks() async => DemoData.savedBanks;
 
   @override
   Future<int> unreadNotifications() async => DemoData.unreadNotifications;

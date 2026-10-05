@@ -45,6 +45,10 @@ enum WithdrawalStatus { pending, processing, completed, failed, reversed }
 
 enum LedgerType { award, withdrawal }
 
+/// What a ledger award pays for: a winning submission, an activation or a
+/// referral (designer answer 6).
+enum RewardSource { submission, activation, referral }
+
 class Brief {
   const Brief({
     required this.id,
@@ -174,6 +178,8 @@ class LedgerEntry {
     required this.amountKobo,
     required this.createdAt,
     this.submissionId,
+    this.business,
+    this.note,
   });
 
   final String id;
@@ -181,6 +187,19 @@ class LedgerEntry {
 
   /// The winning submission an award pays out; null for withdrawals.
   final String? submissionId;
+
+  /// The business behind an activation reward.
+  final String? business;
+
+  /// What the reward row says after "Reward · " when no brief names it
+  /// ("activation · step 2 confirmed", "Ngozi E. won a first brief").
+  final String? note;
+
+  RewardSource get source => submissionId != null
+      ? RewardSource.submission
+      : business != null || id.startsWith('activation-')
+      ? RewardSource.activation
+      : RewardSource.referral;
 
   /// Signed: awards are positive, withdrawals negative.
   final int amountKobo;
@@ -200,6 +219,7 @@ class Withdrawal {
     this.sentAt,
     this.completedAt,
     this.failureReason,
+    this.held = false,
   });
 
   final String id;
@@ -220,6 +240,10 @@ class Withdrawal {
 
   /// The bank's words when it failed or reversed the transfer.
   final String? failureReason;
+
+  /// Held for review (a first payout to a new account, or above the owner's
+  /// limit): only then does the tracker show the approval step.
+  final bool held;
 
   /// The word the product shows: processing reads as pending, as on the web.
   String get statusWord => switch (status) {
@@ -262,6 +286,7 @@ class Withdrawal {
     sentAt: sentAt ?? this.sentAt,
     completedAt: completedAt ?? this.completedAt,
     failureReason: failureReason ?? this.failureReason,
+    held: held,
   );
 }
 
@@ -287,6 +312,16 @@ class SavedBank {
 
   String get maskedNumber =>
       '••${accountNumber.substring(accountNumber.length - 4)}';
+
+  /// "Access Bank ••6789".
+  String get label => '$bankName $maskedNumber';
+
+  /// The bank's upper-case name as a person reads it: "Adaeze Okafor".
+  String get holder => accountName
+      .toLowerCase()
+      .split(' ')
+      .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
+      .join(' ');
 }
 
 class User {

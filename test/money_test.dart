@@ -27,9 +27,9 @@ void main() {
   test('demo wallet figures foot', () {
     final data = DemoData(now: DateTime(2026, 10, 3));
     final totals = walletTotals(data.ledger, data.withdrawals);
-    expect(naira(totals.totalEarnedKobo), '₦62,500.00');
+    expect(naira(totals.totalEarnedKobo), '₦65,000.00');
     expect(naira(totals.pendingWithdrawalsKobo), '₦10,000.00');
-    expect(naira(totals.withdrawableKobo), '₦12,500.00');
+    expect(naira(totals.withdrawableKobo), '₦15,000.00');
     final paidOut = data.withdrawals
         .where((w) => w.status == WithdrawalStatus.completed)
         .fold(0, (sum, w) => sum + w.amountKobo);

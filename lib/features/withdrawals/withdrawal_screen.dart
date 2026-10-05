@@ -3,27 +3,22 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/responsive.dart';
 import '../../data/models.dart';
 import '../../data/wallet_service.dart';
-import '../../router.dart';
+import '../wallet/wallet_routes.dart';
 import '../../theme/theme.dart';
 import '../../ui/top_bar.dart';
 import '../wallet/wallet_state.dart';
 import 'withdrawal_failed_screen.dart';
 import 'withdrawal_tracker_screen.dart';
 
-/// One withdrawal, opened from its Wallet activity row or the payout row on
-/// Home: the B14 tracker (194:9752) while it is on hold and once it has
-/// arrived, the B14 failed screen (194:9835) when the bank failed or
-/// reversed it. While open it follows the withdrawal through
-/// [WalletService.watch], so the steps advance in place.
-///
-/// Figma wires the tracker to Home after payout after 4 s as a stand-in for
-/// the payout arriving; here the steps complete in place and the arrival
-/// shows on Home (MOTION-SPEC §7.9).
+/// One withdrawal at `/wallet/withdrawals/:id`, opened from its activity
+/// row, the payout row on Home or the payout notification: the tracker
+/// (194:9752) while on hold, arrived (485:39669) once completed, the failed
+/// page (194:9835) when failed or reversed. While open it follows the
+/// withdrawal through [WalletService.watch], so the steps advance in place.
 class WithdrawalScreen extends ConsumerStatefulWidget {
   const WithdrawalScreen({super.key, required this.id});
 
@@ -73,15 +68,6 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
   }
 }
 
-/// Back on a withdrawal goes to the Wallet (Figma: back → B5 · Wallet).
-void leaveWithdrawal(BuildContext context) {
-  if (context.canPop()) {
-    context.pop();
-  } else {
-    context.go(Routes.wallet);
-  }
-}
-
 class _Waiting extends StatelessWidget {
   const _Waiting();
 
@@ -98,7 +84,7 @@ class _Waiting extends StatelessWidget {
                 IqTopBar(
                   variant: IqTopBarVariant.page,
                   title: 'Withdrawal',
-                  onBack: () => leaveWithdrawal(context),
+                  onBack: () => leaveWallet(context),
                 ),
               ],
             ),

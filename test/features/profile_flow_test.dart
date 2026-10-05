@@ -251,7 +251,7 @@ void main() {
     );
     await _tap(tester, find.text('Delete account'));
     expect(find.byType(DeleteAccountScreen), findsOneWidget);
-    expect(find.text('Withdraw ₦12,500.00 first'), findsOneWidget);
+    expect(find.text('Withdraw ₦15,000.00 first'), findsOneWidget);
     expect(find.text('₦10,000.00 on its way'), findsOneWidget);
     expect(_button(tester, 'Delete my account').disabled, isTrue);
 
@@ -282,7 +282,7 @@ void main() {
     expect(find.byType(ProfileScreen), findsOneWidget);
 
     await _tap(tester, find.text('Delete account'));
-    await _tap(tester, find.text('Withdraw ₦12,500.00 first'));
+    await _tap(tester, find.text('Withdraw ₦15,000.00 first'));
     expect(find.byType(DeleteAccountScreen), findsNothing);
     expect(find.text('Wallet'), findsWidgets);
   });

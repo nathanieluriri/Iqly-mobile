@@ -45,45 +45,114 @@ class WithdrawalReceipt extends StatelessWidget {
       to: withdrawal.destination ?? '',
       reference: withdrawal.reference ?? '',
       date: withdrawalTime(withdrawal.createdAt, now),
-      status: capitalized(withdrawal.statusWord),
+      status: withdrawal.status == WithdrawalStatus.completed
+          ? 'Arrived'
+          : capitalized(withdrawal.statusWord),
       showAmount: false,
       showStatus: showStatus,
     );
   }
 }
 
-/// How many of Requested, Approved, Sent and Arrived are done.
-int withdrawalStepsDone(Withdrawal w) {
-  if (w.status == WithdrawalStatus.completed) return 4;
-  if (w.sentAt != null) return 3;
-  if (w.approvedAt != null ||
-      w.status == WithdrawalStatus.processing ||
-      w.failed) {
-    return 2;
+/// The steps of a withdrawal and how many are done. On hold or arrived:
+/// Requested, the approval step only when it was held (designer answer 8),
+/// Sent to your bank, Arrived. Failed: Requested, Approved by iQLY when it
+/// was held, Failed at the bank. Reversed (no frame, built on the failed
+/// one): Requested, Sent to your bank, Reversed by the bank.
+List<WithdrawalStep> withdrawalSteps(Withdrawal w, DateTime now, {int? done}) {
+  String at(DateTime? time) => time == null ? '' : withdrawalTime(time, now);
+  if (w.status == WithdrawalStatus.failed) {
+    return [
+      const WithdrawalStep('Requested', IqTimelineRowState.done),
+      if (w.held || w.approvedAt != null)
+        WithdrawalStep(
+          'Approved by iQLY',
+          IqTimelineRowState.done,
+          meta: at(w.approvedAt),
+        ),
+      const WithdrawalStep(
+        'Failed at the bank',
+        IqTimelineRowState.current,
+        end: true,
+      ),
+    ];
   }
+  if (w.status == WithdrawalStatus.reversed) {
+    return [
+      const WithdrawalStep('Requested', IqTimelineRowState.done),
+      WithdrawalStep(
+        'Sent to your bank',
+        IqTimelineRowState.done,
+        meta: at(w.sentAt),
+      ),
+      const WithdrawalStep(
+        'Reversed by the bank',
+        IqTimelineRowState.current,
+        end: true,
+      ),
+    ];
+  }
+  final reached = done ?? withdrawalStepsDone(w);
+  final titles = [
+    'Requested',
+    if (w.held) reached > 1 ? 'Approved by iQLY' : 'Awaiting approval',
+    'Sent to your bank',
+    'Arrived',
+  ];
+  // Figma rings only a step iQLY is working on (Awaiting approval); the
+  // bank's steps wait plain.
+  IqTimelineRowState state(int i) => i < reached
+      ? IqTimelineRowState.done
+      : i == reached && titles[i] == 'Awaiting approval'
+      ? IqTimelineRowState.current
+      : IqTimelineRowState.upcoming;
+  final last = titles.length - 1;
+  return [
+    for (final (i, title) in titles.indexed)
+      WithdrawalStep(
+        title,
+        state(i),
+        meta: switch (title) {
+          'Awaiting approval' => 'Usually within a few hours',
+          'Approved by iQLY' => at(w.approvedAt),
+          'Arrived' =>
+            i < reached
+                ? 'Arrived at ${w.destination ?? ''} · ${at(w.completedAt)}'
+                : 'Usually arrives within minutes, can take up to 24 hours.',
+          _ => '',
+        },
+        end: i == last,
+      ),
+  ];
+}
+
+/// How many steps are done: Requested, [approval,] Sent, Arrived.
+int withdrawalStepsDone(Withdrawal w) {
+  final approval = w.held ? 1 : 0;
+  if (w.status == WithdrawalStatus.completed) return 3 + approval;
+  if (w.sentAt != null) return 2 + approval;
+  if (w.held && w.approvedAt != null) return 2;
   return 1;
 }
 
-class _Step {
-  const _Step(this.title, this.state, {this.meta = '', this.line = true});
+class WithdrawalStep {
+  const WithdrawalStep(
+    this.title,
+    this.state, {
+    this.meta = '',
+    this.end = false,
+  });
 
   final String title;
   final IqTimelineRowState state;
   final String meta;
-  final bool line;
+  final bool end;
 }
 
-/// The B14 timeline. On the tracker: Requested, then Awaiting approval
-/// (Approved by iQLY once done), Sent to your bank and Arrived; done steps
-/// after the first carry their time. On a failed or reversed withdrawal:
-/// Requested, Approved by iQLY and the Current row on err, "Failed at the
-/// bank".
-///
-/// A step that completes while the screen is open plays the TimelineRow
-/// chain (spec 5.30): its dot inks and its line draws down, and only then
-/// does the next dot take the ring; several at once go one by one. No
-/// haptic: the person is only watching. Reduced motion: the new state at
-/// once. The rows come with the page.
+/// The B14 timeline. A step that completes while the screen is open plays
+/// the TimelineRow chain (spec 5.30): its dot inks and its line draws down,
+/// and only then does the next step move on; several at once go one by
+/// one. Reduced motion: the new state at once.
 class WithdrawalTimeline extends StatefulWidget {
   const WithdrawalTimeline({
     super.key,
@@ -100,7 +169,6 @@ class WithdrawalTimeline extends StatefulWidget {
 
 class _WithdrawalTimelineState extends State<WithdrawalTimeline> {
   late int _done = withdrawalStepsDone(widget.withdrawal);
-  bool _ringWaits = false;
   Timer? _next;
 
   @override
@@ -115,16 +183,14 @@ class _WithdrawalTimelineState extends State<WithdrawalTimeline> {
     _advance();
   }
 
-  /// Marks the next step done; the step after it takes the ring once the
-  /// dot has inked and the line has drawn.
   void _advance() {
     _done++;
-    _ringWaits = true;
     _next = Timer(IqDurations.ink + IqDurations.mark, () {
       _next = null;
       if (!mounted) return;
-      setState(() => _ringWaits = false);
-      if (withdrawalStepsDone(widget.withdrawal) > _done) setState(_advance);
+      if (withdrawalStepsDone(widget.withdrawal) > _done) {
+        setState(_advance);
+      }
     });
   }
 
@@ -134,63 +200,10 @@ class _WithdrawalTimelineState extends State<WithdrawalTimeline> {
     super.dispose();
   }
 
-  String _at(DateTime? time) =>
-      time == null ? '' : withdrawalTime(time, widget.now);
-
-  List<_Step> _steps() {
-    final w = widget.withdrawal;
-    if (w.failed) {
-      return [
-        const _Step('Requested', IqTimelineRowState.done),
-        _Step(
-          'Approved by iQLY',
-          IqTimelineRowState.done,
-          meta: _at(w.approvedAt),
-        ),
-        const _Step(
-          'Failed at the bank',
-          IqTimelineRowState.current,
-          line: false,
-        ),
-      ];
-    }
-    IqTimelineRowState state(int i) {
-      if (i < _done) return IqTimelineRowState.done;
-      if (i == _done && !_ringWaits) return IqTimelineRowState.current;
-      return IqTimelineRowState.upcoming;
-    }
-
-    return [
-      const _Step('Requested', IqTimelineRowState.done),
-      _done > 1
-          ? _Step(
-              'Approved by iQLY',
-              IqTimelineRowState.done,
-              meta: _at(w.approvedAt),
-            )
-          : _Step(
-              'Awaiting approval',
-              state(1),
-              meta: 'Usually within a few hours',
-            ),
-      _Step(
-        'Sent to your bank',
-        state(2),
-        meta: _done > 2 ? _at(w.sentAt) : '',
-      ),
-      _Step(
-        'Arrived',
-        state(3),
-        meta: _done > 3 ? _at(w.completedAt) : '1 to 2 business days',
-        line: false,
-      ),
-    ];
-  }
-
   @override
   Widget build(BuildContext context) {
-    final failed = widget.withdrawal.failed;
-    final steps = _steps();
+    final w = widget.withdrawal;
+    final steps = withdrawalSteps(w, widget.now, done: _done);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -199,8 +212,8 @@ class _WithdrawalTimelineState extends State<WithdrawalTimeline> {
             state: step.state,
             title: step.title,
             meta: step.meta,
-            showLine: step.line,
-            failed: failed && step.state == IqTimelineRowState.current,
+            showLine: !step.end,
+            failed: w.failed && step.state == IqTimelineRowState.current,
           ),
       ],
     );

@@ -193,8 +193,8 @@ void main() {
         if (landed == null && support().isNotEmpty) {
           landed = at;
           expect(find.byType(TypingBubble), findsOneWidget);
-          expect(hero().amount, '₦12,500');
-          expect(hero().earned, '₦62,500.00');
+          expect(hero().amount, '₦15,000');
+          expect(hero().earned, '₦65,000.00');
         }
         if (arrived == null && support().any((b) => b.animate)) arrived = at;
         if (landed != null &&
@@ -204,7 +204,7 @@ void main() {
         }
         if (rolled == null &&
             find.byType(IqBalanceHero).evaluate().isNotEmpty &&
-            hero().amount == '₦14,000') {
+            hero().amount == '₦16,500') {
           rolled = at;
         }
       }
@@ -213,7 +213,7 @@ void main() {
       expect(arrived! - landed!, inInclusiveRange(224, 256));
       expect(typingGone, arrived);
       expect(rolled! - landed, inInclusiveRange(624, 672));
-      expect(hero().earned, '₦64,000.00');
+      expect(hero().earned, '₦66,500.00');
       expect(find.text('UPDATED BALANCE'), findsOneWidget);
     });
 
@@ -224,7 +224,7 @@ void main() {
       await tester.pump();
       expect(
         tester.widget<IqBalanceHero>(find.byType(IqBalanceHero)).amount,
-        '₦14,000',
+        '₦16,500',
       );
       await tester.pumpAndSettle();
       expect(tester.hasRunningAnimations, isFalse);
