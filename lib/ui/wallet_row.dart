@@ -25,6 +25,9 @@ enum IqWalletRowStatus {
 /// Exp/WalletRow: an activity row. Rewards lead with the business logo and
 /// the brief; withdrawals lead with the bank and a status chip.
 ///
+/// The logo is not clipped: each mark carries its own shape, as in Figma
+/// (sample logos are round, the referral logomark tile is a rounded square).
+///
 /// Figma over brief: the kit draws Pending, Completed and Failed only. The
 /// designer made Failed and Reversed distinct states (answer 7); Reversed
 /// has no Figma chip yet, so it uses the plain Meta chip until one lands.
@@ -81,7 +84,7 @@ class IqWalletRow extends StatelessWidget {
               child: Row(
                 children: [
                   if (award)
-                    ClipOval(child: SizedBox.square(dimension: 40, child: logo))
+                    SizedBox.square(dimension: 40, child: logo)
                   else
                     Container(
                       width: 40,
