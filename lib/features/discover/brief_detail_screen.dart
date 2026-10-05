@@ -238,6 +238,7 @@ class _Body extends ConsumerWidget {
               cover: businessCover(brief.cover),
               logo: businessLogo(brief.logo),
               showDots: false,
+              height: 232,
             ),
           ),
           const SizedBox(height: 5),

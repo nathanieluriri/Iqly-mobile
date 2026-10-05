@@ -4,29 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:iqly_mobile/data/activations_service.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/models.dart';
-import 'package:iqly_mobile/data/polls_service.dart';
 import 'package:iqly_mobile/features/discover/discover_state.dart';
 import 'package:iqly_mobile/features/submissions/submissions_state.dart';
 import 'package:iqly_mobile/router.dart';
 
 import '../golden.dart';
 import 'app_harness.dart';
-import 'polls_notifications_help_harness.dart';
-
-/// Quick polls and the activations at the Figma 9:41, with no wait.
-List<Override> discoverOverrides() => [
-  pollsServiceProvider.overrideWithValue(instantPolls()),
-  activationsServiceProvider.overrideWithValue(
-    DemoActivationsService(
-      clock: () => figmaNow,
-      load: Duration.zero,
-      delay: Duration.zero,
-    ),
-  ),
-];
+import 'discover_harness.dart';
 
 Future<void> _golden(WidgetTester tester, String name) async {
   await precacheImages(tester);
