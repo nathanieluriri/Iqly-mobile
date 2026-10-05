@@ -40,7 +40,12 @@ void main() {
   test('a missing native half is not an error', () async {
     final w3 = DemoData(now: now).withdrawals.first;
     final bridge = SurfacesBridge();
-    expect(await bridge.payoutActivity(PayoutActivityState.of(w3)!), isFalse);
+    expect(
+      await bridge.payoutActivity(
+        PayoutActivityState.of(w3, notificationId: 'n1')!,
+      ),
+      isFalse,
+    );
     expect(await bridge.takeLaunchLink(), isNull);
   });
 
