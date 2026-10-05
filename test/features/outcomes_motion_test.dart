@@ -42,7 +42,7 @@ ResultData _result(String id) {
     ),
     outcome: OutcomesDemo.of(id, figmaNow),
     name: DemoData.user.name,
-    next: data.briefs.firstWhere((b) => b.id == 'c12'),
+    next: [data.briefs.firstWhere((b) => b.id == 'c5')],
   );
 }
 
@@ -159,7 +159,8 @@ void main() {
         find
             .ancestor(
               of: find.text(
-                'Good idea. The winners put every quick job on one counter.',
+                'Good idea. The winners also fixed the Monday rush without '
+                'adding staff.',
               ),
               matching: find.byType(Transform),
             )
@@ -193,7 +194,7 @@ void main() {
       await _view(tester, NotSelectedView(data: _result('s5')));
       await tester.pump(const Duration(milliseconds: 160));
       expect(tester.hasRunningAnimations, isFalse);
-      expect(find.text('Not this time'), findsOneWidget);
+      expect(find.text('Not selected this time'), findsOneWidget);
     });
   });
 
@@ -207,7 +208,7 @@ void main() {
           (w) => w is IqLeaderboardRow && w.state == IqLeaderboardRowState.you,
         ),
       );
-      expect(you.rankDelay, IqDurations.stagger * 4 + IqDurations.chain);
+      expect(you.rankDelay, IqDurations.stagger + IqDurations.chain);
       for (final row in tester.widgetList<IqLeaderboardRow>(
         find.byType(IqLeaderboardRow),
       )) {
@@ -364,7 +365,7 @@ void main() {
       final result = _result(id);
       final board = Leaderboard.of(result)!;
       final paid = [
-        for (final item in board.items)
+        for (final item in [...board.podium, ...board.items])
           if (item is BoardRow && item.entry.amountKobo != null)
             item.entry.amountKobo!,
       ];
@@ -373,18 +374,28 @@ void main() {
       );
       expect(paid.fold(0, (a, b) => a + b), brief.rewardPoolKobo, reason: id);
       expect(board.paid, paid.length);
-      final cutoff = board.items.whereType<BoardCutoff>().single;
-      expect(cutoff.poolKobo, brief.rewardPoolKobo);
+      expect(board.podium, hasLength(3));
     }
+    final missedCutoff = Leaderboard.of(_result('s5'))!.items
+        .whereType<BoardCutoff>()
+        .single;
+    expect(
+      missedCutoff.poolKobo,
+      data.briefs.firstWhere((b) => b.id == 'c7').rewardPoolKobo,
+    );
+    expect(missedCutoff.label, '₦350,000 shared by the winners');
     final winner = Leaderboard.of(_result('s2'))!;
+    expect(winner.items.whereType<BoardCutoff>(), isEmpty);
+    expect(winner.eyebrow, 'Why do Lagosians skip mobile banking on Sundays?');
     final you = winner.items.whereType<BoardRow>().singleWhere((r) => r.you);
     final award = data.ledger.singleWhere((l) => l.submissionId == 's2');
     expect(you.entry.amountKobo, award.amountKobo);
     expect(you.entry.rank, 5);
-    expect(winner.title, 'Top 5 of 48 entries');
+    expect(winner.title, 'Top 5 of 48 submissions');
 
     final missed = Leaderboard.of(_result('s5'))!;
     expect(missed.items.whereType<BoardGap>(), hasLength(1));
+    expect(missed.eyebrow, 'One counter for quick jobs');
     final mine = missed.items.whereType<BoardRow>().singleWhere((r) => r.you);
     expect(mine.entry.amountKobo, isNull);
     expect(mine.entry.entry, 'One counter for quick jobs');
@@ -412,10 +423,10 @@ void main() {
       '111th',
     ]);
     final note = OutcomesDemo.of('s5', figmaNow)!.note!;
-    expect(noteTime(note.sentAt, figmaNow), 'FRI, 11:20 AM');
+    expect(noteTime(note.sentAt, figmaNow), 'Fri, 11:20 am');
     expect(
       noteTime(figmaNow.subtract(const Duration(days: 20)), figmaNow),
-      '13 SEP, 9:41 AM',
+      '13 Sep, 9:41 am',
     );
   });
 }

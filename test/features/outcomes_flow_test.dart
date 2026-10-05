@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/responsive.dart';
@@ -25,6 +24,10 @@ import '../golden/golden.dart';
 import '../golden/screens/app_harness.dart';
 
 const _success = 'HapticFeedbackType.successNotification';
+
+/// The Segmented's pick haptic aside.
+List<String> _felt(List<String> haptics) =>
+    haptics.where((h) => h != 'HapticFeedbackType.selectionClick').toList();
 
 Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);
@@ -127,23 +130,22 @@ void main() {
         Routes.submissions,
         overrides: [shareServiceProvider.overrideWithValue(share)],
       );
+      await _tap(tester, find.text('Winners · 2'));
       await _tap(tester, find.text('Sunday is data day'));
       expect(find.byType(WinnerView), findsOneWidget);
-      expect(find.text('Your result'), findsOneWidget);
       expect(find.text('You did it.'), findsOneWidget);
       final card = tester.widget<IqShareCard>(find.byType(IqShareCard));
       expect(card.brand.toUpperCase(), 'WINNER · 5TH OF 48');
       expect(card.title, 'Sunday is data day');
-      expect(card.amount, '₦12,500');
+      expect(card.amount, '₦12,500.00');
       expect(card.brief, 'Why do Lagosians skip mobile banking on Sundays?');
       expect(card.name.toUpperCase(), 'ADAEZE OKAFOR');
       expect(find.text('See the leaderboard'), findsOneWidget);
-      expect(platform.haptics, [_success]);
+      expect(_felt(platform.haptics), [_success]);
 
       await _tap(tester, find.text('Share your win'));
       expect(find.byType(ShareSheet), findsOneWidget);
       expect(find.text('Share your win'), findsNWidgets(2));
-      expect(find.text('SHARE TO'), findsOneWidget);
       for (final target in ['WhatsApp', 'Instagram', 'X', 'Telegram']) {
         expect(find.text(target), findsOneWidget);
       }
@@ -194,8 +196,9 @@ void main() {
 
       await _tap(tester, find.text('See the leaderboard'));
       expect(find.byType(LeaderboardScreen), findsOneWidget);
-      expect(find.text('Top 5 of 48 entries'), findsOneWidget);
-      expect(find.text('₦400,000 SPLIT'), findsOneWidget);
+      expect(find.text('Top 5 of 48 submissions'), findsOneWidget);
+      expect(find.text('₦175k'), findsOneWidget);
+      expect(find.text('₦400,000 shared by the winners'), findsNothing);
       final you = tester.widget<IqLeaderboardRow>(
         find.byWidgetPredicate(
           (w) => w is IqLeaderboardRow && w.state == IqLeaderboardRowState.you,
@@ -203,7 +206,7 @@ void main() {
       );
       expect(
         (you.rank, you.name, you.entry, you.amount),
-        ('5', 'You', 'Sunday is data day', '₦12,500'),
+        ('5', 'You', 'Sunday is data day', '₦12,500.00'),
       );
 
       await _tap(tester, find.text('Open the brief'));
@@ -234,44 +237,47 @@ void main() {
       final semantics = tester.ensureSemantics();
       final platform = _platform(tester);
       final container = await pumpApp(tester, Routes.submissions);
-      await tester.scrollUntilVisible(
-        find.text('One counter for quick jobs'),
-        100,
-        scrollable: find.byType(Scrollable).first,
-      );
+      await _tap(tester, find.text('Not selected · 1'));
       await _tap(tester, find.text('One counter for quick jobs'));
       expect(find.byType(NotSelectedView), findsOneWidget);
-      expect(find.text('ONE COUNTER FOR QUICK JOBS'), findsOneWidget);
-      expect(find.text('Not this time'), findsOneWidget);
-      expect(find.text('9th of 36'), findsOneWidget);
-      expect(find.text('A note from the business'), findsOneWidget);
-      expect(find.text('H'), findsNWidgets(2));
-      expect(find.text('Harbour Microfinance'), findsNWidgets(2));
       expect(
-        find.text('Good idea. The winners put every quick job on one counter.'),
+        find.text('Harbour Microfinance · One counter for quick jobs'),
         findsOneWidget,
       );
-      expect(find.text('FRI, 11:20 AM'), findsOneWidget);
-      expect(find.text('For you'), findsOneWidget);
-      expect(find.text('Rename our youth current account'), findsOneWidget);
-      expect(platform.haptics, isEmpty);
+      expect(find.text('Not selected this time'), findsOneWidget);
+      expect(find.text('Your answer'), findsOneWidget);
+      expect(
+        find.text(
+          'A quick lane for airtime and bills, with the queue number sent '
+          'by SMS.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('A note from the business'), findsOneWidget);
+      expect(find.text('Harbour Microfinance'), findsOneWidget);
+      expect(
+        find.text(
+          'Good idea. The winners also fixed the Monday rush without adding '
+          'staff.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Fri, 11:20 am'), findsOneWidget);
+      expect(find.text('Briefs'), findsOneWidget);
+      expect(find.text('A tagline for a solar kiosk network'), findsOneWidget);
+      expect(_felt(platform.haptics), isEmpty);
 
       await _tap(tester, find.text('See what won'));
       expect(find.byType(LeaderboardScreen), findsOneWidget);
-      expect(
-        find.text('CUT QUEUE TIME AT OUR BRANCH COUNTERS'),
-        findsOneWidget,
-      );
-      expect(find.text('Top 4 of 36 entries'), findsOneWidget);
-      expect(find.text('₦350,000 SPLIT'), findsOneWidget);
+      expect(find.text('One counter for quick jobs'), findsNWidgets(2));
+      expect(find.text('Top 4 of 36 submissions'), findsOneWidget);
+      expect(find.text('₦350,000 shared by the winners'), findsOneWidget);
       expect(find.text('· · ·'), findsOneWidget);
-      expect(find.text('One counter for quick jobs'), findsOneWidget);
       await _tap(tester, find.bySemanticsLabel('Back'));
       expect(find.byType(NotSelectedView), findsOneWidget);
 
-      await _tap(tester, find.text('Rename our youth current account'));
+      await _tap(tester, find.text('A tagline for a solar kiosk network'));
       expect(find.byType(BriefDetailScreen), findsOneWidget);
-      expect(find.text('₦80,000'), findsOneWidget);
       await _tap(tester, find.bySemanticsLabel('Back'));
 
       container.read(discoverFiltersProvider.notifier).showAll();
@@ -287,13 +293,14 @@ void main() {
   ) async {
     final platform = _platform(tester);
     await pumpApp(tester, Routes.submissions);
+    await _tap(tester, find.text('Winners · 2'));
     await _tap(tester, find.text('Sunday is data day'));
-    expect(platform.haptics, [_success]);
+    expect(_felt(platform.haptics), [_success]);
     await _tap(tester, find.bySemanticsLabel('Back'));
     expect(find.byType(MySubmissionsScreen), findsOneWidget);
     await _tap(tester, find.text('Sunday is data day'));
     expect(find.byType(WinnerView), findsOneWidget);
-    expect(platform.haptics, [_success]);
+    expect(_felt(platform.haptics), [_success]);
   });
 
   testWidgets('B13: a Winner whose board is not out names the business', (
@@ -301,7 +308,7 @@ void main() {
   ) async {
     await pumpApp(tester, resultPath('s3'));
     expect(find.text('Winner · Volt Riders'), findsOneWidget);
-    expect(find.text('₦50,000'), findsOneWidget);
+    expect(find.text('₦50,000.00'), findsOneWidget);
     expect(find.text('See the leaderboard'), findsNothing);
     await tester.tap(find.byType(IqShareCard));
     await tester.pumpAndSettle();

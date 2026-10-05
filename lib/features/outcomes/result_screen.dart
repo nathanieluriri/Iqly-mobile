@@ -3,10 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/brief_labels.dart';
 import '../../core/deadline.dart';
 import '../../core/flags.dart';
-import '../../core/money.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../core/session.dart';
@@ -16,15 +14,17 @@ import '../../data/outcomes_data.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
+import '../../ui/brief_card.dart';
 import '../../ui/button.dart';
 import '../../ui/icon.dart';
 import '../../ui/list_row.dart';
 import '../../ui/pressable.dart';
 import '../../ui/section_title.dart';
 import '../../ui/share_card.dart';
-import '../../ui/ticket_card.dart';
 import '../../ui/top_bar.dart';
 import '../discover/discover_widgets.dart';
+import '../submissions/brief_art.dart';
+import '../submissions/row_card.dart';
 import '../submissions/submissions_routes.dart';
 import '../submissions/submissions_state.dart';
 import 'outcomes_routes.dart';
@@ -82,7 +82,7 @@ class ResultScreen extends ConsumerWidget {
               children: [
                 IqTopBar(
                   variant: IqTopBarVariant.page,
-                  title: 'Your result',
+                  title: '',
                   onBack: () => _leave(context),
                 ),
                 Expanded(child: Dissolve(child: body)),
@@ -95,11 +95,19 @@ class ResultScreen extends ConsumerWidget {
   }
 }
 
-/// The result's action bar (12 above and below, 8 between buttons).
+/// The result's action bar (12 above and below, 8 between buttons). The
+/// B13 frames set a Ghost button to 44 high.
 class ResultActions extends StatelessWidget {
   const ResultActions({super.key, required this.children});
 
   final List<Widget> children;
+
+  static const double ghostHeight = 44;
+
+  static Widget _sized(Widget child) =>
+      child is IqButton && child.kind == IqButtonKind.ghost
+      ? SizedBox(height: ghostHeight, child: child)
+      : child;
 
   @override
   Widget build(BuildContext context) {
@@ -113,7 +121,7 @@ class ResultActions extends StatelessWidget {
         children: [
           for (final (i, child) in children.indexed) ...[
             if (i > 0) const SizedBox(height: IqSpace.s2),
-            child,
+            _sized(child),
           ],
         ],
       ),
@@ -330,12 +338,14 @@ class _WinnerViewState extends ConsumerState<WinnerView>
                   const SizedBox(height: IqSpace.s3),
                   Appear(
                     delay: IqDurations.swap,
-                    child: IqListRow(
-                      label: 'See the leaderboard',
-                      icon: IqIcons.trophy,
-                      showDescription: false,
-                      divider: false,
-                      onTap: openBoard,
+                    child: RowCard(
+                      child: IqListRow(
+                        label: 'See the leaderboard',
+                        icon: IqIcons.trophy,
+                        showDescription: false,
+                        divider: false,
+                        onTap: openBoard,
+                      ),
                     ),
                   ),
                 ],
@@ -381,9 +391,8 @@ class NotSelectedView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final note = Flags.businessNote ? data.outcome?.note : null;
-    final placing = data.placing;
-    final next = data.next;
     final board = Leaderboard.of(data) != null;
+    final brief = data.item.brief;
     final now = ref.watch(clockProvider)();
     var slot = 0;
     Widget settle(Widget child) => StaggerItem(index: slot++, child: child);
@@ -400,24 +409,29 @@ class NotSelectedView extends ConsumerWidget {
                 children: _gapped([
                   settle(
                     Text(
-                      data.item.submission.title.toUpperCase(),
-                      style: IqText.mono.copyWith(color: IqColors.fg2),
+                      [
+                        brief?.businessName ?? 'Private business',
+                        data.item.submission.title,
+                      ].join(' · '),
+                      style: IqText.smallStrong.copyWith(color: IqColors.fg2),
                     ),
                   ),
                   settle(
                     Text(
-                      'Not this time',
+                      'Not selected this time',
                       style: IqText.display.copyWith(color: IqColors.fg),
                     ),
                   ),
-                  if (placing != null)
-                    settle(
-                      Text(
-                        placing,
-                        style: IqText.small.copyWith(color: IqColors.fg3),
-                      ),
+                  settle(
+                    const IqSectionTitle(
+                      title: 'Your answer',
+                      showCount: false,
+                      showLink: false,
                     ),
+                  ),
+                  settle(_Bubble(text: data.item.submission.body)),
                   if (note != null) ...[
+                    const SizedBox(height: IqSpace.s2),
                     settle(
                       const IqSectionTitle(
                         title: 'A note from the business',
@@ -425,28 +439,42 @@ class NotSelectedView extends ConsumerWidget {
                         showLink: false,
                       ),
                     ),
-                    settle(_Note(note: note, now: now)),
+                    settle(_Note(note: note, brief: brief, now: now)),
                   ],
                   if (board)
                     settle(
-                      IqListRow(
-                        label: 'See what won',
-                        icon: IqIcons.trophy,
-                        showDescription: false,
-                        divider: false,
-                        onTap: () =>
-                            context.push(leaderboardPath(data.item.id)),
+                      RowCard(
+                        child: IqListRow(
+                          label: 'See what won',
+                          icon: IqIcons.trophy,
+                          showDescription: false,
+                          divider: false,
+                          onTap: () =>
+                              context.push(leaderboardPath(data.item.id)),
+                        ),
                       ),
                     ),
-                  if (next != null) ...[
+                  if (data.next.isNotEmpty) ...[
                     settle(
                       const IqSectionTitle(
-                        title: 'For you',
+                        title: 'Briefs',
                         showCount: false,
                         showLink: false,
                       ),
                     ),
-                    settle(_NextBrief(brief: next, now: now)),
+                    for (final next in data.next)
+                      settle(
+                        IqBriefCard(
+                          brand: next.businessName ?? 'Private business',
+                          title: next.title,
+                          cover: briefCover(next),
+                          logo: briefLogo(next),
+                          meta: featureBriefMeta(next, now),
+                          closingSoon: closingSoonOutline(next, now),
+                          onTap: () =>
+                              context.push(Routes.brief(next.id), extra: next),
+                        ),
+                      ),
                   ],
                 ]),
               ),
@@ -475,11 +503,33 @@ class NotSelectedView extends ConsumerWidget {
   ];
 }
 
+/// A card bubble (193:9681): card fill, 1 line, radius 16, 12 by 14.
+class _Bubble extends StatelessWidget {
+  const _Bubble({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: IqSpace.s3),
+      decoration: BoxDecoration(
+        color: IqColors.card,
+        border: Border.all(color: IqColors.line),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(text, style: IqText.body.copyWith(color: IqColors.fg)),
+    );
+  }
+}
+
 /// The business's note: who, the bubble and when (193:9681 brand-note).
 class _Note extends StatelessWidget {
-  const _Note({required this.note, required this.now});
+  const _Note({required this.note, required this.brief, required this.now});
 
   final BusinessNote note;
+  final Brief? brief;
   final DateTime now;
 
   @override
@@ -490,21 +540,7 @@ class _Note extends StatelessWidget {
         MergeSemantics(
           child: Row(
             children: [
-              Container(
-                width: 26,
-                height: 26,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: IqColors.tintStrong,
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: ExcludeSemantics(
-                  child: Text(
-                    note.business.substring(0, 1),
-                    style: IqText.label.copyWith(color: IqColors.brand),
-                  ),
-                ),
-              ),
+              ClipOval(child: briefLogo(brief, size: 26)),
               const SizedBox(width: IqSpace.s2),
               Flexible(
                 child: Text(
@@ -516,28 +552,11 @@ class _Note extends StatelessWidget {
           ),
         ),
         const SizedBox(height: IqSpace.s2p5),
-        _BubbleArrives(
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: IqSpace.s3,
-            ),
-            decoration: BoxDecoration(
-              color: IqColors.card,
-              border: Border.all(color: IqColors.line),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Text(
-              note.body,
-              style: IqText.body.copyWith(color: IqColors.fg),
-            ),
-          ),
-        ),
+        _BubbleArrives(child: _Bubble(text: note.body)),
         const SizedBox(height: IqSpace.s2p5),
         Text(
           noteTime(note.sentAt, now),
-          style: IqText.mono.copyWith(color: IqColors.fg3),
+          style: IqText.small.copyWith(color: IqColors.fg3),
         ),
       ],
     );
@@ -611,37 +630,6 @@ class _BubbleArrivesState extends State<_BubbleArrives>
           alignment: Alignment.topLeft,
           child: child,
         ),
-      ),
-    );
-  }
-}
-
-/// The For you brief as a List Exp/TicketCard, no bookmark (193:9681).
-class _NextBrief extends StatelessWidget {
-  const _NextBrief({required this.brief, required this.now});
-
-  final Brief brief;
-  final DateTime now;
-
-  @override
-  Widget build(BuildContext context) {
-    final left = timeLeft(brief.deadline, now);
-    final closed = !brief.isLive;
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: IqTicketCard(
-        kind: IqTicketCardKind.list,
-        title: brief.title,
-        meta: ticketMeta(brief),
-        initial: businessInitial(brief),
-        reward: rewardPool(brief.rewardPoolKobo),
-        rule: brief.winnerRule ?? '',
-        showRule: false,
-        spots: spotsLeftLabel(brief),
-        showSpotsMarker: brief.spotsLeft != null,
-        urgency: closesIn(left, closed: closed),
-        urgencyTone: urgencyTone(left, closed: closed),
-        onTap: () => context.push(Routes.brief(brief.id)),
       ),
     );
   }

@@ -5,34 +5,41 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/deadline.dart';
 import '../../core/motion.dart';
+import '../../core/money.dart';
+import '../../core/relative_time.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
+import '../../data/models.dart';
 import '../../data/repository.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
+import '../../ui/brief_card.dart';
 import '../../ui/button.dart';
 import '../../ui/dock.dart';
+import '../../ui/icon.dart';
 import '../../ui/illustration.dart';
+import '../../ui/list_row.dart';
+import '../../ui/meta.dart';
 import '../../ui/section_title.dart';
+import '../../ui/segmented.dart';
+import '../../ui/submission_card.dart';
 import '../../ui/top_bar.dart';
 import '../discover/app_shell.dart';
+import 'brief_art.dart';
+import 'row_card.dart';
 import 'submission_widgets.dart';
 import 'submissions_routes.dart';
 import 'submissions_state.dart';
 
-/// B4 My submissions (35:24) with its loading (165:8524), empty (165:8608)
-/// and failed to load (165:8700) states. It is the Submissions tab of the
-/// app shell, which draws the dock; scroll views clear it with
-/// [AppShell.contentInset].
+/// B4 My submissions, the Submissions tab root: Under review (35:24),
+/// Winners (324:14478) and Not selected (324:14520) as Segmented lenses,
+/// with loading (165:8524), empty (165:8608) and failed to load (165:8700).
+/// The shell draws the dock.
 ///
-/// Motion (spec 6.29, 6.31 to 6.33): the first load waits behind
-/// LoadingGate; when the list lands the greeting crossfades in and the
-/// titles and rows arrive 40 ms apart, each status marker wiping 120 ms
-/// after its row and each hairline with its row. A row's status flies into
-/// the detail's header. Try again sends the banner up and waits again; a
-/// failed retry brings the banner back with the error haptic. Tapping the
-/// lit tab scrolls the list to the top.
+/// A lens switch keeps the chrome still and crossfades what is under the
+/// Segmented, 200 ms. The skeleton shows on the first visit only; the list
+/// is kept, so a later visit shows it at once.
 class MySubmissionsScreen extends ConsumerStatefulWidget {
   const MySubmissionsScreen({super.key});
 
@@ -67,20 +74,20 @@ class _MySubmissionsScreenState extends ConsumerState<MySubmissionsScreen> {
     scrollToTopOnRetap(ref, context, IqDockActive.submissions, _scroll);
     final state = ref.watch(mySubmissionsProvider);
     final unread = ref.watch(unreadNotificationsProvider).value ?? 0;
-    final failed = state.hasError && !state.isLoading;
-    final data = state.hasValue && !state.hasError ? state.value : null;
+    final data = state.value;
+    final failed = data == null && state.hasError && !state.isLoading;
     final Widget body;
     if (failed) {
-      body = const _Failed(key: ValueKey('failed'));
+      body = _Failed(key: const ValueKey('failed'), onRetry: _retry);
     } else if (data == null) {
       body = const SizedBox.shrink(key: ValueKey('loading'));
     } else if (data.items.isEmpty) {
       body = const _Empty(key: ValueKey('empty'));
     } else {
-      body = _List(
+      body = _Lenses(
         key: const ValueKey('list'),
         data: data,
-        now: ref.watch(clockProvider)(),
+        drafts: ref.watch(draftsEntryProvider),
         controller: _scroll,
       );
     }
@@ -97,23 +104,10 @@ class _MySubmissionsScreenState extends ConsumerState<MySubmissionsScreen> {
               children: [
                 IqTopBar(
                   title: 'My submissions',
-                  greeting: data?.greeting ?? ' ',
                   count: '$unread',
                   showCount: unread > 0,
                   onBell: () => context.push(Routes.notifications),
                   showWallet: false,
-                  showGreeting: true,
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
-                  child: IqBanner(
-                    kind: IqBannerKind.error,
-                    title: 'Couldn’t load. Check your connection.',
-                    action: 'Try again',
-                    visible: failed,
-                    margin: const EdgeInsets.only(bottom: IqSpace.s6),
-                    onAction: _retry,
-                  ),
                 ),
                 Expanded(
                   child: Arrivals(
@@ -135,26 +129,29 @@ class _MySubmissionsScreenState extends ConsumerState<MySubmissionsScreen> {
   }
 }
 
-class _List extends StatelessWidget {
-  const _List({
+/// The Drafts entry row (35:24 "Drafts · 2"), under the Segmented on every
+/// lens. The Submit lane provides it; null shows none.
+final draftsEntryProvider = Provider<Widget?>((ref) => null);
+
+/// The Segmented over the lens it picks. A pick crosses what sits under
+/// the control into the new lens.
+class _Lenses extends ConsumerWidget {
+  const _Lenses({
     super.key,
     required this.data,
-    required this.now,
     required this.controller,
+    this.drafts,
   });
 
   final MySubmissions data;
-  final DateTime now;
   final ScrollController controller;
-
-  void _open(BuildContext context, SubmissionItem item) {
-    context.push(
-      item.underReview ? submissionPath(item.id) : resultPath(item.id),
-    );
-  }
+  final Widget? drafts;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tab = ref.watch(submissionsTabProvider);
+    final now = ref.watch(clockProvider)();
+    final drafts = this.drafts;
     return ListView(
       controller: controller,
       padding: EdgeInsets.fromLTRB(
@@ -164,34 +161,192 @@ class _List extends StatelessWidget {
         AppShell.contentInset(context),
       ),
       children: [
-        for (final group in SubmissionGroup.values)
-          if (data.group(group) case final items when items.isNotEmpty) ...[
-            ArriveItem(
-              key: ValueKey(group),
-              child: IqSectionTitle(
-                showCount: true,
-                title: group.title,
-                count: '${items.length}',
-                showLink: false,
-              ),
-            ),
-            for (final (i, item) in items.indexed)
-              ArriveItem(
-                key: ValueKey(item.id),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (i > 0) const Hairline(),
-                    SubmissionRow(
-                      item: item,
-                      now: now,
-                      onTap: () => _open(context, item),
-                    ),
-                  ],
-                ),
-              ),
-          ],
+        Builder(
+          builder: (line) => SubmissionsSegmented(
+            data: data,
+            selected: tab,
+            onChanged: (next) {
+              if (next == tab) return;
+              LensCrossfade.cross(context, line: line);
+              ref.read(submissionsTabProvider.notifier).select(next);
+            },
+          ),
+        ),
+        if (drafts != null) ...[const SizedBox(height: IqSpace.s3), drafts],
+        for (final child in switch (tab) {
+          SubmissionsTab.underReview => _underReview(context, now),
+          SubmissionsTab.winners => _winners(context, now),
+          SubmissionsTab.notSelected => _notSelected(context, ref, now),
+        }) ...[const SizedBox(height: IqSpace.s3), child],
       ],
+    );
+  }
+
+  List<Widget> _underReview(BuildContext context, DateTime now) => [
+    for (final item in data.of(SubmissionsTab.underReview))
+      ArriveItem(
+        key: ValueKey(item.id),
+        child: SubmissionCardFor(
+          item: item,
+          now: now,
+          onTap: () => context.push(submissionPath(item.id)),
+        ),
+      ),
+  ];
+
+  List<Widget> _winners(BuildContext context, DateTime now) {
+    final wins = data.of(SubmissionsTab.winners);
+    if (wins.isEmpty) return const [];
+    final briefs = {for (final w in wins) w.submission.briefId}.length;
+    return [
+      ArriveItem(
+        key: const ValueKey('won'),
+        child: RowCard(
+          radius: IqRadius.xl2,
+          child: IqListRow(
+            label:
+                '${naira(data.wonKobo)} won from $briefs '
+                '${briefs == 1 ? 'brief' : 'briefs'}',
+            description: 'Paid to your wallet',
+            icon: IqIcons.bank,
+            divider: false,
+            onTap: () => context.go(Routes.wallet),
+          ),
+        ),
+      ),
+      for (final item in wins)
+        ArriveItem(
+          key: ValueKey(item.id),
+          child: SubmissionCardFor(
+            item: item,
+            now: now,
+            onTap: () => context.push(resultPath(item.id)),
+          ),
+        ),
+    ];
+  }
+
+  List<Widget> _notSelected(BuildContext context, WidgetRef ref, DateTime now) {
+    final briefs = ref.watch(tryAnotherBriefsProvider).value ?? const [];
+    return [
+      for (final item in data.of(SubmissionsTab.notSelected))
+        ArriveItem(
+          key: ValueKey(item.id),
+          child: SubmissionCardFor(
+            item: item,
+            now: now,
+            onTap: () => context.push(resultPath(item.id)),
+          ),
+        ),
+      if (briefs.isNotEmpty) ...[
+        const ArriveItem(
+          key: ValueKey('try'),
+          child: IqSectionTitle(
+            title: 'Try another brief',
+            showCount: false,
+            showLink: false,
+          ),
+        ),
+        for (final brief in briefs)
+          ArriveItem(
+            key: ValueKey('try-${brief.id}'),
+            child: IqBriefCard(
+              kind: IqBriefCardKind.row,
+              brand: brief.businessName ?? 'Private business',
+              title: brief.title,
+              cover: briefCover(brief),
+              logo: briefLogo(brief),
+              meta: rowBriefMeta(brief, now),
+              onTap: () => context.push(Routes.brief(brief.id), extra: brief),
+            ),
+          ),
+      ],
+    ];
+  }
+}
+
+/// The Segmented with each lens's count; the counts wait for the load.
+class SubmissionsSegmented extends StatelessWidget {
+  const SubmissionsSegmented({
+    super.key,
+    this.data,
+    this.selected = SubmissionsTab.underReview,
+    this.onChanged,
+  });
+
+  final MySubmissions? data;
+  final SubmissionsTab selected;
+  final ValueChanged<SubmissionsTab>? onChanged;
+
+  String _label(SubmissionsTab tab) {
+    final data = this.data;
+    return data == null ? tab.label : '${tab.label} · ${data.count(tab)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final onChanged = this.onChanged;
+    return IqSegmented(
+      option1: _label(SubmissionsTab.underReview),
+      option2: _label(SubmissionsTab.winners),
+      option3: _label(SubmissionsTab.notSelected),
+      selected: IqSegmentedSelected.values[selected.index],
+      onChanged: onChanged == null
+          ? null
+          : (s) => onChanged(SubmissionsTab.values[s.index]),
+    );
+  }
+}
+
+/// An Exp/SubmissionCard for [item] as the B4 lenses fill it.
+class SubmissionCardFor extends StatelessWidget {
+  const SubmissionCardFor({
+    super.key,
+    required this.item,
+    required this.now,
+    this.onTap,
+  });
+
+  final SubmissionItem item;
+  final DateTime now;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final brief = item.brief;
+    final sent = sentAgo(item.submission.createdAt, now);
+    final (status, label, kind, line) = switch (item.status) {
+      SubmissionStatus.pending || SubmissionStatus.scored => (
+        IqSubmissionCardStatus.underReview,
+        brief == null
+            ? 'Under review'
+            : closesIn(timeLeft(brief.deadline, now), closed: !brief.isLive),
+        brief == null ? IqMetaKind.time : IqMetaKind.deadline,
+        sent,
+      ),
+      SubmissionStatus.winner => (
+        IqSubmissionCardStatus.winner,
+        'Won ${nairaShort(item.awardKobo ?? 0)}',
+        IqMetaKind.done,
+        timeAgo(item.awardedAt ?? item.submission.createdAt, now),
+      ),
+      SubmissionStatus.filteredOut => (
+        IqSubmissionCardStatus.notSelected,
+        'Didn’t pass screening',
+        IqMetaKind.plain,
+        sent,
+      ),
+    };
+    return IqSubmissionCard(
+      status: status,
+      statusLabel: label,
+      statusKind: kind,
+      title: item.submission.title,
+      brief: item.briefLine,
+      sent: line,
+      cover: briefCover(brief),
+      logo: briefLogo(brief),
+      onTap: onTap,
     );
   }
 }
@@ -207,11 +362,11 @@ class _Loading extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'Loading…'.toUpperCase(),
-            style: IqText.mono.copyWith(color: IqColors.fg3),
-          ),
-          for (var i = 0; i < 4; i++) const SkeletonCard(),
+          const SubmissionsSegmented(),
+          for (var i = 0; i < 3; i++) ...[
+            const SizedBox(height: IqSpace.s3),
+            const SkeletonSubmissionCard(),
+          ],
         ],
       ),
     );
@@ -226,36 +381,30 @@ class _Empty extends StatelessWidget {
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(
         IqSpace.s4,
-        IqSpace.s6,
+        121 + IqSpace.s6,
         IqSpace.s4,
         AppShell.contentInset(context),
       ),
       child: Column(
         children: [
-          const IqIllustration(IqIllustrations.trophy),
-          const SizedBox(height: IqSpace.s2),
-          Appear(
-            delay: IqDurations.stagger * 2,
-            child: Text(
-              'No submissions yet',
-              textAlign: TextAlign.center,
-              style: IqText.cardTitle.copyWith(color: IqColors.fg),
-            ),
+          const IqFigure(IqFigures.writer, width: 188, arrive: true),
+          const SizedBox(height: IqSpace.s3),
+          Text(
+            'No submissions yet',
+            textAlign: TextAlign.center,
+            style: IqText.title.copyWith(color: IqColors.fg),
           ),
-          const SizedBox(height: IqSpace.s2),
-          Appear(
-            delay: IqDurations.stagger * 3,
-            child: Text(
-              'Find a brief that fits you.',
-              textAlign: TextAlign.center,
-              style: IqText.body.copyWith(color: IqColors.fg2),
-            ),
+          const SizedBox(height: IqSpace.s3),
+          Text(
+            'Find a brief that fits you.',
+            textAlign: TextAlign.center,
+            style: IqText.body.copyWith(color: IqColors.fg2),
           ),
-          const SizedBox(height: IqSpace.s2),
+          const SizedBox(height: IqSpace.s3),
           IqButton(
             label: 'Browse briefs',
-            kind: IqButtonKind.secondary,
             showIcon: false,
+            width: 200,
             onTap: () => context.go(Routes.home),
           ),
         ],
@@ -264,10 +413,10 @@ class _Empty extends StatelessWidget {
   }
 }
 
-/// What stays under the Error banner, which sits above the gate so it can
-/// slide away while a retry waits.
 class _Failed extends StatelessWidget {
-  const _Failed({super.key});
+  const _Failed({super.key, required this.onRetry});
+
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -281,14 +430,23 @@ class _Failed extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'Nothing to show yet',
-            textAlign: TextAlign.center,
-            style: IqText.cardTitle.copyWith(color: IqColors.fg),
+          IqBanner(
+            kind: IqBannerKind.error,
+            title: 'Couldn’t load. Check your connection.',
+            action: 'Try again',
+            onAction: onRetry,
           ),
-          const SizedBox(height: IqSpace.s2),
+          const SizedBox(height: IqSpace.s4 + IqSpace.s8),
+          const Center(child: IqFigure(IqFigures.thinker, width: 188)),
+          const SizedBox(height: IqSpace.s3),
           Text(
-            'They will show here once they load.',
+            'Couldn\'t load your submissions',
+            textAlign: TextAlign.center,
+            style: IqText.title.copyWith(color: IqColors.fg),
+          ),
+          const SizedBox(height: IqSpace.s3),
+          Text(
+            'Check your data or Wi-Fi and try again.',
             textAlign: TextAlign.center,
             style: IqText.body.copyWith(color: IqColors.fg2),
           ),

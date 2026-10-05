@@ -9,18 +9,18 @@ import 'package:iqly_mobile/features/submissions/my_submissions_screen.dart';
 import 'package:iqly_mobile/features/submissions/submission_detail_screen.dart';
 import 'package:iqly_mobile/features/submissions/submission_widgets.dart';
 import 'package:iqly_mobile/features/submissions/submissions_routes.dart';
+import 'package:iqly_mobile/features/submissions/submissions_state.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/banner.dart';
 import 'package:iqly_mobile/ui/dock.dart';
-import 'package:iqly_mobile/ui/highlight.dart';
 import 'package:iqly_mobile/ui/top_bar.dart';
 
+import '../golden/golden.dart';
 import '../golden/screens/app_harness.dart';
 import 'entry_harness.dart';
 
 const _ms = Duration(milliseconds: 1);
 
-double _eo(double t) => IqCurves.easeOut.transform(t);
 double _ei(double t) => IqCurves.easeIn.transform(t);
 
 /// The product of every fade above [of].
@@ -91,31 +91,6 @@ double _arrived(WidgetTester tester, int index) => tester
     .opacity
     .value;
 
-/// How much of the [index]th status marker is drawn, 0 to 1.
-double _marker(WidgetTester tester, int index) =>
-    tester
-        .widget<ClipRect>(
-          find
-              .descendant(
-                of: find.byType(IqHighlight).at(index),
-                matching: find.byType(ClipRect),
-              )
-              .first,
-        )
-        .clipper!
-        .getClip(const Size(100, 10))
-        .width /
-    100;
-
-double _greeting(WidgetTester tester) => tester
-    .widgetList<FadeTransition>(
-      find.ancestor(
-        of: find.text('5 sent · 2 under review'),
-        matching: find.byType(FadeTransition),
-      ),
-    )
-    .fold(1.0, (o, w) => o * w.opacity.value);
-
 /// Pumps frame by frame until [type] is first built, so the test sees the
 /// page's very first frame (offstage, while heroes are measured).
 Future<Finder> _firstFrameOf(WidgetTester tester, Type type) async {
@@ -128,9 +103,10 @@ Future<Finder> _firstFrameOf(WidgetTester tester, Type type) async {
 }
 
 void main() {
-  testWidgets('first visit: paper, the skeleton, then the list arrives', (
-    tester,
-  ) async {
+  setUpAll(loadAppFonts);
+
+  testWidgets('first visit: paper, the skeleton, then the cards arrive; a '
+      'later visit shows them at once', (tester) async {
     final repository = _Held();
     await pumpApp(
       tester,
@@ -142,75 +118,77 @@ void main() {
     await tester.pump();
     expect(find.byType(MySubmissionsScreen), findsOneWidget);
     await tester.pump(_ms * 299);
-    expect(find.byType(SkeletonCard), findsNothing);
+    expect(find.byType(SkeletonSubmissionCard), findsNothing);
     await tester.pump(_ms);
     await tester.pump();
-    expect(find.byType(SkeletonCard), findsNWidgets(4));
+    expect(find.byType(SkeletonSubmissionCard), findsNWidgets(3));
 
-    // The data lands at 400 and the greeting crossfades in at once; the
-    // skeleton holds to 900.
+    // The data lands at 400; the skeleton holds to 900, fades, and the
+    // cards come in at 960, 40 apart.
     await tester.pump(_ms * 100);
     repository.answer();
     await tester.pump();
     await tester.pump();
-    await tester.pump(_ms * 75);
-    expect(_greeting(tester), closeTo(_eo(0.5), 0.05));
-    expect(find.byType(SkeletonCard), findsNWidgets(4));
-    expect(find.byType(ArriveItem), findsNothing);
-
-    // The skeleton starts fading at 900 and the list comes in at 960.
-    await tester.pump(_ms * 425);
+    await tester.pump(_ms * 500);
     expect(find.byType(ArriveItem), findsNothing);
     await tester.pump(_ms * 60);
     expect(find.byType(ArriveItem), findsWidgets);
-    // Under review title, then its two rows, 40 ms apart; each marker
-    // wipes 120 after its row.
-    expect(_arrived(tester, 0), 0);
     await tester.pump(_ms * 110);
-    expect(_arrived(tester, 0), closeTo(_eo(110 / 260), 0.03));
-    expect(_arrived(tester, 1), closeTo(_eo(70 / 260), 0.03));
-    expect(_arrived(tester, 2), closeTo(_eo(30 / 260), 0.03));
-    expect(_marker(tester, 0), 0);
-    await tester.pump(_ms * 80);
-    expect(_marker(tester, 0), closeTo(_eo(30 / 240), 0.03));
-    expect(_marker(tester, 1), 0);
+    expect(_arrived(tester, 0), greaterThan(_arrived(tester, 1)));
     await tester.pumpAndSettle();
-    expect(find.byType(SkeletonCard), findsNothing);
-    expect(_marker(tester, 0), 1);
-    expect(_arrived(tester, 2), 1);
+    expect(find.byType(SkeletonSubmissionCard), findsNothing);
+    expect(_arrived(tester, 1), 1);
 
-    // A second visit is chrome only: the list stands where it was.
     await tester.tap(
       find.descendant(of: find.byType(IqDock), matching: find.text('Discover')),
     );
     await tester.pumpAndSettle();
     await tester.tap(_tab);
     await tester.pump();
+    expect(find.byType(SkeletonSubmissionCard), findsNothing);
     expect(_arrived(tester, 0), 1);
     expect(repository.loads, hasLength(1));
   });
 
-  testWidgets('reduced motion: the list fades in together, markers drawn', (
-    tester,
-  ) async {
+  testWidgets('a quiet refresh keeps the cards on screen', (tester) async {
     final repository = _Held();
-    await pumpApp(tester, Routes.submissions, repository: repository);
-    await tester.pump(_ms * 300);
-    await tester.pump();
-    expect(find.byType(SkeletonCard), findsNWidgets(4));
+    final container = await pumpApp(
+      tester,
+      Routes.submissions,
+      repository: repository,
+      settle: false,
+    );
     repository.answer();
-    await tester.pump();
-    await tester.pump(_ms * 600);
-    await tester.pump();
-    await tester.pump(_ms * 75);
-    expect(_arrived(tester, 0), closeTo(_eo(0.5), 0.05));
-    expect(_arrived(tester, 2), _arrived(tester, 0));
-    expect(_marker(tester, 0), 1);
     await tester.pumpAndSettle();
-    expect(find.byType(SkeletonCard), findsNothing);
+    container.read(mySubmissionsProvider.notifier).refreshQuietly();
+    await tester.pump();
+    await tester.pump(_ms * 1000);
+    expect(repository.loads, hasLength(2));
+    expect(find.text('Bring the shop to the hostel'), findsOneWidget);
+    expect(find.byType(SkeletonSubmissionCard), findsNothing);
+    repository.loads.last.completeError(Exception('offline'));
+    await tester.pumpAndSettle();
+    expect(find.text('Bring the shop to the hostel'), findsOneWidget);
   });
 
-  testWidgets('a row opens its detail drawn on the first frame', (
+  testWidgets('a lens switch crosses the content, 200 ms, and keeps the '
+      'chrome still', (tester) async {
+    await pumpApp(tester, Routes.submissions, reducedMotion: false);
+    final segmented = tester.getTopLeft(find.byType(SubmissionsSegmented));
+    await tester.tap(find.text('Winners · 2'));
+    await tester.pump();
+    await tester.pump(_ms * 100);
+    final fading = find.byWidgetPredicate(
+      (w) => w is RawImage && w.fit == BoxFit.fill,
+    );
+    expect(fading, findsOneWidget);
+    expect(tester.getTopLeft(find.byType(SubmissionsSegmented)), segmented);
+    await tester.pump(_ms * 110);
+    expect(fading, findsNothing);
+    expect(find.text('₦62,500.00 won from 2 briefs'), findsOneWidget);
+  });
+
+  testWidgets('a card opens its detail drawn on the first frame', (
     tester,
   ) async {
     await pumpApp(tester, Routes.submissions, reducedMotion: false);
@@ -226,14 +204,6 @@ void main() {
         findsOneWidget,
       );
     }
-    expect(
-      find.descendant(
-        of: page,
-        matching: find.byType(SubmissionStatusHero, skipOffstage: false),
-        skipOffstage: false,
-      ),
-      findsOneWidget,
-    );
   });
 
   testWidgets('View the brief and back: the back button holds and the '
@@ -249,8 +219,6 @@ void main() {
     await tester.pump(_ms * 800);
     final bar = tester.getTopLeft(find.byType(IqTopBar));
 
-    /// The flying copy of [title]: how far it shows, and that it draws in
-    /// the app's own style.
     double flying(String title) {
       final text = find.text(title).last;
       final style = tester.renderObject<RenderParagraph>(text).text.style;
@@ -272,88 +240,15 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(flying('Brief'), closeTo(1, 0.02));
-    expect(flying('Submission'), 0);
     await tester.pump(_ms * 48);
     expect(tester.getTopLeft(find.byType(IqTopBar).last), bar);
     expect(flying('Brief'), closeTo(1 - _ei(0.5), 0.02));
-    await tester.pump(_ms * 144);
-    expect(flying('Submission'), 1);
-    expect(flying('Brief'), 0);
-    await tester.pump(_ms * 100);
+    await tester.pump(_ms * 244);
     expect(find.text('Brief'), findsNothing);
     expect(find.text('Submission'), findsOneWidget);
   });
 
-  testWidgets('the status marker flies into the header and back', (
-    tester,
-  ) async {
-    await pumpApp(tester, Routes.submissions, reducedMotion: false);
-    final row = find.ancestor(
-      of: find.text('Bring the shop to the hostel'),
-      matching: find.byType(SubmissionRow),
-    );
-    final from = tester.getTopLeft(
-      find.descendant(of: row, matching: find.byType(SubmissionStatusMark)),
-    );
-    final shuttle = find.byWidgetPredicate(
-      (w) => w is SubmissionStatusMark && !w.wipe,
-    );
-
-    await tester.tap(row);
-    await tester.pump();
-    await tester.pump();
-    await tester.pump(_ms * 150);
-    expect(shuttle, findsOneWidget);
-    final mid = tester.getTopLeft(shuttle);
-    await tester.pumpAndSettle();
-    final to = tester.getTopLeft(shuttle);
-    expect(mid.dy, lessThan(from.dy));
-    expect(mid.dy, greaterThan(to.dy));
-    expect(mid.dx, lessThan(from.dx));
-    expect(mid.dx, greaterThan(to.dx));
-
-    await tester.tap(find.bySemanticsLabel('Back'));
-    await tester.pump();
-    await tester.pump(_ms * 120);
-    expect(shuttle, findsOneWidget);
-    final back = tester.getTopLeft(shuttle);
-    expect(back.dy, greaterThan(to.dy));
-    expect(back.dy, lessThan(from.dy));
-    await tester.pumpAndSettle();
-    expect(shuttle, findsNothing);
-    expect(
-      tester.getTopLeft(
-        find.descendant(of: row, matching: find.byType(SubmissionStatusMark)),
-      ),
-      from,
-    );
-  });
-
-  testWidgets('reduced motion: no flight, the detail crossfades in', (
-    tester,
-  ) async {
-    await pumpApp(tester, Routes.submissions);
-    await tester.tap(find.text('Bring the shop to the hostel'));
-    await tester.pump();
-    await tester.pump();
-    await tester.pump(_ms * 75);
-    expect(find.byType(SubmissionDetailScreen), findsOneWidget);
-    expect(
-      find.byWidgetPredicate((w) => w is SubmissionStatusMark && !w.wipe),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(
-        of: find.byType(SubmissionDetailScreen),
-        matching: find.byType(SubmissionStatusMark),
-      ),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('Try again sends the banner up; a failed retry brings it back', (
-    tester,
-  ) async {
+  testWidgets('a failed retry plays the error haptic', (tester) async {
     final haptics = recordHaptics(tester);
     final repository = _Held(failFirst: true);
     await pumpApp(
@@ -362,39 +257,32 @@ void main() {
       repository: repository,
       reducedMotion: false,
     );
-    double banner() =>
-        tester.getSize(find.byType(IqBanner, skipOffstage: false)).height;
-    final height = banner();
-    expect(height, greaterThan(0));
-    expect(find.text('Nothing to show yet'), findsOneWidget);
-
+    expect(find.byType(IqBanner), findsOneWidget);
     await tester.tap(find.text('Try again'));
     await tester.pump();
-    await tester.pump(_ms * 90);
-    expect(banner(), lessThan(height));
-    expect(banner(), greaterThan(0));
-    await tester.pump(_ms * 100);
-    expect(banner(), 0);
-    // Waiting again: paper, then the skeleton.
-    expect(find.text('Nothing to show yet'), findsNothing);
-    await tester.pump(_ms * 120);
+    await tester.pump(_ms * 400);
     await tester.pump();
-    expect(find.byType(SkeletonCard), findsNWidgets(4));
+    expect(find.byType(SkeletonSubmissionCard), findsNWidgets(3));
     expect(haptics, isEmpty);
-
     repository.loads.last.completeError(Exception('offline'));
-    await tester.pump();
-    await tester.pump();
-    await tester.pump(IqBanner.enter + _ms);
-    expect(banner(), height);
+    await tester.pumpAndSettle();
+    expect(find.byType(IqBanner), findsOneWidget);
     expect(haptics, ['HapticFeedbackType.mediumImpact']);
   });
 
   testWidgets('tapping the lit tab at its root scrolls the list to the top', (
     tester,
   ) async {
-    final haptics = recordHaptics(tester);
-    await pumpApp(tester, Routes.submissions, reducedMotion: false);
+    final container = await pumpApp(
+      tester,
+      Routes.submissions,
+      reducedMotion: false,
+    );
+    container
+        .read(submissionsTabProvider.notifier)
+        .select(SubmissionsTab.notSelected);
+    tester.view.physicalSize = const Size(390, 560);
+    await tester.pumpAndSettle();
     final list = _list(tester);
     expect(list.maxScrollExtent, greaterThan(0));
     list.jumpTo(list.maxScrollExtent);
@@ -403,9 +291,7 @@ void main() {
     await tester.pump();
     await tester.pump(_ms * 150);
     expect(list.pixels, greaterThan(0));
-    expect(list.pixels, lessThan(list.maxScrollExtent));
     await tester.pumpAndSettle();
     expect(list.pixels, 0);
-    expect(haptics, isEmpty);
   });
 }

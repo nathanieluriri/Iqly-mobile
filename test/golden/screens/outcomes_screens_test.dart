@@ -8,6 +8,7 @@ import 'app_harness.dart';
 
 Future<void> _golden(WidgetTester tester, String name, String location) async {
   await pumpApp(tester, location);
+  await precacheImages(tester);
   await expectMatchesGolden(
     find.byType(MaterialApp),
     'goldens/outcomes_$name.png',

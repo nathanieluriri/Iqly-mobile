@@ -1,23 +1,46 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/data/repository.dart';
+import 'package:iqly_mobile/features/submissions/my_submissions_screen.dart';
 import 'package:iqly_mobile/features/submissions/submissions_routes.dart';
+import 'package:iqly_mobile/features/submissions/submissions_state.dart';
 import 'package:iqly_mobile/router.dart';
+import 'package:iqly_mobile/ui/icon.dart';
+import 'package:iqly_mobile/ui/list_row.dart';
 
 import '../golden.dart';
 import 'app_harness.dart';
 import 'submissions_harness.dart';
 
+/// The Submit lane's Drafts entry, with the frame's copy, so the lenses
+/// line up with 35:24.
+final _drafts = draftsEntryProvider.overrideWithValue(
+  const IqListRow(
+    label: 'Drafts · 2',
+    description: 'Unibooks and Sunline · last edited 2 hours ago',
+    icon: IqIcons.document,
+    divider: false,
+  ),
+);
+
 Future<void> _golden(
   WidgetTester tester,
   String name,
-  String location, [
+  String location, {
   IqlyRepository? repository,
-]) async {
-  await pumpApp(tester, location, repository: repository);
+  SubmissionsTab? tab,
+}) async {
+  final container = await pumpApp(
+    tester,
+    location,
+    repository: repository,
+    overrides: [_drafts],
+  );
+  if (tab != null) container.read(submissionsTabProvider.notifier).select(tab);
   // A load still running shows its skeleton after LoadingGate's 300 ms.
   await tester.pump(const Duration(milliseconds: 300));
   await tester.pumpAndSettle();
+  await precacheImages(tester);
   await expectMatchesGolden(
     find.byType(MaterialApp),
     'goldens/submissions_$name.png',
@@ -27,8 +50,26 @@ Future<void> _golden(
 void main() {
   setUpAll(loadAppFonts);
 
-  testWidgets('my submissions (35:24)', (tester) async {
-    await _golden(tester, 'list', Routes.submissions);
+  testWidgets('under review (35:24)', (tester) async {
+    await _golden(tester, 'under_review', Routes.submissions);
+  });
+
+  testWidgets('winners (324:14478)', (tester) async {
+    await _golden(
+      tester,
+      'winners',
+      Routes.submissions,
+      tab: SubmissionsTab.winners,
+    );
+  });
+
+  testWidgets('not selected (324:14520)', (tester) async {
+    await _golden(
+      tester,
+      'not_selected',
+      Routes.submissions,
+      tab: SubmissionsTab.notSelected,
+    );
   });
 
   testWidgets('submission detail (35:146)', (tester) async {
@@ -40,7 +81,7 @@ void main() {
       tester,
       'loading',
       Routes.submissions,
-      PendingSubmissionsRepository(),
+      repository: PendingSubmissionsRepository(),
     );
   });
 
@@ -49,7 +90,7 @@ void main() {
       tester,
       'empty',
       Routes.submissions,
-      EmptySubmissionsRepository(),
+      repository: EmptySubmissionsRepository(),
     );
   });
 
@@ -58,7 +99,7 @@ void main() {
       tester,
       'failed',
       Routes.submissions,
-      FailingSubmissionsRepository(),
+      repository: FailingSubmissionsRepository(),
     );
   });
 }

@@ -63,8 +63,9 @@ class Outcome {
 /// l3), which foots to brief c3's 400,000 pool.
 ///
 /// s5 (193:9681, 225:10747): 9th of 36. Figma pays 32,000, 24,000, 16,000
-/// and 8,000 out of an 80,000 pool, but s5 answers c7, whose pool is
-/// 350,000 (DemoData), so the same 40/30/20/10 split is kept on 350,000.
+/// and 8,000 ("₦80,000 shared by the winners"), but s5 answers c7, whose
+/// pool is 350,000 (DemoData), so the same 40/30/20/10 split is kept on
+/// 350,000.
 ///
 /// s3: the business has not published a leaderboard.
 abstract final class OutcomesDemo {
@@ -144,7 +145,9 @@ abstract final class OutcomesDemo {
           ],
           note: BusinessNote(
             business: 'Harbour Microfinance',
-            body: 'Good idea. The winners put every quick job on one counter.',
+            body:
+                'Good idea. The winners also fixed the Monday rush without '
+                'adding staff.',
             sentAt: _lastFriday(now, hour: 11, minute: 20),
           ),
         ),
