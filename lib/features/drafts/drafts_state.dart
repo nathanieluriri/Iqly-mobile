@@ -50,10 +50,7 @@ final draftItemsProvider = FutureProvider<List<DraftItem>>((ref) async {
   final briefs = await ref.watch(repositoryProvider).briefs();
   return [
     for (final draft in drafts)
-      DraftItem(
-        draft,
-        briefs.where((b) => b.id == draft.briefId).firstOrNull,
-      ),
+      DraftItem(draft, briefs.where((b) => b.id == draft.briefId).firstOrNull),
   ];
 });
 

@@ -122,7 +122,9 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
         ?.where((d) => d.briefId == briefId)
         .firstOrNull;
     if (saved == null || saved.isEmpty) {
-      return SubmitFlow(draft: Draft(briefId: briefId, editedAt: _now()));
+      return SubmitFlow(
+        draft: Draft(briefId: briefId, editedAt: _now()),
+      );
     }
     final questions = saved.step >= DraftSteps.questions && _form.hasQuestions;
     return SubmitFlow(
@@ -324,8 +326,8 @@ final submitOpeningProvider = FutureProvider.autoDispose
       (ref, briefId) => ref.watch(submitServiceProvider).open(briefId),
     );
 
-/// Sign out and account deletion leave no drafts on the device: the ones
-/// the earlier builds autosaved under submit.draft.<brief>.
+/// Sign out and account deletion clear the autosaves earlier builds kept
+/// under the `submit.draft.` keys.
 Future<void> forgetSubmitDrafts(SharedPreferences prefs) async {
   for (final key in prefs.getKeys().toList()) {
     if (key.startsWith('submit.draft.')) await prefs.remove(key);

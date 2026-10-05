@@ -266,8 +266,7 @@ class DemoData {
     Draft(
       briefId: 'c6',
       title: 'No light? We dey',
-      answer:
-          'A WhatsApp catalogue with a pickup shelf in each hostel, priced like the sellers.',
+      answer: 'A WhatsApp catalogue with a pickup shelf in each hostel, priced like the sellers.',
       step: 2,
       editedAt: now.subtract(const Duration(hours: 2)),
     ),
