@@ -17,9 +17,9 @@ Finder _field(String label) => find.byWidgetPredicate(
 );
 
 /// A returning contributor signs in, opens Sunline's solar kiosk brief from
-/// Closing soon and submits: a title and an answer past 20 characters, the
-/// two quick questions and a photo, then the sent moment and View
-/// submission.
+/// Closing soon and picks up the saved draft: the answer past 20
+/// characters, the two quick questions and three attachments, then the
+/// sent moment and View submission.
 void main() {
   film('submit_brief', (d) async {
     await signIn(d);
@@ -36,14 +36,13 @@ void main() {
     await d.arrive(find.byType(BriefDetailScreen), hold: 1.2);
     await d.tap(find.text('Submit your response'));
 
-    await d.arrive(find.byType(AnswerStep), hold: 0.8);
-    await d.tap(_field('Title'), label: 'title');
-    await d.type('Sun dey, power dey', cps: 14);
-    await d.hold(0.3);
-    await d.submit();
-    await d.hold(0.3);
-    await d.type('Charge your phone and buy airtime, off-grid.', cps: 16);
-    await d.waitFor(find.text(readyText));
+    await d.arrive(find.byType(AnswerStep), hold: 1.2);
+    await d.tap(find.byType(AnswerArea), label: 'answer');
+    await d.type(
+      '. Sunline keeps your phone charged and your airtime close.',
+      cps: 16,
+    );
+    await d.waitFor(find.text('Ready for the next step'));
     await d.hold(0.8);
     await d.tap(find.text('Continue'));
 
@@ -56,9 +55,9 @@ void main() {
     await d.submit();
     await d.hold(0.4);
     await d.tap(find.text('Attachments'));
-    await d.waitFor(find.byType(AttachedFileRow));
+    await d.waitFor(find.text('Added · 0:42'));
     await d.hold(0.8);
-    await d.tap(find.text('Send response'));
+    await d.tap(find.text('Submit'));
 
     await d.arrive(find.byType(SentMoment), hold: 1.5);
     await d.tap(find.text('View submission'));

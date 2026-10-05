@@ -343,6 +343,42 @@ void main() {
       await tester.pumpAndSettle();
     });
 
+    testWidgets('the card flies one way into the preview’s resting place and '
+        'one way back, never past either end (spec 4.4)', (tester) async {
+      await pumpApp(tester, resultPath('s2'), reducedMotion: false);
+      final card = tester.getRect(find.byType(IqShareCard)).top;
+      Future<List<double>> fly() async {
+        final tops = <double>[];
+        for (var at = 16; at <= 400; at += 16) {
+          await tester.pump(const Duration(milliseconds: 16));
+          tops.add(tester.getRect(find.byType(IqShareCard).last).top);
+        }
+        return tops;
+      }
+
+      await tester.tap(find.text('Share your win'));
+      await tester.pump();
+      final there = await fly();
+      await tester.pumpAndSettle();
+      final preview = tester.getRect(find.byType(IqShareCard).last).top;
+      expect(preview, greaterThan(card + 50));
+      expect(there.where((y) => y > card + 1 && y < preview - 1), isNotEmpty);
+      for (var i = 1; i < there.length; i++) {
+        expect(there[i], greaterThanOrEqualTo(there[i - 1] - 0.5));
+        expect(there[i], lessThanOrEqualTo(preview + 0.5), reason: 'frame $i');
+      }
+
+      await tester.tapAt(const Offset(195, 120));
+      await tester.pump();
+      final back = await fly();
+      await tester.pumpAndSettle();
+      expect(back.where((y) => y > card + 1 && y < preview - 1), isNotEmpty);
+      for (var i = 1; i < back.length; i++) {
+        expect(back[i], lessThanOrEqualTo(back[i - 1] + 0.5));
+        expect(back[i], greaterThanOrEqualTo(card - 0.5), reason: 'frame $i');
+      }
+    });
+
     testWidgets('reduced motion: no flight, the sheet fades in place', (
       tester,
     ) async {

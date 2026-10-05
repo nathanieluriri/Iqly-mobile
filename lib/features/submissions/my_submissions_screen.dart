@@ -26,6 +26,8 @@ import '../../ui/segmented.dart';
 import '../../ui/submission_card.dart';
 import '../../ui/top_bar.dart';
 import '../discover/app_shell.dart';
+import '../drafts/drafts_entry.dart';
+import '../drafts/drafts_state.dart';
 import 'brief_art.dart';
 import 'row_card.dart';
 import 'submission_widgets.dart';
@@ -87,7 +89,6 @@ class _MySubmissionsScreenState extends ConsumerState<MySubmissionsScreen> {
       body = _Lenses(
         key: const ValueKey('list'),
         data: data,
-        drafts: ref.watch(draftsEntryProvider),
         controller: _scroll,
       );
     }
@@ -129,29 +130,19 @@ class _MySubmissionsScreenState extends ConsumerState<MySubmissionsScreen> {
   }
 }
 
-/// The Drafts entry row (35:24 "Drafts · 2"), under the Segmented on every
-/// lens. The Submit lane provides it; null shows none.
-final draftsEntryProvider = Provider<Widget?>((ref) => null);
-
 /// The Segmented over the lens it picks. A pick crosses what sits under
 /// the control into the new lens.
 class _Lenses extends ConsumerWidget {
-  const _Lenses({
-    super.key,
-    required this.data,
-    required this.controller,
-    this.drafts,
-  });
+  const _Lenses({super.key, required this.data, required this.controller});
 
   final MySubmissions data;
   final ScrollController controller;
-  final Widget? drafts;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tab = ref.watch(submissionsTabProvider);
     final now = ref.watch(clockProvider)();
-    final drafts = this.drafts;
+    final drafts = (ref.watch(draftItemsProvider).value ?? const []).isNotEmpty;
     return ListView(
       controller: controller,
       padding: EdgeInsets.fromLTRB(
@@ -172,7 +163,10 @@ class _Lenses extends ConsumerWidget {
             },
           ),
         ),
-        if (drafts != null) ...[const SizedBox(height: IqSpace.s3), drafts],
+        if (drafts) ...[
+          const SizedBox(height: IqSpace.s3),
+          const DraftsEntry(),
+        ],
         for (final child in switch (tab) {
           SubmissionsTab.underReview => _underReview(context, now),
           SubmissionsTab.winners => _winners(context, now),
@@ -405,7 +399,7 @@ class _Empty extends StatelessWidget {
             label: 'Browse briefs',
             showIcon: false,
             width: 200,
-            onTap: () => context.go(Routes.home),
+            onTap: () => context.push(Routes.pickBrief),
           ),
         ],
       ),

@@ -1,27 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/data/repository.dart';
-import 'package:iqly_mobile/features/submissions/my_submissions_screen.dart';
 import 'package:iqly_mobile/features/submissions/submissions_routes.dart';
 import 'package:iqly_mobile/features/submissions/submissions_state.dart';
 import 'package:iqly_mobile/router.dart';
-import 'package:iqly_mobile/ui/icon.dart';
-import 'package:iqly_mobile/ui/list_row.dart';
 
 import '../golden.dart';
 import 'app_harness.dart';
 import 'submissions_harness.dart';
-
-/// The Submit lane's Drafts entry, with the frame's copy, so the lenses
-/// line up with 35:24.
-final _drafts = draftsEntryProvider.overrideWithValue(
-  const IqListRow(
-    label: 'Drafts · 2',
-    description: 'Unibooks and Sunline · last edited 2 hours ago',
-    icon: IqIcons.document,
-    divider: false,
-  ),
-);
 
 Future<void> _golden(
   WidgetTester tester,
@@ -30,12 +16,7 @@ Future<void> _golden(
   IqlyRepository? repository,
   SubmissionsTab? tab,
 }) async {
-  final container = await pumpApp(
-    tester,
-    location,
-    repository: repository,
-    overrides: [_drafts],
-  );
+  final container = await pumpApp(tester, location, repository: repository);
   if (tab != null) container.read(submissionsTabProvider.notifier).select(tab);
   // A load still running shows its skeleton after LoadingGate's 300 ms.
   await tester.pump(const Duration(milliseconds: 300));
