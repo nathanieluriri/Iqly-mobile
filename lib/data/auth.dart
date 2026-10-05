@@ -37,11 +37,14 @@ class AuthResult {
 abstract class AuthService {
   /// Succeeds with [AuthResult.newAccount] set when no account has [email].
   Future<AuthResult> lookUpEmail(String email);
+
+  /// [inviteCode] is the friend's code from an invite link, if any.
   Future<AuthResult> signUp({
     required String firstName,
     required String lastName,
     required String email,
     required String password,
+    String? inviteCode,
   });
   Future<AuthResult> signIn({required String email, required String password});
 
@@ -109,6 +112,7 @@ class DemoAuthService implements AuthService {
     required String lastName,
     required String email,
     required String password,
+    String? inviteCode,
   }) async {
     await _wait();
     final address = _normal(email);
