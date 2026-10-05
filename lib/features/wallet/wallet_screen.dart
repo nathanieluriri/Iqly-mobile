@@ -123,6 +123,8 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
                   count: '$unread',
                   showCount: unread > 0,
                   onBell: () => context.push(Routes.notifications),
+                  showWallet: false,
+                  showGreeting: true,
                 ),
                 Expanded(
                   child: LoadingGate(
@@ -214,6 +216,7 @@ class _LoadedState extends ConsumerState<_Loaded> {
         onWithdraw: () => context.push(Routes.withdraw),
       ),
       IqSectionTitle(
+        showCount: true,
         title: 'Activity',
         count: '${activity.length}',
         showLink: false,

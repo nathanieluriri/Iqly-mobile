@@ -19,7 +19,7 @@ void main() {
     });
   }
 
-  testWidgets('tapping a tab reports it and the pill slides there', (
+  testWidgets('tapping a tab reports it and the pill moves there at once', (
     tester,
   ) async {
     var active = IqDockActive.discover;
@@ -39,9 +39,7 @@ void main() {
     );
     await tester.tap(find.text('Wallet'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
-    expect(tester.hasRunningAnimations, isTrue);
-    await tester.pumpAndSettle();
     expect(active, IqDockActive.wallet);
+    expect(tester.hasRunningAnimations, isFalse);
   });
 }

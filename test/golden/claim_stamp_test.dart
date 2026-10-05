@@ -39,7 +39,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 60));
     expect(tester.hasRunningAnimations, isTrue);
     await tester.pumpAndSettle();
-    expect(find.text('VERIFIED'), findsOneWidget);
+    expect(find.text('Verified'), findsOneWidget);
   });
 
   testWidgets('checking pulses its dot, still under reduced motion', (

@@ -519,6 +519,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           'polls-title',
           _inset(
             IqSectionTitle(
+              showCount: true,
               title: 'Open polls',
               count: '${brands.length}',
               onSeeAll: () => context.push(Routes.polls),
@@ -630,6 +631,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           'closing-title',
           _inset(
             IqSectionTitle(
+              showCount: true,
               title: 'Closing soon',
               count: '${view.closingSoon.length}',
               onSeeAll: openFilters,
@@ -659,6 +661,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           'group:${group.title}',
           _inset(
             IqSectionTitle(
+              showCount: true,
               title: group.title,
               count: '${group.total}',
               showLink: i == 0,
@@ -678,6 +681,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           'more',
           _inset(
             IqSectionTitle(
+              showCount: true,
               title: view.more.title,
               count: '${view.more.total}',
               link: 'Filter',

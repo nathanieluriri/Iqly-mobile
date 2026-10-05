@@ -14,7 +14,6 @@ import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/dock.dart';
 import 'package:iqly_mobile/ui/icon.dart';
 import 'package:iqly_mobile/ui/illustration.dart';
-import 'package:iqly_mobile/ui/progress_thread.dart';
 import 'package:iqly_mobile/ui/setting_row.dart';
 
 import '../golden/screens/app_harness.dart';
@@ -73,20 +72,6 @@ double _arrive(WidgetTester tester, Finder of) => tester
     .opacity
     .value;
 
-/// How much of the pinned thread's rule shows, in px of its 358.
-double _rule(WidgetTester tester) {
-  final clip = find.descendant(
-    of: find.byType(IqProgressThread),
-    matching: find.byType(ClipRect),
-  );
-  if (clip.evaluate().isEmpty) return 358;
-  return tester
-      .widget<ClipRect>(clip)
-      .clipper!
-      .getClip(const Size(358, 6))
-      .right;
-}
-
 void main() {
   group('Profile', () {
     testWidgets('rows arrive 40 ms apart on the first visit only', (
@@ -118,10 +103,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.tap(
-        find.descendant(
-          of: find.byType(IqDock),
-          matching: find.text('Profile'),
-        ),
+        find.descendant(of: find.byType(IqDock), matching: find.text('More')),
       );
       await tester.pump();
       expect(find.byType(ProfileScreen), findsOneWidget);
@@ -167,7 +149,7 @@ void main() {
       await tester.pump();
       await tester.pump();
       final page = find.byType(YourDetailsScreen);
-      final phone = find.text('PHONE NUMBER');
+      final phone = find.text('Phone number');
       expect(_raised(tester, phone), closeTo(8, 0.01));
       expect(_arrive(tester, phone), 1);
       await tester.pump(_ms * 150);
@@ -192,8 +174,8 @@ void main() {
       expect(find.byType(ProfileScreen), findsOneWidget);
     });
 
-    testWidgets('the thread draws Ready on arrival, turns Progress with its '
-        'words and count on an edit, and grows back when it saves', (
+    testWidgets('the thread reads Ready on arrival, turns Progress with its '
+        'words and count on an edit, and Ready again when it saves', (
       tester,
     ) async {
       final service = TestProfileService()..hold = true;
@@ -204,32 +186,16 @@ void main() {
         reducedMotion: false,
         settle: false,
       );
-      await tester.pump();
-      expect(_rule(tester), closeTo(0, 0.5));
-      await tester.pump(_ms * 120);
-      expect(_rule(tester), closeTo(358 * _eo(0.5), 0.5));
       await tester.pumpAndSettle();
+      expect(find.text(YourDetailsScreen.readyText), findsOneWidget);
 
       await tester.enterText(find.byType(TextField), '+234 809 000 1111');
-      await tester.pump();
-      await tester.pump(_ms * 120);
-      expect(
-        _rule(tester),
-        closeTo(358 * (1 + (181.25 / 358 - 1) * _eo(0.5)), 0.5),
-      );
       await tester.pumpAndSettle();
       expect(find.text(YourDetailsScreen.savingText), findsOneWidget);
-      expect(find.text('7 OF 8'), findsOneWidget);
+      expect(find.text('7 of 8'), findsOneWidget);
 
       await tester.pump(ProfileService.typingPause);
       service.release();
-      await tester.pump();
-      await tester.pump();
-      await tester.pump(_ms * 120);
-      expect(
-        _rule(tester),
-        closeTo(358 * (181.25 / 358 + (1 - 181.25 / 358) * _eo(0.5)), 0.5),
-      );
       await tester.pumpAndSettle();
       expect(find.text(YourDetailsScreen.readyText), findsOneWidget);
     });
@@ -342,13 +308,13 @@ void main() {
     testWidgets('Interests and Date of birth keep the University sheet\'s '
         'foot', (tester) async {
       await pumpProfileApp(tester, Routes.yourDetails);
-      await tester.tap(find.text('UNIVERSITY'));
+      await tester.tap(find.text('University'));
       await tester.pumpAndSettle();
       final university = useThis(tester);
       await tester.tap(find.bySemanticsLabel('Close'));
       await tester.pumpAndSettle();
 
-      for (final field in ['INTERESTS', 'DATE OF BIRTH']) {
+      for (final field in ['Interests', 'Date of birth']) {
         await tester.tap(find.text(field));
         await tester.pumpAndSettle();
         expect(useThis(tester), university, reason: field);

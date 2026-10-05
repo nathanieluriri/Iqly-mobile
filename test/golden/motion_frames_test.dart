@@ -14,6 +14,7 @@ import 'package:iqly_mobile/theme/theme.dart';
 import 'package:iqly_mobile/ui/box_field.dart';
 import 'package:iqly_mobile/ui/icon.dart';
 import 'package:iqly_mobile/ui/step_mark.dart';
+import 'package:iqly_mobile/ui/step_mark_ring.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'golden.dart';
@@ -89,7 +90,7 @@ void main() {
             padding: const EdgeInsets.all(IqSpace.s4),
             child: Align(
               alignment: Alignment.topLeft,
-              child: IqStepMark(step: step, icon: icon),
+              child: IqStepMarkRing(step: step, icon: icon),
             ),
           ),
         ),
