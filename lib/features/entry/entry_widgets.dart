@@ -12,6 +12,7 @@ import '../../ui/next_fab.dart';
 import '../../ui/icon.dart';
 import '../../ui/pressable.dart';
 import '../../ui/step_mark.dart';
+import '../../ui/step_mark_ring.dart';
 import '../../ui/top_bar.dart';
 
 void goBack(BuildContext context, String fallback) {
@@ -242,8 +243,8 @@ class EntryStepMark extends StatelessWidget {
       alignment: Alignment.centerLeft,
       child: ChromeHero(
         tag: ChromeTags.stepMark,
-        shuttle: IqStepMark.shuttle,
-        child: IqStepMark(step: step, icon: icon, swingIcon: swingIcon),
+        shuttle: IqStepMarkRing.shuttle,
+        child: IqStepMarkRing(step: step, icon: icon, swingIcon: swingIcon),
       ),
     );
   }

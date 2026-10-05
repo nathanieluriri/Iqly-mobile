@@ -24,7 +24,8 @@ enum IqProviderButtonKind {
 /// haptic); Apple and Google take the Secondary pressed fill, 120 ms in and
 /// 160 out. [width] defaults to 358.
 ///
-/// Figma over brief: the Apple border is Color/fg (near black), not the ink brand.
+/// Figma over brief: the Apple and Google borders are 1.5 pt Color/fg (near
+/// black), not the ink brand; Google matched Apple in the 5 Oct update.
 class IqProviderButton extends StatelessWidget {
   const IqProviderButton({
     super.key,
@@ -60,11 +61,8 @@ class IqProviderButton extends StatelessWidget {
             },
             borderRadius: BorderRadius.circular(radius),
             border: switch (kind) {
-              IqProviderButtonKind.apple => Border.all(
-                color: IqColors.fg,
-                width: 1.5,
-              ),
-              IqProviderButtonKind.google => Border.all(color: IqColors.fg3),
+              IqProviderButtonKind.apple || IqProviderButtonKind.google =>
+                Border.all(color: IqColors.fg, width: 1.5),
               IqProviderButtonKind.email => null,
             },
           ),

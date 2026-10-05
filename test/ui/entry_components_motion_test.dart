@@ -16,6 +16,7 @@ import 'package:iqly_mobile/ui/next_fab.dart';
 import 'package:iqly_mobile/ui/option_row.dart';
 import 'package:iqly_mobile/ui/setting_row.dart';
 import 'package:iqly_mobile/ui/step_mark.dart';
+import 'package:iqly_mobile/ui/step_mark_ring.dart';
 import 'package:iqly_mobile/ui/sticker.dart';
 import 'package:iqly_mobile/ui/switch.dart';
 
@@ -220,14 +221,16 @@ void main() {
     List<double> slots(WidgetTester tester) {
       final row = tester.renderObject<RenderFlex>(
         find.descendant(
-          of: find.byType(IqStepMark),
+          of: find.byType(IqStepMarkRing),
           matching: find.byType(Row),
         ),
       );
       final widths = <double>[];
       var child = row.firstChild;
       while (child != null) {
-        if (child.size.height == IqStepMark.ring) widths.add(child.size.width);
+        if (child.size.height == IqStepMarkRing.ring) {
+          widths.add(child.size.width);
+        }
         child = (child.parentData! as FlexParentData).nextSibling;
       }
       return widths;
@@ -236,16 +239,25 @@ void main() {
     testWidgets('a new step morphs over 300: 80 wide throughout', (
       tester,
     ) async {
-      await _pump(tester, const IqStepMark(step: IqStepMarkStep.oneOfThree));
+      await _pump(
+        tester,
+        const IqStepMarkRing(step: IqStepMarkStep.oneOfThree),
+      );
       expect(slots(tester), [44, 6, 6]);
-      await _pump(tester, const IqStepMark(step: IqStepMarkStep.twoOfThree));
+      await _pump(
+        tester,
+        const IqStepMarkRing(step: IqStepMarkStep.twoOfThree),
+      );
       await tester.pump(_ms * 150);
       final grown = 6 + 38 * _eio(0.5);
       final mid = slots(tester);
       expect(mid[0], closeTo(44 - 38 * _eio(0.5), 0.01));
       expect(mid[1], closeTo(grown, 0.01));
       expect(mid[2], 6);
-      expect(tester.getSize(find.byType(IqStepMark)).width, closeTo(80, 0.01));
+      expect(
+        tester.getSize(find.byType(IqStepMarkRing)).width,
+        closeTo(80, 0.01),
+      );
       await tester.pump(_ms * 150);
       expect(slots(tester), [6, 44, 6]);
       await tester.pumpAndSettle();
@@ -257,11 +269,17 @@ void main() {
     ) async {
       await _pump(
         tester,
-        const IqStepMark(step: IqStepMarkStep.twoOfThree, icon: IqIcons.pin),
+        const IqStepMarkRing(
+          step: IqStepMarkStep.twoOfThree,
+          icon: IqIcons.pin,
+        ),
       );
       await _pump(
         tester,
-        const IqStepMark(step: IqStepMarkStep.twoOfThree, icon: IqIcons.bank),
+        const IqStepMarkRing(
+          step: IqStepMarkStep.twoOfThree,
+          icon: IqIcons.bank,
+        ),
       );
       await tester.pump(_ms * 60);
       expect(find.byType(IqIcon), findsNWidgets(2));
@@ -274,8 +292,14 @@ void main() {
 
     testWidgets('reduced motion: the new step at once', (tester) async {
       _reduce(tester);
-      await _pump(tester, const IqStepMark(step: IqStepMarkStep.oneOfThree));
-      await _pump(tester, const IqStepMark(step: IqStepMarkStep.twoOfThree));
+      await _pump(
+        tester,
+        const IqStepMarkRing(step: IqStepMarkStep.oneOfThree),
+      );
+      await _pump(
+        tester,
+        const IqStepMarkRing(step: IqStepMarkStep.twoOfThree),
+      );
       expect(slots(tester), [6, 44, 6]);
       expect(tester.hasRunningAnimations, isFalse);
     });
@@ -283,7 +307,7 @@ void main() {
     double turn(WidgetTester tester) {
       final rotations = tester.widgetList<Transform>(
         find.descendant(
-          of: find.byType(IqStepMark),
+          of: find.byType(IqStepMarkRing),
           matching: find.byType(Transform),
         ),
       );
@@ -298,7 +322,7 @@ void main() {
     testWidgets('the bell swings once from +200 for 480', (tester) async {
       await _pump(
         tester,
-        const IqStepMark(
+        const IqStepMarkRing(
           step: IqStepMarkStep.single,
           icon: IqIcons.bell,
           swingIcon: true,
@@ -316,7 +340,7 @@ void main() {
       _reduce(tester);
       await _pump(
         tester,
-        const IqStepMark(
+        const IqStepMarkRing(
           step: IqStepMarkStep.single,
           icon: IqIcons.bell,
           swingIcon: true,
@@ -347,27 +371,19 @@ void main() {
     double width(WidgetTester tester, int i) =>
         tester.getSize(find.byKey(ValueKey(i))).width;
 
-    testWidgets(
-      'selecting opens the tick slot over 120: the next chip glides',
-      (tester) async {
-        await _pump(tester, chips({}));
-        final rest = width(tester, 0);
-        final next = tester.getTopLeft(find.byKey(const ValueKey(1))).dx;
-        await _pump(tester, chips({0}));
-        await tester.pump(_ms * 60);
-        final open = 16 * _eo(0.5);
-        expect(width(tester, 0), closeTo(rest + open, 0.6));
-        expect(
-          tester.getTopLeft(find.byKey(const ValueKey(1))).dx,
-          closeTo(next + open, 0.6),
-        );
-        await tester.pump(_ms * 60);
-        expect(width(tester, 0), closeTo(rest + 16, 0.01));
-        await _pump(tester, chips({}));
-        await tester.pump(_ms * 120);
-        expect(width(tester, 0), closeTo(rest, 0.01));
-      },
-    );
+    testWidgets('selecting keeps the width: the next chip holds still', (
+      tester,
+    ) async {
+      await _pump(tester, chips({}));
+      final rest = width(tester, 0);
+      final next = tester.getTopLeft(find.byKey(const ValueKey(1))).dx;
+      await _pump(tester, chips({0}));
+      await tester.pump(_ms * 60);
+      expect(width(tester, 0), rest);
+      expect(tester.getTopLeft(find.byKey(const ValueKey(1))).dx, next);
+      await tester.pumpAndSettle();
+      expect(width(tester, 0), rest);
+    });
 
     testWidgets('a press scales it to .96', (tester) async {
       await _pump(tester, chips({}));
@@ -386,12 +402,10 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('reduced motion: the width cuts', (tester) async {
+    testWidgets('reduced motion: the colours cut', (tester) async {
       _reduce(tester);
       await _pump(tester, chips({}));
-      final rest = width(tester, 0);
       await _pump(tester, chips({0}));
-      expect(width(tester, 0), closeTo(rest + 16, 0.01));
       await tester.pump();
       expect(tester.hasRunningAnimations, isFalse);
     });

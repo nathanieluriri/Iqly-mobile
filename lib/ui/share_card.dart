@@ -14,11 +14,12 @@ import 'brand_logo.dart';
 /// orange marker under the figure and the brush trophy. Give it a GlobalKey
 /// and call [capture] for the 3x image the system share sheet sends.
 ///
-/// Figma over its description: 358 x 414, not 358 x 440.
-/// Figma over brief: the eyebrow prop is Brand ("WINNER · ORCHID FOODS"), screens override it.
+/// Figma over its description: 358 x 418, not 358 x 440.
+/// Figma over brief: the eyebrow prop is Brand ("Winner · Orchid Foods"), screens override it.
 /// Figma over brief: the logo is fixed (On dark tone), not a prop.
 /// Figma over brief: text on ink is Color/sidebar-fg, not the brand-fg tokens.
-/// Figma over brief: the site line is Mob/Mono, so it reads IQLY.NET.
+/// Figma over brief: since the 5 Oct update the eyebrow is Mob/Label, the
+/// name Mob/Small strong and the site line Mob/Small (iqly.net), no mono.
 /// Figma over brief: the trophy ink is recoloured cream for the dark card.
 ///
 /// The Winner celebration (MOTION-SPEC §5.33) runs [markerReveal] and
@@ -60,7 +61,6 @@ class IqShareCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mono = IqText.mono.copyWith(color: IqColors.sidebarFg);
     return RepaintBoundary(
       child: Container(
         width: width,
@@ -91,10 +91,10 @@ class IqShareCard extends StatelessWidget {
                   ),
                   const SizedBox(height: IqSpace.s4),
                   Text(
-                    brand.toUpperCase(),
+                    brand,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: mono,
+                    style: IqText.label.copyWith(color: IqColors.sidebarFg),
                   ),
                   const SizedBox(height: IqSpace.s4),
                   const SizedBox(height: 120),
@@ -118,14 +118,19 @@ class IqShareCard extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          name.toUpperCase(),
+                          name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: mono,
+                          style: IqText.smallStrong.copyWith(
+                            color: IqColors.sidebarFg,
+                          ),
                         ),
                       ),
                       const SizedBox(width: IqSpace.s2),
-                      Text('iqly.net'.toUpperCase(), style: mono),
+                      Text(
+                        'iqly.net',
+                        style: IqText.small.copyWith(color: IqColors.sidebarFg),
+                      ),
                     ],
                   ),
                 ],

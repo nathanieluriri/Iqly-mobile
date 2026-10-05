@@ -66,7 +66,13 @@ enum IqIcons {
   medal,
   invite,
   ticket,
-  more;
+  more,
+  phone,
+  cake,
+  graduation,
+  briefcase,
+  building,
+  book;
 
   /// Figma names the file in kebab case (Exp/Icon/eye-off).
   String get asset =>

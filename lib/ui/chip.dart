@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'pressable.dart';
-import 'vector.dart';
 
 /// Figma State=Default is [standard].
 enum IqChipState { standard, selected }
@@ -12,18 +11,17 @@ enum IqChipState { standard, selected }
 /// filters. Tapping reports the toggled state through [onChanged] with the
 /// select haptic. Never a sticker shadow.
 ///
-/// Figma over brief: Default is Color/card white, not the paper background.
-/// Figma over brief: the Selected check is a plain 10 x 8 tick, not the brush check icon.
+/// Figma over brief: since the 5 Oct update Default is a white pill with a
+/// 1 pt line outline and Selected is a tint pill with a 1.5 pt brand outline
+/// and brand label; the check is a hidden layer, so no tick shows.
 ///
 /// Motion (MOTION-SPEC 5.5, Figma 199:1306 "120 ms scale 0.96 to 1 on
 /// select"): a press scales the chip to .96 and it springs back over 120 ms
-/// ease-out; selecting crossfades the fill and label (120) while the tick's
-/// 16 px slot opens and the tick pops from .6, so a Wrap's neighbours glide
-/// with the width each frame; deselecting fades the tick as its slot closes
-/// (120, ease-in). A change made while the chip is hidden (its page covered)
-/// is in place when it shows again, with no motion. Reduced motion: colours
-/// and width cut, no scale.
-class IqChip extends StatefulWidget {
+/// ease-out; selecting crossfades the fill, outline and label over 120 ms.
+/// The width never changes. A change made while the chip is hidden (its page
+/// covered) is in place when it shows again. Reduced motion: colours cut,
+/// no scale.
+class IqChip extends StatelessWidget {
   const IqChip({
     super.key,
     this.label = 'Marketing & advertising',
@@ -39,139 +37,57 @@ class IqChip extends StatefulWidget {
   static const Duration pop = IqDurations.press;
 
   @override
-  State<IqChip> createState() => _IqChipState();
-}
-
-class _IqChipState extends State<IqChip> with SingleTickerProviderStateMixin {
-  late final AnimationController _tick = AnimationController(
-    vsync: this,
-    duration: IqChip.pop,
-    value: _selected ? 1 : 0,
-  );
-  late final Animation<double> _tickPop = _tick.drive(
-    Tween<double>(begin: IqScale.pop, end: 1),
-  );
-
-  bool get _selected => widget.state == IqChipState.selected;
-
-  bool get _reduced => MediaQuery.disableAnimationsOf(context);
-
-  bool get _hidden => !TickerMode.valuesOf(context).enabled;
-
-  @override
-  void didUpdateWidget(IqChip old) {
-    super.didUpdateWidget(old);
-    if (widget.state == old.state) return;
-    if (_reduced || _hidden) {
-      _tick.value = _selected ? 1 : 0;
-      return;
-    }
-    _tick.animateTo(
-      _selected ? 1 : 0,
-      curve: _selected ? IqCurves.easeOut : IqCurves.easeIn,
-    );
-  }
-
-  @override
-  void dispose() {
-    _tick.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final selected = _selected;
-    final onChanged = widget.onChanged;
-    final ink = _hidden ? Duration.zero : motion(context, IqChip.pop);
+    final selected = state == IqChipState.selected;
+    final reduced = MediaQuery.disableAnimationsOf(context);
+    final hidden = !TickerMode.valuesOf(context).enabled;
+    final ink = hidden ? Duration.zero : motion(context, pop);
     final curve = selected ? IqCurves.easeOut : IqCurves.easeIn;
+    final shape = BorderRadius.circular(height / 2);
     return Semantics(
       selected: selected,
       child: IqPressable(
-        semanticLabel: widget.label,
+        semanticLabel: label,
         haptic: IqHaptics.select,
         onTap: onChanged == null
             ? null
-            : () => onChanged(
+            : () => onChanged!(
                 selected ? IqChipState.standard : IqChipState.selected,
               ),
         builder: (context, pressed) {
           return AnimatedScale(
-            scale: pressed && !_reduced ? IqScale.chipPress : 1,
-            duration: IqChip.pop,
+            scale: pressed && !reduced ? IqScale.chipPress : 1,
+            duration: pop,
             curve: IqCurves.easeOut,
             child: AnimatedContainer(
               duration: ink,
               curve: curve,
-              height: IqChip.height,
+              height: height,
               padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
               decoration: BoxDecoration(
-                color: selected ? IqColors.brand : IqColors.card,
-                borderRadius: BorderRadius.circular(IqChip.height / 2),
+                color: selected ? IqColors.tint : IqColors.card,
+                borderRadius: shape,
               ),
               // A foreground border keeps Figma's inside stroke out of the hug width.
               foregroundDecoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(IqChip.height / 2),
-                border: Border.all(color: IqColors.brand, width: 1.5),
+                borderRadius: shape,
+                border: selected
+                    ? Border.all(color: IqColors.brand, width: 1.5)
+                    : Border.all(color: IqColors.line),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // The slot opens without clipping, so the tick's stroke
-                  // bleed still shows once it is in.
-                  AnimatedBuilder(
-                    animation: _tick,
-                    builder: (context, child) => Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      widthFactor: _tick.value,
-                      child: child,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        FadeTransition(
-                          opacity: _tick,
-                          child: ScaleTransition(
-                            scale: _tickPop,
-                            // The export carries 1 px of stroke bleed around the 10 x 8 tick.
-                            child: const SizedBox(
-                              width: 10,
-                              height: 8,
-                              child: OverflowBox(
-                                maxWidth: 12,
-                                maxHeight: 10,
-                                child: IqVector(
-                                  'assets/vectors/chip-check.svg',
-                                  color: IqColors.primaryFg,
-                                  width: 12,
-                                  height: 10,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: IqSpace.s1p5),
-                      ],
-                    ),
+              child: TweenAnimationBuilder<Color?>(
+                tween: ColorTween(end: selected ? IqColors.brand : IqColors.fg),
+                duration: ink,
+                curve: curve,
+                builder: (context, color, _) => Text(
+                  label,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  style: IqText.bodyStrong.copyWith(
+                    color: color ?? IqColors.fg,
                   ),
-                  Flexible(
-                    child: TweenAnimationBuilder<Color?>(
-                      tween: ColorTween(
-                        end: selected ? IqColors.primaryFg : IqColors.fg,
-                      ),
-                      duration: ink,
-                      curve: curve,
-                      builder: (context, color, _) => Text(
-                        widget.label,
-                        maxLines: 1,
-                        softWrap: false,
-                        overflow: TextOverflow.ellipsis,
-                        style: IqText.bodyStrong.copyWith(
-                          color: color ?? IqColors.fg,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           );

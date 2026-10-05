@@ -51,12 +51,12 @@ void main() {
 
     container.read(discoverFeedProvider.notifier).refresh();
     await tester.pump();
-    expect(find.text('REFRESHING'), findsOneWidget);
+    expect(find.text('Refreshing'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 999));
-    expect(find.text('REFRESHING'), findsOneWidget);
+    expect(find.text('Refreshing'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 1));
     await tester.pump();
-    expect(find.text('REFRESHING'), findsNothing);
+    expect(find.text('Refreshing'), findsNothing);
     await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
 

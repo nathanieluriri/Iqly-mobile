@@ -143,6 +143,9 @@ abstract final class IqDurations {
   /// Loop: the landing LineArt cycle.
   static const lineArt = Duration(milliseconds: 5400);
 
+  /// One GiftButton twinkle, Shine 1, 2, 3 (designer answer 32).
+  static const giftTwinkle = Duration(milliseconds: 1200);
+
   /// Loop: the BalanceHero ink wash drift.
   static const inkWash = Duration(milliseconds: 24000);
 }

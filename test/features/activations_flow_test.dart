@@ -120,7 +120,7 @@ void main() {
       await _tap(tester, find.text('Start activation'));
       expect(haptics, [_commit]);
       expect(find.text('Step 0 of 3 confirmed'), findsOneWidget);
-      expect(find.text('2 DAYS LEFT'), findsOneWidget);
+      expect(find.text('2 days left'), findsOneWidget);
       expect(find.text('Settings → Verification'), findsOneWidget);
       expect(find.text('Open Kudi Box'), findsOneWidget);
       expect(find.text('Start activation'), findsNothing);
@@ -135,7 +135,7 @@ void main() {
       await tester.pump(const Duration(seconds: 4));
       await tester.pumpAndSettle();
       expect(find.text('Your reward'), findsOneWidget);
-      expect(find.text('PAID ₦1,500'), findsOneWidget);
+      expect(find.text('Paid ₦1,500'), findsOneWidget);
       expect(find.text('Steps confirmed by Kudi Box'), findsOneWidget);
       expect(find.text('Thu, 1:55 pm · 3 of 3 steps'), findsOneWidget);
       expect(_hero(tester).amount, '₦14,000');
@@ -230,7 +230,7 @@ void main() {
       );
       await _tap(tester, find.text('My activations'));
       expect(find.text('Step 2 not confirmed yet'), findsOneWidget);
-      expect(find.text('1 DAY WAITING'), findsOneWidget);
+      expect(find.text('1 day waiting'), findsOneWidget);
       expect(find.text('Not confirmed after a day'), findsOneWidget);
 
       await _tap(tester, find.text('Upload proof of step 2'));
@@ -241,7 +241,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('PROOF OF STEP 2 · UP TO 60 SECONDS'), findsOneWidget);
-      expect(find.text('KUDI BOX ACCOUNT PHONE NUMBER (OPTIONAL)'), findsOne);
+      expect(find.text('Kudi Box account phone number (optional)'), findsOne);
 
       await _tap(tester, find.byType(IqProofTile));
       expect(find.text('kudi-box-signup.mp4'), findsOneWidget);
@@ -269,7 +269,7 @@ void main() {
       expect(haptics, [_success]);
       expect(find.byType(ProofScreen), findsNothing);
       expect(find.text('Your proof'), findsOneWidget);
-      expect(find.text('CHECKING'), findsOneWidget);
+      expect(find.text('Checking'), findsOneWidget);
       expect(find.text('STEP 2 · KUDI BOX'), findsOneWidget);
       expect(find.text('Proof received'), findsOneWidget);
       expect(find.text('Fri, 2:10 pm'), findsOneWidget);
@@ -380,7 +380,7 @@ void main() {
     expect(haptics, [_error]);
     await _tap(tester, find.text('Try again'));
     expect(find.byType(ProofScreen), findsNothing);
-    expect(find.text('CHECKING'), findsOneWidget);
+    expect(find.text('Checking'), findsOneWidget);
   });
 
   testWidgets('B8: a start that fails says so and tries again', (tester) async {

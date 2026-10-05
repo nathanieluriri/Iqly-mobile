@@ -12,7 +12,7 @@ void main() {
       tester,
       'share_card',
       const IqShareCard(),
-      size: const Size(358, 414),
+      size: const Size(358, 418),
     );
   });
 
@@ -28,11 +28,11 @@ void main() {
     );
     await tester.pumpAndSettle();
     final size = tester.getSize(find.byKey(key));
-    expect(size, const Size(358, 414));
+    expect(size, const Size(358, 418));
     await tester.runAsync(() async {
       final image = await IqShareCard.capture(key);
       expect(image.width, 1074);
-      expect(image.height, 1242);
+      expect(image.height, 1254);
     });
   });
 }

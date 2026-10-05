@@ -20,7 +20,7 @@ import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/illustration.dart';
 import 'package:iqly_mobile/ui/next_fab.dart';
 import 'package:iqly_mobile/ui/option_row.dart';
-import 'package:iqly_mobile/ui/step_mark.dart';
+import 'package:iqly_mobile/ui/step_mark_ring.dart';
 import 'package:iqly_mobile/ui/ticket_card.dart';
 import 'package:iqly_mobile/ui/top_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -108,7 +108,7 @@ List<double> _slots(WidgetTester tester, Finder mark) {
   final widths = <double>[];
   var child = row.firstChild;
   while (child != null) {
-    if (child.size.height == IqStepMark.ring) widths.add(child.size.width);
+    if (child.size.height == IqStepMarkRing.ring) widths.add(child.size.width);
     child = (child.parentData! as FlexParentData).nextSibling;
   }
   return widths;
@@ -156,7 +156,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         final back = tester.getTopLeft(find.byType(IqTopBar));
-        final mark = tester.getTopLeft(find.byType(IqStepMark));
+        final mark = tester.getTopLeft(find.byType(IqStepMarkRing));
         final skip = tester.getTopLeft(find.text('Skip'));
         final next = tester.getTopLeft(find.byType(IqNextFab));
         final question = tester.getTopLeft(find.text('What do you do?')).dx;
@@ -189,7 +189,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.byType(WhereYouLiveScreen), findsOneWidget);
         expect(find.byType(AboutYouScreen), findsNothing);
-        expect(_slots(tester, find.byType(IqStepMark)), [6, 44, 6]);
+        expect(_slots(tester, find.byType(IqStepMarkRing)), [6, 44, 6]);
         const lag = 40 / 300;
         final own = _eo((0.5 - lag) / (1 - lag));
         expect(midTrail - trail(), closeTo(24 * (_eo(0.5) - own), 0.5));
@@ -222,7 +222,7 @@ void main() {
       expect(slots[1], closeTo(50 - grown, 0.01));
       await tester.pumpAndSettle();
       expect(find.byType(AboutYouScreen), findsOneWidget);
-      expect(_slots(tester, find.byType(IqStepMark)), [44, 6, 6]);
+      expect(_slots(tester, find.byType(IqStepMarkRing)), [44, 6, 6]);
     });
 
     testWidgets('reduced motion: the next step crossfades in place, its mark '
@@ -240,7 +240,7 @@ void main() {
       final title = find.text('Where do you live?');
       expect(tester.getTopLeft(title).dx, question);
       expect(_opacity(tester, title), closeTo(_eo(0.5), 0.02));
-      final mark = find.byType(IqStepMark).last;
+      final mark = find.byType(IqStepMarkRing).last;
       expect(_slots(tester, mark), [6, 44, 6]);
       expect(_opacity(tester, mark), closeTo(_eo(0.5), 0.02));
       await tester.pump(_ms * 80);

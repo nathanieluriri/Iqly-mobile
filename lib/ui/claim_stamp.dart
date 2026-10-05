@@ -15,7 +15,7 @@ enum IqClaimStampKind {
   rejected,
 }
 
-/// Exp/ClaimStamp: the claim state as a rubber stamp, mono caps in a 1.5 px
+/// Exp/ClaimStamp: the claim state as a rubber stamp, Mob/Label words in a 1.5 px
 /// ink outline tilted 2° clockwise, on no fill so it sits on paper or ink.
 /// [label] defaults to the Figma words per kind. A new kind lands the stamp:
 /// scale 1.15 to 1 with a 2° overshoot, 240 ms ease-out; Checking pulses its
@@ -28,7 +28,8 @@ enum IqClaimStampKind {
 /// motion it fades in over 150 ms instead.
 ///
 /// Figma over its note: Checking carries an 8 px brand dot, not a clock.
-/// Figma over brief: Credited reads PAID TO WALLET, Rejected NOT APPROVED.
+/// Figma over brief: Credited reads Paid to wallet, Rejected Not approved, in
+/// sentence case since the 5 Oct update (no longer mono caps).
 class IqClaimStamp extends StatefulWidget {
   const IqClaimStamp({
     super.key,
@@ -186,8 +187,7 @@ class _IqClaimStampState extends State<IqClaimStamp>
 
   Widget _stamp(IqClaimStampKind kind) {
     final ink = _ink(kind);
-    final label = (widget.label ?? IqClaimStamp.defaultLabel(kind))
-        .toUpperCase();
+    final label = widget.label ?? IqClaimStamp.defaultLabel(kind);
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: IqSpace.s2p5,
@@ -243,7 +243,7 @@ class _IqClaimStampState extends State<IqClaimStamp>
             label,
             maxLines: 1,
             softWrap: false,
-            style: IqText.mono.copyWith(color: ink),
+            style: IqText.label.copyWith(color: ink),
           ),
         ],
       ),

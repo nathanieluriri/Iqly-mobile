@@ -18,6 +18,8 @@ enum IqReceiptCardTone { ok, warn, err }
 /// tear line is drawn at once under reduced motion.
 ///
 /// Figma over brief: only the Completed tone is drawn; the tone is picked from the status word.
+/// Figma over brief: the eyebrow is Mob/Label in fg2 since the 5 Oct update;
+/// the reference stays mono.
 /// Figma over brief: the status tag has radius 6 (a tag), not a full pill.
 /// Brief over Figma: [showAmount] hides the Amount row on the tracker; Figma has no such prop.
 /// [showStatus] carries the B14 failed receipt, which draws no tag.
@@ -91,8 +93,8 @@ class IqReceiptCard extends StatelessWidget {
                       ),
                       const SizedBox(width: IqSpace.s2p5),
                       Text(
-                        'Withdrawal receipt'.toUpperCase(),
-                        style: IqText.mono.copyWith(color: IqColors.fg2),
+                        'Withdrawal receipt',
+                        style: IqText.label.copyWith(color: IqColors.fg2),
                       ),
                       if (showStatus) ...[
                         const SizedBox(width: 30),
