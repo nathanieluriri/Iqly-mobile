@@ -107,3 +107,33 @@ class PaidOutWalletRepository extends WalletRepository {
     ...await super.ledger(),
   ];
 }
+
+/// B14 · Withdrawal · arrived (485:39669): the pending ₦10,000.00 arrived
+/// today at 3:06 pm.
+class ArrivedWalletRepository extends WalletRepository {
+  static final arrivedAt = DateTime(2026, 10, 3, 15, 6);
+
+  @override
+  Future<List<Withdrawal>> withdrawals() async => [
+    for (final w in await super.withdrawals())
+      w.id == 'w3'
+          ? w.copyWith(
+              status: WithdrawalStatus.completed,
+              sentAt: DateTime(2026, 10, 3, 15, 3),
+              completedAt: arrivedAt,
+            )
+          : w,
+  ];
+}
+
+/// A wallet service whose withdrawal never answers: the Sending state.
+class HangingWalletService extends DemoWalletService {
+  HangingWalletService()
+    : super(delay: Duration.zero, payoutStep: null, clock: () => figmaNow);
+
+  @override
+  Future<WithdrawResult> withdraw({
+    required int amountKobo,
+    required SavedBank account,
+  }) => Completer<WithdrawResult>().future;
+}
