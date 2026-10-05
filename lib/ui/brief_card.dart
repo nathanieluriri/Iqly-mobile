@@ -22,8 +22,7 @@ enum IqBriefCardKind { feature, carousel, row }
 /// already carries one.
 ///
 /// Figma over brief: the closing tint sits under the media, so the logo
-/// stays whole over it, and a saved card shows the Bookmark On variant in
-/// brand ink.
+/// stays whole over it.
 ///
 /// Figma over the first build: the body grows with a two-line ask (409:91
 /// is 124 tall, 409:95 is 327) and the meta chips wrap, as the Figma meta
