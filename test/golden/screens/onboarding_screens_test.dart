@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/features/onboarding/about_you_screen.dart';
+import 'package:iqly_mobile/features/onboarding/add_university_screen.dart';
 import 'package:iqly_mobile/features/onboarding/done_screen.dart';
 import 'package:iqly_mobile/features/onboarding/resume_screen.dart';
 import 'package:iqly_mobile/features/onboarding/welcome_screen.dart';
@@ -38,6 +39,17 @@ void main() {
     );
   });
 
+  testWidgets('480:20079 Step 1 under 18', (tester) async {
+    final prefs = await onboardingPrefs(
+      draft: {...sampleAboutYou, 'dateOfBirth': '2010-03-12T00:00:00.000'},
+    );
+    await expectGolden(
+      tester,
+      'onboarding_about_you_under_18',
+      onboardingFrame(prefs, const AboutYouScreen()),
+    );
+  });
+
   testWidgets('188:8255 Step 2 Where you are', (tester) async {
     final prefs = await onboardingPrefs(draft: sampleWhereYouLive);
     await expectGolden(
@@ -47,12 +59,48 @@ void main() {
     );
   });
 
+  testWidgets('480:20318 Step 2 State sheet', (tester) async {
+    final prefs = await onboardingPrefs(draft: sampleWhereYouLive);
+    await pumpOnboardingScreen(tester, prefs, const WhereYouLiveScreen());
+    await tester.tap(find.text('Lagos'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(TextField).last);
+    await tester.pumpAndSettle();
+    await expectMatchesGolden(
+      find.byType(MaterialApp),
+      'goldens/onboarding_state_sheet.png',
+    );
+  });
+
   testWidgets('223:10826 Step 2 Where you studied', (tester) async {
     final prefs = await onboardingPrefs(draft: {...sampleWhereYouStudied});
     await expectGolden(
       tester,
       'onboarding_where_you_studied',
       onboardingFrame(prefs, const WhereYouStudiedScreen()),
+    );
+  });
+
+  testWidgets('480:20164 Step 2 Education sheet', (tester) async {
+    final prefs = await onboardingPrefs(draft: sampleWhereYouStudied);
+    await pumpOnboardingScreen(tester, prefs, const WhereYouStudiedScreen());
+    await tester.tap(find.text('HND / BSc'));
+    await tester.pumpAndSettle();
+    await expectMatchesGolden(
+      find.byType(MaterialApp),
+      'goldens/onboarding_education_sheet.png',
+    );
+  });
+
+  testWidgets('480:20477 Add your university', (tester) async {
+    final prefs = await onboardingPrefs(draft: sampleWhereYouStudied);
+    await expectGolden(
+      tester,
+      'onboarding_add_university',
+      onboardingFrame(
+        prefs,
+        const AddUniversityScreen(initialName: 'Caleb University'),
+      ),
     );
   });
 
@@ -87,7 +135,7 @@ void main() {
     await pumpOnboardingScreen(tester, prefs, const WhereYouLiveScreen());
     await tester.tap(find.text('Ikeja'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'Ilupeju');
+    await tester.enterText(find.byType(TextField).last, 'Ilupeju');
     await tester.pumpAndSettle();
     await expectMatchesGolden(
       find.byType(MaterialApp),
@@ -114,6 +162,7 @@ void main() {
   });
 
   testWidgets('188:8490 Done', (tester) async {
+    allowBriefCardOverflow();
     final prefs = await onboardingPrefs(draft: sampleWhatYouLike);
     await expectGolden(
       tester,

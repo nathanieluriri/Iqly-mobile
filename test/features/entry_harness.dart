@@ -9,7 +9,7 @@ import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/device.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/router.dart';
-import 'package:iqly_mobile/ui/next_fab.dart';
+import 'package:iqly_mobile/ui/button.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// The whole app on a 390 x 844 phone with reduced motion and instant
@@ -68,8 +68,13 @@ Future<ProviderContainer> bootApp(
   return container;
 }
 
+/// Taps the page's primary button (the B0 action bar, the step's Continue).
 Future<void> tapNext(WidgetTester tester) async {
-  await tester.tap(find.byType(IqNextFab));
+  await tester.tap(
+    find.byWidgetPredicate(
+      (w) => w is IqButton && w.kind == IqButtonKind.primary,
+    ),
+  );
   await tester.pumpAndSettle();
 }
 

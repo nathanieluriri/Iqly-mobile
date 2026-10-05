@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/motion.dart';
 import 'package:iqly_mobile/data/auth.dart';
@@ -12,8 +11,8 @@ import 'package:iqly_mobile/features/entry/reset_link_sent_screen.dart';
 import 'package:iqly_mobile/features/entry/sign_in_screen.dart';
 import 'package:iqly_mobile/features/onboarding/welcome_screen.dart';
 import 'package:iqly_mobile/router.dart';
-import 'package:iqly_mobile/ui/next_fab.dart';
-import 'package:iqly_mobile/ui/step_mark_ring.dart';
+import 'package:iqly_mobile/ui/button.dart';
+import 'package:iqly_mobile/ui/step_mark.dart';
 import 'package:iqly_mobile/ui/top_bar.dart';
 
 import 'entry_harness.dart';
@@ -25,8 +24,6 @@ const _medium = 'HapticFeedbackType.mediumImpact';
 const _success = 'HapticFeedbackType.successNotification';
 
 double _eo(double t) => IqCurves.easeOut.transform(t);
-double _ei(double t) => IqCurves.easeIn.transform(t);
-double _eio(double t) => IqCurves.easeInOut.transform(t);
 
 /// The product of every fade above [finder].
 double _opacity(WidgetTester tester, Finder finder) {
@@ -44,25 +41,6 @@ double _opacity(WidgetTester tester, Finder finder) {
         : (widget as Opacity).opacity;
   }
   return opacity;
-}
-
-/// The step mark drawn in flight between two pages.
-final _shuttle = find.byWidgetPredicate(
-  (w) => w.runtimeType.toString() == '_Morph',
-);
-
-/// The widths of the mark's slots, in order.
-List<double> _slots(WidgetTester tester, Finder mark) {
-  final row = tester.renderObject<RenderFlex>(
-    find.descendant(of: mark, matching: find.byType(Row)).first,
-  );
-  final widths = <double>[];
-  var child = row.firstChild;
-  while (child != null) {
-    if (child.size.height == IqStepMarkRing.ring) widths.add(child.size.width);
-    child = (child.parentData! as FlexParentData).nextSibling;
-  }
-  return widths;
 }
 
 /// Starts a push or pop and plays it to [at] of its run.
@@ -83,6 +61,7 @@ class _SlowAuth extends DemoAuthService {
     required String lastName,
     required String email,
     required String password,
+    String? inviteCode,
   }) {
     signUps++;
     return super.signUp(
@@ -90,6 +69,7 @@ class _SlowAuth extends DemoAuthService {
       lastName: lastName,
       email: email,
       password: password,
+      inviteCode: inviteCode,
     );
   }
 }
@@ -99,8 +79,8 @@ void main() {
   tearDown(() => EditableText.debugDeterministicCursor = false);
 
   testWidgets(
-    'Your name to Password: the chrome holds and the mark morphs while the '
-    'title rides the push and the field trails it, the keyboard staying up',
+    'Your name to Password: the chrome holds while the title rides the push '
+    'and the field trails it, the keyboard staying up',
     (tester) async {
       final haptics = recordHaptics(tester);
       await bootApp(tester, start: Routes.yourName, reduced: false);
@@ -108,20 +88,17 @@ void main() {
       await typeInto(tester, 0, 'Ada');
       await typeInto(tester, 1, 'Obi');
       final bar = tester.getTopLeft(find.byType(IqTopBar));
-      final mark = tester.getTopLeft(find.byType(IqStepMarkRing));
-      final next = tester.getTopLeft(find.byType(IqNextFab));
-      expect(_slots(tester, find.byType(IqStepMarkRing)), [6, 44, 6]);
+      final mark = tester.getTopLeft(find.byType(IqStepMark));
+      final next = tester.getTopLeft(find.byType(IqButton));
 
-      await tester.tap(find.byType(IqNextFab));
+      await tester.tap(find.byType(IqButton));
       await _playTo(tester, _ms * 150);
       expect(tester.getTopLeft(find.byType(IqTopBar).last), bar);
-      expect(tester.getTopLeft(_shuttle.last), mark);
-      final grown = 6 + 38 * _eio(0.5);
-      final slots = _slots(tester, _shuttle.last);
-      expect(slots[0], 6);
-      expect(slots[1], closeTo(50 - grown, 0.01));
-      expect(slots[2], closeTo(grown, 0.01));
-      expect(tester.getTopLeft(find.byType(IqNextFab).last), next);
+      expect(tester.getTopLeft(find.byType(IqStepMark).last), mark);
+      expect(
+        (tester.getTopLeft(find.byType(IqButton).last) - next).distance,
+        lessThan(0.01),
+      );
       expect(
         tester.getTopLeft(find.text('Create a password')).dx,
         closeTo(16 + 24 * (1 - _eo(0.5)), 0.5),
@@ -138,8 +115,12 @@ void main() {
       const lag = 40 / 300;
       final own = _eo((0.5 - lag) / (1 - lag));
       expect(midTrail - trail(), closeTo(24 * (_eo(0.5) - own), 0.5));
-      expect(_slots(tester, find.byType(IqStepMarkRing)), [6, 6, 44]);
-      expect(tester.getTopLeft(find.byType(IqStepMarkRing)), mark);
+      expect(
+        tester.widget<IqStepMark>(find.byType(IqStepMark)).step,
+        IqStepMarkStep.threeOfThree,
+      );
+      expect(tester.getTopLeft(find.byType(IqStepMark)), mark);
+      expect(find.text('Create account'), findsOneWidget);
       expect(tester.testTextInput.isVisible, isTrue);
       expect(haptics, [_light]);
     },
@@ -153,48 +134,33 @@ void main() {
     final title = find.text('Create a password');
     expect(tester.getTopLeft(title).dx, 16);
     expect(_opacity(tester, title), closeTo(_eo(0.5), 0.02));
-    final mark = find.byType(IqStepMarkRing).last;
+    final mark = find.byType(IqStepMark).last;
     expect(_opacity(tester, mark), closeTo(_eo(0.5), 0.02));
-    expect(_slots(tester, mark), [6, 6, 44]);
     await tester.pump(_ms * 80);
     expect(_opacity(tester, title), 1);
   });
 
-  testWidgets('Sign in to Forgot password: the back button holds while the '
-      'bar title leaves over 120', (tester) async {
+  testWidgets('Sign in to Forgot password: the back button and the action '
+      'button hold still', (tester) async {
     final haptics = recordHaptics(tester);
     await bootApp(tester, start: Routes.signIn, reduced: false);
     await tester.pumpAndSettle();
     final bar = tester.getTopLeft(find.byType(IqTopBar));
-    const title = 'Sign in with email';
-    expect(_opacity(tester, find.text(title)), 1);
+    final action = tester.getTopLeft(find.byType(IqButton));
 
     await tester.tap(find.text('Forgot your password?'));
     await _playTo(tester, _ms * 60);
     expect(tester.getTopLeft(find.byType(IqTopBar).last), bar);
-    expect(
-      _opacity(tester, find.text(title).last),
-      closeTo(1 - _ei(0.5), 0.02),
-    );
-    // Drawn in the app's own style, not the framework's fallback.
-    expect(
-      tester
-          .renderObject<RenderParagraph>(find.text(title).last)
-          .text
-          .style
-          ?.decoration,
-      isNull,
-    );
-    await tester.pump(_ms * 60);
-    expect(_opacity(tester, find.text(title).last), closeTo(0, 0.001));
+    final held = tester.getTopLeft(find.byType(IqButton).last) - action;
+    expect(held.distance, lessThan(0.01));
     await tester.pumpAndSettle();
     expect(find.byType(ForgotPasswordScreen), findsOneWidget);
-    expect(find.text(title), findsNothing);
+    expect(find.text('Send reset link'), findsOneWidget);
     expect(haptics, isEmpty);
   });
 
   testWidgets('Sign in fails: the error haptic, and the Forgot row moves down '
-      'with the help line instead of jumping', (tester) async {
+      'with the banner instead of jumping', (tester) async {
     final haptics = recordHaptics(tester);
     await bootApp(
       tester,
@@ -208,20 +174,21 @@ void main() {
     final forgot = find.text('Forgot your password?');
     final rest = tester.getTopLeft(forgot).dy;
 
-    await tester.tap(find.byType(IqNextFab));
+    await tester.tap(find.byType(IqButton));
     await tester.pump();
     await tester.pump(Duration.zero);
     await tester.pump();
     expect(find.text(EntryCopy.signIn(AuthFailure.wrongCredentials)), findsOne);
     final start = tester.getTopLeft(forgot).dy;
-    await tester.pump(_ms * 80);
+    await tester.pump(_ms * 120);
     final mid = tester.getTopLeft(forgot).dy;
-    await tester.pump(_ms * 100);
+    await tester.pump(_ms * 120);
+    await tester.pump();
     final end = tester.getTopLeft(forgot).dy;
-    final help = end - rest;
-    expect(help, greaterThan(12));
-    expect(start - rest, lessThan(help * 0.2));
-    expect(mid - rest, closeTo(help * _eo(0.5), help * 0.08));
+    final banner = end - rest;
+    expect(banner, greaterThan(60));
+    expect(start - rest, lessThan(banner * 0.2));
+    expect(mid - rest, closeTo(banner * _eo(0.5), banner * 0.1));
     expect(haptics, [_light, _medium]);
     await tester.pumpAndSettle();
   });
@@ -244,11 +211,11 @@ void main() {
     await tester.pumpAndSettle();
     await typeInto(tester, 0, 'boldthinker1');
 
-    await tester.tap(find.byType(IqNextFab));
+    await tester.tap(find.byType(IqButton));
     await tester.pump();
     await tester.pump(_ms * 100);
     expect(find.byKey(const ValueKey('spinner')), findsOneWidget);
-    await tester.tap(find.byType(IqNextFab), warnIfMissed: false);
+    await tester.tap(find.byType(IqButton), warnIfMissed: false);
     await tester.pump(_ms * 100);
     expect(auth.signUps, 1);
     expect(haptics, [_light]);

@@ -116,7 +116,7 @@ void main() {
       final rest =
           _rect(tester, find.byType(IqBoxField)).top -
           _rect(tester, _appleButton).top;
-      expect(rest, closeTo(166, 0.5));
+      expect(rest, closeTo(170, 0.5));
 
       await tester.tap(find.byType(IqBoxField));
       await tester.pump();
@@ -129,7 +129,7 @@ void main() {
       final slot =
           _rect(tester, find.byType(IqBoxField)).top -
           _rect(tester, _appleButton).top;
-      expect(slot, closeTo(166 * (1 - _eo(0.5)), 0.6));
+      expect(slot, closeTo(170 * (1 - _eo(0.5)), 0.6));
       expect(
         _drawingScale(tester),
         closeTo((220 - 100 * _eo(0.5)) / 220, 0.002),

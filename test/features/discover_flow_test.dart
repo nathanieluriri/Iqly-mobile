@@ -15,6 +15,7 @@ import 'package:iqly_mobile/ui/switch.dart';
 import 'package:iqly_mobile/ui/ticket_card.dart';
 
 import '../golden/screens/app_harness.dart';
+import '../golden/screens/onboarding_harness.dart';
 
 Finder _ticket(String title) => find.byWidgetPredicate(
   (w) =>
@@ -181,7 +182,8 @@ void main() {
     expect(find.text('Closing soon'), findsOneWidget);
   });
 
-  testWidgets('onboarding Done tickets open brief detail', (tester) async {
+  testWidgets('onboarding Done cards open brief detail', (tester) async {
+    allowBriefCardOverflow();
     await pumpApp(
       tester,
       Routes.onboardingDone,

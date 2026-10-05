@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/data/auth.dart';
+import 'package:iqly_mobile/data/invite.dart';
 import 'package:iqly_mobile/features/entry/entry_state.dart';
 import 'package:iqly_mobile/features/entry/forgot_password_screen.dart';
 import 'package:iqly_mobile/features/entry/landing_screen.dart';
@@ -11,7 +12,7 @@ import 'package:iqly_mobile/features/entry/reset_link_sent_screen.dart';
 import 'package:iqly_mobile/features/entry/sign_in_screen.dart';
 import 'package:iqly_mobile/features/entry/your_name_screen.dart';
 import 'package:iqly_mobile/ui/box_field.dart';
-import 'package:iqly_mobile/ui/next_fab.dart';
+import 'package:iqly_mobile/ui/button.dart';
 
 import '../golden.dart';
 import 'app_harness.dart';
@@ -38,29 +39,31 @@ void main() {
     );
   });
 
-  // Figma draws the next button Enabled on both frames, so a last name and
-  // a valid password are typed to check that look.
   testWidgets('your name (227:10921)', (tester) async {
     await expectScreenGolden(
       tester,
       'entry_your_name',
       const YourNameScreen(),
       prepare: (c) => c.read(entryDraftProvider.notifier).setName('Adaeze', ''),
-      act: (tester) async {
-        await tester.enterText(find.byType(EditableText).last, 'Okafor');
+    );
+  });
+
+  testWidgets('your name invited (485:39127)', (tester) async {
+    await expectScreenGolden(
+      tester,
+      'entry_your_name_invited',
+      const YourNameScreen(),
+      prepare: (c) {
+        c.read(entryDraftProvider.notifier).setName('Adaeze', '');
+        c
+            .read(pendingInviteProvider.notifier)
+            .accept(DemoInviteService.sample.code);
       },
     );
   });
 
   testWidgets('password (227:10970)', (tester) async {
-    await expectScreenGolden(
-      tester,
-      'entry_password',
-      const PasswordScreen(),
-      act: (tester) async {
-        await tester.enterText(find.byType(EditableText), 'longenough');
-      },
-    );
+    await expectScreenGolden(tester, 'entry_password', const PasswordScreen());
   });
 
   testWidgets('sign in with email (227:11109)', (tester) async {
@@ -120,17 +123,30 @@ void main() {
       ),
     ];
 
-    testWidgets('landing bad email (231:11204 with a BoxField error)', (
-      tester,
-    ) async {
+    testWidgets('landing invalid email (480:20014)', (tester) async {
       await expectScreenGolden(
         tester,
-        'entry_landing_bad_email',
+        'entry_landing_invalid_email',
         const LandingScreen(),
         keyboard: 260,
         overrides: instant,
         act: (tester) async {
-          await tester.enterText(find.byType(IqBoxField), 'adaeze@example');
+          await tester.enterText(find.byType(IqBoxField), 'adaeze@');
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Continue'));
+        },
+      );
+    });
+
+    testWidgets('landing email already registered (480:19948)', (tester) async {
+      await expectScreenGolden(
+        tester,
+        'entry_landing_email_registered',
+        const LandingScreen(),
+        keyboard: 260,
+        overrides: instant,
+        act: (tester) async {
+          await tester.enterText(find.byType(IqBoxField), email);
           await tester.pumpAndSettle();
           await tester.tap(find.text('Continue'));
         },
@@ -158,9 +174,7 @@ void main() {
       );
     });
 
-    testWidgets('sign in wrong password (227:11109, Field Error 58:894)', (
-      tester,
-    ) async {
+    testWidgets('sign in wrong password (480:19882)', (tester) async {
       await expectScreenGolden(
         tester,
         'entry_sign_in_wrong_password',
@@ -168,27 +182,28 @@ void main() {
         overrides: instant,
         prepare: (c) => c.read(entryDraftProvider.notifier).setEmail(email),
         act: (tester) async {
-          await tester.enterText(find.byType(EditableText).last, 'wrongpass');
+          await tester.enterText(find.byType(EditableText).last, 'wrongpas');
           await tester.pumpAndSettle();
-          await tester.tap(find.byType(IqNextFab));
+          await tester.tap(find.byType(IqButton));
         },
       );
     });
 
-    testWidgets('forgot password bad email (227:11157, Field Error 58:894)', (
-      tester,
-    ) async {
-      await expectScreenGolden(
-        tester,
-        'entry_forgot_password_bad_email',
-        const ForgotPasswordScreen(),
-        overrides: instant,
-        prepare: (c) =>
-            c.read(entryDraftProvider.notifier).setEmail('adaeze@example'),
-        act: (tester) async {
-          await tester.tap(find.text('Send reset link'));
-        },
-      );
-    });
+    testWidgets(
+      'forgot password bad email (227:11157 with the 480:19882 banner)',
+      (tester) async {
+        await expectScreenGolden(
+          tester,
+          'entry_forgot_password_bad_email',
+          const ForgotPasswordScreen(),
+          overrides: instant,
+          prepare: (c) =>
+              c.read(entryDraftProvider.notifier).setEmail('adaeze@example'),
+          act: (tester) async {
+            await tester.tap(find.text('Send reset link'));
+          },
+        );
+      },
+    );
   });
 }
