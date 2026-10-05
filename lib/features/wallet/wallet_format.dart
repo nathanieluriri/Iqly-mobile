@@ -6,10 +6,6 @@ import '../../core/money.dart';
 /// The web form's floor: ₦1,000.
 const minimumWithdrawalKobo = 100000;
 
-/// The Amount help line, as the web form writes it.
-String amountHelp(int availableKobo) =>
-    'Minimum ₦1,000 · available ${naira(availableKobo)}';
-
 /// The web rule: at least ₦1,000 and no more than is available.
 bool validWithdrawal(int? kobo, int availableKobo) =>
     kobo != null && kobo >= minimumWithdrawalKobo && kobo <= availableKobo;

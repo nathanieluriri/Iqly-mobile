@@ -47,7 +47,7 @@ class PayoutArrivalRow extends StatelessWidget {
         showDescription: bank != null,
         icon: IqIcons.bank,
         divider: false,
-        onTap: () => context.go(withdrawalPath(payout.id)),
+        onTap: () => context.push(withdrawalPath(payout.id)),
       ),
     );
   }
