@@ -44,10 +44,38 @@ class SubmitForm {
 }
 
 class AttachmentFile {
-  const AttachmentFile({required this.name, required this.bytes});
+  const AttachmentFile({required this.name, required this.bytes, this.length});
 
   final String name;
   final int bytes;
+
+  /// How long a recording plays, when the file is audio or video.
+  final Duration? length;
+}
+
+enum AttachmentStatus { uploading, failed, done }
+
+/// A picked file on its way up: the row shows "Uploading · 60%", "Failed ·
+/// tap to retry" or "Added" (481:21544).
+class Attachment {
+  const Attachment(
+    this.file, {
+    this.status = AttachmentStatus.uploading,
+    this.progress = 0,
+  });
+
+  final AttachmentFile file;
+  final AttachmentStatus status;
+
+  /// 0 to 1 while uploading.
+  final double progress;
+
+  Attachment copyWith({AttachmentStatus? status, double? progress}) =>
+      Attachment(
+        file,
+        status: status ?? this.status,
+        progress: progress ?? this.progress,
+      );
 }
 
 class SubmitRequest {
@@ -79,7 +107,7 @@ class SubmitReceipt {
 
 /// Demo values from the B3 frames. Only Sunline (c5) asks quick questions
 /// and takes attachments (34:186); every other brief is the answer step
-/// alone. The picked file stands in for the photo library.
+/// alone. The picked files are the three of 481:21544, 4.1 MB together.
 abstract final class SubmitDemo {
   static const forms = <String, SubmitForm>{
     'c5': SubmitForm(
@@ -98,5 +126,13 @@ abstract final class SubmitDemo {
     ),
   };
 
-  static const pickedFile = AttachmentFile(name: 'IMG_0412.jpg', bytes: 245760);
+  static const picked = [
+    AttachmentFile(name: 'sunline-tagline.pdf', bytes: 1258291),
+    AttachmentFile(name: 'kiosk-photo.jpg', bytes: 2516582),
+    AttachmentFile(
+      name: 'voice-note.m4a',
+      bytes: 524288,
+      length: Duration(seconds: 42),
+    ),
+  ];
 }

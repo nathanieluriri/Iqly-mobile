@@ -23,6 +23,7 @@ class IqConfirmSheet extends StatelessWidget {
         'You will need to upload it again before you can send the proof.',
     this.confirmLabel = 'Remove recording',
     this.cancelLabel = 'Keep it',
+    this.confirmKind = IqButtonKind.danger,
     this.onConfirm,
     this.onCancel,
   });
@@ -31,6 +32,10 @@ class IqConfirmSheet extends StatelessWidget {
   final String body;
   final String confirmLabel;
   final String cancelLabel;
+
+  /// The instances that lead with a way forward (Drafts 499:26919, Submit
+  /// 481:21364) override the button to Primary.
+  final IqButtonKind confirmKind;
   final VoidCallback? onConfirm;
   final VoidCallback? onCancel;
 
@@ -94,7 +99,7 @@ class IqConfirmSheet extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 IqButton(
-                  kind: IqButtonKind.danger,
+                  kind: confirmKind,
                   label: confirmLabel,
                   showIcon: false,
                   width: double.infinity,

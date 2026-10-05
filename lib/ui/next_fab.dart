@@ -144,12 +144,12 @@ class _IqNextFabState extends State<IqNextFab>
         ),
       ),
     );
-    final onTapDisabled = widget.onTapDisabled;
-    if (enabled || onTapDisabled == null) return fab;
+    // One tree shape lit or not: a wrapper that came and went would rebuild
+    // the disc straight at its new look, so it would light without peeling.
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       excludeFromSemantics: true,
-      onTap: onTapDisabled,
+      onTap: enabled ? null : widget.onTapDisabled,
       child: fab,
     );
   }
