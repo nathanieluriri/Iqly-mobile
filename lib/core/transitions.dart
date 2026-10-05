@@ -853,11 +853,10 @@ class _SheetDragState extends State<_SheetDrag> {
   }
 }
 
-/// The Dock's tab switch (spec 3.6): the branch navigators cross with the
-/// 200 ms fade-through and nothing moves; hidden branches sit offstage with
-/// their tickers off. A cut under reduced motion.
-class FadeThroughBranches extends StatefulWidget {
-  const FadeThroughBranches({
+/// The Dock's tab switch: a cut (designer answers, 5 Oct). Hidden branches
+/// sit offstage with their tickers off, keeping their stacks and scroll.
+class TabBranches extends StatelessWidget {
+  const TabBranches({
     super.key,
     required this.currentIndex,
     required this.children,
@@ -871,87 +870,19 @@ class FadeThroughBranches extends StatefulWidget {
     BuildContext context,
     StatefulNavigationShell shell,
     List<Widget> children,
-  ) =>
-      FadeThroughBranches(currentIndex: shell.currentIndex, children: children);
-
-  @override
-  State<FadeThroughBranches> createState() => _FadeThroughBranchesState();
-}
-
-class _FadeThroughBranchesState extends State<FadeThroughBranches>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _switch = AnimationController(
-    vsync: this,
-    duration: IqDurations.swap,
-    value: 1,
-  )..addStatusListener(_onStatus);
-  late final Animation<double> _in = _switch.drive(
-    CurveTween(curve: FadeThroughCurves.incoming),
-  );
-  late final Animation<double> _out = _switch.drive(
-    Tween<double>(
-      begin: 1,
-      end: 0,
-    ).chain(CurveTween(curve: FadeThroughCurves.outgoing)),
-  );
-  int? _previous;
-
-  void _onStatus(AnimationStatus status) {
-    if (status.isCompleted && _previous != null && mounted) {
-      setState(() => _previous = null);
-    }
-  }
-
-  @override
-  void didUpdateWidget(FadeThroughBranches old) {
-    super.didUpdateWidget(old);
-    if (old.currentIndex == widget.currentIndex) return;
-    if (MediaQuery.disableAnimationsOf(context)) {
-      _previous = null;
-      _switch.value = 1;
-    } else {
-      _previous = old.currentIndex;
-      _switch.forward(from: 0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _switch.dispose();
-    super.dispose();
-  }
+  ) => TabBranches(currentIndex: shell.currentIndex, children: children);
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       fit: StackFit.expand,
-      children: [for (var i = 0; i < widget.children.length; i++) _branch(i)],
-    );
-  }
-
-  Widget _branch(int index) {
-    final current = index == widget.currentIndex;
-    final leaving = index == _previous;
-    final Animation<double> opacity;
-    if (current && _previous != null) {
-      opacity = _in;
-    } else if (leaving) {
-      opacity = _out;
-    } else {
-      opacity = kAlwaysCompleteAnimation;
-    }
-    return Offstage(
-      offstage: !current && !leaving,
-      child: TickerMode(
-        enabled: current,
-        child: IgnorePointer(
-          ignoring: !current,
-          child: FadeTransition(
-            opacity: opacity,
-            child: widget.children[index],
+      children: [
+        for (var i = 0; i < children.length; i++)
+          Offstage(
+            offstage: i != currentIndex,
+            child: TickerMode(enabled: i == currentIndex, child: children[i]),
           ),
-        ),
-      ),
+      ],
     );
   }
 }

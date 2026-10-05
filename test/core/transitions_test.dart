@@ -699,7 +699,7 @@ void main() {
         routes: [
           StatefulShellRoute(
             pageBuilder: (context, state, shell) => handoffPage(state, shell),
-            navigatorContainerBuilder: FadeThroughBranches.builder,
+            navigatorContainerBuilder: TabBranches.builder,
             branches: [
               StatefulShellBranch(
                 routes: [
@@ -727,28 +727,13 @@ void main() {
       return router;
     }
 
-    testWidgets('cross with the 200 ms fade-through, nothing moves', (
-      tester,
-    ) async {
+    testWidgets('a dock switch is a cut, nothing moves', (tester) async {
       final router = await shell(tester);
       router.go('/two');
       await tester.pump();
-      await tester.pump(_ms * 50);
-      expect(
-        _opacity(tester, 'one'),
-        closeTo(1 - FadeThroughCurves.outgoing.transform(0.25), 0.01),
-      );
-      expect(
-        _opacity(tester, 'two'),
-        closeTo(FadeThroughCurves.incoming.transform(0.25), 0.01),
-      );
-      expect(_dx(tester, 'two'), 0);
-      await tester.pump(_ms * 50);
-      expect(_opacity(tester, 'one'), 0);
-      await tester.pump(_ms * 100);
-      expect(_opacity(tester, 'two'), 1);
-      await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('one')), findsNothing);
+      expect(_opacity(tester, 'two'), 1);
+      expect(_dx(tester, 'two'), 0);
     });
 
     testWidgets('reduced motion: a cut', (tester) async {
