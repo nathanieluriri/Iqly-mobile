@@ -358,3 +358,17 @@ class DemoActivations {
     unibooks,
   ];
 }
+
+/// The activation reward the sample wallet already holds (B5 Wallet 37:24,
+/// Activity · Rewards 331:15107): Kudi Box, ₦1,500.00, three days ago, as an
+/// award row. Its ledger id is Kudi Box's [Activation.creditId], so a payout
+/// of the same activation in the app counts once.
+abstract final class ActivationRewards {
+  static const activationId = 'a2';
+  static const business = 'Kudi Box';
+  static const amountKobo = 150000;
+  static const paidDaysAgo = 3;
+  static const detail = 'Reward · activation · step 2 confirmed';
+
+  static String get ledgerId => Activation.creditIdOf(activationId);
+}

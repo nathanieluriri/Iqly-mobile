@@ -54,6 +54,8 @@ class DeviceMediaService implements MediaService {
       );
     } on MissingPluginException {
       return fallback.pickVideo(about: about);
+    } on UnimplementedError {
+      return fallback.pickVideo(about: about);
     } on PlatformException {
       _access = MediaAccess.denied;
       return null;
