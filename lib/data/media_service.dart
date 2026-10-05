@@ -1,3 +1,5 @@
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'activations_data.dart';
@@ -14,9 +16,8 @@ abstract class MediaService {
   /// after it, the device's picker has the file's own name.
   Future<ProofVideo?> pickVideo({String? about});
 
-  /// A screenshot from the phone's own photo picker (image_picker,
-  /// pickImage from the gallery); its file name, or null when the person
-  /// backs out.
+  /// A screenshot from the phone's own picker (file_picker, images only);
+  /// its file name, or null when the person backs out.
   Future<String?> pickImage();
 }
 
@@ -69,6 +70,20 @@ class DemoMediaService implements MediaService {
   }
 }
 
+/// The demo recordings with the phone's own picker for screenshots. Without
+/// the plugin, as in tests, the pick falls back to the demo's.
+class DeviceMediaService extends DemoMediaService {
+  @override
+  Future<String?> pickImage() async {
+    try {
+      final files = await FilePicker.pickFiles(type: FileType.image);
+      return files.isEmpty ? null : files.first.name;
+    } on MissingPluginException {
+      return super.pickImage();
+    }
+  }
+}
+
 final mediaServiceProvider = Provider<MediaService>(
-  (ref) => DemoMediaService(),
+  (ref) => DeviceMediaService(),
 );
