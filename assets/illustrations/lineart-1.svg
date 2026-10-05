@@ -1,6 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="280" height="280" viewBox="0 0 280 280" fill="none"><path id="hand" d="M84 268C76 230 88 198 116 184C112 170 124 164 130 178C132 154 152 152 152 176C158 152 180 154 176 178C186 164 204 172 196 190C206 214 206 240 200 268" stroke="#2D0048" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
-<path id="stem" d="M152 176C148 146 144 116 146 84" stroke="#2D0048" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
-<path id="leaf-left" d="M145.2 108C119.2 106 103.2 88 103.2 66C125.2 66 143.2 82 145.2 108Z" stroke="#2D0048" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
-<path id="leaf-right" d="M146 83.9995C148 59.9995 166 45.9995 188 47.9995C186 71.9995 170 85.9995 146 83.9995Z" stroke="#2D0048" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
-<circle id="sun" cx="224" cy="48" r="16" fill="#F58028" />
+<svg width="280" height="280" viewBox="0 0 280 280" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Frame=1">
+<path id="hand" d="M165.5 186.5C165.167 180.833 162 178 156 178L136 180C126 181.333 122 187 124 197C114 209.667 110.667 224.667 114 242V282M157 263C150 241.667 147.667 220.333 150 199L186 197C192.667 197 196 200 196 206C196 212 192.667 215 186 215H148.6H190C196.333 215 199.5 218 199.5 224C199.5 230 196.333 233 190 233H150.4H188C194 233 197 235.833 197 241.5C197 247.167 194 250 188 250H153.6H181C186.333 250 189 252.333 189 257C189 261.667 186.333 264 181 264L158 263.4M162 266C170 267.333 174.667 272.667 176 282M114 272H176" stroke="#2D0048" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="stem" d="M152 176C148 146 144 116 146 84" stroke="#2D0048" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="leaf-left" d="M145.2 108C119.2 106 103.2 88 103.2 66C125.2 66 143.2 82 145.2 108Z" stroke="#2D0048" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="leaf-right" d="M146 83.9995C148 59.9995 166 45.9995 188 47.9995C186 71.9995 170 85.9995 146 83.9995Z" stroke="#2D0048" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<circle id="sun" cx="224" cy="48" r="16" fill="#F58028"/>
+</g>
 </svg>
