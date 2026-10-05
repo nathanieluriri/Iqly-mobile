@@ -129,6 +129,37 @@ void main() {
       expect(tester.hasRunningAnimations, isFalse);
     });
 
+    testWidgets('one that points at what is missing peels the same way: the '
+        'disc and chevron ink over 160, the sticker slides out over 200', (
+      tester,
+    ) async {
+      await _pump(tester, fab(IqNextFabState.disabled, onTapDisabled: () {}));
+      await _pump(tester, fab(IqNextFabState.enabled, onTapDisabled: () {}));
+      final shadow = find.descendant(
+        of: find.byType(Sticker),
+        matching: find.byType(Opacity),
+      );
+      Color drawn() =>
+          (tester
+                      .widget<DecoratedBox>(
+                        find.descendant(
+                          of: find.byType(AnimatedContainer),
+                          matching: find.byType(DecoratedBox),
+                        ),
+                      )
+                      .decoration
+                  as BoxDecoration)
+              .color!;
+      expect(drawn(), IqColors.line);
+      expect(tester.widget<Opacity>(shadow).opacity, 0);
+      await tester.pump(_ms * 80);
+      expect(drawn(), Color.lerp(IqColors.line, IqColors.brand, _eo(0.5)));
+      expect(tester.widget<Opacity>(shadow).opacity, closeTo(_eo(0.4), 0.01));
+      await tester.pump(_ms * 120);
+      expect(drawn(), IqColors.brand);
+      expect(tester.widget<Opacity>(shadow).opacity, 1);
+    });
+
     testWidgets('reduced motion: on at once, the disc never shrinks', (
       tester,
     ) async {
