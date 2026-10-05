@@ -21,6 +21,7 @@ import '../../ui/list_row.dart';
 import '../../ui/pressable.dart';
 import '../../ui/section_title.dart';
 import '../../ui/share_card.dart';
+import '../../ui/skeleton.dart';
 import '../../ui/top_bar.dart';
 import '../discover/discover_widgets.dart';
 import '../submissions/brief_art.dart';
@@ -85,12 +86,58 @@ class ResultScreen extends ConsumerWidget {
                   title: '',
                   onBack: () => _leave(context),
                 ),
-                Expanded(child: Dissolve(child: body)),
+                Expanded(
+                  child: LoadingGate(
+                    loading: data == null && !result.hasError,
+                    skeleton: const _Skeleton(),
+                    child: Dissolve(child: body),
+                  ),
+                ),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A cold open (from a notification, say) waits on paper, then on these
+/// lines (spec 2.6), never on a blank page.
+class _Skeleton extends StatelessWidget {
+  const _Skeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, box) {
+        Widget line(double share) => IqSkeleton(
+          kind: IqSkeletonKind.line,
+          width: (box.maxWidth - IqSpace.s8) * share,
+        );
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            IqSpace.s4,
+            IqSpace.s4,
+            IqSpace.s4,
+            0,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              line(0.45),
+              const SizedBox(height: IqSpace.s6),
+              line(1),
+              const SizedBox(height: IqSpace.s2),
+              line(0.8),
+              const SizedBox(height: IqSpace.s2),
+              line(0.6),
+              const SizedBox(height: IqSpace.s6),
+              const IqSkeleton(kind: IqSkeletonKind.row),
+            ],
+          ),
+        );
+      },
     );
   }
 }
