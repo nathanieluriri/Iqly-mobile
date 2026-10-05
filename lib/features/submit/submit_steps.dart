@@ -2,20 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/deadline.dart';
 import '../../core/motion.dart';
+import '../../core/relative_time.dart';
 import '../../data/models.dart';
 import '../../data/submit_data.dart';
 import '../../data/submit_service.dart';
 import '../../theme/theme.dart';
+import '../../ui/banner.dart';
 import '../../ui/field.dart';
-import '../../ui/icon.dart';
-import '../../ui/list_row.dart';
 import '../../ui/poll_option.dart';
+import '../../ui/progress_thread.dart';
+import 'submit_parts.dart';
 import 'submit_state.dart';
-import 'submit_thread.dart';
 import 'submit_widgets.dart';
-
-const readyText = 'Ready for the next step';
 
 AnswerLook answerLookOf(SubmitFlow flow) {
   if (answerReady(flow.draft)) return AnswerLook.ready;
@@ -25,68 +25,85 @@ AnswerLook answerLookOf(SubmitFlow flow) {
   return AnswerLook.error;
 }
 
-/// The thread judges only the text area (Figma 34:20): Progress before
-/// anything is typed, Error while it is under 20 characters, Ready after.
-ThreadLook answerThread(SubmitFlow flow, {required int steps}) {
+/// The pinned Exp/ProgressThread. Step 1 judges the text area: "4 more
+/// characters to go" while writing (313:13631), "4 more characters" in
+/// Error once Continue was tried short (34:24), then "Ready for the next
+/// step". Step 2 names the first question left, then "Ready to send",
+/// still in Progress with its count (490:24270).
+IqProgressThread threadOf(SubmitFlow flow, SubmitForm form) {
+  final steps = form.hasQuestions ? 2 : 1;
+  if (flow.step == SubmitStep.questions) {
+    final missing = firstUnanswered(form, flow.draft);
+    return IqProgressThread(
+      status: missing == null ? 'Ready to send' : needsAnswer(missing),
+      count: '2 of 2',
+    );
+  }
   final missing = SubmitLimits.answerMin - answerLength(flow.draft);
-  final count = '1 of $steps';
-  return switch (answerLookOf(flow)) {
-    AnswerLook.ready => const ThreadLook.ready(readyText),
-    AnswerLook.neutral => ThreadLook.progress(moreCharacters(missing), count),
-    AnswerLook.error => ThreadLook.error(moreCharacters(missing), count),
-  };
+  final ready = answerReady(flow.draft);
+  final error = !ready && flow.answerTries > 0;
+  return IqProgressThread(
+    status: moreCharactersToGo(missing),
+    count: '1 of $steps',
+    readyText: steps == 1 ? 'Ready to send' : 'Ready for the next step',
+    errorText: moreCharacters(missing),
+    state: ready
+        ? IqProgressThreadState.ready
+        : error
+        ? IqProgressThreadState.error
+        : IqProgressThreadState.progress,
+  );
 }
 
-/// On the questions step it names the first question still unanswered
-/// (34:186), in Error once Send was tried without it.
-ThreadLook questionsThread(SubmitFlow flow, SubmitForm form) {
-  final missing = firstUnanswered(form, flow.draft);
-  if (missing == null) return const ThreadLook.ready(readyText);
-  const count = '2 of 2';
-  final text = needsAnswer(missing);
-  return flow.questionTries > 0
-      ? ThreadLook.error(text, count)
-      : ThreadLook.progress(text, count);
-}
-
-/// A step's eyebrow and Mob/Title heading (the "step" frame: 8 above and
-/// below, 4 between).
+/// A step's Mob/Title heading (the "step" frame: 8 above and below).
 class StepHeading extends StatelessWidget {
-  const StepHeading({super.key, required this.title, this.eyebrow});
+  const StepHeading({super.key, required this.title});
 
-  final String? eyebrow;
   final String title;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: IqSpace.s2),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (eyebrow case final eyebrow?) ...[
-            Text(
-              eyebrow.toUpperCase(),
-              style: IqText.mono.copyWith(color: IqColors.fg3),
-            ),
-            const SizedBox(height: IqSpace.s1),
-          ],
-          Text(title, style: IqText.title.copyWith(color: IqColors.fg)),
-        ],
-      ),
+      child: Text(title, style: IqText.title.copyWith(color: IqColors.fg)),
     );
   }
 }
 
-/// B3 · Submit · answer too short (34:24) and answer ready (34:121): the
-/// title validates inline (5 to 120 characters, as iqly.net), the answer
-/// area is judged by the thread. Its parts settle in with the push.
+/// "Couldn’t send. Your draft is saved on this phone." (481:21472).
+class SendFailedBanner extends StatelessWidget {
+  const SendFailedBanner({
+    super.key,
+    required this.visible,
+    required this.onRetry,
+  });
+
+  final bool visible;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return IqBanner(
+      kind: IqBannerKind.error,
+      title: 'Couldn’t send. Your draft is saved on this phone.',
+      action: 'Try again',
+      visible: visible,
+      onAction: onRetry,
+    );
+  }
+}
+
+/// Step 1 (34:24, 34:121; B17 313:13631, 313:13650): the brief it answers,
+/// the title (5 to 120 characters, inline) and the answer, judged by the
+/// thread. A flow opened on a saved draft says so where the autosave line
+/// would sit, above the heading.
 class AnswerStep extends ConsumerStatefulWidget {
   const AnswerStep({
     super.key,
     required this.brief,
     required this.flow,
     required this.settle,
+    required this.onRetry,
   });
 
   final Brief brief;
@@ -97,6 +114,7 @@ class AnswerStep extends ConsumerStatefulWidget {
 
   /// Rides the push in; coming back from the questions it stands still.
   final bool settle;
+  final VoidCallback onRetry;
 
   @override
   ConsumerState<AnswerStep> createState() => _AnswerStepState();
@@ -154,6 +172,15 @@ class _AnswerStepState extends ConsumerState<AnswerStep> {
     final flow = widget.flow;
     final notifier = ref.read(provider.notifier);
     final title = titleLength(flow.draft);
+    final now = ref.watch(clockProvider)();
+    final restored = flow.restored;
+    final note = Text(
+      restored != null
+          ? 'Welcome back. Your draft is here, saved '
+                '${timeAgoShort(restored, now)}.'
+          : 'Drafts autosave until you send.',
+      style: IqText.small.copyWith(color: IqColors.fg2),
+    );
     return Stagger(
       move: StaggerMove.settle,
       play: widget.settle,
@@ -165,14 +192,21 @@ class _AnswerStepState extends ConsumerState<AnswerStep> {
           children: [
             StaggerItem(
               index: 0,
-              child: StepHeading(
-                eyebrow: widget.brief.businessName,
-                title: "What's your take?",
-              ),
+              child: BriefContext(brief: widget.brief, now: now),
+            ),
+            _Failed(flow: flow, onRetry: widget.onRetry),
+            if (restored != null) ...[
+              const SizedBox(height: IqSpace.s2),
+              StaggerItem(index: 1, child: note),
+            ],
+            const SizedBox(height: IqSpace.s2),
+            const StaggerItem(
+              index: 1,
+              child: StepHeading(title: "What's your take?"),
             ),
             const SizedBox(height: IqSpace.s2),
             StaggerItem(
-              index: 1,
+              index: 2,
               child: Shake(
                 trigger: _titleShakes,
                 child: IqField(
@@ -194,7 +228,7 @@ class _AnswerStepState extends ConsumerState<AnswerStep> {
             ),
             const SizedBox(height: IqSpace.s2),
             StaggerItem(
-              index: 2,
+              index: 3,
               child: Shake(
                 trigger: _answerShakes,
                 child: AnswerArea(
@@ -206,14 +240,10 @@ class _AnswerStepState extends ConsumerState<AnswerStep> {
                 ),
               ),
             ),
-            const SizedBox(height: IqSpace.s2),
-            StaggerItem(
-              index: 3,
-              child: Text(
-                'Drafts autosave until you send.',
-                style: IqText.small.copyWith(color: IqColors.fg2),
-              ),
-            ),
+            if (restored == null) ...[
+              const SizedBox(height: IqSpace.s2),
+              StaggerItem(index: 4, child: note),
+            ],
             const SizedBox(height: IqSpace.s4),
           ],
         ),
@@ -222,24 +252,43 @@ class _AnswerStepState extends ConsumerState<AnswerStep> {
   }
 }
 
-/// B3 · Submit · quick questions (34:186): the business's questions, all
-/// required (a choice is a column of Exp/PollOption, picking one fills it
-/// over 120 ms with the select haptic), then Attachments, which opens the
-/// file picker and keeps up to five files of 10 MB.
+class _Failed extends StatelessWidget {
+  const _Failed({required this.flow, required this.onRetry});
+
+  final SubmitFlow flow;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Collapse(
+      open: flow.failed,
+      child: Padding(
+        padding: const EdgeInsets.only(top: IqSpace.s2),
+        child: SendFailedBanner(visible: flow.failed, onRetry: onRetry),
+      ),
+    );
+  }
+}
+
+/// Step 2 (34:186, 490:24270, 481:21544): the business's questions, all
+/// required (a choice is a column of Exp/PollOption), then the attachments
+/// group. Attachments opens the phone's own picker; each file goes up at
+/// once and a failed one retries on tap.
 class QuestionsStep extends ConsumerStatefulWidget {
   const QuestionsStep({
     super.key,
     required this.briefId,
     required this.form,
     required this.flow,
+    required this.onRetry,
   });
 
   final String briefId;
   final SubmitForm form;
 
-  /// The flow as the screen last drew this step, so a step on its way out
-  /// keeps showing what was sent while it fades.
+  /// The flow as the screen last drew this step.
   final SubmitFlow flow;
+  final VoidCallback onRetry;
 
   @override
   ConsumerState<QuestionsStep> createState() => _QuestionsStepState();
@@ -258,7 +307,6 @@ class _QuestionsStepState extends ConsumerState<QuestionsStep> {
     for (final q in widget.form.questions)
       if (!q.choice) q.id: FocusNode()..addListener(_onFocus),
   };
-  final _shakes = <String, int>{};
 
   void _onFocus() => setState(() {});
 
@@ -286,13 +334,6 @@ class _QuestionsStepState extends ConsumerState<QuestionsStep> {
   @override
   Widget build(BuildContext context) {
     final provider = submitFlowProvider(widget.briefId);
-    ref.listen(provider.select((f) => f.questionTries), (before, tries) {
-      if (tries <= (before ?? 0)) return;
-      final missing = firstUnanswered(widget.form, ref.read(provider).draft);
-      if (missing == null) return;
-      final id = widget.form.questions[missing].id;
-      setState(() => _shakes[id] = (_shakes[id] ?? 0) + 1);
-    });
     final flow = widget.flow;
     final notifier = ref.read(provider.notifier);
     final form = widget.form;
@@ -302,63 +343,33 @@ class _QuestionsStepState extends ConsumerState<QuestionsStep> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (form.questions.isNotEmpty) ...[
-            const StepHeading(
-              eyebrow: 'All required',
-              title: 'A few quick questions',
-            ),
-            for (final (i, q) in form.questions.indexed) ...[
-              const SizedBox(height: IqSpace.s2),
-              Shake(
-                trigger: _shakes[q.id] ?? 0,
-                child: q.choice
-                    ? _Choice(
-                        question: q,
-                        picked: flow.draft.answers[q.id] ?? const [],
-                        onPick: (option) => notifier.pick(q, option),
-                      )
-                    : IqField(
-                        label: q.text,
-                        value: 'Type your answer',
-                        help: needsAnswer(i),
-                        showNote: false,
-                        state: _textState(
-                          focused: _focus[q.id]!.hasFocus,
-                          empty: !answered(flow.draft, q),
-                          tried: flow.questionTries > 0,
-                        ),
-                        controller: _texts[q.id],
-                        focusNode: _focus[q.id],
-                        textInputAction: TextInputAction.done,
-                        inputFormatters: [
-                          LengthLimitingTextInputFormatter(
-                            SubmitLimits.questionMax,
-                          ),
-                        ],
-                        onChanged: (text) => notifier.type(q, text),
-                      ),
+          _Failed(flow: flow, onRetry: widget.onRetry),
+          if (form.questions.isNotEmpty)
+            const StepHeading(title: 'A few quick questions'),
+          for (final q in form.questions) ...[
+            const SizedBox(height: IqSpace.s2),
+            if (q.choice)
+              _Choice(
+                question: q,
+                picked: flow.draft.answers[q.id] ?? const [],
+                onPick: (option) => notifier.pick(q, option),
+              )
+            else
+              _Text(
+                question: q,
+                controller: _texts[q.id]!,
+                focusNode: _focus[q.id]!,
+                answered: answered(flow.draft, q),
+                onChanged: (text) => notifier.type(q, text),
               ),
-            ],
           ],
           if (form.acceptsFiles) ...[
             const SizedBox(height: IqSpace.s2),
-            IqListRow(
-              label: 'Attachments',
-              description:
-                  'Up to ${SubmitLimits.files} files · '
-                  '${SubmitLimits.fileBytes ~/ (1024 * 1024)} MB each',
-              icon: IqIcons.plus,
-              divider: false,
-              onTap: _attach,
+            AttachmentsGroup(
+              files: flow.files,
+              onAdd: _attach,
+              onRetry: notifier.retry,
             ),
-            for (final (i, file) in flow.files.indexed)
-              _Inserted(
-                key: ObjectKey(file),
-                child: AttachedFileRow(
-                  file: file,
-                  onRemove: () => notifier.removeFile(i),
-                ),
-              ),
             if (flow.fileError case final error?)
               Padding(
                 padding: const EdgeInsets.only(top: IqSpace.s1p5),
@@ -379,15 +390,47 @@ class _QuestionsStepState extends ConsumerState<QuestionsStep> {
       ),
     );
   }
+}
 
-  IqFieldState? _textState({
-    required bool focused,
-    required bool empty,
-    required bool tried,
-  }) {
-    if (focused) return tried && empty ? IqFieldState.error : null;
-    if (empty) return tried ? IqFieldState.error : IqFieldState.empty;
-    return IqFieldState.valid;
+/// A free-text question: the label and "Type your answer"; once answered
+/// the valid check and "18/500 · required" (490:24270).
+class _Text extends StatelessWidget {
+  const _Text({
+    required this.question,
+    required this.controller,
+    required this.focusNode,
+    required this.answered,
+    required this.onChanged,
+  });
+
+  final SurveyQuestion question;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final bool answered;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return IqField(
+      label: question.text,
+      value: 'Type your answer',
+      note:
+          '${controller.text.trim().length}/${SubmitLimits.questionMax} · '
+          'required',
+      showNote: answered,
+      state: focusNode.hasFocus
+          ? null
+          : answered
+          ? IqFieldState.valid
+          : IqFieldState.empty,
+      controller: controller,
+      focusNode: focusNode,
+      textInputAction: TextInputAction.done,
+      inputFormatters: [
+        LengthLimitingTextInputFormatter(SubmitLimits.questionMax),
+      ],
+      onChanged: onChanged,
+    );
   }
 }
 
@@ -441,31 +484,4 @@ class _Choice extends StatelessWidget {
       ],
     );
   }
-}
-
-/// A row added while in view: its space opens, then it arrives (MOTION-SPEC
-/// §5.17), through [Collapse].
-class _Inserted extends StatefulWidget {
-  const _Inserted({super.key, required this.child});
-
-  final Widget child;
-
-  @override
-  State<_Inserted> createState() => _InsertedState();
-}
-
-class _InsertedState extends State<_Inserted> {
-  bool _open = false;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _open = true);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) =>
-      Collapse(open: _open, child: widget.child);
 }
