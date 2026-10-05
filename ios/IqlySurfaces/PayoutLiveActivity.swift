@@ -2,7 +2,8 @@ import ActivityKit
 import SwiftUI
 import WidgetKit
 
-// Exp/LiveActivity: Lock screen (347:16446) and Island (347:16489).
+// Exp/LiveActivity: Lock screen (347:16446) and Island (347:16489). Taps open
+// state.link, the payout's Notification sub page, as on Android.
 @available(iOSApplicationExtension 16.1, *)
 struct PayoutLiveActivity: Widget {
   var body: some WidgetConfiguration {
