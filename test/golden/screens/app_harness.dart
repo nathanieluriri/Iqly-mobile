@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/deadline.dart';
 import 'package:iqly_mobile/core/session.dart';
+import 'package:iqly_mobile/data/activations_service.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/repository.dart';
@@ -50,8 +51,14 @@ Map<String, Object> signedInPrefs({
   'session.firstTipSeen': firstTipSeen,
 };
 
+/// Whether [overrides] already stand in for [provider] (an override names
+/// its provider first).
+bool _overrides(List<Override> overrides, Object provider) =>
+    overrides.any((o) => o.toString().startsWith('$provider.'));
+
 /// Pumps the real router at [location] at 390 x 844 with the OS insets,
-/// animations off and the clock at [figmaNow] unless [clock] moves it.
+/// animations off and the clock at [figmaNow] unless [clock] moves it. The
+/// activations Discover shows answer at once unless [overrides] swap them;
 /// [overrides] swap services (an instant wallet service, say). [settle]
 /// false stops after the first frame, for motion tests. Returns the
 /// container so a test can drive providers.
@@ -83,6 +90,14 @@ Future<ProviderContainer> pumpApp(
       sharedPreferencesProvider.overrideWithValue(shared),
       repositoryProvider.overrideWithValue(repository ?? ScriptedRepository()),
       clockProvider.overrideWithValue(clock ?? () => figmaNow),
+      if (!_overrides(overrides, activationsServiceProvider))
+        activationsServiceProvider.overrideWithValue(
+          DemoActivationsService(
+            clock: clock ?? () => figmaNow,
+            load: Duration.zero,
+            delay: Duration.zero,
+          ),
+        ),
       ...overrides,
     ],
   );

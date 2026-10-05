@@ -6,7 +6,6 @@ import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/discover/discover_state.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/dock.dart';
-import 'package:iqly_mobile/ui/skeleton.dart';
 
 import '../golden/screens/app_harness.dart';
 
@@ -35,16 +34,20 @@ void main() {
       ),
     );
     // LoadingGate: paper for 300 ms, then the skeletons until the data.
+    final skeletons = find.byWidgetPredicate(
+      (w) => w.runtimeType.toString() == '_SkeletonCard',
+    );
     await _at(tester, start, 299);
-    expect(find.byType(IqSkeleton), findsNothing);
+    expect(skeletons, findsNothing);
     await _at(tester, start, 301);
-    expect(find.byType(IqSkeleton), findsWidgets);
+    expect(skeletons, findsWidgets);
+    const first = 'A tagline for a solar kiosk network';
     await _at(tester, start, 1199);
-    expect(find.text('Closing soon'), findsNothing);
+    expect(find.text(first), findsNothing);
     await _at(tester, start, 1201);
     await tester.pumpAndSettle();
-    expect(find.text('Closing soon'), findsOneWidget);
-    expect(find.byType(IqSkeleton), findsNothing);
+    expect(find.text(first), findsOneWidget);
+    expect(skeletons, findsNothing);
 
     container.read(discoverFeedProvider.notifier).refresh();
     await tester.pump();
@@ -58,12 +61,12 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
-      find.text('LOADING MORE'),
+      find.text('Loading more…'),
       400,
       scrollable: find.byType(Scrollable).first,
     );
     await tester.pump(const Duration(milliseconds: 1500));
-    expect(find.text('LOADING MORE'), findsOneWidget);
+    expect(find.text('Loading more…'), findsOneWidget);
     expect(find.text('That’s all 11 live briefs'), findsNothing);
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pumpAndSettle();

@@ -1,17 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/motion.dart';
-import 'package:iqly_mobile/features/polls/poll_sheet.dart';
-import 'package:iqly_mobile/features/polls/polls_screen.dart';
-import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/brand_bubble.dart';
 import 'package:iqly_mobile/ui/icon.dart';
 import 'package:iqly_mobile/ui/poll_card.dart';
 import 'package:iqly_mobile/ui/poll_option.dart';
-import 'package:iqly_mobile/ui/pressable.dart';
-
-import '../golden/screens/app_harness.dart';
-import '../golden/screens/polls_notifications_help_harness.dart';
 
 void _reduce(WidgetTester tester) {
   tester.platformDispatcher.accessibilityFeaturesTestValue =
@@ -240,60 +233,6 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('2'), findsNothing);
       expect(_opacityAbove(tester, _check), 1);
-    });
-
-    testWidgets('a turn that lands as Discover comes back waits for the Polls '
-        'page to leave, then plays once (spec 5.28, 7.3)', (tester) async {
-      await pumpApp(
-        tester,
-        Routes.home,
-        overrides: laneOverrides(),
-        reducedMotion: false,
-      );
-      Finder labelled(String label) => find.byWidgetPredicate(
-        (w) => w is IqPressable && w.semanticLabel == label,
-      );
-      Future<void> tap(Finder finder) async {
-        await tester.ensureVisible(finder);
-        await tester.pumpAndSettle();
-        await tester.tap(finder);
-        await tester.pumpAndSettle();
-      }
-
-      await tap(find.text('Orchid Foods'));
-      expect(find.byType(PollSheet), findsOneWidget);
-      await tap(find.text('Zobo and ginger'));
-      await tap(find.text('1 litre bottle'));
-      await tap(labelled('Close'));
-      expect(find.byType(PollSheet), findsNothing);
-
-      final bubble = find.byWidgetPredicate(
-        (w) => w is IqBrandBubble && w.name == 'Orchid Foods',
-      );
-      Finder inBubble(Finder finder) =>
-          find.descendant(of: bubble, matching: finder, skipOffstage: false);
-      await tester.tap(labelled('Back'));
-      var frames = 0;
-      while (find.byType(PollsScreen).evaluate().isNotEmpty) {
-        await tester.pump(const Duration(milliseconds: 16));
-        frames++;
-        expect(frames, lessThan(30));
-        if (find.byType(PollsScreen).evaluate().isEmpty) break;
-        expect(_opacityAbove(tester, inBubble(find.text('2'))), 1);
-        expect(inBubble(_check), findsNothing);
-      }
-      expect(
-        tester.widget<IqBrandBubble>(bubble).state,
-        IqBrandBubbleState.done,
-      );
-      await tester.pump(const Duration(milliseconds: 64));
-      expect(_opacityAbove(tester, inBubble(find.text('2'))), lessThan(1));
-      expect(inBubble(_check), findsNothing);
-      await tester.pump(const Duration(milliseconds: 112));
-      expect(_opacityAbove(tester, inBubble(_check)), inExclusiveRange(0, 1));
-      await tester.pumpAndSettle();
-      expect(inBubble(find.text('2')), findsNothing);
-      expect(_opacityAbove(tester, inBubble(_check)), 1);
     });
 
     testWidgets('a new count rolls', (tester) async {

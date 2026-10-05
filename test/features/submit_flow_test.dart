@@ -75,7 +75,7 @@ void main() {
       );
       expect(find.byType(BriefDetailScreen), findsOneWidget);
 
-      await _tap(tester, find.text('Submit your response'));
+      await _tap(tester, find.text('Start your submission'));
       expect(find.byType(SubmitScreen), findsOneWidget);
       expect(find.text('SUNLINE'), findsOneWidget);
       expect(find.text("What's your take?"), findsOneWidget);
@@ -172,7 +172,7 @@ void main() {
       await _tap(tester, find.text(SubmitCopy.title));
       await _tap(tester, find.text('View the brief'));
       expect(find.byType(BriefDetailScreen), findsOneWidget);
-      expect(find.text('11 of 40 left'), findsOneWidget);
+      expect(find.text('View your submission'), findsOneWidget);
     },
   );
 
@@ -302,7 +302,7 @@ void main() {
     tester,
   ) async {
     await pumpApp(tester, Routes.brief('c1'), overrides: instantSubmit());
-    await _tap(tester, find.text('Submit your response'));
+    await _tap(tester, find.text('View your submission'));
     expect(find.byType(SubmitScreen), findsNothing);
     expect(find.byType(SubmissionDetailScreen), findsOneWidget);
     expect(find.text('Fizzo: short, loud, easy to say'), findsOneWidget);
@@ -361,7 +361,7 @@ void main() {
       ),
       overrides: instantSubmit(),
     );
-    await _tap(tester, find.text('Submit your response'));
+    await _tap(tester, find.text('Start your submission'));
     expect(find.text(SubmitCopy.title), findsOneWidget);
     expect(find.text(SubmitCopy.shortAnswer), findsOneWidget);
     expect(find.text('4 more characters'), findsOneWidget);
@@ -369,7 +369,7 @@ void main() {
     await _type(tester, _answer(), SubmitCopy.answer);
     await _tap(tester, find.bySemanticsLabel('Back'));
     expect(find.byType(BriefDetailScreen), findsOneWidget);
-    await _tap(tester, find.text('Submit your response'));
+    await _tap(tester, find.text('Start your submission'));
     expect(find.text('Ready for the next step'), findsOneWidget);
   });
 
