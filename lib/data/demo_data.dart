@@ -1,3 +1,4 @@
+import 'drafts_data.dart';
 import 'models.dart';
 
 /// Sanctioned sample dataset, mirrored from src/data/demo.ts in the web repo.
@@ -255,6 +256,26 @@ class DemoData {
       body: 'Split deposits under ₦50,000 to a fast counter and send everything else to the main line.',
       status: SubmissionStatus.filteredOut,
       createdAt: at(-20),
+    ),
+  ];
+
+  /// The two drafts of the Drafts frames (481:23202): Unibooks at step 2,
+  /// edited 2 hours ago, and Sunline at step 1, edited yesterday. Sunline's
+  /// is the B17 Writing draft (16 of the 20 characters the answer needs).
+  late final List<Draft> drafts = [
+    Draft(
+      briefId: 'c6',
+      title: 'No light? We dey',
+      answer:
+          'A WhatsApp catalogue with a pickup shelf in each hostel, priced like the sellers.',
+      step: 2,
+      editedAt: now.subtract(const Duration(hours: 2)),
+    ),
+    Draft(
+      briefId: 'c5',
+      title: 'Charge up, stay connected',
+      answer: 'No light? We dey',
+      editedAt: at(-1),
     ),
   ];
 
