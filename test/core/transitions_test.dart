@@ -836,6 +836,10 @@ void main() {
       onBack: () {},
     );
 
+    /// The state the two-states page shows.
+    final state = ValueNotifier('Leaving');
+    tearDown(() => state.value = 'Leaving');
+
     Future<GoRouter> bars(WidgetTester tester) => _pumpWith(
       tester,
       GoRouter(
@@ -866,7 +870,17 @@ void main() {
             path: '/two-states',
             pageBuilder: (c, s) => pushPage(
               s,
-              page(Stack(children: [bar('Leaving'), bar('Coming')])),
+              ValueListenableBuilder(
+                valueListenable: state,
+                builder: (context, title, _) => page(
+                  Dissolve(
+                    child: KeyedSubtree(
+                      key: ValueKey(title),
+                      child: bar(title),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
           GoRoute(
@@ -932,22 +946,46 @@ void main() {
     });
 
     testWidgets('a page that holds two bars as one state dissolves into the '
-        'next offers one of them to the flight', (tester) async {
+        'next flies the bar of the state that stays, both ways', (
+      tester,
+    ) async {
       final router = await bars(tester);
       final rest = drawn(tester);
       router.push('/two-states');
+      await tester.pumpAndSettle();
+
+      state.value = 'Coming';
+      await tester.pump();
+      await tester.pump(_ms * 100);
+      expect(find.text('Leaving'), findsOneWidget);
+      router.push('/second');
       await tester.pump();
       await tester.pump();
-      await tester.pump(_ms * 150);
+      await tester.pump(_ms * 60);
       expect(tester.takeException(), isNull);
       expect(drawn(tester), rest);
+      expect(
+        _opacityOf(tester, find.text('Coming').last),
+        closeTo(1 - _ei(0.5), 0.02),
+      );
       await tester.pumpAndSettle();
+
+      router.pop();
+      await tester.pumpAndSettle();
+      state.value = 'Leaving';
+      await tester.pump();
+      await tester.pump(_ms * 100);
+      expect(find.text('Coming'), findsOneWidget);
       router.pop();
       await tester.pump();
       await tester.pump();
-      await tester.pump(_ms * 120);
+      await tester.pump(_ms * 48);
       expect(tester.takeException(), isNull);
       expect(drawn(tester), rest);
+      expect(
+        _opacityOf(tester, find.text('Leaving').last),
+        closeTo(1 - _ei(0.5), 0.02),
+      );
       await tester.pumpAndSettle();
     });
 

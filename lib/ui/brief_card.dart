@@ -18,6 +18,10 @@ enum IqBriefCardKind { feature, carousel, row }
 ///
 /// [cover] and [logo] are the Figma instance swaps: any image fills them,
 /// clipped to the Figma frame (the logo to a circle).
+///
+/// Figma over the first build: the body grows with a two-line ask (409:91
+/// is 124 tall, 409:95 is 327) and the meta chips wrap, as the Figma meta
+/// frame does.
 class IqBriefCard extends StatelessWidget {
   const IqBriefCard({
     super.key,
@@ -133,31 +137,29 @@ class IqBriefCard extends StatelessWidget {
             IqSpace.s4,
             IqSpace.s4,
           ),
-          child: ClipRect(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: EdgeInsets.only(left: logoSize, bottom: 6),
-                  child: Text(
-                    brand,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: IqText.smallStrong.copyWith(color: IqColors.fg2),
-                  ),
-                ),
-                const SizedBox(height: IqSpace.s1),
-                Text(
-                  title,
-                  maxLines: 2,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: EdgeInsets.only(left: logoSize, bottom: 6),
+                child: Text(
+                  brand,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: IqText.cardTitle.copyWith(color: IqColors.fg),
+                  style: IqText.smallStrong.copyWith(color: IqColors.fg2),
                 ),
-                const SizedBox(height: IqSpace.s1),
-                _metaRow(IqSpace.s2),
-              ],
-            ),
+              ),
+              const SizedBox(height: IqSpace.s1),
+              Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: IqText.cardTitle.copyWith(color: IqColors.fg),
+              ),
+              const SizedBox(height: IqSpace.s1),
+              _metaRow(IqSpace.s2),
+            ],
           ),
         ),
       ],
@@ -183,29 +185,26 @@ class IqBriefCard extends StatelessWidget {
           Expanded(
             child: ConstrainedBox(
               constraints: const BoxConstraints(minHeight: 77),
-              child: ClipRect(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      brand,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: IqText.smallStrong.copyWith(color: IqColors.fg2),
-                    ),
-                    const SizedBox(height: IqSpace.s1),
-                    Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: IqText.bodyStrong.copyWith(color: IqColors.fg),
-                    ),
-                    const SizedBox(height: IqSpace.s1),
-                    _metaRow(IqSpace.s1),
-                  ],
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    brand,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: IqText.smallStrong.copyWith(color: IqColors.fg2),
+                  ),
+                  const SizedBox(height: IqSpace.s1),
+                  Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: IqText.bodyStrong.copyWith(color: IqColors.fg),
+                  ),
+                  const SizedBox(height: IqSpace.s1),
+                  _metaRow(IqSpace.s1),
+                ],
               ),
             ),
           ),

@@ -8,4 +8,9 @@ abstract final class Flags {
   static const businessNote = true;
   static const notificationPreferences = true;
   static const deleteAccount = true;
+
+  /// The API sends no push yet; local notifications stand in for it.
+  static const pushNotifications = true;
+  static const homeWidgets = true;
+  static const payoutLiveActivity = true;
 }

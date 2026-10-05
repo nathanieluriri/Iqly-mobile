@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'demo_data.dart';
+import 'drafts_data.dart';
 import 'models.dart';
 import 'notifications_service.dart';
 
@@ -32,6 +33,12 @@ abstract class IqlyRepository {
   /// Behind Flags.closeReminders: a reminder an hour before close.
   Future<List<String>> closeReminderIds();
   Future<void> setCloseReminder(String id, bool on);
+
+  /// Responses not sent yet. They live on this phone only, newest edit
+  /// first; the live app keeps them in device storage, not the API.
+  Future<List<Draft>> drafts();
+  Future<void> saveDraft(Draft draft);
+  Future<void> discardDrafts(Iterable<String> briefIds);
 }
 
 /// How long the demo takes to answer. The app uses the Figma prototype
@@ -116,7 +123,6 @@ class DemoRepository implements IqlyRepository {
   Future<int> unreadNotifications() async => DemoData.unreadNotifications;
 
   @override
-  @override
   Future<ActivationsSummary> activationsSummary() async => DemoData.activations;
 
   @override
@@ -132,6 +138,22 @@ class DemoRepository implements IqlyRepository {
   @override
   Future<void> setCloseReminder(String id, bool on) async =>
       on ? _reminders.add(id) : _reminders.remove(id);
+
+  @override
+  Future<List<Draft>> drafts() async =>
+      [...data.drafts]..sort((a, b) => b.editedAt.compareTo(a.editedAt));
+
+  @override
+  Future<void> saveDraft(Draft draft) async {
+    data.drafts.removeWhere((d) => d.briefId == draft.briefId);
+    if (!draft.isEmpty) data.drafts.add(draft);
+  }
+
+  @override
+  Future<void> discardDrafts(Iterable<String> briefIds) async {
+    final gone = briefIds.toSet();
+    data.drafts.removeWhere((d) => gone.contains(d.briefId));
+  }
 }
 
 /// The app runs on the sample dataset at prototype pace; tests override it
