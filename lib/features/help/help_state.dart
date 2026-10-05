@@ -171,3 +171,12 @@ final helpTicketsProvider =
     NotifierProvider<HelpTicketsNotifier, Map<String, HelpTicket>>(
       HelpTicketsNotifier.new,
     );
+
+/// The one support inbox (B21 · Support, 485:39190): every conversation,
+/// latest message first, refreshed whenever a thread of this session moves.
+final conversationsProvider = FutureProvider.autoDispose<List<HelpTicket>>((
+  ref,
+) {
+  ref.watch(helpTicketsProvider);
+  return ref.watch(helpServiceProvider).conversations();
+});

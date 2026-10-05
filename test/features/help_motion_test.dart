@@ -6,7 +6,6 @@ import 'package:iqly_mobile/core/motion.dart';
 import 'package:iqly_mobile/data/help_service.dart';
 import 'package:iqly_mobile/features/help/help_thread_screen.dart';
 import 'package:iqly_mobile/features/help/help_widgets.dart';
-import 'package:iqly_mobile/ui/balance_hero.dart';
 import 'package:iqly_mobile/ui/chat_bubble.dart';
 import 'package:iqly_mobile/ui/field.dart';
 import 'package:iqly_mobile/ui/proof_tile.dart';
@@ -149,9 +148,7 @@ void main() {
   group('Help thread', () {
     testWidgets('sent: the message arrives at +120; each part support adds '
         'opens its space before it arrives, so nothing below jumps; the '
-        'reply takes the dots’ place and the balance rolls at +640', (
-      tester,
-    ) async {
+        'reply takes the dots’ place', (tester) async {
       await _sendFromRequest(tester, reduced: false);
       expect(find.byType(HelpThreadScreen), findsOneWidget);
       expect(find.byType(Later), findsOneWidget);
@@ -174,14 +171,12 @@ void main() {
         of: find.byType(HelpThreadScreen),
         matching: find.byType(IqField),
       );
-      IqBalanceHero hero() =>
-          tester.widget<IqBalanceHero>(find.byType(IqBalanceHero));
       Iterable<IqChatBubble> support() => tester
           .widgetList<IqChatBubble>(find.byType(IqChatBubble))
           .where((b) => b.from == IqChatBubbleFrom.support);
       var y = tester.getTopLeft(field).dy;
       var step = 0.0;
-      int? typed, landed, arrived, typingGone, rolled;
+      int? typed, landed, arrived, typingGone;
       for (var at = 146; at <= 1600; at += 16) {
         await tester.pump(const Duration(milliseconds: 16));
         final now = tester.getTopLeft(field).dy;
@@ -193,8 +188,6 @@ void main() {
         if (landed == null && support().isNotEmpty) {
           landed = at;
           expect(find.byType(TypingBubble), findsOneWidget);
-          expect(hero().amount, '₦12,500');
-          expect(hero().earned, '₦62,500.00');
         }
         if (arrived == null && support().any((b) => b.animate)) arrived = at;
         if (landed != null &&
@@ -202,29 +195,23 @@ void main() {
             find.byType(TypingBubble).evaluate().isEmpty) {
           typingGone = at;
         }
-        if (rolled == null &&
-            find.byType(IqBalanceHero).evaluate().isNotEmpty &&
-            hero().amount == '₦14,000') {
-          rolled = at;
-        }
       }
       expect(typed, isNotNull);
       expect(step, lessThan(40), reason: 'the Reply field eases down');
       expect(arrived! - landed!, inInclusiveRange(224, 256));
       expect(typingGone, arrived);
-      expect(rolled! - landed, inInclusiveRange(624, 672));
-      expect(hero().earned, '₦64,000.00');
-      expect(find.text('UPDATED BALANCE'), findsOneWidget);
     });
 
-    testWidgets('reduced motion: the new balance at once', (tester) async {
+    testWidgets('reduced motion: the reply at once', (tester) async {
       await _sendFromRequest(tester, reduced: true);
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pump();
       expect(
-        tester.widget<IqBalanceHero>(find.byType(IqBalanceHero)).amount,
-        '₦14,000',
+        tester
+            .widgetList<IqChatBubble>(find.byType(IqChatBubble))
+            .where((b) => b.from == IqChatBubbleFrom.support),
+        isNotEmpty,
       );
       await tester.pumpAndSettle();
       expect(tester.hasRunningAnimations, isFalse);

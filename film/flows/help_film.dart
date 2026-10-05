@@ -5,7 +5,6 @@ import 'package:iqly_mobile/features/activations/proof_screen.dart';
 import 'package:iqly_mobile/features/help/help_request_screen.dart';
 import 'package:iqly_mobile/features/help/help_thread_screen.dart';
 import 'package:iqly_mobile/ui/activation_ticket.dart';
-import 'package:iqly_mobile/ui/balance_hero.dart';
 import 'package:iqly_mobile/ui/field.dart';
 import 'package:iqly_mobile/ui/proof_tile.dart';
 
@@ -69,7 +68,7 @@ void main() {
     await d.tap(find.text('Send to support'));
 
     await d.arrive(find.byType(HelpThreadScreen), hold: 0.6);
-    await d.waitFor(find.byType(IqBalanceHero), timeout: 8);
+    await d.waitFor(find.textContaining('confirmed.'), timeout: 8);
     await d.hold(1.5);
   });
 }

@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../data/activations_data.dart';
+import '../../data/help_data.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/button.dart';
@@ -125,7 +126,7 @@ class _HelpRequestScreenState extends ConsumerState<HelpRequestScreen> {
                           child: _SendFailed(shown: draft.failed),
                         ),
                         Text(
-                          'Support replies within 2 hours.',
+                          DemoHelp.replyLine,
                           style: IqText.body.copyWith(color: IqColors.fg2),
                         ),
                         const SizedBox(height: IqSpace.s4),
@@ -154,8 +155,8 @@ class _HelpRequestScreenState extends ConsumerState<HelpRequestScreen> {
                         ),
                         const SizedBox(height: IqSpace.s6),
                         Text(
-                          'Recording (optional) · up to 60 s'.toUpperCase(),
-                          style: IqText.mono.copyWith(color: IqColors.fg3),
+                          'Recording (optional) · up to 60 s',
+                          style: IqText.label.copyWith(color: IqColors.fg2),
                         ),
                         const SizedBox(height: IqSpace.s4),
                         _Recording(
