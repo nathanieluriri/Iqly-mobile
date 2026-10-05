@@ -51,6 +51,10 @@ abstract final class IqPrimitives {
   static const red600A20 = Color(0x33E7000B);
   static const neutral400A50 = Color(0x80A1A1A1);
   static const purple900A60 = Color(0x992D0048);
+  static const skin500 = Color(0xFFA8704A);
+  static const skin600 = Color(0xFF8A5436);
+  static const skin800 = Color(0xFF5E3826);
+  static const skinLine = Color(0xFF3B2216);
 }
 
 abstract final class IqColors {
@@ -163,7 +167,7 @@ abstract final class IqRadius {
 abstract final class IqFonts {
   /// Figma sets Bricolage at an automatic optical size, so each Mob size
   /// has its own instance (tool/gen_fonts.py).
-  static const bricolage34 = 'Bricolage Grotesque 34pt';
+  static const bricolage32 = 'Bricolage Grotesque 32pt';
   static const bricolage22 = 'Bricolage Grotesque 22pt';
   static const bricolage17 = 'Bricolage Grotesque 17pt';
   static const bricolage30 = 'Bricolage Grotesque 30pt';
@@ -175,11 +179,11 @@ abstract final class IqFonts {
 /// The Mob/* ramp from Figma. Sizes are logical pixels.
 abstract final class IqText {
   static const display = TextStyle(
-    fontFamily: IqFonts.bricolage34,
-    fontSize: 34,
-    fontWeight: FontWeight.w800,
-    height: 1,
-    letterSpacing: -1.02,
+    fontFamily: IqFonts.bricolage32,
+    fontSize: 32,
+    fontWeight: FontWeight.w700,
+    height: 1.12,
+    letterSpacing: -0.48,
   );
   static const title = TextStyle(
     fontFamily: IqFonts.bricolage22,
@@ -266,7 +270,7 @@ abstract final class IqText {
   static const headline = TextStyle(
     fontFamily: IqFonts.bricolage28,
     fontSize: 28,
-    fontWeight: FontWeight.w500,
+    fontWeight: FontWeight.w700,
     height: 1.2143,
     letterSpacing: -0.28,
   );
