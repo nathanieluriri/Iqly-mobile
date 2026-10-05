@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/features/discover/brief_detail_screen.dart';
-import 'package:iqly_mobile/features/discover/home_screen.dart';
 import 'package:iqly_mobile/features/submissions/my_submissions_screen.dart';
+import 'package:iqly_mobile/features/submit/pick_brief_screen.dart';
 import 'package:iqly_mobile/features/submissions/submission_detail_screen.dart';
 import 'package:iqly_mobile/router.dart';
 
@@ -72,7 +72,7 @@ void main() {
     expect(repository.calls, 2);
   });
 
-  testWidgets('empty state browses briefs on Discover', (tester) async {
+  testWidgets('empty state opens Pick a brief (409:75)', (tester) async {
     await pumpApp(
       tester,
       Routes.submissions,
@@ -80,7 +80,9 @@ void main() {
     );
     expect(find.text('0 sent'), findsOneWidget);
     await _tap(tester, find.text('Browse briefs'));
-    expect(find.byType(HomeScreen), findsOneWidget);
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+    expect(find.byType(PickBriefScreen), findsOneWidget);
     expect(find.byType(MySubmissionsScreen), findsNothing);
   });
 }
