@@ -13,3 +13,12 @@ String naira(int kobo, {bool decimals = true}) {
 }
 
 String rewardPool(int kobo) => naira(kobo, decimals: false);
+
+/// A pool on a card's reward chip: whole thousands as "₦150k", whole
+/// millions as "₦1m", smaller amounts in full ("₦500"). Never decimals.
+String rewardShort(int kobo) {
+  final naira = kobo ~/ 100;
+  if (naira >= 1000000 && naira % 1000000 == 0) return '₦${naira ~/ 1000000}m';
+  if (naira >= 1000 && naira % 1000 == 0) return '₦${naira ~/ 1000}k';
+  return rewardPool(kobo);
+}

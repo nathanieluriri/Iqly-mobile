@@ -29,6 +29,27 @@ final tabRetapProvider = NotifierProvider<TabRetapNotifier, TabRetap?>(
   TabRetapNotifier.new,
 );
 
+/// A dock switch onto [tab]: a tab that comes back shows what it had and
+/// refreshes quietly behind it (designer answers, 5 Oct).
+class TabEntry {
+  const TabEntry(this.tab, this.serial);
+
+  final IqDockActive tab;
+  final int serial;
+}
+
+class TabEntryNotifier extends Notifier<TabEntry?> {
+  @override
+  TabEntry? build() => null;
+
+  void enter(IqDockActive tab) =>
+      state = TabEntry(tab, (state?.serial ?? 0) + 1);
+}
+
+final tabEntryProvider = NotifierProvider<TabEntryNotifier, TabEntry?>(
+  TabEntryNotifier.new,
+);
+
 /// Scrolls [controller] back to the top when its [tab] is tapped again
 /// (spec 3.6): from three screens away at most, over 300 ms ease-in-out; a
 /// jump under reduced motion.
@@ -115,6 +136,8 @@ class AppShell extends ConsumerWidget {
                         : (tab) {
                             if (tab == active && atRoot) {
                               ref.read(tabRetapProvider.notifier).retap(tab);
+                            } else if (tab != active) {
+                              ref.read(tabEntryProvider.notifier).enter(tab);
                             }
                             onTab(tab);
                           },

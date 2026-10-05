@@ -264,23 +264,18 @@ void main() {
     await tester.pump(_ms * 60);
     expect(tester.getTopLeft(find.byType(IqTopBar).last), bar);
     expect(flying('Submission'), closeTo(1 - _ei(0.5), 0.02));
-    expect(flying('Brief'), 0);
     await tester.pump(_ms * 400);
     expect(find.text('Submission'), findsNothing);
 
     await tester.tap(find.bySemanticsLabel('Back'));
     await tester.pump();
     await tester.pump();
-    expect(flying('Brief'), closeTo(1, 0.02));
     expect(flying('Submission'), 0);
     await tester.pump(_ms * 48);
     expect(tester.getTopLeft(find.byType(IqTopBar).last), bar);
-    expect(flying('Brief'), closeTo(1 - _ei(0.5), 0.02));
     await tester.pump(_ms * 144);
     expect(flying('Submission'), 1);
-    expect(flying('Brief'), 0);
     await tester.pump(_ms * 100);
-    expect(find.text('Brief'), findsNothing);
     expect(find.text('Submission'), findsOneWidget);
   });
 

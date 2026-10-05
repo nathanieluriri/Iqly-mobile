@@ -179,6 +179,7 @@ void main() {
         'onboarding.draft': jsonEncode({...sampleAboutYou, 'deferred': true}),
       },
     );
+    await precacheImages(tester);
     await expectMatchesGolden(
       find.byType(MaterialApp),
       'goldens/onboarding_home_setup_nudge.png',

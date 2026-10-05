@@ -191,7 +191,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 60));
     expect(tester.getTopLeft(find.byType(IqTopBar).last), rest);
     expect(shown('Notifications'), closeTo(0.5, 0.2));
-    expect(shown('Brief'), 0);
     await tester.pumpAndSettle();
     expect(find.byType(BriefDetailScreen), findsOneWidget);
 

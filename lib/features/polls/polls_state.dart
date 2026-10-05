@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/deadline.dart';
 import '../../data/polls_data.dart';
 import '../../data/polls_service.dart';
 
@@ -13,6 +12,16 @@ class PollsNotifier extends AsyncNotifier<List<PollBusiness>> {
       ref.watch(pollsServiceProvider).businesses();
 
   void retry() => ref.invalidateSelf();
+
+  /// A return to Discover: the tiles stay as they are until the new list
+  /// lands; a failure keeps them.
+  Future<void> refreshQuietly() async {
+    if (!state.hasValue) return;
+    try {
+      final businesses = await ref.read(pollsServiceProvider).businesses();
+      state = AsyncData(businesses);
+    } catch (_) {}
+  }
 
   /// Votes [choice] on [pollId]; true once the vote has counted.
   Future<bool> vote(String pollId, int choice) async {
@@ -60,19 +69,24 @@ String pollTimeLeft(Duration left) {
   return '$days ${days == 1 ? 'day' : 'days'}';
 }
 
-/// The Polls row under a business: "2 open polls", or once all are
-/// answered "You voted · results in 1 day".
-String businessLine(PollBusiness business, DateTime now) {
-  if (business.allAnswered) {
-    final left = timeLeft(business.firstClose, now)!;
-    return 'You voted · results in ${pollTimeLeft(left)}';
-  }
-  return openPolls(business.unanswered);
+String questions(int count) => '$count question${count == 1 ? '' : 's'}';
+
+/// The poll sheet's BrandHeader line: "1 poll · 2 questions · about 10
+/// seconds", five seconds a question.
+String pollDetail(PollBusiness business) {
+  final count = business.polls.length;
+  return '1 poll · ${questions(count)} · about ${count * 5} seconds';
 }
 
-String openPolls(int count) => '$count open ${count == 1 ? 'poll' : 'polls'}';
+/// Once every question is answered: "2 answers sent. Orchid Foods shares
+/// the results in about a week."
+String pollDoneDetail(PollBusiness business) {
+  final count = business.answered;
+  return '$count answer${count == 1 ? '' : 's'} sent. '
+      '${business.name} shares the results in about a week.';
+}
 
-/// The sheet's eyebrow: "2 open polls", then "1 of 2 answered".
-String sheetEyebrow(PollBusiness business) => business.answered == 0
-    ? openPolls(business.polls.length)
-    : '${business.answered} of ${business.polls.length} answered';
+/// Whether every poll the business runs has closed: its tile dims and
+/// stops taking taps (480:22779).
+bool pollsClosed(PollBusiness business, DateTime now) =>
+    business.polls.every((p) => p.closedAt(now));

@@ -271,7 +271,7 @@ void main() {
 
       await _tap(tester, find.text('Rename our youth current account'));
       expect(find.byType(BriefDetailScreen), findsOneWidget);
-      expect(find.text('₦80,000'), findsOneWidget);
+      expect(find.text('₦80k'), findsOneWidget);
       await _tap(tester, find.bySemanticsLabel('Back'));
 
       container.read(discoverFiltersProvider.notifier).showAll();
