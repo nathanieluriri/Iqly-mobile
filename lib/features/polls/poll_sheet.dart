@@ -7,34 +7,162 @@ import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../data/polls_data.dart';
 import '../../theme/theme.dart';
+
+import 'package:flutter/services.dart';
+
 import '../../ui/banner.dart';
+import '../../ui/brand_header.dart';
 import '../../ui/poll_card.dart';
 import '../../ui/skeleton.dart';
 import '../../ui/top_bar.dart';
+import '../discover/business_art.dart';
+import '../discover/discover_routes.dart';
+import 'polls_routes.dart';
 import 'polls_state.dart';
 
-/// B2 · Polls · Orchid Foods · open (33:169) and voted (33:289): one
-/// business's polls in a sheet on paper (Color/bg, radius 28) over the
-/// Polls page, behind Flags.polls. A pick shows at once (Exp/PollOption
-/// Selected, the select haptic) while the vote goes in; then the card
-/// reveals its results and the eyebrow rolls to "1 of 2 answered". A vote
-/// that does not go in clears the pick, with the error haptic and banner.
-///
-/// The sheet rises and drops per MOTION-SPEC §3.3 (Figma opens it Instant
-/// and closes it with Smart Animate 0.3 s); there is no stagger inside.
-class PollSheet extends ConsumerStatefulWidget {
+/// B2 · Polls · Orchid Foods · open (33:169), voted (33:289) and done
+/// (480:22679): one business's polls in a sheet on paper (radius 28) over
+/// the Quick polls page, behind Flags.polls, its top 52 under the status
+/// bar. Exp/BrandHeader (Centered) says how long the polls take; once every
+/// question is answered the title turns to "You’re done" and the header
+/// says the answers went in. A pick shows at once while the vote goes in;
+/// a vote that does not go in clears the pick, with the error haptic and
+/// banner. Dragging the sheet up opens the same polls as a page (345:15957).
+class PollSheet extends ConsumerWidget {
   const PollSheet({super.key, required this.businessId});
 
   final String businessId;
 
-  /// Figma's sheet tops out 26 under the status bar.
-  static const double topGap = 26;
+  /// Figma's sheet tops out 52 under the status bar.
+  static const double topGap = 52;
 
   @override
-  ConsumerState<PollSheet> createState() => _PollSheetState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final business = ref
+        .watch(pollsProvider)
+        .value
+        ?.where((b) => b.id == businessId)
+        .firstOrNull;
+    final media = MediaQuery.of(context);
+    final done = business != null && business.allAnswered;
+
+    return CenteredContent(
+      child: SizedBox(
+        height: media.size.height - media.padding.top - topGap,
+        child: Material(
+          color: IqColors.bg,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onVerticalDragEnd: (details) {
+                  if ((details.primaryVelocity ?? 0) < -_expandFling) {
+                    context.pushReplacement(pollPageOf(businessId));
+                  }
+                },
+                child: IqTopBar(
+                  variant: IqTopBarVariant.sheet,
+                  title: done ? 'You’re done' : 'Quick polls',
+                  onClose: () => context.pop(),
+                ),
+              ),
+              Expanded(
+                child: _Polls(
+                  business: business,
+                  done: done,
+                  layout: IqBrandHeaderLayout.centered,
+                  padding: EdgeInsets.fromLTRB(
+                    IqSpace.s4,
+                    0,
+                    IqSpace.s4,
+                    IqSpace.s3 + IqSpace.s2 + media.padding.bottom,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-class _PollSheetState extends ConsumerState<PollSheet> {
+/// An upward fling past this many points a second opens the full page.
+const double _expandFling = 700;
+
+/// B2 · Polls · Orchid Foods · full screen (345:15957): the poll sheet as a
+/// sub page (Page top bar, Back, no dock), with Exp/BrandHeader Leading
+/// across the full width.
+class PollPage extends ConsumerWidget {
+  const PollPage({super.key, required this.businessId});
+
+  final String businessId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final business = ref
+        .watch(pollsProvider)
+        .value
+        ?.where((b) => b.id == businessId)
+        .firstOrNull;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        resizeToAvoidBottomInset: false,
+        backgroundColor: IqColors.bg,
+        body: SafeArea(
+          bottom: false,
+          child: CenteredContent(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                IqTopBar(
+                  variant: IqTopBarVariant.page,
+                  title: 'Quick polls',
+                  onBack: () => leave(context),
+                ),
+                Expanded(
+                  child: _Polls(
+                    business: business,
+                    done: business != null && business.allAnswered,
+                    layout: IqBrandHeaderLayout.leading,
+                    padding: EdgeInsets.only(
+                      bottom: IqSpace.s6 + MediaQuery.paddingOf(context).bottom,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Polls extends ConsumerStatefulWidget {
+  const _Polls({
+    required this.business,
+    required this.done,
+    required this.layout,
+    required this.padding,
+  });
+
+  final PollBusiness? business;
+  final bool done;
+  final IqBrandHeaderLayout layout;
+  final EdgeInsets padding;
+
+  @override
+  ConsumerState<_Polls> createState() => _PollsState();
+}
+
+class _PollsState extends ConsumerState<_Polls> {
   final _picks = <String, int>{};
   bool _failed = false;
 
@@ -54,63 +182,42 @@ class _PollSheetState extends ConsumerState<PollSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final business = ref
-        .watch(pollsProvider)
-        .value
-        ?.where((b) => b.id == widget.businessId)
-        .firstOrNull;
+    final business = widget.business;
     final now = ref.watch(clockProvider)();
-    final media = MediaQuery.of(context);
-
-    return CenteredContent(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: media.size.height - media.padding.top - PollSheet.topGap,
-        ),
-        child: Material(
-          color: IqColors.bg,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+    final leading = widget.layout == IqBrandHeaderLayout.leading;
+    if (business == null) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: IqSpace.s4),
+        child: Align(alignment: Alignment.topCenter, child: IqSkeleton()),
+      );
+    }
+    Widget inset(Widget child) => leading
+        ? Padding(
+            padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
+            child: child,
+          )
+        : child;
+    return SingleChildScrollView(
+      padding: widget.padding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          inset(_FailedVote(shown: _failed)),
+          IqBrandHeader(
+            layout: widget.layout,
+            brand: business.name,
+            detail: widget.done
+                ? pollDoneDetail(business)
+                : pollDetail(business),
+            cover: businessCover(business.banner),
+            logo: businessLogo(business.logo),
           ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              IqTopBar(
-                variant: IqTopBarVariant.sheet,
-                title: business?.name ?? ' ',
-                onClose: () => context.pop(),
-              ),
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.fromLTRB(
-                    IqSpace.s4,
-                    0,
-                    IqSpace.s4,
-                    IqSpace.s3 + IqSpace.s2 + media.padding.bottom,
-                  ),
-                  child: business == null
-                      ? const IqSkeleton()
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _FailedVote(shown: _failed),
-                            RollingText(
-                              sheetEyebrow(business).toUpperCase(),
-                              style: IqText.mono.copyWith(color: IqColors.fg3),
-                            ),
-                            for (final poll in business.polls) ...[
-                              const SizedBox(height: IqSpace.s3),
-                              _card(poll, now),
-                            ],
-                          ],
-                        ),
-                ),
-              ),
-            ],
-          ),
-        ),
+          SizedBox(height: leading ? IqSpace.s4 : IqSpace.s3),
+          for (final (i, poll) in business.polls.indexed) ...[
+            if (i > 0) const SizedBox(height: IqSpace.s3),
+            inset(_card(poll, now)),
+          ],
+        ],
       ),
     );
   }
@@ -134,7 +241,7 @@ class _PollSheetState extends ConsumerState<PollSheet> {
       votes: poll.total,
       timeLeft: closed
           ? ''
-          : '${pollTimeLeft(timeLeft(poll.closesAt, now)!)} left',
+          : 'Closes in ${pollTimeLeft(timeLeft(poll.closesAt, now)!)}',
       chosen: poll.chosen ?? 0,
       selected: _picks[poll.id],
       hint: 'Pick one',

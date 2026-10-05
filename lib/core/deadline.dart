@@ -16,8 +16,12 @@ abstract final class DeadlineRules {
   /// Countdown turns Warm under a day.
   static const countdownWarm = Duration(days: 1);
 
-  /// Discover's Closing soon takes briefs closing within 3 days.
+  /// A brief card's deadline chip turns Urgent within 3 days.
   static const closingSoon = Duration(days: 3);
+
+  /// Under 2 days a brief card wears the closing-soon tint and outline and
+  /// leads the Briefs list.
+  static const closingSoonOutline = Duration(days: 2);
 }
 
 /// The wall clock, overridable so goldens and tests read a fixed time.

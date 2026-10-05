@@ -65,6 +65,9 @@ class Brief {
     this.spotsLeft,
     this.spotsTotal,
     this.winnerRule,
+    this.minutes,
+    this.logo,
+    this.cover,
   });
 
   final String id;
@@ -89,6 +92,14 @@ class Brief {
   /// How the pool is split, when the business set a rule. Null shows none.
   final String? winnerRule;
 
+  /// About how long a response takes, in minutes (the card's time chip).
+  final int? minutes;
+
+  /// The business logo and the cover photo: asset paths in the demo, image
+  /// URLs from the API. Null falls back to the anonymous art.
+  final String? logo;
+  final String? cover;
+
   bool get isLive => status == BriefStatus.live;
 
   Map<String, Object?> toJson() => {
@@ -106,6 +117,9 @@ class Brief {
     'spotsLeft': spotsLeft,
     'spotsTotal': spotsTotal,
     'winnerRule': winnerRule,
+    'minutes': minutes,
+    'logo': logo,
+    'cover': cover,
   };
 
   factory Brief.fromJson(Map<String, Object?> json) {
@@ -125,24 +139,11 @@ class Brief {
       spotsLeft: json['spotsLeft'] as int?,
       spotsTotal: json['spotsTotal'] as int?,
       winnerRule: json['winnerRule'] as String?,
+      minutes: json['minutes'] as int?,
+      logo: json['logo'] as String?,
+      cover: json['cover'] as String?,
     );
   }
-}
-
-/// A business with open polls, as a Discover brand bubble.
-class PollBrand {
-  const PollBrand({
-    required this.businessName,
-    required this.openPolls,
-    required this.unanswered,
-  });
-
-  final String businessName;
-  final int openPolls;
-  final int unanswered;
-
-  String get initial => businessName.substring(0, 1);
-  bool get allAnswered => unanswered == 0;
 }
 
 /// The Activations row on Discover.

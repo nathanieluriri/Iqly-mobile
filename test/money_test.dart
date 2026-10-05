@@ -17,6 +17,13 @@ void main() {
     expect(rewardPool(8000000), '₦80,000');
   });
 
+  test('card reward chips read compact, never with decimals', () {
+    expect(rewardShort(15000000), '₦150k');
+    expect(rewardShort(50000), '₦500');
+    expect(rewardShort(100000000), '₦1m');
+    expect(rewardShort(15050000), '₦150,500');
+  });
+
   test('demo wallet figures foot', () {
     final data = DemoData(now: DateTime(2026, 10, 3));
     final totals = walletTotals(data.ledger, data.withdrawals);

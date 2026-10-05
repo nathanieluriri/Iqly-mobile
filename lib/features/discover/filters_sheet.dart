@@ -166,6 +166,7 @@ class _FiltersSheetState extends ConsumerState<FiltersSheet> {
                           ? 'No briefs match'
                           : 'Show $count ${count == 1 ? 'brief' : 'briefs'}',
                       width: double.infinity,
+                      showIcon: false,
                       rollLabel: true,
                       disabled: count == 0,
                       onTap: () {
