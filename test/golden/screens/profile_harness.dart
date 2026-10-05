@@ -11,6 +11,7 @@ import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/theme/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:iqly_mobile/data/activations_service.dart';
 
 import 'app_harness.dart';
 
@@ -87,6 +88,13 @@ Future<ProviderContainer> pumpProfileApp(
     overrides: [
       sharedPreferencesProvider.overrideWithValue(shared),
       repositoryProvider.overrideWithValue(repository ?? ScriptedRepository()),
+      activationsServiceProvider.overrideWithValue(
+        DemoActivationsService(
+          clock: () => figmaNow,
+          load: Duration.zero,
+          delay: Duration.zero,
+        ),
+      ),
       clockProvider.overrideWithValue(() => figmaNow),
       profileServiceProvider.overrideWithValue(service ?? TestProfileService()),
     ],

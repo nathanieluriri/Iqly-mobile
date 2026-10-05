@@ -11,6 +11,7 @@ import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/next_fab.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:iqly_mobile/data/activations_service.dart';
 
 /// The whole app on a 390 x 844 phone with reduced motion and instant
 /// services and data. Without [start] it plays the splash through to the landing.
@@ -51,6 +52,9 @@ Future<ProviderContainer> bootApp(
         device ?? DemoDeviceService(delay: Duration.zero),
       ),
       repositoryProvider.overrideWithValue(DemoRepository(DemoData())),
+      activationsServiceProvider.overrideWithValue(
+        DemoActivationsService(load: Duration.zero, delay: Duration.zero),
+      ),
     ],
   );
   addTearDown(container.dispose);

@@ -2,10 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/motion.dart';
 import 'package:iqly_mobile/core/transitions.dart';
-import 'package:iqly_mobile/data/demo_data.dart';
+import 'package:iqly_mobile/data/activations_data.dart';
+import 'package:iqly_mobile/data/activations_service.dart';
+import 'package:iqly_mobile/data/polls_service.dart';
 import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/discover/brief_detail_screen.dart';
@@ -17,20 +20,55 @@ import 'package:iqly_mobile/features/discover/saved_briefs_screen.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/theme/theme.dart';
 import 'package:iqly_mobile/ui/banner.dart';
+import 'package:iqly_mobile/ui/brief_card.dart';
 import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/chip.dart';
 import 'package:iqly_mobile/ui/dock.dart';
 import 'package:iqly_mobile/ui/illustration.dart';
 import 'package:iqly_mobile/ui/pull_indicator.dart';
-import 'package:iqly_mobile/ui/skeleton.dart';
 import 'package:iqly_mobile/ui/switch.dart';
 import 'package:iqly_mobile/ui/ticket_card.dart';
 import 'package:iqly_mobile/ui/tip_card.dart';
 
 import '../golden/screens/app_harness.dart';
+import '../golden/screens/app_harness.dart' as harness;
+import '../golden/screens/polls_notifications_help_harness.dart';
 import 'entry_harness.dart';
 
 const _ms = Duration(milliseconds: 1);
+
+/// The app with Quick polls and the activations answering at once, unless
+/// [activations] stands in for them.
+Future<ProviderContainer> pumpApp(
+  WidgetTester tester,
+  String location, {
+  IqlyRepository? repository,
+  Map<String, Object>? prefs,
+  bool reducedMotion = true,
+  bool settle = true,
+  ActivationsService? activations,
+}) => harness.pumpApp(
+  tester,
+  location,
+  repository: repository,
+  prefs: prefs,
+  reducedMotion: reducedMotion,
+  settle: settle,
+  overrides: [
+    pollsServiceProvider.overrideWithValue(instantPolls()),
+    if (activations != null)
+      activationsServiceProvider.overrideWithValue(activations),
+  ],
+);
+
+/// The last frame a lens crossing fades out (the covers are images too).
+final _snapshot = find.byWidgetPredicate(
+  (w) => w is RawImage && w.fit == BoxFit.fill,
+);
+
+final _skeletons = find.byWidgetPredicate(
+  (w) => w.runtimeType.toString() == '_SkeletonCard',
+);
 
 double _eo(double t) => IqCurves.easeOut.transform(t);
 
@@ -53,12 +91,15 @@ class _Controlled extends ScriptedRepository {
   }
 }
 
-/// The feed answers at once, the Activations summary when the test says so.
-class _LateActivations extends ScriptedRepository {
-  final summary = Completer<ActivationsSummary>();
+/// The activations answer when the test says so.
+class _LateActivations extends DemoActivationsService {
+  _LateActivations()
+    : super(clock: () => figmaNow, load: Duration.zero, delay: Duration.zero);
+
+  final list = Completer<List<Activation>>();
 
   @override
-  Future<ActivationsSummary> activationsSummary() => summary.future;
+  Future<List<Activation>> activations() => list.future;
 }
 
 /// The feed fails to load, and the retry waits for the test.
@@ -166,10 +207,10 @@ void main() {
     // so the app can settle while the load is open.
     final repository = _Controlled(holdFirst: true);
     await pumpApp(tester, Routes.home, repository: repository);
-    expect(find.byType(IqSkeleton), findsNothing);
+    expect(_skeletons, findsNothing);
     await tester.pump(_ms * 300);
     await tester.pump();
-    expect(find.byType(IqSkeleton), findsNWidgets(4));
+    expect(_skeletons, findsWidgets);
     // The chips stay live while it loads (192:9042).
     expect(_chips, findsOneWidget);
 
@@ -177,31 +218,31 @@ void main() {
     await tester.pump(_ms * 600);
     await tester.pump();
     // The hand-over: the skeleton fades out over the arriving feed.
-    expect(find.text('Open polls'), findsOneWidget);
-    expect(find.byType(IqSkeleton), findsWidgets);
+    expect(find.text('Quick polls'), findsWidgets);
+    expect(_skeletons, findsWidgets);
     await tester.pumpAndSettle();
-    expect(find.byType(IqSkeleton), findsNothing);
-    expect(find.text('Closing soon'), findsOneWidget);
+    expect(_skeletons, findsNothing);
+    expect(find.text('A tagline for a solar kiosk network'), findsOneWidget);
   });
 
   testWidgets('the feed waits for Open polls and Activations above it', (
     tester,
   ) async {
-    final repository = _LateActivations();
-    await pumpApp(tester, Routes.home, repository: repository);
+    final activations = _LateActivations();
+    await pumpApp(tester, Routes.home, activations: activations);
     await tester.pump(_ms * 300);
     await tester.pump();
-    expect(find.byType(IqSkeleton), findsNWidgets(4));
+    expect(_skeletons, findsNWidgets(2));
     await tester.pump(_ms * 900);
-    expect(find.byType(IqTicketCard), findsNothing);
-    expect(find.byType(IqSkeleton), findsNWidgets(4));
+    expect(find.byType(IqBriefCard), findsNothing);
+    expect(_skeletons, findsNWidgets(2));
 
-    repository.summary.complete(DemoData.activations);
+    activations.list.complete(DemoActivations(figmaNow).all);
     await tester.pumpAndSettle();
-    expect(find.byType(IqSkeleton), findsNothing);
+    expect(_skeletons, findsNothing);
     expect(
       _top(tester, find.text('Activations')),
-      lessThan(_top(tester, find.byType(IqTicketCard).first)),
+      lessThan(_top(tester, find.text('Briefs'))),
     );
   });
 
@@ -219,7 +260,7 @@ void main() {
     final listTop = _top(tester, _chips);
 
     final gesture = await tester.startGesture(
-      tester.getCenter(find.text('Closing soon')),
+      tester.getCenter(find.text('Briefs')),
     );
     await gesture.moveBy(const Offset(0, 40));
     await tester.pump();
@@ -277,7 +318,7 @@ void main() {
       reducedMotion: false,
     );
     final gesture = await tester.startGesture(
-      tester.getCenter(find.text('Closing soon')),
+      tester.getCenter(find.text('Briefs')),
     );
     await gesture.moveBy(const Offset(0, 40));
     await tester.pump();
@@ -317,7 +358,7 @@ void main() {
     _feed(tester).jumpTo(900);
     await tester.pump();
     expect(_top(tester, _chips), top);
-    expect(find.text('Open polls').hitTestable(), findsNothing);
+    expect(find.text('Quick polls').hitTestable(), findsNothing);
   });
 
   testWidgets('a lens chip holds the chrome and crosses the content over '
@@ -325,10 +366,10 @@ void main() {
     final haptics = recordHaptics(tester);
     await pumpApp(tester, Routes.home, reducedMotion: false);
     final chipsBottom = tester.getBottomLeft(find.byType(FeedChips)).dy;
-    final shared = find.text('Open polls');
+    final shared = find.text('Quick polls');
     final old = find.descendant(
       of: find.byType(LensCrossfade),
-      matching: find.byType(RawImage),
+      matching: _snapshot,
     );
     expect(old, findsNothing);
 
@@ -364,7 +405,7 @@ void main() {
     await pumpApp(tester, Routes.home, reducedMotion: false);
     final old = find.descendant(
       of: find.byType(LensCrossfade),
-      matching: find.byType(RawImage),
+      matching: _snapshot,
     );
     await tester.tap(find.text('All'));
     await tester.pump();
@@ -378,7 +419,7 @@ void main() {
     expect(_shown(tester, old), closeTo(1 - _eo(0.5), 0.01));
     await tester.pumpAndSettle();
     expect(old, findsNothing);
-    expect(_shown(tester, find.text('Open polls')), 1);
+    expect(_shown(tester, find.text('Quick polls')), 1);
   });
 
   testWidgets('reduced motion: a lens chip cuts to the new content', (
@@ -388,13 +429,10 @@ void main() {
     await tester.tap(find.text('All'));
     await tester.pump();
     expect(
-      find.descendant(
-        of: find.byType(LensCrossfade),
-        matching: find.byType(RawImage),
-      ),
+      find.descendant(of: find.byType(LensCrossfade), matching: _snapshot),
       findsNothing,
     );
-    expect(_shown(tester, find.text('Open polls')), 1);
+    expect(_shown(tester, find.text('Quick polls')), 1);
   });
 
   testWidgets('Filters: Show N briefs crosses the feed under the dropping '
@@ -406,7 +444,7 @@ void main() {
     await tester.pumpAndSettle();
     final old = find.descendant(
       of: find.byType(LensCrossfade),
-      matching: find.byType(RawImage),
+      matching: _snapshot,
     );
     expect(old, findsNothing);
     await tester.tap(
@@ -517,15 +555,15 @@ void main() {
     'Brief detail is drawn from the tapped brief on its first frame',
     (tester) async {
       await pumpApp(tester, Routes.home, reducedMotion: false);
-      final ticket = find.byWidgetPredicate(
-        (w) => w is IqTicketCard && w.kind == IqTicketCardKind.list,
+      final card = find.byWidgetPredicate(
+        (w) => w is IqBriefCard && w.kind == IqBriefCardKind.feature,
       );
-      await tester.ensureVisible(ticket.first);
+      await tester.ensureVisible(card.first);
       await tester.pumpAndSettle();
-      final title = tester.widget<IqTicketCard>(ticket.first).title;
-      await tester.tap(ticket.first);
+      final title = tester.widget<IqBriefCard>(card.first).title;
+      await tester.tap(card.first);
       final page = await _firstFrameOf(tester, BriefDetailScreen);
-      for (final text in [title, 'Submit your response']) {
+      for (final text in [title, 'Start your submission']) {
         expect(
           find.descendant(
             of: page,
@@ -550,7 +588,10 @@ void main() {
       },
       reducedMotion: false,
     );
-    await tester.tap(find.text('A tagline for a solar kiosk network').first);
+    final card = find.text('A tagline for a solar kiosk network').first;
+    await tester.ensureVisible(card);
+    await tester.pumpAndSettle();
+    await tester.tap(card);
     await _firstFrameOf(tester, BriefDetailScreen);
     final remind = find.byType(IqSwitch, skipOffstage: false);
     expect(tester.widget<IqSwitch>(remind).state, IqSwitchState.on);
@@ -655,42 +696,19 @@ void main() {
     expect(find.text(after), findsOneWidget);
   });
 
-  group('the Trophy of the empty feed arrives (spec 6.24, 5.29)', () {
-    final pictures = find.descendant(
-      of: find.byType(IqIllustration),
-      matching: find.byWidgetPredicate(
-        (w) => w.runtimeType.toString() == 'SvgPicture',
-      ),
-    );
+  group('the figure of the empty feed arrives (spec 6.24, 5.29)', () {
+    final figure = find.byType(IqFigure);
 
-    /// How far the Trophy's ink still sits below its place.
-    double inkDrop(WidgetTester tester) => tester
-        .widget<Transform>(
-          find
-              .descendant(
-                of: find.byType(IqIllustration),
-                matching: find.byType(Transform),
-              )
-              .at(1),
-        )
-        .transform
-        .getTranslation()
-        .y;
-
-    Future<void> rises(WidgetTester tester) async {
+    Future<void> rises(WidgetTester tester, IqFigures kind) async {
       for (var i = 0; i < 40; i++) {
         await tester.pump(_ms * 16);
-        if (find.byType(IqIllustration).evaluate().isNotEmpty) break;
+        if (figure.evaluate().isNotEmpty) break;
       }
-      await tester.pump(_ms * 240);
-      expect(find.byType(IqIllustration), findsOneWidget);
-      // The whole, the ink rising 16 over 320 and the accent sweeping from
-      // +160.
-      expect(pictures, findsNWidgets(3));
-      expect(inkDrop(tester), greaterThan(0));
-      expect(inkDrop(tester), lessThan(IqTravel.riseHero));
-      await tester.pump(_ms * 400);
-      expect(pictures, findsOneWidget);
+      expect(figure, findsOneWidget);
+      final shown = tester.widget<IqFigure>(figure);
+      expect(shown.figure, kind);
+      expect(shown.arrive, isTrue);
+      await tester.pumpAndSettle();
     }
 
     testWidgets('no briefs', (tester) async {
@@ -701,8 +719,8 @@ void main() {
         reducedMotion: false,
         settle: false,
       );
-      expect(find.byType(IqIllustration), findsNothing);
-      await rises(tester);
+      expect(figure, findsNothing);
+      await rises(tester, IqFigures.writer);
       expect(find.text('No open briefs right now'), findsOneWidget);
     });
 
@@ -722,36 +740,20 @@ void main() {
               category: Category.technology,
             ),
           );
-      await rises(tester);
+      await rises(tester, IqFigures.shrug);
       expect(find.text('No briefs match these filters'), findsOneWidget);
     });
 
-    testWidgets('reduced motion: it fades in over 150, standing still', (
-      tester,
-    ) async {
+    testWidgets('a failed load shows the Thinker', (tester) async {
       await pumpApp(
         tester,
         Routes.home,
-        repository: ScriptedRepository([BriefsCall.empty]),
+        repository: ScriptedRepository([BriefsCall.fail]),
+        reducedMotion: false,
         settle: false,
       );
-      for (var i = 0; i < 10; i++) {
-        await tester.pump();
-        if (find.byType(IqIllustration).evaluate().isNotEmpty) break;
-      }
-      await tester.pump();
-      await tester.pump(_ms * 75);
-      expect(pictures, findsOneWidget);
-      expect(
-        tester
-            .widget<Opacity>(
-              find.ancestor(of: pictures, matching: find.byType(Opacity)).first,
-            )
-            .opacity,
-        closeTo(_eo(0.5), 0.02),
-      );
-      await tester.pumpAndSettle();
-      expect(pictures, findsOneWidget);
+      await rises(tester, IqFigures.thinker);
+      expect(find.text('Couldn’t load briefs'), findsOneWidget);
     });
   });
 
@@ -777,12 +779,12 @@ void main() {
       }
       await tester.pump(frame);
       now += frame;
-      if (landed == null && find.text('Closing soon').evaluate().isNotEmpty) {
+      if (landed == null && find.text('Briefs').evaluate().isNotEmpty) {
         landed = now;
       }
       if (tip == null && _tipScrim(tester) > 0) {
         tip = now;
-        expect(find.byType(IqSkeleton), findsNothing);
+        expect(_skeletons, findsNothing);
         expect(_arriving(tester), isFalse);
       }
     }
@@ -805,11 +807,11 @@ void main() {
     );
     await tester.pump(_ms * 300);
     await tester.pump(_ms * 600);
-    expect(find.byType(IqSkeleton), findsWidgets);
+    expect(_skeletons, findsWidgets);
     expect(find.byType(IqTipCard), findsNothing);
     repository.first.complete(repository.data.briefs);
     await tester.pumpAndSettle();
-    expect(find.byType(IqSkeleton), findsNothing);
+    expect(_skeletons, findsNothing);
     expect(find.byType(IqTipCard), findsOneWidget);
   });
 

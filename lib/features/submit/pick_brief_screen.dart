@@ -55,11 +55,7 @@ List<Brief> pickList({
   );
   final seen = <String>{};
   return [
-    for (final brief in [
-      ...view.closingSoon,
-      for (final group in view.groups) ...group.briefs,
-      ...view.more.briefs,
-    ])
+    for (final brief in [...view.briefs.briefs, ...view.more.briefs])
       if (seen.add(brief.id)) brief,
   ];
 }
@@ -252,7 +248,7 @@ class _BriefCard extends StatelessWidget {
     final soon =
         left != null &&
         left > Duration.zero &&
-        left <= FeedRules.closingSoonWithin;
+        left <= DeadlineRules.closingSoon;
     return IqBriefCard(
       brand: brief.businessName ?? 'Private business',
       title: brief.title,
