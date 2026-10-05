@@ -17,6 +17,7 @@ import '../../ui/illustration.dart';
 import '../../ui/section_title.dart';
 import '../../ui/top_bar.dart';
 import '../discover/app_shell.dart';
+import '../drafts/drafts_entry.dart';
 import 'submission_widgets.dart';
 import 'submissions_routes.dart';
 import 'submissions_state.dart';
@@ -164,6 +165,7 @@ class _List extends StatelessWidget {
         AppShell.contentInset(context),
       ),
       children: [
+        const DraftsEntry(),
         for (final group in SubmissionGroup.values)
           if (data.group(group) case final items when items.isNotEmpty) ...[
             ArriveItem(
@@ -256,7 +258,7 @@ class _Empty extends StatelessWidget {
             label: 'Browse briefs',
             kind: IqButtonKind.secondary,
             showIcon: false,
-            onTap: () => context.go(Routes.home),
+            onTap: () => context.push(Routes.pickBrief),
           ),
         ],
       ),
