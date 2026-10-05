@@ -22,6 +22,9 @@ void main() {
       ),
       label: 'submissions-tab',
     );
+    await d.waitFor(find.text('Winners · 2'));
+    await d.settle(on: find.byType(MySubmissionsScreen));
+    await d.tap(find.text('Winners · 2'));
     await d.waitFor(find.text('Sunday is data day'));
     await d.settle(on: find.byType(MySubmissionsScreen));
     await d.hold(1.2);
