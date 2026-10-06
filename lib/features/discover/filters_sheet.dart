@@ -40,6 +40,7 @@ class _FiltersSheetState extends ConsumerState<FiltersSheet> {
       context,
       (context) =>
           OptionSheet(title: title, options: options, selected: selected),
+      hug: true,
     );
     if (value != null && mounted) setState(() => onPicked(value));
   }
