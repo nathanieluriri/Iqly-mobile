@@ -11,7 +11,12 @@ enum IqBrandHeaderLayout { centered, leading }
 /// logo floats in the middle of the photo edge) and the full-screen poll
 /// page (Leading: the logo moves left beside the business name).
 ///
-/// [brand] is the Figma prop name; it holds the business name.
+/// [brand] is the Figma prop name; it holds the business name. A detail
+/// longer than a line (the done line, 480:22679) wraps to a second rather
+/// than being cut, and the header grows to hold it.
+///
+/// Figma 480:22679 runs the done line on one line past the sheet's 16 pt
+/// margins; here it wraps inside them.
 class IqBrandHeader extends StatelessWidget {
   const IqBrandHeader({
     super.key,
@@ -34,8 +39,8 @@ class IqBrandHeader extends StatelessWidget {
   }
 
   Widget _centered() {
-    return SizedBox(
-      height: 207,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 207),
       child: Column(
         children: [
           LayoutBuilder(
@@ -59,8 +64,9 @@ class IqBrandHeader extends StatelessWidget {
           const SizedBox(height: IqSpace.s0p5),
           Text(
             detail,
-            maxLines: 1,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
             style: IqText.small.copyWith(color: IqColors.fg2),
           ),
         ],
@@ -69,8 +75,8 @@ class IqBrandHeader extends StatelessWidget {
   }
 
   Widget _leading() {
-    return SizedBox(
-      height: 288,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 288),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -97,7 +103,7 @@ class IqBrandHeader extends StatelessWidget {
                 ),
                 Text(
                   detail,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: IqText.small.copyWith(color: IqColors.fg2),
                 ),
