@@ -30,6 +30,7 @@ class IqListRow extends StatelessWidget {
     this.showChevron = true,
     this.icon,
     this.tone = IqListRowTone.standard,
+    this.descriptionMaxLines = 2,
     this.onTap,
   });
 
@@ -42,6 +43,10 @@ class IqListRow extends StatelessWidget {
   final bool showChevron;
   final IqIcons? icon;
   final IqListRowTone tone;
+
+  /// Not a Figma prop: Result · Not selected truncates its Your submission
+  /// row to one line (designer doc rev 57).
+  final int descriptionMaxLines;
   final VoidCallback? onTap;
 
   @override
@@ -97,7 +102,7 @@ class IqListRow extends StatelessWidget {
                           const SizedBox(height: 1),
                           Text(
                             description,
-                            maxLines: 2,
+                            maxLines: descriptionMaxLines,
                             overflow: TextOverflow.ellipsis,
                             style: IqText.small.copyWith(color: IqColors.fg3),
                           ),

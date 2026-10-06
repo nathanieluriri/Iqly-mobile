@@ -424,9 +424,12 @@ class _WinnerViewState extends ConsumerState<WinnerView>
 
 /// B13 · Result · Not selected (193:9681), calm: the parts settle in with
 /// the push and the business's note bubble arrives at +200 (MOTION-SPEC
-/// §5.33); no haptic. The note is a proposal behind Flags.businessNote. See
-/// what won opens the leaderboard, the For you ticket its brief, and Find
-/// your next brief the For you feed.
+/// §5.33); no haptic. The note is a proposal behind Flags.businessNote. No
+/// answer text (designer doc rev 57): Your submission is one truncated row
+/// that pushes Submission detail. See what won opens the leaderboard, the
+/// For you ticket its brief, and Find your next brief the For you feed.
+///
+/// Doc over Figma: the frame wraps the row's line in two; the doc says one.
 ///
 /// Figma: the eyebrow is the entry's title ("ONE COUNTER FOR QUICK JOBS");
 /// the "Not selected" Highlight in the status row is hidden.
@@ -470,15 +473,18 @@ class NotSelectedView extends ConsumerWidget {
                     ),
                   ),
                   settle(
-                    const IqSectionTitle(
-                      title: 'Your answer',
-                      showCount: false,
-                      showLink: false,
+                    RowCard(
+                      child: IqListRow(
+                        label: 'Your submission',
+                        description: data.item.submission.body,
+                        descriptionMaxLines: 1,
+                        icon: IqIcons.document,
+                        divider: false,
+                        onTap: () => context.push(submissionPath(data.item.id)),
+                      ),
                     ),
                   ),
-                  settle(_Bubble(text: data.item.submission.body)),
                   if (note != null) ...[
-                    const SizedBox(height: IqSpace.s2),
                     settle(
                       const IqSectionTitle(
                         title: 'A note from the business',
@@ -550,7 +556,7 @@ class NotSelectedView extends ConsumerWidget {
   ];
 }
 
-/// A card bubble (193:9681): card fill, 1 line, radius 16, 12 by 14.
+/// The note's card bubble (193:9681): card fill, 1 line, radius 16, 12 by 14.
 class _Bubble extends StatelessWidget {
   const _Bubble({required this.text});
 
