@@ -20,11 +20,14 @@ import 'outcomes_state.dart';
 import 'result_screen.dart';
 
 /// B13 · Leaderboard (193:9779) and Leaderboard · not selected (225:10747):
-/// the brief, "Top 5 of 48 submissions", the podium, the other paid places
-/// and, when you were not paid, the pool and your row. The rows arrive 40 apart,
-/// the cutoff line draws in on its turn and the contributor's orange rank
-/// disc pops at its row's arrival + 120 (MOTION-SPEC §5.33). Open the brief
-/// goes to Brief detail.
+/// the brief, "48 submissions, ranked", the podium, then every rank from
+/// fourth down in one scrolling list with your row highlighted in place;
+/// amounts only on paid ranks (designer doc rev 57). The rows arrive 40
+/// apart and the contributor's orange rank disc pops at its row's arrival
+/// + 120 (MOTION-SPEC §5.33). Open the brief goes to Brief detail.
+///
+/// Figma over the component: the frames ink every rank disc orange; the
+/// kit keeps the orange disc for your row, which is what marks it.
 class LeaderboardScreen extends ConsumerWidget {
   const LeaderboardScreen({super.key, required this.id});
 
@@ -149,56 +152,26 @@ class _Board extends StatelessWidget {
     );
   }
 
-  List<Widget> _items() {
-    var slot = 0;
-    return [
-      for (final (i, item) in board.items.indexed) ...[
-        if (i > 0) const SizedBox(height: IqLeaderboardRow.gap),
-        if (item is BoardCutoff)
-          _item(item, slot)
-        else
-          StaggerItem(index: slot, child: _item(item, slot++)),
-      ],
-    ];
-  }
+  List<Widget> _items() => [
+    for (final (i, row) in board.rows.indexed) ...[
+      if (i > 0) const SizedBox(height: IqLeaderboardRow.gap),
+      StaggerItem(index: i, child: _row(row, i)),
+    ],
+  ];
 
-  Widget _item(BoardItem item, int index) => switch (item) {
-    BoardRow(:final entry, :final you) => MergeSemantics(
-      child: IqLeaderboardRow(
-        rank: '${entry.rank}',
-        name: entry.name,
-        entry: entry.entry,
-        amount: entry.amountKobo == null ? '' : naira(entry.amountKobo!),
-        showAmount: entry.amountKobo != null,
-        state: you ? IqLeaderboardRowState.you : IqLeaderboardRowState.standard,
-        rankDelay: you && index < Stagger.moving
-            ? IqDurations.stagger * index + IqDurations.chain
-            : null,
-      ),
+  Widget _row(BoardRow row, int index) => MergeSemantics(
+    child: IqLeaderboardRow(
+      rank: '${row.entry.rank}',
+      name: row.entry.name,
+      entry: row.entry.entry,
+      amount: row.entry.amountKobo == null ? '' : naira(row.entry.amountKobo!),
+      showAmount: row.entry.amountKobo != null,
+      state: row.you
+          ? IqLeaderboardRowState.you
+          : IqLeaderboardRowState.standard,
+      rankDelay: row.you && index < Stagger.moving
+          ? IqDurations.stagger * index + IqDurations.chain
+          : null,
     ),
-    BoardCutoff() => SizedBox(
-      height: 40,
-      child: Center(
-        child: Wipe(
-          delay: IqDurations.stagger * index,
-          child: Text(
-            item.label,
-            textAlign: TextAlign.center,
-            style: IqText.small.copyWith(color: IqColors.fg2),
-          ),
-        ),
-      ),
-    ),
-    BoardGap() => SizedBox(
-      height: 28,
-      child: Center(
-        child: ExcludeSemantics(
-          child: Text(
-            '· · ·',
-            style: IqText.small.copyWith(color: IqColors.fg2),
-          ),
-        ),
-      ),
-    ),
-  };
+  );
 }

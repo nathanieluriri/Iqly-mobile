@@ -222,7 +222,7 @@ void main() {
 
       await _tap(tester, find.text('See the leaderboard'));
       expect(find.byType(LeaderboardScreen), findsOneWidget);
-      expect(find.text('Top 5 of 48 submissions'), findsOneWidget);
+      expect(find.text('48 submissions, ranked'), findsOneWidget);
       expect(find.text('₦175k'), findsOneWidget);
       expect(find.text('₦400,000 shared by the winners'), findsNothing);
       final you = tester.widget<IqLeaderboardRow>(
@@ -298,9 +298,29 @@ void main() {
       await _tap(tester, find.text('See what won'));
       expect(find.byType(LeaderboardScreen), findsOneWidget);
       expect(find.text('One counter for quick jobs'), findsNWidgets(2));
-      expect(find.text('Top 4 of 36 submissions'), findsOneWidget);
-      expect(find.text('₦350,000 shared by the winners'), findsOneWidget);
-      expect(find.text('· · ·'), findsOneWidget);
+      expect(find.text('36 submissions, ranked'), findsOneWidget);
+      expect(find.text('₦350,000 shared by the winners'), findsNothing);
+      expect(find.text('· · ·'), findsNothing);
+      final rows = tester
+          .widgetList<IqLeaderboardRow>(
+            find.byType(IqLeaderboardRow, skipOffstage: false),
+          )
+          .toList();
+      expect(
+        [for (final r in rows) r.rank],
+        [for (var rank = 4; rank <= 12; rank++) '$rank'],
+      );
+      expect(
+        [
+          for (final r in rows)
+            if (r.state == IqLeaderboardRowState.you) r.rank,
+        ],
+        ['9'],
+      );
+      expect(
+        [for (final r in rows) r.showAmount],
+        [true, for (var rank = 5; rank <= 12; rank++) false],
+      );
       await _tap(tester, find.bySemanticsLabel('Back'));
       expect(find.byType(NotSelectedView), findsOneWidget);
 
