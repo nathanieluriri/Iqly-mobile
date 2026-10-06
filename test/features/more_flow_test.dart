@@ -241,6 +241,32 @@ void main() {
     expect(find.text('Chat with iQLY support'), findsOneWidget);
   });
 
+  testWidgets('Help: coming back from what the search led to leaves the '
+      'keyboard down', (tester) async {
+    bool searching() => tester
+        .widget<EditableText>(find.byType(EditableText))
+        .focusNode
+        .hasFocus;
+    await pumpMore(tester, Routes.helpCentre);
+    await tester.showKeyboard(find.byType(EditableText));
+    await tester.enterText(find.byType(EditableText), 'withdraw');
+    await tester.pumpAndSettle();
+    expect(searching(), isTrue);
+    await _tap(tester, find.text('Why did my withdrawal fail?'));
+    await _tap(tester, find.text('Still stuck? Chat with us'));
+    expect(_path(tester), Routes.support);
+    await _back(tester);
+    expect(_path(tester), Routes.helpCentre);
+    expect(searching(), isFalse);
+
+    await tester.showKeyboard(find.byType(EditableText));
+    await tester.pumpAndSettle();
+    await _tap(tester, find.text('Report an issue'));
+    await _back(tester);
+    expect(_path(tester), Routes.helpCentre);
+    expect(searching(), isFalse);
+  });
+
   testWidgets('Report sent holds still under the keyboard left over from '
       'the report', (tester) async {
     await pumpMore(tester, Routes.helpCentre);

@@ -45,20 +45,32 @@ class _HelpCentreScreenState extends State<HelpCentreScreen> {
     super.dispose();
   }
 
-  void _open(Faq faq) => showIqSheet<void>(
-    context,
-    (sheet) => Material(
-      type: MaterialType.transparency,
-      child: _AnswerSheet(
-        faq: faq,
-        onChat: () {
-          Navigator.of(sheet).pop();
-          context.push(Routes.support);
-        },
+  /// Puts the keyboard away before the search leads elsewhere, so coming
+  /// back does not bring it up again.
+  void _leave() => FocusManager.instance.primaryFocus?.unfocus();
+
+  void _push(String location) {
+    _leave();
+    context.push(location);
+  }
+
+  void _open(Faq faq) {
+    _leave();
+    showIqSheet<void>(
+      context,
+      (sheet) => Material(
+        type: MaterialType.transparency,
+        child: _AnswerSheet(
+          faq: faq,
+          onChat: () {
+            Navigator.of(sheet).pop();
+            context.push(Routes.support);
+          },
+        ),
       ),
-    ),
-    scrim: IqScrim.sheet,
-  );
+      scrim: IqScrim.sheet,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -102,14 +114,14 @@ class _HelpCentreScreenState extends State<HelpCentreScreen> {
             label: 'Chat with us',
             description: DemoHelp.replyLine,
             icon: IqIcons.chat,
-            onTap: () => context.push(Routes.support),
+            onTap: () => _push(Routes.support),
           ),
           IqListRow(
             label: 'Report an issue',
             description: 'Payments, a brief, or the app',
             icon: IqIcons.flag,
             divider: false,
-            onTap: () => context.push(Routes.reportIssue),
+            onTap: () => _push(Routes.reportIssue),
           ),
         ],
       ),
