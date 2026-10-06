@@ -80,9 +80,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         .read(authServiceProvider)
         .signIn(email: _email.text, password: _password.controller.text);
     if (!mounted) return;
-    setState(() => _busy = false);
     final failure = result.failure;
-    if (failure != null) return _fail(EntryCopy.signIn(failure));
+    if (failure != null) {
+      setState(() => _busy = false);
+      return _fail(EntryCopy.signIn(failure));
+    }
     await completeSignIn(ref, newAccount: false);
     if (!mounted) return;
     FocusManager.instance.primaryFocus?.unfocus();

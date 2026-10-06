@@ -75,8 +75,8 @@ class _PasswordScreenState extends ConsumerState<PasswordScreen> {
           inviteCode: ref.read(pendingInviteProvider)?.code,
         );
     if (!mounted) return;
-    setState(() => _busy = false);
     final failure = result.failure;
+    if (failure != null) setState(() => _busy = false);
     if (failure == AuthFailure.emailTaken) {
       context.go(Routes.signIn);
       return;

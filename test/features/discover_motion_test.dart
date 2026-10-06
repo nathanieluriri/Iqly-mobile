@@ -246,6 +246,111 @@ void main() {
     );
   });
 
+  group('the skeleton hands over to the final layout', () {
+    /// The most shown copy of [text]: its opacity and top, or null.
+    (double, double)? seen(WidgetTester tester, String text) {
+      (double, double)? best;
+      final finder = find.text(text);
+      for (var i = 0; i < finder.evaluate().length; i++) {
+        final one = finder.at(i);
+        final shown = _shown(tester, one);
+        if (best == null || shown > best.$1) best = (shown, _top(tester, one));
+      }
+      return best;
+    }
+
+    /// Lands the load with [land], then steps through the hand-over a frame
+    /// at a time: once a text of [texts] is fully shown it never fades or
+    /// moves, and it first shows within a rise of where it settles.
+    Future<void> holds(
+      WidgetTester tester,
+      List<String> texts, {
+      required VoidCallback land,
+    }) async {
+      final first = <String, double>{};
+      final settled = <String, double>{};
+      void sample() {
+        for (final text in texts) {
+          final now = seen(tester, text);
+          if (now == null || now.$1 <= 0.01) {
+            expect(settled[text], isNull, reason: '$text dropped out');
+            continue;
+          }
+          first[text] ??= now.$2;
+          final at = settled[text];
+          if (at != null) {
+            expect(now.$1, greaterThan(0.99), reason: '$text dipped');
+            expect(now.$2, closeTo(at, 0.5), reason: '$text moved');
+          } else if (now.$1 > 0.99) {
+            settled[text] = now.$2;
+          }
+        }
+      }
+
+      sample();
+      land();
+      for (var frame = 0; frame < 90; frame++) {
+        await tester.pump(_ms * 16);
+        sample();
+      }
+      for (final text in texts) {
+        final end = seen(tester, text)!;
+        expect(end.$1, greaterThan(0.99));
+        expect(
+          (end.$2 - first[text]!).abs(),
+          lessThanOrEqualTo(IqTravel.riseCard + 0.5),
+          reason: '$text jumped from ${first[text]} to ${end.$2}',
+        );
+      }
+    }
+
+    testWidgets('Activations late: nothing is inserted above the skeleton', (
+      tester,
+    ) async {
+      final activations = _LateActivations();
+      await pumpApp(
+        tester,
+        Routes.home,
+        activations: activations,
+        reducedMotion: false,
+        settle: false,
+      );
+      await tester.pump(_ms * 300);
+      await tester.pump();
+      expect(_skeletons, findsNWidgets(2));
+      await tester.pump(_ms * 600);
+      await holds(tester, [
+        'Quick polls',
+        'Activations',
+        'Briefs',
+      ], land: () => activations.list.complete(DemoActivations(figmaNow).all));
+    });
+
+    testWidgets('proposals in first: they stand still while the cards fade', (
+      tester,
+    ) async {
+      final repository = _Controlled(holdFirst: true);
+      await pumpApp(
+        tester,
+        Routes.home,
+        repository: repository,
+        reducedMotion: false,
+        settle: false,
+      );
+      await tester.pump(_ms * 100);
+      await tester.pump(_ms * 200);
+      await tester.pump();
+      expect(_skeletons, findsWidgets);
+      expect(seen(tester, 'Quick polls')!.$1, 1);
+      await tester.pump(_ms * 600);
+      await holds(tester, [
+        'Quick polls',
+        'Activations',
+        'Briefs',
+      ], land: () => repository.first.complete(repository.data.briefs));
+    });
+  });
+
   testWidgets('pull to refresh in one slot: fade, arm, hold, Done, close', (
     tester,
   ) async {

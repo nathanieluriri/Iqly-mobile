@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:iqly_mobile/core/motion.dart';
 import 'package:iqly_mobile/data/auth.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
@@ -190,6 +191,36 @@ void main() {
     expect(start - rest, lessThan(banner * 0.2));
     expect(mid - rest, closeTo(banner * _eo(0.5), banner * 0.1));
     expect(haptics, [_light, _medium]);
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('Sign in keeps its spinner while Discover dissolves in over '
+      'it', (tester) async {
+    await bootApp(
+      tester,
+      start: Routes.signIn,
+      reduced: false,
+      auth: _SlowAuth(),
+      prepare: (c) =>
+          c.read(entryDraftProvider.notifier).setEmail(DemoData.user.email),
+    );
+    await tester.pumpAndSettle();
+    await typeInto(tester, 1, DemoAuthService.password);
+    await tester.tap(find.byType(IqButton));
+    await tester.pump();
+    final signIn = find.byType(SignInScreen, skipOffstage: false);
+    var handedOver = false;
+    for (var frame = 0; frame < 80 && signIn.evaluate().isNotEmpty; frame++) {
+      await tester.pump(_ms * 16);
+      if (signIn.evaluate().isEmpty) break;
+      final button = tester.widget<IqButton>(
+        find.descendant(of: signIn, matching: find.byType(IqButton)),
+      );
+      expect(button.loading, isTrue, reason: 'frame $frame');
+      handedOver |=
+          GoRouter.of(tester.element(signIn)).state.uri.path == Routes.home;
+    }
+    expect(handedOver, isTrue);
     await tester.pumpAndSettle();
   });
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/features/onboarding/onboarding_sheets.dart';
 import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/features/discover/brief_detail_screen.dart';
 import 'package:iqly_mobile/features/discover/discover_state.dart';
@@ -121,6 +122,24 @@ void main() {
     await _tap(tester, find.text('For you'));
     expect(find.byType(HomeScreen), findsOneWidget);
     semantics.dispose();
+  });
+
+  testWidgets('Filters: a picker rises over the sheet as tall as its rows, '
+      'leaving Filters showing above it', (tester) async {
+    await pumpApp(tester, Routes.home, overrides: discoverOverrides());
+    await _openFilters(tester);
+    final filtersTop = tester.getTopLeft(find.byType(FiltersSheet)).dy;
+    await _tap(tester, find.text('My interests first'));
+    final sort = find.ancestor(
+      of: find.text('Biggest reward'),
+      matching: find.byType(OptionSheet),
+    );
+    expect(tester.getTopLeft(sort).dy, greaterThan(filtersTop));
+    expect(find.text('Filters').hitTestable(), findsNothing);
+    expect(find.text('Filters'), findsOneWidget);
+    await _tap(tester, find.text('Biggest reward'));
+    expect(find.byType(OptionSheet), findsNothing);
+    expect(tester.getTopLeft(find.byType(FiltersSheet)).dy, filtersTop);
   });
 
   testWidgets('Discover: filters, All, load more, end of list, tabs', (
