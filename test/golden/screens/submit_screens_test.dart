@@ -121,6 +121,17 @@ void main() {
     );
   });
 
+  testWidgets('brief sheet (547:24763)', (tester) async {
+    await _golden(
+      tester,
+      'submit_brief_sheet',
+      act: (tester) async {
+        await _write(tester, SubmitCopy.answer);
+        await _tap(tester, 'View the brief');
+      },
+    );
+  });
+
   testWidgets('leave without sending? (481:21364)', (tester) async {
     await _golden(
       tester,

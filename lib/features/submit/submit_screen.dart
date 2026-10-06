@@ -19,6 +19,7 @@ import '../drafts/draft_sheets.dart';
 import '../drafts/drafts_state.dart';
 import '../submissions/submissions_routes.dart';
 import '../submissions/submissions_state.dart';
+import 'brief_sheet.dart';
 import 'submit_sent.dart';
 import 'submit_state.dart';
 import 'submit_steps.dart';
@@ -260,7 +261,8 @@ class _FlowState extends ConsumerState<_Flow> {
 
 /// The steps under the pinned thread (form-status: 8 above and below) and
 /// over the action bar: Continue on step 1, Submit on the last step,
-/// disabled until every question is answered (#37).
+/// disabled until every question is answered (#37), then View the brief,
+/// which opens the brief sheet over the draft (designer doc rev 57).
 class _Form extends StatelessWidget {
   const _Form({
     super.key,
@@ -331,6 +333,13 @@ class _Form extends StatelessWidget {
                 disabled: sends && form.hasQuestions && !canSend,
                 onTap: sends ? onSend : onContinue,
               ),
+            ),
+            IqButton(
+              label: 'View the brief',
+              kind: IqButtonKind.ghost,
+              showIcon: false,
+              width: double.infinity,
+              onTap: () => showBriefSheet(context, brief),
             ),
           ],
         ),
