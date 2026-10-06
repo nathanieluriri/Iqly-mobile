@@ -16,7 +16,6 @@ import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/brief_card.dart';
 import '../../ui/button.dart';
-import '../../ui/dock.dart';
 import '../../ui/icon.dart';
 import '../../ui/illustration.dart';
 import '../../ui/list_row.dart';
@@ -73,7 +72,6 @@ class _MySubmissionsScreenState extends ConsumerState<MySubmissionsScreen> {
       _retrying = false;
       if (next.hasError) IqHaptics.error.play();
     });
-    scrollToTopOnRetap(ref, context, IqDockActive.submissions, _scroll);
     final state = ref.watch(mySubmissionsProvider);
     final unread = ref.watch(unreadNotificationsProvider).value ?? 0;
     final data = state.value;

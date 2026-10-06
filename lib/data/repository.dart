@@ -4,6 +4,7 @@ import 'demo_data.dart';
 import 'drafts_data.dart';
 import 'models.dart';
 import 'notifications_service.dart';
+import 'points_data.dart';
 
 /// Why briefs are being loaded. The Discover feed loads cold, pull to
 /// refresh skips any cache and [nextPage] is the page the feed asks for as
@@ -25,6 +26,13 @@ abstract class IqlyRepository {
   /// Every saved payout account, the default first.
   Future<List<SavedBank>> savedBanks();
   Future<int> unreadNotifications();
+
+  /// The contributor's iQL points, shown on the pass. Illustrative until the
+  /// API has an endpoint for them.
+  Future<int> points();
+
+  /// The general iQL points leaderboard for the current month.
+  Future<PointsBoard> pointsLeaderboard();
 
   /// Behind Flags.activations.
   Future<ActivationsSummary> activationsSummary();
@@ -127,6 +135,12 @@ class DemoRepository implements IqlyRepository {
 
   @override
   Future<int> unreadNotifications() async => DemoData.unreadNotifications;
+
+  @override
+  Future<int> points() async => DemoData.points;
+
+  @override
+  Future<PointsBoard> pointsLeaderboard() async => data.pointsBoard;
 
   @override
   Future<ActivationsSummary> activationsSummary() async => DemoData.activations;

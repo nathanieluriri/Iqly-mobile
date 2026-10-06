@@ -400,39 +400,36 @@ void main() {
     for (final id in ['s2', 's5']) {
       final result = _result(id);
       final board = Leaderboard.of(result)!;
+      final all = [...board.podium, ...board.rows];
       final paid = [
-        for (final item in [...board.podium, ...board.items])
-          if (item is BoardRow && item.entry.amountKobo != null)
-            item.entry.amountKobo!,
+        for (final row in all)
+          if (row.entry.amountKobo != null) row.entry.amountKobo!,
       ];
       final brief = data.briefs.firstWhere(
         (b) => b.id == result.item.submission.briefId,
       );
       expect(paid.fold(0, (a, b) => a + b), brief.rewardPoolKobo, reason: id);
-      expect(board.paid, paid.length);
       expect(board.podium, hasLength(3));
+      expect(
+        [for (final row in all) row.entry.rank],
+        [for (var rank = 1; rank <= all.length; rank++) rank],
+        reason: '$id lists every rank in order',
+      );
+      expect(all.where((r) => r.you), hasLength(1));
     }
-    final missedCutoff = Leaderboard.of(_result('s5'))!.items
-        .whereType<BoardCutoff>()
-        .single;
-    expect(
-      missedCutoff.poolKobo,
-      data.briefs.firstWhere((b) => b.id == 'c7').rewardPoolKobo,
-    );
-    expect(missedCutoff.label, '₦350,000 shared by the winners');
     final winner = Leaderboard.of(_result('s2'))!;
-    expect(winner.items.whereType<BoardCutoff>(), isEmpty);
     expect(winner.eyebrow, 'Why do Lagosians skip mobile banking on Sundays?');
-    final you = winner.items.whereType<BoardRow>().singleWhere((r) => r.you);
+    final you = winner.rows.singleWhere((r) => r.you);
     final award = data.ledger.singleWhere((l) => l.submissionId == 's2');
     expect(you.entry.amountKobo, award.amountKobo);
     expect(you.entry.rank, 5);
-    expect(winner.title, 'Top 5 of 48 submissions');
+    expect(winner.title, '48 submissions, ranked');
 
     final missed = Leaderboard.of(_result('s5'))!;
-    expect(missed.items.whereType<BoardGap>(), hasLength(1));
+    expect(missed.title, '36 submissions, ranked');
     expect(missed.eyebrow, 'One counter for quick jobs');
-    final mine = missed.items.whereType<BoardRow>().singleWhere((r) => r.you);
+    final mine = missed.rows.singleWhere((r) => r.you);
+    expect(mine.entry.rank, 9);
     expect(mine.entry.amountKobo, isNull);
     expect(mine.entry.entry, 'One counter for quick jobs');
     expect(

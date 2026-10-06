@@ -273,7 +273,7 @@ void main() {
     expect(haptics, ['HapticFeedbackType.mediumImpact']);
   });
 
-  testWidgets('tapping the lit tab at its root scrolls the list to the top', (
+  testWidgets('the lit tab is inert: tapping it leaves the list where it is', (
     tester,
   ) async {
     final container = await pumpApp(
@@ -290,11 +290,9 @@ void main() {
     expect(list.maxScrollExtent, greaterThan(0));
     list.jumpTo(list.maxScrollExtent);
     await tester.pump();
+    final end = list.pixels;
     await tester.tap(_tab);
-    await tester.pump();
-    await tester.pump(_ms * 150);
-    expect(list.pixels, greaterThan(0));
     await tester.pumpAndSettle();
-    expect(list.pixels, 0);
+    expect(list.pixels, end);
   });
 }

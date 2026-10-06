@@ -637,7 +637,7 @@ void main() {
     expect(haptics, ['HapticFeedbackType.mediumImpact']);
   });
 
-  testWidgets('tapping the lit tab at its root scrolls the feed to the top', (
+  testWidgets('the lit tab is inert: tapping it leaves the feed where it is', (
     tester,
   ) async {
     final haptics = recordHaptics(tester);
@@ -647,12 +647,8 @@ void main() {
     await tester.tap(
       find.descendant(of: find.byType(IqDock), matching: find.text('Discover')),
     );
-    await tester.pump();
-    await tester.pump(_ms * 150);
-    expect(_feed(tester).pixels, greaterThan(0));
-    expect(_feed(tester).pixels, lessThan(800));
     await tester.pumpAndSettle();
-    expect(_feed(tester).pixels, 0);
+    expect(_feed(tester).pixels, 800);
     expect(haptics, isEmpty);
   });
 

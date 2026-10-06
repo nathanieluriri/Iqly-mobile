@@ -14,6 +14,9 @@ String naira(int kobo, {bool decimals = true}) {
 
 String rewardPool(int kobo) => naira(kobo, decimals: false);
 
+/// A count with thousands separators: iQL points read "1,240".
+String wholeNumber(int n) => _whole.format(n);
+
 /// A pool on a card's reward chip: whole thousands as "₦150k", whole
 /// millions as "₦1m", smaller amounts in full ("₦500"). Never decimals.
 String rewardShort(int kobo) {

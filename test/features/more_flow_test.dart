@@ -3,9 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/referrals_service.dart';
+import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/entry/landing_screen.dart';
 import 'package:iqly_mobile/features/more/more_screen.dart';
+import 'package:iqly_mobile/features/outcomes/points_leaderboard_screen.dart';
 import 'package:iqly_mobile/features/more/more_state.dart';
 import 'package:iqly_mobile/features/profile/profile_routes.dart';
 import 'package:iqly_mobile/features/profile/your_details_screen.dart';
@@ -14,9 +17,12 @@ import 'package:iqly_mobile/features/wallet/wallet_state.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/dock.dart';
+import 'package:iqly_mobile/ui/icon.dart';
+import 'package:iqly_mobile/ui/quick_action.dart';
 import 'package:iqly_mobile/ui/top_bar.dart';
 
 import '../golden/golden.dart' show loadAppFonts;
+import '../golden/screens/app_harness.dart' show figmaNow;
 import '../golden/screens/more_harness.dart';
 import '../golden/screens/profile_harness.dart';
 
@@ -55,7 +61,7 @@ void main() {
 
     for (final (label, path) in [
       ('Your details', Routes.yourDetails),
-      ('Notifications', Routes.notifications),
+      ('Leaderboard', Routes.pointsLeaderboard),
       ('Help centre', Routes.helpCentre),
       ('Terms and conditions', Routes.terms),
     ]) {
@@ -66,6 +72,39 @@ void main() {
       expect(_path(tester), Routes.more);
       expect(find.byType(IqDock), findsOneWidget);
     }
+  });
+
+  testWidgets('the Leaderboard quick link replaces Notifications; the bell '
+      'still opens notifications and the pass points open the leaderboard', (
+    tester,
+  ) async {
+    await pumpMore(tester, Routes.more);
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is IqQuickAction && w.label == 'Notifications',
+      ),
+      findsNothing,
+    );
+    final link = tester.widget<IqQuickAction>(
+      find.byWidgetPredicate(
+        (w) => w is IqQuickAction && w.label == 'Leaderboard',
+      ),
+    );
+    expect(link.icon, IqIcons.trophy);
+
+    await _tap(tester, find.bySemanticsLabel(RegExp('Notifications')));
+    expect(_path(tester), Routes.notifications);
+    await _back(tester);
+
+    await _tap(tester, find.text('1,240'));
+    expect(_path(tester), Routes.pointsLeaderboard);
+    expect(find.byType(PointsLeaderboardScreen), findsOneWidget);
+    expect(find.byType(IqDock), findsNothing);
+    await _back(tester);
+    expect(_path(tester), Routes.more);
+
+    await _tap(tester, find.text('Adaeze Okafor'));
+    expect(_path(tester), Routes.profile);
   });
 
   testWidgets('the first visit shows the pass and invite card as a '
@@ -98,8 +137,18 @@ void main() {
     expect(wallet.totals.withdrawableKobo, 1500000);
     expect(referralEarnedKobo(wallet.ledger), 100000);
     expect(find.text('₦65,000.00'), findsOneWidget);
-    expect(find.text('Volt Riders'), findsOneWidget);
+    expect(find.text('IQL POINTS'), findsOneWidget);
+    expect(find.text('1,240'), findsOneWidget);
+    expect(find.text('LAST WIN'), findsNothing);
     expect(find.text('3 joined'), findsOneWidget);
+  });
+
+  testWidgets('the pass reads iQL points through the repository', (
+    tester,
+  ) async {
+    await pumpMore(tester, Routes.more, repository: _PointsRepository(98765));
+    expect(find.text('98,765'), findsOneWidget);
+    expect(await DemoRepository(DemoData(now: figmaNow)).points(), 1240);
   });
 
   testWidgets('Edit · Interests saves at two or more and Your details reads '
@@ -318,4 +367,13 @@ void main() {
     await _tap(tester, find.text('Back to Help'));
     expect(_path(tester), Routes.helpCentre);
   });
+}
+
+class _PointsRepository extends DemoRepository {
+  _PointsRepository(this._points) : super(DemoData(now: figmaNow));
+
+  final int _points;
+
+  @override
+  Future<int> points() async => _points;
 }

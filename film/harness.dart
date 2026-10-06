@@ -257,6 +257,19 @@ class Director {
     );
   }
 
+  /// Taps [at] in screen points (390 x 844), for a scrim with nothing to
+  /// find.
+  Future<void> tapAt(Offset at, {required String label}) async {
+    final point = _screenOrigin + at;
+    final gesture = await tester.createGesture();
+    await _touch(
+      point,
+      _slug(label),
+      press: () => gesture.down(point, timeStamp: _clock),
+      release: () => gesture.up(timeStamp: _clock),
+    );
+  }
+
   /// Holds a finger on the one hit-testable widget [finder] matches for
   /// [seconds], past the long-press deadline, then lifts.
   Future<void> longPress(

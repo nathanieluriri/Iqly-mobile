@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/flags.dart';
+import '../../core/money.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../data/cache_service.dart';
@@ -23,7 +24,6 @@ import '../../ui/sample_avatar.dart';
 import '../../ui/section_title.dart';
 import '../../ui/skeleton.dart';
 import '../../ui/top_bar.dart';
-import '../../ui/dock.dart';
 import '../discover/app_shell.dart';
 import '../profile/profile_state.dart';
 import '../referrals/referrals_screen.dart';
@@ -71,7 +71,6 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
 
   @override
   Widget build(BuildContext context) {
-    scrollToTopOnRetap(ref, context, IqDockActive.more, _scroll);
     final unread = ref.watch(unreadNotificationsProvider).value ?? 0;
     final pass = ref.watch(contributorPassProvider).value;
     final cache = ref.watch(cacheProvider).value;
@@ -94,12 +93,14 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
                         child: IqAchievementCard(
                           name: pass.user.name,
                           amount: pass.earned,
-                          secondary: pass.lastWin,
+                          secondary: wholeNumber(pass.points),
                           field1: pass.since,
                           field2: '${pass.submissions}',
                           field3: '${pass.wins}',
                           code: pass.code,
                           avatar: const IqSampleAvatar(size: 44),
+                          onSecondaryTap: () =>
+                              context.push(Routes.pointsLeaderboard),
                         ),
                       ),
                     ),
@@ -142,9 +143,9 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
               () => context.push(Routes.moreSavedBriefs),
             ),
           (
-            IqIcons.bell,
-            'Notifications',
-            () => context.push(Routes.notifications),
+            IqIcons.trophy,
+            'Leaderboard',
+            () => context.push(Routes.pointsLeaderboard),
           ),
           (IqIcons.bank, 'Bank account', () => context.push(Routes.selectBank)),
           (

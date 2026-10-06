@@ -67,6 +67,9 @@ class Outcome {
 /// pool is 350,000 (DemoData), so the same 40/30/20/10 split is kept on
 /// 350,000.
 ///
+/// Both boards list ranks 4 to 12 as 193:9779 and 225:10747 draw them; a
+/// live board lists every rank the API returns.
+///
 /// s3: the business has not published a leaderboard.
 abstract final class OutcomesDemo {
   static Outcome? of(String submissionId, DateTime now) =>
@@ -106,6 +109,32 @@ abstract final class OutcomesDemo {
               name: 'Anonymous',
               entry: 'Sunday is church day',
             ),
+            LeaderboardEntry(
+              rank: 7,
+              name: 'Bola A.',
+              entry: 'No bank, no stress',
+            ),
+            LeaderboardEntry(
+              rank: 8,
+              name: 'Amaka O.',
+              entry: 'Sunday balance check',
+            ),
+            LeaderboardEntry(
+              rank: 9,
+              name: 'Emeka U.',
+              entry: 'Rest day for your money',
+            ),
+            LeaderboardEntry(
+              rank: 10,
+              name: 'Funke A.',
+              entry: 'Pay Monday, not Sunday',
+            ),
+            LeaderboardEntry(rank: 11, name: 'Anonymous', entry: 'Slow Sunday'),
+            LeaderboardEntry(
+              rank: 12,
+              name: 'Ifeoma N.',
+              entry: 'Network goes to church too',
+            ),
           ],
         ),
         's3' => const Outcome(
@@ -141,6 +170,41 @@ abstract final class OutcomesDemo {
               name: 'Ngozi E.',
               entry: 'A quick-jobs lane',
               amountKobo: 3500000,
+            ),
+            LeaderboardEntry(
+              rank: 5,
+              name: 'Chiamaka O.',
+              entry: 'Two tellers, one queue',
+            ),
+            LeaderboardEntry(
+              rank: 6,
+              name: 'Bola A.',
+              entry: 'Book a slot by USSD',
+            ),
+            LeaderboardEntry(
+              rank: 7,
+              name: 'Anonymous',
+              entry: 'Evening hours for traders',
+            ),
+            LeaderboardEntry(
+              rank: 8,
+              name: 'Emeka U.',
+              entry: 'A card for regulars',
+            ),
+            LeaderboardEntry(
+              rank: 10,
+              name: 'Funke A.',
+              entry: 'Number tickets at the door',
+            ),
+            LeaderboardEntry(
+              rank: 11,
+              name: 'Amaka O.',
+              entry: 'Mobile counter at the market',
+            ),
+            LeaderboardEntry(
+              rank: 12,
+              name: 'Ifeoma N.',
+              entry: 'Let agents take deposits',
             ),
           ],
           note: BusinessNote(

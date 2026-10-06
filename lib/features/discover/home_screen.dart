@@ -291,7 +291,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ref.read(discoverFeedProvider.notifier).refreshQuietly();
       if (Flags.polls) ref.read(pollsProvider.notifier).refreshQuietly();
     });
-    scrollToTopOnRetap(ref, context, IqDockActive.discover, _scroll);
   }
 
   @override

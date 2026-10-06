@@ -110,43 +110,23 @@ Future<List<Brief>> _nextBriefs(Ref ref, SubmissionItem item) async {
   return open.where((b) => b.businessName != business).take(4).toList();
 }
 
-sealed class BoardItem {
-  const BoardItem();
-}
-
-class BoardRow extends BoardItem {
+class BoardRow {
   const BoardRow(this.entry, {this.you = false});
 
   final LeaderboardEntry entry;
   final bool you;
 }
 
-/// The line under the paid places when the contributor is below them: the
-/// pool the winners shared.
-class BoardCutoff extends BoardItem {
-  const BoardCutoff(this.poolKobo);
-
-  final int poolKobo;
-
-  String get label => '${rewardPool(poolKobo)} shared by the winners';
-}
-
-/// Ranks skipped between two rows ("· · ·").
-class BoardGap extends BoardItem {
-  const BoardGap();
-}
-
-/// The board as B13 draws it (193:9779, 225:10747): the top three on the
-/// podium, the other paid places as rows; when the contributor was not
-/// paid, the cutoff with the pool, a gap where ranks are skipped and their
-/// own row without an amount. Rows below a paid contributor are not shown.
+/// The board as B13 draws it (193:9779, 225:10747; designer doc rev 57):
+/// the top three on the podium, then every other rank from fourth down in
+/// one list, the contributor's own row in place. Only paid ranks show an
+/// amount.
 class Leaderboard {
   const Leaderboard({
     required this.brief,
-    required this.paid,
     required this.entries,
     required this.podium,
-    required this.items,
+    required this.rows,
     required this.eyebrow,
   });
 
@@ -155,14 +135,15 @@ class Leaderboard {
   /// The brief's title over a win (193:9779), your entry's over a result
   /// not picked (225:10747), as the frames write them.
   final String eyebrow;
-  final int paid;
   final int entries;
 
   /// First, second and third.
   final List<BoardRow> podium;
-  final List<BoardItem> items;
 
-  String get title => 'Top $paid of $entries submissions';
+  /// Fourth down, in rank order.
+  final List<BoardRow> rows;
+
+  String get title => '$entries submissions, ranked';
 
   static Leaderboard? of(ResultData data) {
     final outcome = data.outcome;
@@ -181,25 +162,13 @@ class Leaderboard {
       ),
       you: true,
     );
-    final rows = [for (final l in outcome.leaders) BoardRow(l), you]
+    final ranked = [for (final l in outcome.leaders) BoardRow(l), you]
       ..sort((a, b) => a.entry.rank.compareTo(b.entry.rank));
-    final paid = [
-      for (final r in rows)
-        if (r.entry.amountKobo != null) r,
-    ];
-    final items = <BoardItem>[...paid.skip(3)];
-    if (you.entry.amountKobo == null) {
-      items.add(BoardCutoff(brief.rewardPoolKobo));
-      final last = paid.isEmpty ? 0 : paid.last.entry.rank;
-      if (rank > last + 1) items.add(const BoardGap());
-      items.add(you);
-    }
     return Leaderboard(
       brief: brief,
-      paid: paid.length,
       entries: entries,
-      podium: paid.take(3).toList(),
-      items: items,
+      podium: ranked.take(3).toList(),
+      rows: ranked.skip(3).toList(),
       eyebrow: data.winner ? brief.title : data.item.submission.title,
     );
   }

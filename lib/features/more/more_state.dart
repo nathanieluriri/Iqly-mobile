@@ -18,13 +18,13 @@ abstract final class AppRelease {
 }
 
 /// What the Exp/AchievementCard on More shows, all from the account: the
-/// wallet's lifetime earned, the submissions and wins, the latest winning
-/// brief's business, the month the account opened and the invite code.
+/// wallet's lifetime earned, the iQL points, the submissions and wins, the
+/// month the account opened and the invite code.
 class ContributorPass {
   const ContributorPass({
     required this.user,
     required this.earned,
-    required this.lastWin,
+    required this.points,
     required this.since,
     required this.submissions,
     required this.wins,
@@ -34,7 +34,9 @@ class ContributorPass {
 
   final User user;
   final String earned;
-  final String lastWin;
+
+  /// iQL points, the pass's right-hand field (designer doc rev 57).
+  final int points;
   final String since;
   final int submissions;
   final int wins;
@@ -46,25 +48,21 @@ class ContributorPass {
 
 final contributorPassProvider = FutureProvider<ContributorPass>((ref) async {
   final repo = ref.watch(repositoryProvider);
-  final (user, submissions, wallet, referrals) = await (
+  final (user, submissions, points, wallet, referrals) = await (
     repo.user(),
     repo.submissions(),
+    repo.points(),
     ref.watch(walletProvider.future),
     ref.watch(referralsProvider.future),
   ).wait;
   final won = [
     for (final s in submissions)
       if (s.status == SubmissionStatus.winner) s,
-  ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-  var lastWin = '';
-  if (won.isNotEmpty) {
-    final brief = await repo.brief(won.first.briefId);
-    lastWin = brief?.businessName ?? 'Private business';
-  }
+  ];
   return ContributorPass(
     user: user,
     earned: naira(wallet.totals.totalEarnedKobo),
-    lastWin: lastWin,
+    points: points,
     since: DateFormat('MMM y').format(referrals.memberSince),
     submissions: submissions.length,
     wins: won.length,
