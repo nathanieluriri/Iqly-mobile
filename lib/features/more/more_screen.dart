@@ -23,7 +23,6 @@ import '../../ui/sample_avatar.dart';
 import '../../ui/section_title.dart';
 import '../../ui/skeleton.dart';
 import '../../ui/top_bar.dart';
-import '../../ui/dock.dart';
 import '../discover/app_shell.dart';
 import '../profile/profile_state.dart';
 import '../referrals/referrals_screen.dart';
@@ -71,7 +70,6 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
 
   @override
   Widget build(BuildContext context) {
-    scrollToTopOnRetap(ref, context, IqDockActive.more, _scroll);
     final unread = ref.watch(unreadNotificationsProvider).value ?? 0;
     final pass = ref.watch(contributorPassProvider).value;
     final cache = ref.watch(cacheProvider).value;

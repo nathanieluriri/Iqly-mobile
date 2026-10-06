@@ -17,19 +17,18 @@ enum IqDockActive {
   final IqIcons icon;
 }
 
-/// Exp/Dock: the floating tab dock, 358 wide, four equal tabs with labels
-/// always on. The lit tab is a lighter purple pill with an orange glyph and
-/// a white label; the others keep a cream glyph over a 70% label. More is
-/// the fourth tab (designer answer 1); Profile now lives inside it.
+/// Exp/Dock, the bottom navigation (designer doc rev 57, final): a full
+/// width bar on paper with a 1 px hairline on top, no radius, shadow or
+/// inset, 8 padding all round, sitting on the home indicator. Four equal
+/// tabs, each a 22 px filled glyph over a label in a 10 by 8 cell, radius
+/// 14. The active tab is a tint pill with an orange glyph and an ink label;
+/// the others have no pill and both in fg3.
 ///
-/// Motion (designer doc rev 55, replacing the spec 3.6 slide): a dock
-/// switch is instant, pill, colours and glyph at once; a tab change gives
-/// the select haptic. Float it 16 pt above the home indicator.
+/// A switch is instant and gives the select haptic. The active tab is inert:
+/// tapping it does nothing.
 ///
-/// Figma over brief: the lit tab is a sidebar-accent pill, not an orange disc.
-/// Figma over its description: the lit label is primary-fg white, not cream.
-/// Figma slip: Active=Discover inks the resting More glyph orange; every
-/// other variant rests it cream like its neighbours, which is what this does.
+/// Doc over Figma: the component still draws the glyph at 24; the doc sets
+/// 22.
 class IqDock extends StatelessWidget {
   const IqDock({
     super.key,
@@ -40,128 +39,94 @@ class IqDock extends StatelessWidget {
   final IqDockActive active;
   final ValueChanged<IqDockActive>? onChanged;
 
-  static const double width = 358;
-  static const double height = 64;
+  static const double glyph = 22;
+  static const double hairline = 1;
+
+  /// Hairline, padding, the tab cell (8 + glyph + 2 + label + 8), padding.
+  static final double height =
+      hairline +
+      IqSpace.s2 * 4 +
+      glyph +
+      2 +
+      IqText.label.fontSize! * IqText.label.height!;
 
   @override
   Widget build(BuildContext context) {
-    const duration = Duration.zero;
     return Container(
-      width: width,
       height: height,
-      padding: const EdgeInsets.all(IqSpace.s1p5),
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: IqColors.brand,
-        borderRadius: BorderRadius.circular(32),
-        boxShadow: IqShadows.lg,
+      padding: const EdgeInsets.all(IqSpace.s2),
+      decoration: const BoxDecoration(
+        color: IqColors.bg,
+        border: Border(
+          top: BorderSide(color: IqColors.line, width: hairline),
+        ),
       ),
-      child: LayoutBuilder(
-        builder: (context, box) {
-          const gap = IqSpace.s0p5;
-          final tab = (box.maxWidth - gap * 3) / 4;
-          return Stack(
-            children: [
-              AnimatedPositioned(
-                duration: duration,
-                curve: IqCurves.easeOut,
-                left: active.index * (tab + gap),
-                top: 0,
-                bottom: 0,
-                width: tab,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: IqColors.sidebarAccent,
-                    borderRadius: BorderRadius.circular(26),
-                  ),
-                ),
+      child: Row(
+        children: [
+          for (final item in IqDockActive.values)
+            Expanded(
+              child: _Tab(
+                item: item,
+                lit: item == active,
+                onTap: onChanged == null || item == active
+                    ? null
+                    : () => onChanged!(item),
               ),
-              Row(
-                children: [
-                  for (final item in IqDockActive.values) ...[
-                    if (item.index > 0) const SizedBox(width: gap),
-                    SizedBox(
-                      width: tab,
-                      child: _Tab(
-                        item: item,
-                        lit: item == active,
-                        duration: duration,
-                        onTap: onChanged == null
-                            ? null
-                            : () => onChanged!(item),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ],
-          );
-        },
+            ),
+        ],
       ),
     );
   }
 }
 
 class _Tab extends StatelessWidget {
-  const _Tab({
-    required this.item,
-    required this.lit,
-    required this.duration,
-    this.onTap,
-  });
+  const _Tab({required this.item, required this.lit, this.onTap});
 
   final IqDockActive item;
   final bool lit;
-  final Duration duration;
   final VoidCallback? onTap;
-
-  static final _restLabel = IqColors.sidebarFg.withValues(alpha: 0.7);
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      selected: lit,
-      child: IqPressable(
-        onTap: onTap,
-        semanticLabel: item.label,
-        haptic: lit ? null : IqHaptics.select,
-        builder: (context, pressed) => TweenAnimationBuilder<double>(
-          tween: Tween(end: lit ? 1 : 0),
-          duration: duration,
-          curve: IqCurves.easeOut,
-          builder: (context, t, _) => Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: IqSpace.s1,
-              vertical: IqSpace.s1p5,
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Transform.scale(
-                  scale: lit
-                      ? IqScale.dockGlyph + (1 - IqScale.dockGlyph) * t
-                      : 1,
-                  child: IqIcon(
-                    item.icon,
-                    size: 24,
-                    color: Color.lerp(IqColors.sidebarFg, IqColors.accent, t)!,
-                  ),
-                ),
-                const SizedBox(height: IqSpace.s0p5),
-                Text(
-                  item.label,
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.visible,
-                  style: IqText.label.copyWith(
-                    color: Color.lerp(_restLabel, IqColors.primaryFg, t),
-                  ),
-                ),
-              ],
+    final cell = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: IqSpace.s2),
+      decoration: BoxDecoration(
+        color: lit ? IqColors.tint : null,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          IqIcon(
+            item.icon,
+            size: IqDock.glyph,
+            color: lit ? IqColors.accent : IqColors.fg3,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            item.label,
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.visible,
+            style: IqText.label.copyWith(
+              color: lit ? IqColors.fg : IqColors.fg3,
             ),
           ),
-        ),
+        ],
       ),
+    );
+    return Semantics(
+      selected: lit,
+      button: true,
+      label: item.label,
+      excludeSemantics: true,
+      child: lit
+          ? cell
+          : IqPressable(
+              onTap: onTap,
+              haptic: IqHaptics.select,
+              builder: (context, pressed) => cell,
+            ),
     );
   }
 }
