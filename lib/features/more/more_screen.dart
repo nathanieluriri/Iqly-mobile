@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/flags.dart';
+import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../data/cache_service.dart';
 import '../../data/repository.dart';
@@ -20,6 +21,7 @@ import '../../ui/quick_action.dart';
 import '../../ui/referral_card.dart';
 import '../../ui/sample_avatar.dart';
 import '../../ui/section_title.dart';
+import '../../ui/skeleton.dart';
 import '../../ui/top_bar.dart';
 import '../../ui/dock.dart';
 import '../discover/app_shell.dart';
@@ -76,38 +78,48 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
     final ios = defaultTargetPlatform == TargetPlatform.iOS;
 
     final children = <Widget>[
-      if (pass == null)
-        const SizedBox(height: 240 + IqSpace.s3 + 140)
-      else ...[
-        IqPressable(
-          onTap: () => context.push(Routes.profile),
-          semanticLabel: 'Your profile',
-          builder: (context, pressed) => Center(
-            child: IqAchievementCard(
-              name: pass.user.name,
-              amount: pass.earned,
-              secondary: pass.lastWin,
-              field1: pass.since,
-              field2: '${pass.submissions}',
-              field3: '${pass.wins}',
-              code: pass.code,
-              avatar: const IqSampleAvatar(size: 44),
-            ),
-          ),
+      SizedBox(
+        height: _PassSkeleton.height,
+        child: LoadingGate(
+          loading: pass == null,
+          skeleton: const _PassSkeleton(),
+          child: pass == null
+              ? const SizedBox.shrink()
+              : Column(
+                  children: [
+                    IqPressable(
+                      onTap: () => context.push(Routes.profile),
+                      semanticLabel: 'Your profile',
+                      builder: (context, pressed) => Center(
+                        child: IqAchievementCard(
+                          name: pass.user.name,
+                          amount: pass.earned,
+                          secondary: pass.lastWin,
+                          field1: pass.since,
+                          field2: '${pass.submissions}',
+                          field3: '${pass.wins}',
+                          code: pass.code,
+                          avatar: const IqSampleAvatar(size: 44),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: IqSpace.s3),
+                    IqPressable(
+                      onTap: () => context.push(Routes.referrals),
+                      semanticLabel: 'Referrals',
+                      builder: (context, pressed) => Center(
+                        child: IqReferralCard(
+                          code: pass.code,
+                          joined: '${pass.joined} joined',
+                          onCopy: () => copyInviteCode(context, pass.code),
+                          onInvite: () => context.push(Routes.referrals),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
         ),
-        IqPressable(
-          onTap: () => context.push(Routes.referrals),
-          semanticLabel: 'Referrals',
-          builder: (context, pressed) => Center(
-            child: IqReferralCard(
-              code: pass.code,
-              joined: '${pass.joined} joined',
-              onCopy: () => copyInviteCode(context, pass.code),
-              onInvite: () => context.push(Routes.referrals),
-            ),
-          ),
-        ),
-      ],
+      ),
       const IqSectionTitle(
         title: 'Quick links',
         showCount: false,
@@ -249,6 +261,72 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The pass and the invite card while the pass loads on the tab's first
+/// visit (spec 2.6): their two cards as tint blocks with the bars of their
+/// name, amount and code, pulsing on the screen's beat.
+class _PassSkeleton extends StatelessWidget {
+  const _PassSkeleton();
+
+  static const double _pass = 240;
+  static const double _invite = 140;
+  static const double height = _pass + IqSpace.s3 + _invite;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget bar(Animation<double> opacity, double width, double height) =>
+        FadeTransition(
+          opacity: opacity,
+          child: Container(
+            width: width,
+            height: height,
+            decoration: BoxDecoration(
+              color: IqColors.brandSoft,
+              borderRadius: BorderRadius.circular(height / 2),
+            ),
+          ),
+        );
+    Widget card(double height, List<Widget> bars) => Container(
+      width: double.infinity,
+      height: height,
+      padding: const EdgeInsets.all(IqSpace.s4),
+      decoration: BoxDecoration(
+        color: IqColors.tint,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final (i, b) in bars.indexed) ...[
+            if (i > 0) const SizedBox(height: IqSpace.s2p5),
+            b,
+          ],
+        ],
+      ),
+    );
+    return Semantics(
+      label: 'Loading',
+      child: SkeletonPulse(
+        builder: (context, opacity) => Column(
+          children: [
+            card(_pass, [
+              bar(opacity, 44, 44),
+              bar(opacity, 140, 14),
+              bar(opacity, 200, 28),
+              bar(opacity, 120, 12),
+            ]),
+            const SizedBox(height: IqSpace.s3),
+            card(_invite, [
+              bar(opacity, 160, 14),
+              bar(opacity, 240, 12),
+              bar(opacity, 113, 28),
+            ]),
+          ],
         ),
       ),
     );

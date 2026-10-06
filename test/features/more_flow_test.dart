@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iqly_mobile/data/referrals_service.dart';
 import 'package:iqly_mobile/features/entry/landing_screen.dart';
 import 'package:iqly_mobile/features/more/more_screen.dart';
+import 'package:iqly_mobile/features/more/more_state.dart';
 import 'package:iqly_mobile/features/profile/profile_routes.dart';
 import 'package:iqly_mobile/features/profile/your_details_screen.dart';
 import 'package:iqly_mobile/features/settings/account_closing_screen.dart';
@@ -63,6 +66,28 @@ void main() {
       expect(_path(tester), Routes.more);
       expect(find.byType(IqDock), findsOneWidget);
     }
+  });
+
+  testWidgets('the first visit shows the pass and invite card as a '
+      'skeleton while the pass loads, and nothing under it moves', (
+    tester,
+  ) async {
+    await pumpMore(tester, Routes.more);
+    final links = tester.getTopLeft(find.text('Quick links')).dy;
+
+    final pass = Completer<ContributorPass>();
+    await pumpMore(
+      tester,
+      Routes.more,
+      settle: false,
+      overrides: [contributorPassProvider.overrideWith((ref) => pass.future)],
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+    expect(find.bySemanticsLabel('Loading'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('Quick links')).dy, links);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 1));
   });
 
   testWidgets('the pass foots to the wallet: earned ₦65,000.00 with the '
