@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
 import 'package:iqly_mobile/features/polls/poll_sheet.dart';
@@ -152,6 +153,100 @@ void main() {
     expect(find.byType(PollPage), findsOneWidget);
     await _tap(tester, find.text('Zobo and ginger'));
     expect(find.text('You voted · 214 votes'), findsOneWidget);
+  });
+
+  group('B2: the sheet dragged up', () {
+    /// The product of every fade above [finder].
+    double shown(WidgetTester tester, Finder finder) {
+      var opacity = 1.0;
+      for (final widget in tester.widgetList(
+        find.ancestor(
+          of: finder,
+          matching: find.byWidgetPredicate(
+            (w) => w is FadeTransition || w is Opacity,
+          ),
+        ),
+      )) {
+        opacity *= switch (widget) {
+          FadeTransition(:final opacity) => opacity.value,
+          _ => (widget as Opacity).opacity,
+        };
+      }
+      return opacity;
+    }
+
+    /// The copies of [text] on the sheet and the page that show at all.
+    int copies(WidgetTester tester, String text) {
+      final finder = find.descendant(
+        of: find.byWidgetPredicate((w) => w is PollSheet || w is PollPage),
+        matching: find.text(text),
+      );
+      var count = 0;
+      for (var i = 0; i < finder.evaluate().length; i++) {
+        if (shown(tester, finder.at(i)) > 0.01) count++;
+      }
+      return count;
+    }
+
+    testWidgets('follows the finger, and short of half way settles back', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        pollsOf('orchid-foods'),
+        overrides: pollsLane(),
+        reducedMotion: false,
+      );
+      final title = find.text('Quick polls').last;
+      final top = tester.getTopLeft(title).dy;
+      final gesture = await tester.startGesture(tester.getCenter(title));
+      await gesture.moveBy(const Offset(0, -20));
+      await tester.pump(const Duration(milliseconds: 100));
+      final before = tester.getTopLeft(title).dy;
+      expect(before, lessThan(top));
+      await gesture.moveBy(const Offset(0, 8));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(tester.getTopLeft(title).dy, moreOrLessEquals(before + 8));
+      expect(tester.getTopLeft(title).dy, lessThan(top));
+      await tester.pump(const Duration(milliseconds: 300));
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(find.byType(PollSheet), findsOneWidget);
+      expect(find.byType(PollPage), findsNothing);
+      expect(tester.getTopLeft(title).dy, top);
+    });
+
+    testWidgets('hands over to the page with one copy on screen', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        pollsOf('orchid-foods'),
+        overrides: pollsLane(),
+        reducedMotion: false,
+      );
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('Quick polls').last),
+      );
+      for (var i = 0; i < 6; i++) {
+        await gesture.moveBy(const Offset(0, -15));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await gesture.up();
+      for (var frame = 0; frame < 60; frame++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(
+          copies(tester, _flavour),
+          lessThanOrEqualTo(1),
+          reason: '$frame',
+        );
+        expect(copies(tester, 'Orchid Foods'), lessThanOrEqualTo(1));
+      }
+      await tester.pumpAndSettle();
+      expect(find.byType(PollSheet), findsNothing);
+      expect(find.byType(PollPage), findsOneWidget);
+      expect(copies(tester, _flavour), 1);
+    });
   });
 
   testWidgets('B2: Sunline is already answered and cannot be voted again', (

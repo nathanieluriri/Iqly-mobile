@@ -17,8 +17,10 @@ enum NavDirection { forward, back }
 /// Where a hand-off starts (spec 3.5): pass [Arrival.splash] as `extra` for
 /// the Figma 400 ms dissolve, [Arrival.lockup] when the splash has already
 /// moved its wordmark onto the landing logo (spec 3.9), so the page takes
-/// over with no transition.
-enum Arrival { splash, lockup }
+/// over with no transition, and [Arrival.sheet] for the page a sheet was
+/// dragged up into: it fades in over the sheet, now blank paper filling the
+/// screen, and leaves as a push does.
+enum Arrival { splash, lockup, sheet }
 
 /// The scrims under sheets and overlays, from their Figma frames (spec 2.3).
 abstract final class IqScrim {
@@ -66,12 +68,16 @@ Page<T> stillPage<T>(GoRouterState state, Widget child) => NoTransitionPage<T>(
   child: PulseScope(child: child),
 );
 
-/// A sheet hosted as a route page (spec 3.3), on [scrim].
+/// A sheet hosted as a route page (spec 3.3), on [scrim]. With [expand], a
+/// drag up past the open sheet lifts it to the top of the screen, and let
+/// go past half way (or flung) the sheet blanks to paper and [expand] opens
+/// its page, which it should push with [Arrival.sheet] as `extra`.
 Page<T> sheetPage<T>(
   GoRouterState state,
   Widget child, {
   required Color scrim,
-}) => _IqSheetPage<T>(state, child, scrim);
+  ValueChanged<BuildContext>? expand,
+}) => _IqSheetPage<T>(state, child, scrim, expand);
 
 /// Opens [builder] as a sheet on [scrim] (spec 3.3) and completes with what
 /// it pops.
@@ -175,6 +181,7 @@ enum _Move {
   back(IqDurations.screenBack, IqDurations.screenBack),
   handoff(IqDurations.screen, IqDurations.screenBack),
   splash(IqDurations.handoff, IqDurations.screenBack),
+  expand(IqDurations.swap, IqDurations.screenBack),
   lens(IqDurations.swap, IqDurations.swap),
   cut(Duration.zero, IqDurations.screenBack);
 
@@ -183,7 +190,9 @@ enum _Move {
   final Duration enter;
   final Duration exit;
 
-  bool get slides => this == push || this == back;
+  bool get slides => slidesIn || this == expand;
+
+  bool get slidesIn => this == push || this == back;
 
   Duration get reduced =>
       this == lens || this == cut ? Duration.zero : IqDurations.crossfade;
@@ -192,6 +201,7 @@ enum _Move {
     NavDirection.back => back,
     Arrival.splash => splash,
     Arrival.lockup => cut,
+    Arrival.sheet => expand,
     _ => fallback,
   };
 }
@@ -274,7 +284,7 @@ class _IqPageRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
 
   late final Animation<double> _fadeIn = animation!.drive(
     CurveTween(
-      curve: _move.slides
+      curve: _move.slidesIn
           ? const Interval(0, 0.6, curve: IqCurves.easeOut)
           : IqCurves.easeOut,
     ),
@@ -377,7 +387,8 @@ class _IqPageRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
       inFade = kAlwaysCompleteAnimation;
       outX = -IqTravel.screen * secondaryAnimation.value;
     } else if (!reduced) {
-      if (_move.slides) {
+      if (_move.slidesIn ||
+          (_move.slides && animation.status == AnimationStatus.reverse)) {
         final from = _move == _Move.back ? -IqTravel.screen : IqTravel.screen;
         inX = from * (1 - IqCurves.easeOut.transform(animation.value));
       }
@@ -613,7 +624,7 @@ void _whenSettled(AnimationController controller, VoidCallback done) {
 }
 
 class _IqSheetPage<T> extends Page<T> {
-  _IqSheetPage(GoRouterState state, this.child, this.scrim)
+  _IqSheetPage(GoRouterState state, this.child, this.scrim, this.expand)
     : super(
         key: state.pageKey,
         name: state.name ?? state.path,
@@ -623,11 +634,13 @@ class _IqSheetPage<T> extends Page<T> {
 
   final Widget child;
   final Color scrim;
+  final ValueChanged<BuildContext>? expand;
 
   @override
   Route<T> createRoute(BuildContext context) => IqSheetRoute<T>(
     settings: this,
     scrim: scrim,
+    expand: expand,
     barrierLabel: Localizations.of<MaterialLocalizations>(
       context,
       MaterialLocalizations,
@@ -638,7 +651,9 @@ class _IqSheetPage<T> extends Page<T> {
 /// The one sheet route (spec 3.3): the sheet rises from the bottom edge in
 /// 300 ms as its scrim fades in, drops in 200 ms when it closes, and follows a drag
 /// down (past half its height or a 700 px/s fling closes it). It fades in
-/// place under reduced motion. The page beneath stays put.
+/// place under reduced motion. The page beneath stays put. With [expand] it
+/// also follows a drag up to the top of the screen and hands over to its
+/// page there (see [sheetPage]).
 ///
 /// The rise moves the route's page from outside it, as a page route's
 /// slide does, so a hero flying into the sheet heads straight for where it
@@ -648,8 +663,49 @@ class IqSheetRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
     this.builder,
     required this.scrim,
     this.barrierLabel,
+    this.expand,
     super.settings,
   });
+
+  /// Opens the page the sheet was dragged up into.
+  final ValueChanged<BuildContext>? expand;
+
+  /// How far the sheet is lifted towards the top of the screen (0 to 1).
+  late final AnimationController _lift = AnimationController(
+    vsync: navigator!,
+    duration: IqDurations.swap,
+  );
+
+  /// How far the lifted sheet has blanked to paper for its page.
+  late final AnimationController _blank = AnimationController(
+    vsync: navigator!,
+    duration: IqDurations.crossfade,
+  );
+
+  bool _expanding = false;
+
+  /// How far the sheet around [context] is lifted towards the top of the
+  /// screen, for a sheet that squares its corners as it goes.
+  static Animation<double> liftOf(BuildContext context) {
+    final route = context.getInheritedWidgetOfExactType<_PageScope>()?.route;
+    return route is IqSheetRoute ? route._lift : kAlwaysDismissedAnimation;
+  }
+
+  void _expand(BuildContext context) {
+    if (_expanding) return;
+    _expanding = true;
+    controller!.reverseDuration = reverseTransitionDuration;
+    _blank.forward().whenCompleteOrCancel(() {
+      if (isActive && context.mounted) expand!(context);
+    });
+  }
+
+  @override
+  void dispose() {
+    _lift.dispose();
+    _blank.dispose();
+    super.dispose();
+  }
 
   /// Builds the sheet; null when a [sheetPage] hosts it.
   final WidgetBuilder? builder;
@@ -692,9 +748,14 @@ class IqSheetRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
   Duration get transitionDuration =>
       reduced ? IqDurations.crossfade : IqDurations.sheetRise;
 
+  /// Expanded, the blank sheet stays up under its page until the page is
+  /// in.
   @override
-  Duration get reverseTransitionDuration =>
-      reduced ? IqDurations.crossfade : IqDurations.sheetDrop;
+  Duration get reverseTransitionDuration => _expanding
+      ? IqDurations.screen
+      : reduced
+      ? IqDurations.crossfade
+      : IqDurations.sheetDrop;
 
   @override
   bool canTransitionTo(TransitionRoute<dynamic> nextRoute) => false;
@@ -737,14 +798,34 @@ class IqSheetRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
     Widget child,
   ) {
     final t = animation.value;
-    final fading = MediaQuery.disableAnimationsOf(context) && !_dragging;
-    final up = _dragging ? t : IqCurves.easeOut.transform(t);
-    return _SheetLift(
-      sheet: _box,
-      drop: fading ? 0 : 1 - up,
-      child: Opacity(
-        opacity: fading ? IqCurves.easeOut.transform(t) : 1,
-        child: child,
+    final fading =
+        MediaQuery.disableAnimationsOf(context) && !_dragging && !_expanding;
+    final up = _dragging || _expanding ? 1.0 : IqCurves.easeOut.transform(t);
+    final drop = _dragging ? 1 - t : 1 - up;
+    if (expand == null) {
+      return _SheetLift(
+        sheet: _box,
+        drop: fading ? 0 : drop,
+        child: Opacity(
+          opacity: fading ? IqCurves.easeOut.transform(t) : 1,
+          child: child,
+        ),
+      );
+    }
+    return AnimatedBuilder(
+      animation: Listenable.merge([_lift, _blank]),
+      child: child,
+      builder: (context, child) => _SheetLift(
+        sheet: _box,
+        drop: fading ? 0 : drop,
+        lift: _lift.value,
+        top: MediaQuery.paddingOf(context).top,
+        blank: _blank.value > 0,
+        child: Opacity(
+          opacity:
+              (fading ? IqCurves.easeOut.transform(t) : 1) * (1 - _blank.value),
+          child: child,
+        ),
       ),
     );
   }
@@ -752,23 +833,39 @@ class IqSheetRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
 
 /// Lowers the sheet at the foot of [child], a page that fills the screen,
 /// by [drop] times the height of the [sheet] box.
+///
+/// Lifted, it raises the sheet [lift] of the way to [top], the foot of the
+/// status bar, filling the status bar with paper as it goes and the screen
+/// under the sheet's foot with paper at once; [blank] lays
+/// paper under the sheet, so a sheet fading out leaves paper behind.
 class _SheetLift extends SingleChildRenderObjectWidget {
   const _SheetLift({
     required this.sheet,
     required this.drop,
+    this.lift = 0,
+    this.top = 0,
+    this.blank = false,
     required super.child,
   });
 
   final GlobalKey sheet;
   final double drop;
+  final double lift;
+  final double top;
+  final bool blank;
 
   @override
   _RenderSheetLift createRenderObject(BuildContext context) =>
-      _RenderSheetLift(sheet, drop);
+      _RenderSheetLift(sheet, drop)
+        .._lift = lift
+        .._top = top
+        .._blank = blank;
 
   @override
-  void updateRenderObject(BuildContext context, _RenderSheetLift lift) =>
-      lift.drop = drop;
+  void updateRenderObject(BuildContext context, _RenderSheetLift render) =>
+      render
+        ..drop = drop
+        ..lifted(lift, top, blank);
 }
 
 class _RenderSheetLift extends RenderProxyBox {
@@ -776,6 +873,18 @@ class _RenderSheetLift extends RenderProxyBox {
 
   final GlobalKey _sheet;
   double _drop;
+  double _lift = 0;
+  double _top = 0;
+  bool _blank = false;
+
+  void lifted(double lift, double top, bool blank) {
+    if (lift == _lift && top == _top && blank == _blank) return;
+    _lift = lift;
+    _top = top;
+    _blank = blank;
+    markNeedsPaint();
+    markNeedsSemanticsUpdate();
+  }
 
   /// The shift last painted, so taps and transforms between frames match
   /// what is on screen; the sheet's height is only safe to read at paint.
@@ -794,7 +903,28 @@ class _RenderSheetLift extends RenderProxyBox {
     final height = sheet is RenderBox && sheet.hasSize
         ? sheet.size.height
         : size.height;
-    _shift = Offset(0, _drop * height);
+    final reach = math.max(0.0, size.height - height - _top);
+    _shift = Offset(0, _drop * height - _lift * reach);
+    final paper = Paint()..color = IqColors.bg;
+    if (_lift > 0) {
+      context.canvas
+        ..drawRect(
+          offset & Size(size.width, _top),
+          Paint()..color = IqColors.bg.withValues(alpha: _lift),
+        )
+        ..drawRect(
+          offset + Offset(0, size.height + _shift.dy) &
+              Size(size.width, -_shift.dy),
+          paper,
+        );
+    }
+    if (_blank) {
+      context.canvas.drawRect(
+        offset + _shift + Offset(0, size.height - height) &
+            Size(size.width, height),
+        paper,
+      );
+    }
     super.paint(context, offset + _shift);
   }
 
@@ -843,11 +973,28 @@ class _SheetDragState extends State<_SheetDrag> {
     _navigator = route.navigator!..didStartUserGesture();
   }
 
+  /// How far the sheet can lift: from its top to the foot of the status
+  /// bar.
+  double get _reach {
+    final screen = MediaQuery.of(widget.route.navigator!.context);
+    return math.max(
+      1.0,
+      screen.size.height - context.size!.height - screen.padding.top,
+    );
+  }
+
   void _update(DragUpdateDetails details) {
     if (_navigator == null) return;
-    final sheet = widget.route._sheet;
-    sheet.value = (sheet.value - details.primaryDelta! / context.size!.height)
-        .clamp(0.0, 1.0);
+    final route = widget.route;
+    final sheet = route._sheet;
+    final delta = details.primaryDelta!;
+    final lift = route._lift;
+    if (route.expand != null &&
+        (lift.value > 0 || (delta < 0 && sheet.value >= 1))) {
+      lift.value = (lift.value - delta / _reach).clamp(0.0, 1.0);
+      return;
+    }
+    sheet.value = (sheet.value - delta / context.size!.height).clamp(0.0, 1.0);
   }
 
   void _end(DragEndDetails details) =>
@@ -861,6 +1008,10 @@ class _SheetDragState extends State<_SheetDrag> {
     if (navigator == null) return;
     _navigator = null;
     final route = widget.route;
+    if (route._lift.value > 0) {
+      _finishLift(navigator, velocity);
+      return;
+    }
     final sheet = route._sheet;
     final close = !route.isActive || velocity >= _fling || sheet.value < 0.5;
     if (close && route.isCurrent) navigator.pop();
@@ -875,6 +1026,28 @@ class _SheetDragState extends State<_SheetDrag> {
     _whenSettled(sheet, () {
       route._dragging = false;
       navigator.didStopUserGesture();
+    });
+  }
+
+  /// A drag up past the open sheet ends: past half way or flung up it lifts
+  /// to the top and hands over to its page, otherwise it settles back.
+  void _finishLift(NavigatorState navigator, double velocity) {
+    final route = widget.route;
+    final lift = route._lift;
+    final expand =
+        route.isCurrent && (velocity <= -_fling || lift.value >= 0.5);
+    final up = -velocity / _reach;
+    _settle(
+      lift,
+      expand ? 1 : 0,
+      IqDurations.swap,
+      _reduced,
+      speed: expand ? up : -up,
+    );
+    _whenSettled(lift, () {
+      route._dragging = false;
+      navigator.didStopUserGesture();
+      if (expand && mounted) route._expand(context);
     });
   }
 

@@ -21,7 +21,7 @@ String quickPollsFor(String businessId) => Uri(
 
 /// B2 Quick polls, behind Flags.polls: a sub page (Page top bar, Back, no
 /// dock) that pushes; a business's polls rise as a sheet on the sheet scrim,
-/// or open as a full page.
+/// which a drag up opens as a full page.
 final pollsRoutes = <RouteBase>[
   if (Flags.polls)
     GoRoute(
@@ -44,6 +44,10 @@ final pollsRoutes = <RouteBase>[
             state,
             PollSheet(businessId: state.pathParameters['id']!),
             scrim: IqScrim.sheet,
+            expand: (context) => context.pushReplacement(
+              pollPageOf(state.pathParameters['id']!),
+              extra: Arrival.sheet,
+            ),
           ),
         ),
       ],

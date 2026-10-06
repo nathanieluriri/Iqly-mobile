@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/deadline.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
+import '../../core/transitions.dart';
 import '../../data/polls_data.dart';
 import '../../theme/theme.dart';
 
@@ -17,7 +18,6 @@ import '../../ui/skeleton.dart';
 import '../../ui/top_bar.dart';
 import '../discover/business_art.dart';
 import '../discover/discover_routes.dart';
-import 'polls_routes.dart';
 import 'polls_state.dart';
 
 /// B2 · Polls · Orchid Foods · open (33:169), voted (33:289) and done
@@ -46,30 +46,29 @@ class PollSheet extends ConsumerWidget {
     final media = MediaQuery.of(context);
     final done = business != null && business.allAnswered;
 
+    final lift = IqSheetRoute.liftOf(context);
     return CenteredContent(
       child: SizedBox(
         height: media.size.height - media.padding.top - topGap,
-        child: Material(
-          color: IqColors.bg,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        child: AnimatedBuilder(
+          animation: lift,
+          builder: (context, child) => Material(
+            color: IqColors.bg,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(
+                top: Radius.circular(28 * (1 - lift.value)),
+              ),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: child,
           ),
-          clipBehavior: Clip.antiAlias,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onVerticalDragEnd: (details) {
-                  if ((details.primaryVelocity ?? 0) < -_expandFling) {
-                    context.pushReplacement(pollPageOf(businessId));
-                  }
-                },
-                child: IqTopBar(
-                  variant: IqTopBarVariant.sheet,
-                  title: done ? 'You’re done' : 'Quick polls',
-                  onClose: () => context.pop(),
-                ),
+              IqTopBar(
+                variant: IqTopBarVariant.sheet,
+                title: done ? 'You’re done' : 'Quick polls',
+                onClose: () => context.pop(),
               ),
               Expanded(
                 child: _Polls(
@@ -91,9 +90,6 @@ class PollSheet extends ConsumerWidget {
     );
   }
 }
-
-/// An upward fling past this many points a second opens the full page.
-const double _expandFling = 700;
 
 /// B2 · Polls · Orchid Foods · full screen (345:15957): the poll sheet as a
 /// sub page (Page top bar, Back, no dock), with Exp/BrandHeader Leading
