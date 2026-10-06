@@ -26,6 +26,10 @@ abstract class IqlyRepository {
   Future<List<SavedBank>> savedBanks();
   Future<int> unreadNotifications();
 
+  /// The contributor's iQL points, shown on the pass. Illustrative until the
+  /// API has an endpoint for them.
+  Future<int> points();
+
   /// Behind Flags.activations.
   Future<ActivationsSummary> activationsSummary();
 
@@ -127,6 +131,9 @@ class DemoRepository implements IqlyRepository {
 
   @override
   Future<int> unreadNotifications() async => DemoData.unreadNotifications;
+
+  @override
+  Future<int> points() async => DemoData.points;
 
   @override
   Future<ActivationsSummary> activationsSummary() async => DemoData.activations;

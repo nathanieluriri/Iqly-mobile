@@ -15,6 +15,9 @@ class DemoData {
   /// The three unread Today rows of B6 Notifications; the bell shows this.
   static const unreadNotifications = 3;
 
+  /// The contributor's iQL points (548:25018, the pass on 428:18424).
+  static const points = 1240;
+
   static const user = User(
     firstName: 'Adaeze',
     lastName: 'Okafor',

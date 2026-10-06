@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/flags.dart';
+import '../../core/money.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../data/cache_service.dart';
@@ -92,7 +93,7 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
                         child: IqAchievementCard(
                           name: pass.user.name,
                           amount: pass.earned,
-                          secondary: pass.lastWin,
+                          secondary: wholeNumber(pass.points),
                           field1: pass.since,
                           field2: '${pass.submissions}',
                           field3: '${pass.wins}',
