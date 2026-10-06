@@ -1,8 +1,10 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/responsive.dart';
+import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/outcomes_data.dart';
 import 'package:iqly_mobile/data/outcomes_service.dart';
+import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/data/share_service.dart';
 import 'package:iqly_mobile/features/discover/brief_detail_screen.dart';
 import 'package:iqly_mobile/features/discover/discover_state.dart';
@@ -19,6 +21,7 @@ import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/icon.dart';
 import 'package:iqly_mobile/ui/leaderboard_row.dart';
 import 'package:iqly_mobile/ui/share_card.dart';
+import 'package:iqly_mobile/ui/skeleton.dart';
 
 import '../golden/golden.dart';
 import '../golden/screens/app_harness.dart';
@@ -115,6 +118,28 @@ Future<void> _shareTo(WidgetTester tester, String target, _Share share) async {
 }
 
 void main() {
+  testWidgets('B13: a cold open of a result waits behind the skeleton, not '
+      'a blank page', (tester) async {
+    await pumpApp(
+      tester,
+      resultPath('s2'),
+      repository: DemoRepository(
+        DemoData(now: figmaNow),
+        latency: const DemoLatency(submissions: Duration(milliseconds: 1200)),
+      ),
+      settle: false,
+    );
+    await tester.pump(const Duration(milliseconds: 290));
+    expect(find.byType(IqSkeleton), findsNothing);
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(find.byType(IqSkeleton), findsWidgets);
+    expect(find.byType(WinnerView), findsNothing);
+    await tester.pump(const Duration(milliseconds: 1200));
+    await tester.pumpAndSettle();
+    expect(find.byType(IqSkeleton), findsNothing);
+    expect(find.byType(WinnerView), findsOneWidget);
+  });
+
   // The share image is the card at 3x: real type keeps it 358 x 418.
   setUpAll(loadAppFonts);
 
@@ -347,6 +372,9 @@ void main() {
     (tester) async {
       await pumpApp(tester, leaderboardPath('s5'));
       await _tap(tester, find.bySemanticsLabel('Back'));
+      // The covered result loads only once uncovered, behind its gate.
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
       expect(find.byType(NotSelectedView), findsOneWidget);
       await _tap(tester, find.bySemanticsLabel('Back'));
       expect(find.byType(MySubmissionsScreen), findsOneWidget);

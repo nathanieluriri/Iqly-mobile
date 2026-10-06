@@ -166,6 +166,7 @@ class ReportSentScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return SubPage(
       title: 'Report an issue',
+      hasFields: false,
       body: Align(
         alignment: Alignment.topCenter,
         child: FigureState(

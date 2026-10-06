@@ -155,6 +155,27 @@ void main() {
     expect(find.byType(NotificationsAskScreen), findsOneWidget);
   });
 
+  testWidgets('a tap on the step puts the phone keypad away, so Continue '
+      'can be reached', (tester) async {
+    await _launch(
+      tester,
+      draft: {
+        ..._aboutYou,
+        'state': 'Lagos',
+        'city': 'Ikeja',
+        'lastStep': 'whereYouLive',
+      },
+    );
+    await _tap(tester, find.text('Continue'));
+    expect(find.byType(WhereYouLiveScreen), findsOneWidget);
+    await tester.showKeyboard(find.byType(TextField));
+    await tester.pumpAndSettle();
+    expect(tester.testTextInput.isVisible, isTrue);
+    await tester.tap(find.text('Where do you live?'));
+    await tester.pumpAndSettle();
+    expect(tester.testTextInput.isVisible, isFalse);
+  });
+
   testWidgets('under 18 is blocked on About you (480:20079)', (tester) async {
     await _launch(
       tester,

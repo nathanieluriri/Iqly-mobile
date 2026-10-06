@@ -18,6 +18,7 @@ import '../../ui/list_row.dart';
 import '../../ui/share_target.dart';
 import '../../ui/pressable.dart';
 import '../../ui/top_bar.dart';
+import '../discover/discover_state.dart';
 import '../more/more_widgets.dart';
 import 'referrals_state.dart';
 
@@ -44,6 +45,14 @@ class ReferralsScreen extends ConsumerStatefulWidget {
 class _ReferralsScreenState extends ConsumerState<ReferralsScreen> {
   bool _copied = false;
   Timer? _reset;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() {
+      if (mounted) ref.read(giftShineSpentProvider.notifier).spend();
+    });
+  }
 
   @override
   void dispose() {

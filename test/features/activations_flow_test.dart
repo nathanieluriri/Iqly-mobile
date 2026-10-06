@@ -390,6 +390,11 @@ void main() {
     expect(find.byType(IqProofTile), findsOneWidget);
 
     await _tap(tester, find.byType(IqProofTile));
+    expect(
+      _iqButton(tester, 'Allow Full Access').kind,
+      IqButtonKind.primary,
+      reason: '485:38820 draws the prompt\'s answer as Primary, not Danger',
+    );
     await _tap(tester, find.text('Allow Full Access'));
     expect(media.picks, 1);
     expect(find.text('18 MB · uploaded, ready to send'), findsOneWidget);

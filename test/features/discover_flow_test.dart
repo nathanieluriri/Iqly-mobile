@@ -7,11 +7,13 @@ import 'package:iqly_mobile/features/discover/filters_sheet.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
 import 'package:iqly_mobile/features/discover/saved_briefs_screen.dart';
 import 'package:iqly_mobile/features/polls/polls_screen.dart';
+import 'package:iqly_mobile/features/referrals/referrals_screen.dart';
 import 'package:iqly_mobile/features/submit/submit_screen.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/bookmark.dart';
 import 'package:iqly_mobile/ui/brief_card.dart';
 import 'package:iqly_mobile/ui/button.dart';
+import 'package:iqly_mobile/ui/gift_button.dart';
 import 'package:iqly_mobile/ui/switch.dart';
 import 'package:iqly_mobile/ui/ticket_card.dart';
 
@@ -246,6 +248,28 @@ void main() {
       find.text('1 poll · 2 questions · about 10 seconds'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('Discover: the gift opens Referrals; back returns', (
+    tester,
+  ) async {
+    await pumpApp(tester, Routes.home, overrides: discoverOverrides());
+    await _tap(tester, find.byType(IqGiftButton));
+    expect(find.byType(ReferralsScreen), findsOneWidget);
+    await _tap(tester, find.bySemanticsLabel(RegExp('Back')));
+    expect(find.byType(HomeScreen), findsOneWidget);
+  });
+
+  testWidgets('Referrals opened first spends the gift shine (answer 32)', (
+    tester,
+  ) async {
+    final container = await pumpApp(
+      tester,
+      Routes.referrals,
+      overrides: discoverOverrides(),
+    );
+    expect(find.byType(ReferralsScreen), findsOneWidget);
+    expect(container.read(giftShineSpentProvider), isTrue);
   });
 
   testWidgets('Discover: Activations opens the list', (tester) async {

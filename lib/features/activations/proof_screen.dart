@@ -88,6 +88,7 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
             'Settings.',
         confirmLabel: 'Allow Full Access',
         cancelLabel: 'Don’t Allow',
+        confirmKind: IqButtonKind.primary,
         scrim: _scrim,
       );
       media.answer(allow: allow);

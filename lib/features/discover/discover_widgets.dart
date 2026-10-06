@@ -37,6 +37,7 @@ class DiscoverTopBar extends ConsumerWidget {
       showWallet: false,
       showGift: true,
       giftTwinkle: giftShine,
+      onGift: () => context.push(Routes.referrals),
       onBell: () => context.push(Routes.notifications),
     );
   }
