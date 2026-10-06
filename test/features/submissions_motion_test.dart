@@ -105,8 +105,10 @@ Future<Finder> _firstFrameOf(WidgetTester tester, Type type) async {
 void main() {
   setUpAll(loadAppFonts);
 
-  testWidgets('first visit: paper, the skeleton, then the cards arrive; a '
-      'later visit shows them at once', (tester) async {
+  testWidgets('first visit: paper under the still Segmented, the skeleton, '
+      'then the cards arrive; a later visit shows them at once', (
+    tester,
+  ) async {
     final repository = _Held();
     await pumpApp(
       tester,
@@ -117,8 +119,10 @@ void main() {
     await tester.tap(_tab);
     await tester.pump();
     expect(find.byType(MySubmissionsScreen), findsOneWidget);
+    expect(find.byType(SubmissionsSegmented), findsOneWidget);
     await tester.pump(_ms * 299);
     expect(find.byType(SkeletonSubmissionCard), findsNothing);
+    expect(find.byType(SubmissionsSegmented), findsOneWidget);
     await tester.pump(_ms);
     await tester.pump();
     expect(find.byType(SkeletonSubmissionCard), findsNWidgets(3));

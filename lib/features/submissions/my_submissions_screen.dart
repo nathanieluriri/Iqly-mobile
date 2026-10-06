@@ -111,14 +111,23 @@ class _MySubmissionsScreenState extends ConsumerState<MySubmissionsScreen> {
                   showWallet: false,
                 ),
                 Expanded(
-                  child: Arrivals(
-                    controller: _arrivals,
-                    child: LoadingGate(
-                      loading: data == null && !failed,
-                      skeleton: const _Loading(),
-                      onOpen: (after) => _arrivals.play(after: after),
-                      child: Dissolve(child: body),
-                    ),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // The Segmented is chrome: it holds still through the
+                      // gate's paper wait as well (spec 3.7).
+                      if (data == null && !failed)
+                        const _Loading(segmented: true, cards: false),
+                      Arrivals(
+                        controller: _arrivals,
+                        child: LoadingGate(
+                          loading: data == null && !failed,
+                          skeleton: const _Loading(),
+                          onOpen: (after) => _arrivals.play(after: after),
+                          child: Dissolve(child: body),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -345,8 +354,13 @@ class SubmissionCardFor extends StatelessWidget {
   }
 }
 
+/// The skeleton (165:8524). The Segmented under it is drawn by the page
+/// while the list loads, so the skeleton only keeps its space.
 class _Loading extends StatelessWidget {
-  const _Loading();
+  const _Loading({this.segmented = false, this.cards = true});
+
+  final bool segmented;
+  final bool cards;
 
   @override
   Widget build(BuildContext context) {
@@ -356,11 +370,15 @@ class _Loading extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SubmissionsSegmented(),
-          for (var i = 0; i < 3; i++) ...[
-            const SizedBox(height: IqSpace.s3),
-            const SkeletonSubmissionCard(),
-          ],
+          if (segmented)
+            const SubmissionsSegmented()
+          else
+            const Opacity(opacity: 0, child: SubmissionsSegmented()),
+          if (cards)
+            for (var i = 0; i < 3; i++) ...[
+              const SizedBox(height: IqSpace.s3),
+              const SkeletonSubmissionCard(),
+            ],
         ],
       ),
     );
