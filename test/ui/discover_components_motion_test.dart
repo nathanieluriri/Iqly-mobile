@@ -432,16 +432,19 @@ void main() {
   group('Dock', () {
     double pillLeft(WidgetTester tester) => tester
         .getTopLeft(
-          find
-              .descendant(
-                of: find.byType(IqDock),
-                matching: find.byType(DecoratedBox),
-              )
-              .at(1),
+          find.descendant(
+            of: find.byType(IqDock),
+            matching: find.byWidgetPredicate(
+              (w) =>
+                  w is Container &&
+                  w.decoration is BoxDecoration &&
+                  (w.decoration! as BoxDecoration).color == IqColors.tint,
+            ),
+          ),
         )
         .dx;
 
-    testWidgets('a switch is instant: the pill jumps (doc rev 55)', (
+    testWidgets('a switch is instant: the pill jumps (doc rev 57)', (
       tester,
     ) async {
       await _pump(tester, const IqDock());

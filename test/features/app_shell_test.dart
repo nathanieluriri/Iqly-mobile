@@ -71,7 +71,6 @@ void main() {
     expect(find.byType(SavedBriefsScreen), findsOneWidget);
 
     await _tab(tester, 'Discover');
-    expect(find.byType(HomeScreen), findsOneWidget);
-    expect(find.byType(SavedBriefsScreen), findsNothing);
+    expect(find.byType(SavedBriefsScreen), findsOneWidget);
   });
 }

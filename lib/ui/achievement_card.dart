@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import '../theme/theme.dart';
 import 'perforation.dart';
+import 'pressable.dart';
 import 'sample_avatar.dart';
 import 'vector.dart';
 
@@ -17,8 +18,8 @@ class IqAchievementCard extends StatelessWidget {
     this.name = 'Adaeze Okafor',
     this.amountLabel = 'Lifetime earned',
     this.amount = '₦62,500',
-    this.secondaryLabel = 'Last win',
-    this.secondary = 'Volt Riders',
+    this.secondaryLabel = 'iQL points',
+    this.secondary = '1,240',
     this.field1Label = 'Since',
     this.field1 = 'Sep 2026',
     this.field2Label = 'Submissions',
@@ -27,6 +28,7 @@ class IqAchievementCard extends StatelessWidget {
     this.field3 = '2',
     this.code = 'ADAEZE24',
     this.avatar = const IqSampleAvatar(size: 44),
+    this.onSecondaryTap,
   });
 
   final String eyebrow;
@@ -43,6 +45,10 @@ class IqAchievementCard extends StatelessWidget {
   final String field3;
   final String code;
   final Widget avatar;
+
+  /// Not a Figma prop: the iQL points field opens the general leaderboard
+  /// (designer doc rev 57).
+  final VoidCallback? onSecondaryTap;
 
   static const Size size = Size(358, 240);
 
@@ -155,28 +161,32 @@ class IqAchievementCard extends StatelessWidget {
                               ],
                             ),
                             const Spacer(),
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                bottom: IqSpace.s1,
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    secondaryLabel.toUpperCase(),
-                                    textAlign: TextAlign.right,
-                                    style: onInk,
-                                  ),
-                                  const SizedBox(height: IqSpace.s1),
-                                  Text(
-                                    secondary,
-                                    maxLines: 1,
-                                    textAlign: TextAlign.right,
-                                    style: IqText.bodyStrong.copyWith(
-                                      color: IqColors.primaryFg,
+                            _Tappable(
+                              onTap: onSecondaryTap,
+                              label: secondaryLabel,
+                              child: Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: IqSpace.s1,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      secondaryLabel.toUpperCase(),
+                                      textAlign: TextAlign.right,
+                                      style: onInk,
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(height: IqSpace.s1),
+                                    Text(
+                                      secondary,
+                                      maxLines: 1,
+                                      textAlign: TextAlign.right,
+                                      style: IqText.bodyStrong.copyWith(
+                                        color: IqColors.primaryFg,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ],
@@ -282,6 +292,29 @@ class IqAchievementCard extends StatelessWidget {
         const SizedBox(height: 3),
         Text(value, style: IqText.bodyStrong.copyWith(color: IqColors.fg)),
       ],
+    );
+  }
+}
+
+class _Tappable extends StatelessWidget {
+  const _Tappable({
+    required this.onTap,
+    required this.label,
+    required this.child,
+  });
+
+  final VoidCallback? onTap;
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final onTap = this.onTap;
+    if (onTap == null) return child;
+    return IqPressable(
+      onTap: onTap,
+      semanticLabel: label,
+      builder: (context, pressed) => child,
     );
   }
 }

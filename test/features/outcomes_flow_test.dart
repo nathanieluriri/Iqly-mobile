@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import 'package:flutter/material.dart' show Text, TextOverflow;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/responsive.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
@@ -221,7 +222,7 @@ void main() {
 
       await _tap(tester, find.text('See the leaderboard'));
       expect(find.byType(LeaderboardScreen), findsOneWidget);
-      expect(find.text('Top 5 of 48 submissions'), findsOneWidget);
+      expect(find.text('48 submissions, ranked'), findsOneWidget);
       expect(find.text('₦175k'), findsOneWidget);
       expect(find.text('₦400,000 shared by the winners'), findsNothing);
       final you = tester.widget<IqLeaderboardRow>(
@@ -270,14 +271,16 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Not selected this time'), findsOneWidget);
-      expect(find.text('Your answer'), findsOneWidget);
-      expect(
+      expect(find.text('Your answer'), findsNothing);
+      expect(find.text('Your submission'), findsOneWidget);
+      final line = tester.widget<Text>(
         find.text(
           'A quick lane for airtime and bills, with the queue number sent '
           'by SMS.',
         ),
-        findsOneWidget,
       );
+      expect(line.maxLines, 1);
+      expect(line.overflow, TextOverflow.ellipsis);
       expect(find.text('A note from the business'), findsOneWidget);
       expect(find.text('Harbour Microfinance'), findsOneWidget);
       expect(
@@ -295,9 +298,29 @@ void main() {
       await _tap(tester, find.text('See what won'));
       expect(find.byType(LeaderboardScreen), findsOneWidget);
       expect(find.text('One counter for quick jobs'), findsNWidgets(2));
-      expect(find.text('Top 4 of 36 submissions'), findsOneWidget);
-      expect(find.text('₦350,000 shared by the winners'), findsOneWidget);
-      expect(find.text('· · ·'), findsOneWidget);
+      expect(find.text('36 submissions, ranked'), findsOneWidget);
+      expect(find.text('₦350,000 shared by the winners'), findsNothing);
+      expect(find.text('· · ·'), findsNothing);
+      final rows = tester
+          .widgetList<IqLeaderboardRow>(
+            find.byType(IqLeaderboardRow, skipOffstage: false),
+          )
+          .toList();
+      expect(
+        [for (final r in rows) r.rank],
+        [for (var rank = 4; rank <= 12; rank++) '$rank'],
+      );
+      expect(
+        [
+          for (final r in rows)
+            if (r.state == IqLeaderboardRowState.you) r.rank,
+        ],
+        ['9'],
+      );
+      expect(
+        [for (final r in rows) r.showAmount],
+        [true, for (var rank = 5; rank <= 12; rank++) false],
+      );
       await _tap(tester, find.bySemanticsLabel('Back'));
       expect(find.byType(NotSelectedView), findsOneWidget);
 
@@ -311,6 +334,31 @@ void main() {
       expect(find.byType(HomeScreen), findsOneWidget);
       expect(container.read(discoverFiltersProvider).forYou, isTrue);
       semantics.dispose();
+    },
+  );
+
+  testWidgets(
+    'B13: Your submission on Not selected pushes Submission detail and Back '
+    'returns to the result',
+    (tester) async {
+      await pumpApp(tester, Routes.submissions);
+      await _tap(tester, find.text('Not selected · 1'));
+      await _tap(tester, find.text('One counter for quick jobs'));
+      await _tap(tester, find.text('Your submission'));
+      expect(find.byType(SubmissionDetailScreen), findsOneWidget);
+      expect(find.byType(NotSelectedView), findsNothing);
+      await _tap(tester, find.bySemanticsLabel('Back'));
+      expect(find.byType(NotSelectedView), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'B13: the Winner keeps its share card and has no submission row',
+    (tester) async {
+      await pumpApp(tester, resultPath('s2'));
+      await tester.pumpAndSettle();
+      expect(find.byType(IqShareCard), findsOneWidget);
+      expect(find.text('Your submission'), findsNothing);
     },
   );
 

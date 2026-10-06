@@ -11,6 +11,9 @@ import 'package:iqly_mobile/features/discover/home_screen.dart';
 import 'package:iqly_mobile/features/submissions/my_submissions_screen.dart';
 import 'package:iqly_mobile/features/submissions/submission_detail_screen.dart';
 import 'package:iqly_mobile/features/submissions/submissions_routes.dart';
+import 'package:iqly_mobile/core/motion.dart';
+import 'package:iqly_mobile/core/transitions.dart';
+import 'package:iqly_mobile/features/submit/brief_sheet.dart';
 import 'package:iqly_mobile/features/submit/submit_screen.dart';
 import 'package:iqly_mobile/features/submit/submit_state.dart';
 import 'package:iqly_mobile/router.dart';
@@ -66,6 +69,51 @@ IqPollOptionState _option(WidgetTester tester, String label) => tester
 List<Draft> _drafts(DemoRepository repository) => repository.data.drafts;
 
 void main() {
+  testWidgets(
+    'B3: View the brief opens the brief sheet; Back to writing and the scrim '
+    'return to the draft as it was',
+    (tester) async {
+      await pumpApp(
+        tester,
+        '/briefs/c5/submit',
+        repository: draftsRepository(),
+        overrides: instantSubmit(),
+        reducedMotion: false,
+      );
+      await _type(tester, _field('Title'), SubmitCopy.title);
+      await _type(tester, _answer(), SubmitCopy.shortAnswer);
+
+      await _tap(tester, _button('View the brief'));
+      expect(find.byType(BriefSheet), findsOneWidget);
+      final route =
+          ModalRoute.of(tester.element(find.byType(BriefSheet)))!
+              as IqSheetRoute;
+      expect(route.transitionDuration, IqDurations.sheetRise);
+      expect(route.reverseTransitionDuration, IqDurations.sheetDrop);
+      final brief = DemoData(now: figmaNow).briefs
+          .firstWhere((b) => b.id == 'c5');
+      expect(
+        find.descendant(
+          of: find.byType(BriefSheet),
+          matching: find.text(brief.title),
+        ),
+        findsOneWidget,
+      );
+
+      await _tap(tester, find.text('Back to writing'));
+      expect(find.byType(BriefSheet), findsNothing);
+      expect(find.byType(SubmitScreen), findsOneWidget);
+      expect(find.text(SubmitCopy.shortAnswer), findsOneWidget);
+      expect(find.text(SubmitCopy.title), findsOneWidget);
+
+      await _tap(tester, _button('View the brief'));
+      await tester.tapAt(const Offset(20, 80));
+      await tester.pumpAndSettle();
+      expect(find.byType(BriefSheet), findsNothing);
+      expect(find.text(SubmitCopy.shortAnswer), findsOneWidget);
+    },
+  );
+
   testWidgets(
     'B3: Brief detail to sent, then the entry is in My submissions as '
     'Under review',

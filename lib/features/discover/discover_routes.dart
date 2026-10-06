@@ -20,19 +20,14 @@ import 'saved_briefs_screen.dart';
 
 /// The four dock tabs as a StatefulShellRoute, so each tab keeps its stack
 /// and scroll; a dock switch is a cut and the shell arrives by hand-off.
-/// Tapping the lit tab pops it to its root, or, at its root, scrolls its
-/// list to the top (spec 3.6).
+/// The lit tab is inert (designer doc rev 57).
 RouteBase appShellRoute(GlobalKey<NavigatorState> rootKey) =>
     StatefulShellRoute(
       pageBuilder: (context, state, shell) => handoffPage(
         state,
         AppShell(
           active: IqDockActive.values[shell.currentIndex],
-          atRoot: state.uri.path == _tabRoots[shell.currentIndex],
-          onTab: (tab) => shell.goBranch(
-            tab.index,
-            initialLocation: tab.index == shell.currentIndex,
-          ),
+          onTab: (tab) => shell.goBranch(tab.index),
           child: shell,
         ),
       ),
@@ -92,8 +87,6 @@ final discoverRoutes = <RouteBase>[
   ...pollsRoutes,
   ...activationsRoutes,
 ];
-
-const _tabRoots = [Routes.home, Routes.submissions, Routes.wallet, Routes.more];
 
 GoRoute _push(String path, Widget screen) => GoRoute(
   path: path,
