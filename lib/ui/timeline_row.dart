@@ -1,0 +1,318 @@
+import 'package:flutter/material.dart';
+
+import '../core/motion.dart';
+import '../theme/theme.dart';
+import 'icon.dart';
+
+enum IqTimelineRowState { done, current, upcoming }
+
+/// Exp/TimelineRow: one step of claim progress, a dot on a thread. Done is
+/// inked with the brush check, Current is the orange dot with a soft ring
+/// that breathes 1 to 1.3 and back over 1.6 s at .25 while it holds the
+/// screen's pulse, Upcoming is an outline. Becoming Done inks the dot, its
+/// check and its words in 180 ms, then draws the thread down in 240 ms
+/// ease-out; becoming Current fades the ring in over the same 180 (spec
+/// 5.30, Figma 168:1077). Reduced motion: static ring, changes at once.
+///
+/// Figma over its note: only the threads under Current and Upcoming are
+/// dashed; the thread under Done is solid brand.
+/// Figma over the icon rule: the Done check is 12 px.
+/// Brief rule kept: [failed] puts the Current core and ring on Color/err;
+/// a failure does not pulse, so its ring stays still.
+/// An empty [meta] hides the line, as screens do on some rows (B14
+/// Requested), so the row is 43 tall.
+class IqTimelineRow extends StatefulWidget {
+  const IqTimelineRow({
+    super.key,
+    this.state = IqTimelineRowState.done,
+    this.title = 'Proof received',
+    this.meta = 'Today, 2:14 pm',
+    this.showLine = true,
+    this.failed = false,
+  });
+
+  final IqTimelineRowState state;
+  final String title;
+  final String meta;
+  final bool showLine;
+  final bool failed;
+
+  static const Duration ink = IqDurations.ink;
+  static const Duration draw = IqDurations.mark;
+  static const Duration breathe = IqDurations.ringBreath;
+
+  @override
+  State<IqTimelineRow> createState() => _IqTimelineRowState();
+}
+
+class _IqTimelineRowState extends State<IqTimelineRow>
+    with TickerProviderStateMixin, PulseLoop {
+  @override
+  late final AnimationController pulse = AnimationController(
+    vsync: this,
+    duration: IqTimelineRow.breathe,
+  );
+  late final Animation<double> _ring = pulse.drive(_Breath());
+  late final AnimationController _done = AnimationController(
+    vsync: this,
+    duration: IqTimelineRow.ink + IqTimelineRow.draw,
+    value: 1,
+  );
+  late final AnimationController _ringIn = AnimationController(
+    vsync: this,
+    duration: IqTimelineRow.ink,
+    value: widget.state == IqTimelineRowState.current ? 1 : 0,
+  );
+  late final Animation<double> _ringShown = _ringIn.drive(
+    CurveTween(curve: IqCurves.easeOut),
+  );
+  late final Animation<double> _thread = _done.drive(
+    CurveTween(
+      curve: Interval(
+        IqTimelineRow.ink.inMicroseconds / _done.duration!.inMicroseconds,
+        1,
+        curve: IqCurves.easeOut,
+      ),
+    ),
+  );
+
+  bool get _reduced => MediaQuery.disableAnimationsOf(context);
+
+  @override
+  PulsePriority get pulsePriority => PulsePriority.currentRing;
+
+  @override
+  bool get wantsPulse =>
+      widget.state == IqTimelineRowState.current && !widget.failed;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    syncPulse();
+  }
+
+  @override
+  void didUpdateWidget(IqTimelineRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.state == IqTimelineRowState.done &&
+        oldWidget.state != IqTimelineRowState.done &&
+        !_reduced) {
+      _done.forward(from: 0);
+    }
+    final current = widget.state == IqTimelineRowState.current;
+    if (current != (oldWidget.state == IqTimelineRowState.current)) {
+      if (_reduced) {
+        _ringIn.value = current ? 1 : 0;
+      } else if (current) {
+        _ringIn.forward();
+      } else {
+        _ringIn.reverse();
+      }
+    }
+    if (widget.state != oldWidget.state || widget.failed != oldWidget.failed) {
+      syncPulse();
+    }
+  }
+
+  @override
+  void dispose() {
+    pulse.dispose();
+    _done.dispose();
+    _ringIn.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
+    final hot = widget.failed ? IqColors.err : IqColors.accent;
+    final duration = _reduced ? Duration.zero : IqTimelineRow.ink;
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: 28,
+            child: Column(
+              children: [
+                SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.center,
+                    children: [
+                      FadeTransition(
+                        opacity: _ringShown,
+                        child: ScaleTransition(
+                          scale: _ring,
+                          child: Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: hot.withValues(alpha: IqOpacity.ring),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                      ),
+                      AnimatedContainer(
+                        duration: duration,
+                        curve: IqCurves.easeOut,
+                        width: 20,
+                        height: 20,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: switch (state) {
+                            IqTimelineRowState.done => IqColors.brand,
+                            IqTimelineRowState.current => hot,
+                            IqTimelineRowState.upcoming =>
+                              IqColors.brand.withValues(alpha: 0),
+                          },
+                          border: state == IqTimelineRowState.upcoming
+                              ? Border.all(
+                                  color: IqColors.brandLine2,
+                                  width: 1.5,
+                                )
+                              : null,
+                        ),
+                        child: AnimatedSwitcher(
+                          duration: duration,
+                          switchInCurve: IqCurves.easeOut,
+                          switchOutCurve: IqCurves.easeOut,
+                          child: state == IqTimelineRowState.done
+                              ? const IqIcon(
+                                  IqIcons.check,
+                                  size: 12,
+                                  color: IqColors.sidebarFg,
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (widget.showLine) ...[
+                  const SizedBox(height: IqSpace.s1),
+                  Expanded(
+                    child: AnimatedBuilder(
+                      animation: _thread,
+                      builder: (context, _) => CustomPaint(
+                        size: const Size(1.5, double.infinity),
+                        painter: _ThreadPainter(
+                          dashed: state != IqTimelineRowState.done,
+                          reveal: state == IqTimelineRowState.done
+                              ? _thread.value
+                              : 1,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: IqSpace.s0p5, bottom: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AnimatedDefaultTextStyle(
+                    duration: duration,
+                    style: IqText.bodyStrong.copyWith(
+                      color: state == IqTimelineRowState.upcoming
+                          ? IqColors.fg3
+                          : IqColors.fg,
+                    ),
+                    child: _Swap(
+                      duration: duration,
+                      child: Text(widget.title, key: ValueKey(widget.title)),
+                    ),
+                  ),
+                  if (widget.meta.isNotEmpty) ...[
+                    const SizedBox(height: IqSpace.s0p5),
+                    _Swap(
+                      duration: duration,
+                      child: Text(
+                        widget.meta,
+                        key: ValueKey(widget.meta),
+                        style: IqText.small.copyWith(color: IqColors.fg3),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ThreadPainter extends CustomPainter {
+  const _ThreadPainter({required this.dashed, required this.reveal});
+
+  final bool dashed;
+  final double reveal;
+
+  static const double _dash = 4;
+  static const double _gap = 4;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = dashed ? IqColors.brandLine2 : IqColors.brand
+      ..strokeWidth = 1.5;
+    // Aligns the 1.5 px stroke's left edge to a pixel so one column is solid.
+    final x = (size.width / 2).floorToDouble() - 0.25;
+    final end = size.height * reveal;
+    if (!dashed) {
+      canvas.drawLine(Offset(x, 0), Offset(x, end), paint);
+      return;
+    }
+    for (var y = 0.0; y < end; y += _dash + _gap) {
+      final to = (y + _dash).clamp(0.0, end);
+      canvas.drawLine(Offset(x, y), Offset(x, to), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ThreadPainter old) =>
+      old.dashed != dashed || old.reveal != reveal;
+}
+
+/// Crosses new words over the old ones in place, left aligned.
+class _Swap extends StatelessWidget {
+  const _Swap({required this.duration, required this.child});
+
+  final Duration duration;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: duration,
+      switchInCurve: IqCurves.easeOut,
+      switchOutCurve: IqCurves.easeOut,
+      layoutBuilder: (current, previous) => Stack(
+        alignment: AlignmentDirectional.topStart,
+        children: [...previous, ?current],
+      ),
+      child: child,
+    );
+  }
+}
+
+/// One full breath of the ring per loop: 1 to 1.3 and back on the breath
+/// curve.
+class _Breath extends Animatable<double> {
+  @override
+  double transform(double t) {
+    final half = t < 0.5 ? t * 2 : 2 - t * 2;
+    return 1 + (IqScale.ring - 1) * IqCurves.breath.transform(half);
+  }
+}

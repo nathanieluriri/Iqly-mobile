@@ -1,0 +1,12 @@
+<svg width="280" height="280" viewBox="0 0 280 280" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Frame=2">
+<path id="hand" d="M165.5 187C165.167 181.333 162 178.5 156 178.5L136 180.5C126 181.833 122 187.5 124 197.5C114 210.167 110.667 225.167 114 242.5V282.5M157 263.5C150 242.167 147.667 220.833 150 199.5L186 197.5C192.667 197.5 196 200.5 196 206.5C196 212.5 192.667 215.5 186 215.5H148.6H190C196.333 215.5 199.5 218.5 199.5 224.5C199.5 230.5 196.333 233.5 190 233.5H150.4H188C194 233.5 197 236.333 197 242C197 247.667 194 250.5 188 250.5H153.6H181C186.333 250.5 189 252.833 189 257.5C189 262.167 186.333 264.5 181 264.5L158 263.9M162 266.5C170 267.833 174.667 273.167 176 282.5M114 272.5H176" stroke="#2D0048" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="stem" d="M152 176.5C152 146.5 152 116.5 158 84.5" stroke="#2D0048" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="leaf-left" d="M154.8 105.5C128.8 103.5 112.8 85.5 112.8 63.5C134.8 63.5 152.8 79.5 154.8 105.5Z" stroke="#2D0048" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="leaf-right" d="M158 79.4995C160 55.4995 178 41.4995 200 43.4995C198 67.4995 182 81.4995 158 79.4995Z" stroke="#2D0048" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<circle id="sun" cx="224" cy="34.5008" r="19.2" fill="#F58028"/>
+<path id="spark-1" d="M250 18.5L262 6.5" stroke="#F58028" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="spark-2" d="M254 42.5L270 40.5" stroke="#F58028" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="spark-3" d="M196 14.5L186 2.5" stroke="#F58028" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+</svg>

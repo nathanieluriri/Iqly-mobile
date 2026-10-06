@@ -1,0 +1,111 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../data/onboarding_service.dart';
+import '../../data/profile_service.dart';
+import '../../data/reference_data.dart';
+import '../../theme/theme.dart';
+import '../../ui/icon.dart';
+import '../../ui/list_row.dart';
+import '../more/more_widgets.dart';
+import 'profile_routes.dart';
+import 'profile_state.dart';
+
+/// One row of Your details and the Edit page it opens.
+enum DetailField {
+  phone('phone', 'Phone number', IqIcons.phone),
+  dateOfBirth('date-of-birth', 'Date of birth', IqIcons.cake),
+  state('state', 'State', IqIcons.pin),
+  university('university', 'University', IqIcons.graduation),
+  interests('interests', 'Interests', IqIcons.heart),
+  occupation('occupation', 'Occupation', IqIcons.briefcase),
+  city('city', 'City', IqIcons.building),
+  education('education', 'Education', IqIcons.book);
+
+  const DetailField(this.slug, this.label, this.icon);
+
+  final String slug;
+  final String label;
+  final IqIcons icon;
+
+  static DetailField? of(String slug) =>
+      values.where((f) => f.slug == slug).firstOrNull;
+}
+
+/// The Figma wording of the occupation values (484:22898): "Looking for
+/// work" where the shipped list says Unemployed.
+const occupationLabels = {
+  'student': 'Student',
+  'entrepreneur': 'Entrepreneur',
+  'employed': 'Employed',
+  'self_employed': 'Self-employed',
+  'unemployed': 'Looking for work',
+  'other': 'Other',
+};
+
+/// Edit · Education (484:22815) offers four levels over the shipped five
+/// values; Other stays readable for accounts that hold it.
+const educationOptions = [
+  RefOption('ssce', 'Secondary school'),
+  RefOption('nd_nce', 'Diploma or HND'),
+  RefOption('hnd_bsc', 'Bachelor’s degree'),
+  RefOption('postgraduate', 'Master’s or above'),
+];
+
+String? educationLabel(String? value) =>
+    optionLabel(educationOptions, value) ??
+    optionLabel(Reference.education, value);
+
+/// What each row reads, from the account and the first-run answers.
+String detailValue(
+  DetailField field,
+  AccountDetails? details,
+  OnboardingProfile answers,
+) => switch (field) {
+  DetailField.phone => details?.phone ?? '',
+  DetailField.dateOfBirth =>
+    details?.dateOfBirth == null ? '' : birthDate(details!.dateOfBirth!),
+  DetailField.state => answers.state ?? '',
+  DetailField.university => answers.university ?? '',
+  DetailField.interests => interestsLine(answers.interests),
+  DetailField.occupation => occupationLabels[answers.occupation] ?? '',
+  DetailField.city => [
+    ?answers.state,
+    if (answers.city.isNotEmpty) answers.city,
+  ].join(' · '),
+  DetailField.education => educationLabel(answers.education) ?? '',
+};
+
+/// B7 · Your details (40:141): eight rows, each with its own filled icon
+/// (designer answer, 5 Oct) and the value under the label. A row opens its
+/// Edit page; edits come back here on Save.
+class YourDetailsScreen extends ConsumerWidget {
+  const YourDetailsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final details = ref.watch(accountDetailsProvider).value;
+    final answers = ref.watch(profileAnswersProvider);
+    return SubPage(
+      title: 'Your details',
+      body: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
+        children: [
+          for (final field in DetailField.values)
+            IqListRow(
+              label: field.label,
+              description: detailValue(field, details, answers),
+              icon: field.icon,
+              onTap: () => context.push(editDetailPath(field)),
+            ),
+          const SizedBox(height: IqSpace.s2),
+          Text(
+            'Tap a row to change it. Your email stays as your sign-in.',
+            style: IqText.small.copyWith(color: IqColors.fg3),
+          ),
+        ],
+      ),
+    );
+  }
+}

@@ -1,0 +1,1069 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:iqly_mobile/core/motion.dart';
+import 'package:iqly_mobile/core/transitions.dart';
+import 'package:iqly_mobile/theme/theme.dart';
+import 'package:iqly_mobile/ui/top_bar.dart';
+
+const _size = Size(390, 844);
+const _sheetHeight = 400.0;
+
+class _Page extends StatelessWidget {
+  const _Page(this.name);
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: IqColors.bg,
+      child: SizedBox.expand(
+        key: ValueKey(name),
+        child: Center(
+          child: GestureDetector(
+            onTap: () => context.pop(),
+            child: Text('back from $name'),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Sheet extends StatelessWidget {
+  const _Sheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      key: ValueKey('sheet'),
+      width: double.infinity,
+      height: _sheetHeight,
+      child: ColoredBox(color: IqColors.card),
+    );
+  }
+}
+
+/// A page that makes room for the keyboard, with a foot at the bottom.
+class _Form extends StatelessWidget {
+  const _Form(this.name);
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: IqColors.bg,
+      body: Column(
+        children: [
+          const Spacer(),
+          SizedBox(key: ValueKey('$name-foot'), height: 20),
+        ],
+      ),
+    );
+  }
+}
+
+GoRouter _router([String initial = '/a']) => GoRouter(
+  initialLocation: initial,
+  routes: [
+    GoRoute(path: '/a', pageBuilder: (c, s) => pushPage(s, const _Page('a'))),
+    GoRoute(path: '/b', pageBuilder: (c, s) => pushPage(s, const _Page('b'))),
+    GoRoute(
+      path: '/h',
+      pageBuilder: (c, s) => handoffPage(s, const _Page('h')),
+    ),
+    GoRoute(
+      path: '/lens',
+      pageBuilder: (c, s) => lensPage(s, const _Page('lens')),
+    ),
+    GoRoute(
+      path: '/sheet',
+      pageBuilder: (c, s) => sheetPage(s, const _Sheet(), scrim: IqScrim.sheet),
+    ),
+    GoRoute(
+      path: '/form-a',
+      pageBuilder: (c, s) => pushPage(s, const _Form('a')),
+    ),
+    GoRoute(
+      path: '/form-b',
+      pageBuilder: (c, s) => pushPage(s, const _Form('b')),
+    ),
+  ],
+);
+
+Future<GoRouter> _pump(
+  WidgetTester tester, {
+  String initial = '/a',
+  bool reduced = false,
+}) => _pumpWith(tester, _router(initial), reduced: reduced);
+
+Future<GoRouter> _pumpWith(
+  WidgetTester tester,
+  GoRouter router, {
+  bool reduced = false,
+}) async {
+  tester.view.physicalSize = _size;
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+  if (reduced) {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+  }
+  addTearDown(router.dispose);
+  await tester.pumpWidget(
+    MaterialApp.router(theme: buildTheme(), routerConfig: router),
+  );
+  await tester.pumpAndSettle();
+  return router;
+}
+
+double _dx(WidgetTester tester, String page) =>
+    tester.getTopLeft(find.byKey(ValueKey(page))).dx;
+
+double _dy(WidgetTester tester, String page) =>
+    tester.getTopLeft(find.byKey(ValueKey(page))).dy;
+
+/// The product of every fade above [page].
+double _opacity(WidgetTester tester, String page) {
+  var opacity = 1.0;
+  for (final widget in tester.widgetList(
+    find.ancestor(
+      of: find.byKey(ValueKey(page)),
+      matching: find.byWidgetPredicate(
+        (w) => w is FadeTransition || w is Opacity,
+      ),
+    ),
+  )) {
+    opacity *= widget is FadeTransition
+        ? widget.opacity.value
+        : (widget as Opacity).opacity;
+  }
+  return opacity;
+}
+
+/// The product of every fade above [finder].
+double _opacityOf(WidgetTester tester, Finder finder) {
+  var opacity = 1.0;
+  for (final widget in tester.widgetList(
+    find.ancestor(
+      of: finder,
+      matching: find.byWidgetPredicate(
+        (w) => w is FadeTransition || w is Opacity,
+      ),
+    ),
+  )) {
+    opacity *= widget is FadeTransition
+        ? widget.opacity.value
+        : (widget as Opacity).opacity;
+  }
+  return opacity;
+}
+
+double _eo(double t) => IqCurves.easeOut.transform(t);
+double _ei(double t) => IqCurves.easeIn.transform(t);
+
+const _ms = Duration(milliseconds: 1);
+
+/// One 60 Hz frame.
+const _frame = Duration(microseconds: 16667);
+
+/// A thumb that moves [by] from [from] at an even speed over [frames]
+/// frames and lifts with its last move, as the films drag; [track] reads
+/// the moving thing after every frame until it stops or [settle] frames
+/// pass. Returns the thumb's travel per frame and [track]'s readings from
+/// the frame the thumb lifts.
+Future<(double, List<double>)> _thumb(
+  WidgetTester tester, {
+  required Offset from,
+  required Offset by,
+  required int frames,
+  required double? Function() track,
+  int settle = 60,
+}) async {
+  var at = Duration.zero;
+  final gesture = await tester.createGesture();
+  await gesture.down(from, timeStamp: at);
+  await tester.pump(_frame);
+  for (var i = 1; i <= frames; i++) {
+    at += _frame;
+    await gesture.moveTo(from + by * (i / frames), timeStamp: at);
+    if (i == frames) await gesture.up(timeStamp: at);
+    await tester.pump(_frame);
+  }
+  final after = <double>[];
+  for (var i = 0; i < settle; i++) {
+    final now = track();
+    if (now == null) break;
+    after.add(now);
+    await tester.pump(_frame);
+  }
+  return (by.distance / frames, after);
+}
+
+/// The largest step between consecutive readings.
+double _fastest(List<double> track) {
+  var fastest = 0.0;
+  for (var i = 1; i < track.length; i++) {
+    fastest = (track[i] - track[i - 1]).abs() > fastest
+        ? (track[i] - track[i - 1]).abs()
+        : fastest;
+  }
+  return fastest;
+}
+
+void main() {
+  group('push', () {
+    testWidgets('slides 24 in as it fades, the page beneath slides away', (
+      tester,
+    ) async {
+      final router = await _pump(tester);
+      router.push('/b');
+      await tester.pump();
+      await tester.pump();
+      expect(_dx(tester, 'b'), closeTo(24, 0.01));
+      expect(_opacity(tester, 'b'), closeTo(0, 0.01));
+      expect(_dx(tester, 'a'), closeTo(0, 0.01));
+
+      await tester.pump(_ms * 150);
+      expect(_dx(tester, 'b'), closeTo(24 * (1 - _eo(0.5)), 0.5));
+      expect(_opacity(tester, 'b'), closeTo(_eo(0.5 / 0.6), 0.01));
+      expect(_dx(tester, 'a'), closeTo(-24 * _ei(0.5), 0.5));
+      expect(_opacity(tester, 'a'), closeTo(0, 0.01));
+
+      await tester.pump(_ms * 150);
+      expect(_dx(tester, 'b'), 0);
+      expect(_opacity(tester, 'b'), 1);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('a')), findsNothing);
+    });
+
+    testWidgets('pops back over 240', (tester) async {
+      final router = await _pump(tester);
+      router.push('/b');
+      await tester.pumpAndSettle();
+      router.pop();
+      await tester.pump();
+      expect(_dx(tester, 'b'), closeTo(0, 0.01));
+
+      await tester.pump(_ms * 120);
+      expect(_dx(tester, 'b'), closeTo(24 * (1 - _eo(0.5)), 0.5));
+      expect(_dx(tester, 'a'), closeTo(-24 * _ei(0.5), 0.5));
+
+      await tester.pump(_ms * 120);
+      expect(_dx(tester, 'a'), 0);
+      expect(_opacity(tester, 'a'), 1);
+      await tester.pump(_ms);
+      await tester.pump();
+      expect(find.byKey(const ValueKey('b')), findsNothing);
+    });
+
+    testWidgets('a go marked back mirrors the push', (tester) async {
+      final router = await _pump(tester, initial: '/b');
+      router.go('/a', extra: NavDirection.back);
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 120);
+      expect(_dx(tester, 'a'), closeTo(-24 * (1 - _eo(0.5)), 0.5));
+      expect(_dx(tester, 'b'), closeTo(24 * _ei(0.5), 0.5));
+      await tester.pumpAndSettle();
+      expect(_dx(tester, 'a'), 0);
+      expect(find.byKey(const ValueKey('b')), findsNothing);
+    });
+
+    testWidgets('a back tap halfway through a push pops it', (tester) async {
+      final router = await _pump(tester);
+      router.push('/b');
+      await tester.pump();
+      await tester.pump(_ms * 150);
+      await tester.tap(find.text('back from b'));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/a');
+      expect(find.byKey(const ValueKey('b')), findsNothing);
+      expect(_dx(tester, 'a'), 0);
+      expect(_opacity(tester, 'a'), 1);
+    });
+
+    testWidgets('reduced motion: a 150 ms crossfade and nothing slides', (
+      tester,
+    ) async {
+      final router = await _pump(tester, reduced: true);
+      router.push('/b');
+      await tester.pump();
+      await tester.pump();
+      expect(_dx(tester, 'b'), 0);
+      await tester.pump(_ms * 75);
+      expect(_dx(tester, 'b'), 0);
+      expect(_dx(tester, 'a'), 0);
+      expect(_opacity(tester, 'a'), 1);
+      expect(_opacity(tester, 'b'), closeTo(_eo(0.5), 0.01));
+      await tester.pump(_ms * 75);
+      expect(_opacity(tester, 'b'), 1);
+      await tester.pump(_ms);
+      expect(tester.hasRunningAnimations, isFalse);
+
+      router.pop();
+      await tester.pump();
+      await tester.pump(_ms * 75);
+      expect(_dx(tester, 'b'), 0);
+      await tester.pump(_ms * 75);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('b')), findsNothing);
+    });
+
+    testWidgets('iOS: the edge swipe follows the finger and pops', (
+      tester,
+    ) async {
+      final router = await _pump(tester);
+      router.push('/b');
+      await tester.pumpAndSettle();
+
+      final swipe = await tester.startGesture(const Offset(5, 400));
+      await swipe.moveBy(const Offset(20, 0));
+      await tester.pump();
+      final caught = _dx(tester, 'b');
+      await swipe.moveBy(const Offset(100, 0));
+      await tester.pump();
+      final dragged = _dx(tester, 'b');
+      expect(dragged - caught, closeTo(100, 0.5));
+      expect(_opacity(tester, 'b'), 1);
+      expect(_opacity(tester, 'a'), 1);
+      expect(_dx(tester, 'a'), closeTo(-24 * (1 - dragged / 390), 0.5));
+
+      await swipe.moveBy(const Offset(150, 0));
+      await swipe.up();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('b')), findsNothing);
+      expect(_dx(tester, 'a'), 0);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('iOS: a thumb that lifts mid-swipe carries the page on at '
+        'its own speed, never faster', (tester) async {
+      final router = await _pump(tester);
+      router.push('/b');
+      await tester.pumpAndSettle();
+      final page = find.byKey(const ValueKey('b'));
+      // The films' swipe: from the edge across 62% in 0.4 s, about 600
+      // pt/s, lifting as it moves.
+      final (thumb, track) = await _thumb(
+        tester,
+        from: const Offset(6, 460),
+        by: const Offset(390 * 0.62, 0),
+        frames: 24,
+        track: () => page.evaluate().isEmpty ? null : _dx(tester, 'b'),
+      );
+      expect(track, isNotEmpty);
+      expect(_fastest(track), lessThanOrEqualTo(thumb * 1.02));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/a');
+      expect(find.byKey(const ValueKey('b')), findsNothing);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('iOS: a quick flick settles no faster than the remaining '
+        'share of 240', (tester) async {
+      final router = await _pump(tester);
+      router.push('/b');
+      await tester.pumpAndSettle();
+      final page = find.byKey(const ValueKey('b'));
+      final (_, track) = await _thumb(
+        tester,
+        from: const Offset(6, 460),
+        by: const Offset(390 * 0.5, 0),
+        frames: 4,
+        track: () => page.evaluate().isEmpty ? null : _dx(tester, 'b'),
+      );
+      // Half the width left: at least 120 ms, so at least 7 frames to go.
+      expect(track.length, greaterThanOrEqualTo(7));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/a');
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('iOS: a short swipe settles back', (tester) async {
+      final router = await _pump(tester);
+      router.push('/b');
+      await tester.pumpAndSettle();
+
+      final swipe = await tester.startGesture(const Offset(5, 400));
+      await swipe.moveBy(const Offset(20, 0));
+      await tester.pump();
+      final caught = _dx(tester, 'b');
+      await swipe.moveBy(const Offset(40, 0));
+      await tester.pump();
+      expect(_dx(tester, 'b') - caught, closeTo(40, 0.5));
+      await swipe.up();
+      await tester.pumpAndSettle();
+      expect(_dx(tester, 'b'), 0);
+      expect(router.state.uri.path, '/b');
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+  });
+
+  group('whenUncovered', () {
+    testWidgets('runs at once with nothing over the page, else once the page '
+        'above has gone', (tester) async {
+      final router = await _pump(tester);
+      final a = tester.element(find.byKey(const ValueKey('a')));
+      var ran = 0;
+      whenUncovered(a, () => ran++);
+      expect(ran, 1);
+
+      router.push('/b');
+      await tester.pump();
+      await tester.pump(_ms * 150);
+      whenUncovered(a, () => ran++);
+      await tester.pumpAndSettle();
+      expect(ran, 1);
+
+      router.pop();
+      await tester.pump();
+      await tester.pump(_ms * 200);
+      expect(ran, 1);
+      await tester.pump(_ms * 41);
+      expect(ran, 2);
+    });
+  });
+
+  group('keyboard', () {
+    double foot(WidgetTester tester, String page) =>
+        tester.getTopLeft(find.byKey(ValueKey('$page-foot'))).dy;
+
+    void keyboard(WidgetTester tester, double inset) =>
+        tester.view.viewInsets = FakeViewPadding(bottom: inset);
+
+    testWidgets('a page on its way out keeps its insets while the keyboard '
+        'moves; the page coming in follows it', (tester) async {
+      final router = await _pump(tester, initial: '/form-a');
+      keyboard(tester, 336);
+      await tester.pump();
+      expect(foot(tester, 'a'), 844 - 336 - 20);
+
+      router.push('/form-b');
+      await tester.pump();
+      for (final inset in [200.0, 80.0, 0.0]) {
+        keyboard(tester, inset);
+        await tester.pump(_ms * 50);
+        expect(foot(tester, 'a'), 844 - 336 - 20);
+        expect(foot(tester, 'b'), 844 - inset - 20);
+      }
+      await tester.pumpAndSettle();
+
+      keyboard(tester, 336);
+      await tester.pump();
+      router.pop();
+      await tester.pump();
+      for (final inset in [200.0, 80.0, 0.0]) {
+        keyboard(tester, inset);
+        await tester.pump(_ms * 50);
+        expect(foot(tester, 'b'), 844 - 336 - 20);
+        expect(foot(tester, 'a'), 844 - inset - 20);
+      }
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('b-foot')), findsNothing);
+    });
+
+    testWidgets('a page under a sheet is not leaving: it follows the '
+        'keyboard', (tester) async {
+      final router = await _pump(tester, initial: '/form-a');
+      keyboard(tester, 336);
+      await tester.pump();
+      router.push('/sheet');
+      await tester.pump();
+      keyboard(tester, 0);
+      await tester.pump(_ms * 50);
+      expect(foot(tester, 'a'), 844 - 20);
+    });
+  });
+
+  group('hand-off', () {
+    testWidgets('fades in over a page that stays still, 300 ms', (
+      tester,
+    ) async {
+      final router = await _pump(tester);
+      router.go('/h');
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 150);
+      expect(_opacity(tester, 'h'), closeTo(_eo(0.5), 0.01));
+      expect(_dx(tester, 'h'), 0);
+      expect(_dx(tester, 'a'), 0);
+      expect(_opacity(tester, 'a'), 1);
+      await tester.pump(_ms * 150);
+      expect(_opacity(tester, 'h'), 1);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('a')), findsNothing);
+    });
+
+    testWidgets('from the splash it takes 400', (tester) async {
+      final router = await _pump(tester);
+      router.go('/h', extra: Arrival.splash);
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 200);
+      expect(_opacity(tester, 'h'), closeTo(_eo(0.5), 0.01));
+      await tester.pump(_ms * 200);
+      expect(_opacity(tester, 'h'), 1);
+    });
+
+    testWidgets('reduced motion: 150', (tester) async {
+      final router = await _pump(tester, reduced: true);
+      router.go('/h', extra: Arrival.splash);
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 75);
+      expect(_opacity(tester, 'h'), closeTo(_eo(0.5), 0.01));
+      await tester.pump(_ms * 75);
+      expect(_opacity(tester, 'h'), 1);
+    });
+  });
+
+  group('lens', () {
+    testWidgets('fades in place over 200 ms', (tester) async {
+      final router = await _pump(tester);
+      router.push('/lens');
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 100);
+      expect(_opacity(tester, 'lens'), closeTo(_eo(0.5), 0.01));
+      expect(_dx(tester, 'lens'), 0);
+      expect(_dx(tester, 'a'), 0);
+      expect(_opacity(tester, 'a'), 1);
+      await tester.pump(_ms * 100);
+      expect(_opacity(tester, 'lens'), 1);
+    });
+
+    testWidgets('reduced motion: a cut', (tester) async {
+      final router = await _pump(tester, reduced: true);
+      router.push('/lens');
+      await tester.pump();
+      await tester.pump();
+      expect(_opacity(tester, 'lens'), 1);
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+  });
+
+  group('sheet', () {
+    double scrim(WidgetTester tester) => tester
+        .widget<ColoredBox>(
+          find
+              .descendant(
+                of: find.byType(ModalBarrier),
+                matching: find.byType(ColoredBox),
+              )
+              .last,
+        )
+        .color
+        .a;
+
+    testWidgets('rises 300 over its scrim and drops 200', (tester) async {
+      final router = await _pump(tester);
+      router.push('/sheet');
+      await tester.pump();
+      await tester.pump();
+      const top = 844 - _sheetHeight;
+      expect(_dy(tester, 'sheet'), closeTo(844, 0.5));
+
+      await tester.pump(_ms * 150);
+      expect(
+        _dy(tester, 'sheet'),
+        closeTo(top + _sheetHeight * (1 - _eo(0.5)), 0.5),
+      );
+      expect(scrim(tester), closeTo(IqOpacity.sheetScrim * _eo(0.5), 0.01));
+      expect(_dx(tester, 'a'), 0);
+      expect(_opacity(tester, 'a'), 1);
+
+      await tester.pump(_ms * 150);
+      expect(_dy(tester, 'sheet'), closeTo(top, 0.5));
+      expect(scrim(tester), closeTo(IqOpacity.sheetScrim, 0.01));
+
+      router.pop();
+      await tester.pump();
+      await tester.pump(_ms * 100);
+      expect(
+        _dy(tester, 'sheet'),
+        closeTo(top + _sheetHeight * (1 - _eo(0.5)), 0.5),
+      );
+      await tester.pump(_ms * 100);
+      await tester.pumpAndSettle();
+      expect(find.byType(_Sheet), findsNothing);
+    });
+
+    testWidgets('follows a drag down and closes past half its height', (
+      tester,
+    ) async {
+      final router = await _pump(tester);
+      router.push('/sheet');
+      await tester.pumpAndSettle();
+      const top = 844 - _sheetHeight;
+
+      final drag = await tester.startGesture(const Offset(195, top + 40));
+      await drag.moveBy(const Offset(0, 20));
+      await drag.moveBy(const Offset(0, 80));
+      await tester.pump();
+      expect(_dy(tester, 'sheet'), closeTo(top + 100, 1));
+      await drag.up();
+      await tester.pumpAndSettle();
+      expect(_dy(tester, 'sheet'), closeTo(top, 0.5));
+      expect(router.state.uri.path, '/sheet');
+
+      final close = await tester.startGesture(const Offset(195, top + 40));
+      await close.moveBy(const Offset(0, 20));
+      await close.moveBy(const Offset(0, 240));
+      await tester.pump();
+      await close.up();
+      await tester.pumpAndSettle();
+      expect(find.byType(_Sheet), findsNothing);
+      expect(router.state.uri.path, '/a');
+    });
+
+    testWidgets('a drag that lifts past half carries the sheet down at the '
+        'finger\'s speed, never faster', (tester) async {
+      final router = await _pump(tester);
+      router.push('/sheet');
+      await tester.pumpAndSettle();
+      const top = 844 - _sheetHeight;
+      final sheet = find.byKey(const ValueKey('sheet'));
+      // 300 down in 0.5 s, 600 px/s: under the 700 px/s fling.
+      final (finger, track) = await _thumb(
+        tester,
+        from: const Offset(195, top + 40),
+        by: const Offset(0, 300),
+        frames: 30,
+        track: () => sheet.evaluate().isEmpty ? null : _dy(tester, 'sheet'),
+      );
+      expect(track, isNotEmpty);
+      expect(_fastest(track), lessThanOrEqualTo(finger * 1.02));
+      await tester.pumpAndSettle();
+      expect(find.byType(_Sheet), findsNothing);
+      expect(router.state.uri.path, '/a');
+    });
+
+    testWidgets('reduced motion: fades in place over 150', (tester) async {
+      final router = await _pump(tester, reduced: true);
+      router.push('/sheet');
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 75);
+      expect(_dy(tester, 'sheet'), closeTo(844 - _sheetHeight, 0.5));
+      expect(_opacity(tester, 'sheet'), closeTo(_eo(0.5), 0.01));
+      await tester.pump(_ms * 75);
+      expect(_opacity(tester, 'sheet'), 1);
+      await tester.pump(_ms);
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+
+    testWidgets('showIqSheet resolves with what the sheet pops', (
+      tester,
+    ) async {
+      String? picked;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () async => picked = await showIqSheet<String>(
+                context,
+                (context) => TextButton(
+                  onPressed: () => Navigator.of(context).pop('lagos'),
+                  child: const Text('pick'),
+                ),
+                scrim: IqScrim.picker,
+              ),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('pick'));
+      await tester.pumpAndSettle();
+      expect(picked, 'lagos');
+      expect(find.text('pick'), findsNothing);
+    });
+  });
+
+  group('tabs', () {
+    Future<GoRouter> shell(WidgetTester tester, {bool reduced = false}) async {
+      tester.view.physicalSize = _size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      if (reduced) {
+        tester.platformDispatcher.accessibilityFeaturesTestValue =
+            const FakeAccessibilityFeatures(disableAnimations: true);
+        addTearDown(
+          tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+        );
+      }
+      final router = GoRouter(
+        initialLocation: '/one',
+        routes: [
+          StatefulShellRoute(
+            pageBuilder: (context, state, shell) => handoffPage(state, shell),
+            navigatorContainerBuilder: TabBranches.builder,
+            branches: [
+              StatefulShellBranch(
+                routes: [
+                  GoRoute(
+                    path: '/one',
+                    pageBuilder: (c, s) => pushPage(s, const _Page('one')),
+                  ),
+                ],
+              ),
+              StatefulShellBranch(
+                routes: [
+                  GoRoute(
+                    path: '/two',
+                    pageBuilder: (c, s) => pushPage(s, const _Page('two')),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+      return router;
+    }
+
+    testWidgets('a dock switch is a cut, nothing moves', (tester) async {
+      final router = await shell(tester);
+      router.go('/two');
+      await tester.pump();
+      expect(find.byKey(const ValueKey('one')), findsNothing);
+      expect(_opacity(tester, 'two'), 1);
+      expect(_dx(tester, 'two'), 0);
+    });
+
+    testWidgets('reduced motion: a cut', (tester) async {
+      final router = await shell(tester, reduced: true);
+      router.go('/two');
+      await tester.pump();
+      expect(find.byKey(const ValueKey('one')), findsNothing);
+      expect(_opacity(tester, 'two'), 1);
+    });
+  });
+
+  group('dissolve', () {
+    Widget state(String name, {bool reduced = false}) => MaterialApp(
+      home: MediaQuery(
+        data: MediaQueryData(disableAnimations: reduced),
+        child: Dissolve(
+          child: KeyedSubtree(key: ValueKey('$name state'), child: _Page(name)),
+        ),
+      ),
+    );
+
+    testWidgets('the new state crosses over the old, 300 ms', (tester) async {
+      await tester.pumpWidget(state('old'));
+      await tester.pumpWidget(state('new'));
+      await tester.pump(_ms * 150);
+      expect(_opacity(tester, 'new'), closeTo(_eo(0.5), 0.01));
+      expect(_opacity(tester, 'old'), closeTo(_eo(0.5), 0.01));
+      await tester.pump(_ms * 150);
+      expect(_opacity(tester, 'new'), 1);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('old')), findsNothing);
+    });
+
+    testWidgets('reduced motion: 150', (tester) async {
+      await tester.pumpWidget(state('old', reduced: true));
+      await tester.pumpWidget(state('new', reduced: true));
+      await tester.pump(_ms * 75);
+      expect(_opacity(tester, 'new'), closeTo(_eo(0.5), 0.01));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('old')), findsNothing);
+    });
+  });
+
+  group('overlay', () {
+    Widget overlay({required bool shown, bool reduced = false}) => MaterialApp(
+      home: MediaQuery(
+        data: MediaQueryData(size: _size, disableAnimations: reduced),
+        child: IqOverlay(
+          shown: shown,
+          scrim: IqScrim.tip,
+          delay: IqDurations.tipWait,
+          top: (constraints) => 280,
+          card: const SizedBox(key: ValueKey('card'), width: 300, height: 200),
+        ),
+      ),
+    );
+
+    testWidgets('waits for Home, then the scrim and the card arrive', (
+      tester,
+    ) async {
+      await tester.pumpWidget(overlay(shown: true));
+      await tester.pump(_ms * 600);
+      expect(_opacity(tester, 'card'), 0);
+      await tester.pump(_ms * 120);
+      expect(_opacity(tester, 'card'), closeTo(_eo(60 / 280), 0.01));
+      await tester.pump(_ms * 220);
+      expect(_opacity(tester, 'card'), 1);
+      expect(_dy(tester, 'card'), 280);
+
+      await tester.pumpWidget(overlay(shown: false));
+      await tester.pump(_ms * 80);
+      expect(_opacity(tester, 'card'), closeTo(1 - _ei(0.5), 0.01));
+      expect(_dy(tester, 'card'), greaterThan(280));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('card')), findsNothing);
+    });
+
+    testWidgets('reduced motion: both fade in place, 150', (tester) async {
+      await tester.pumpWidget(overlay(shown: true, reduced: true));
+      await tester.pump(_ms * 75);
+      expect(_opacity(tester, 'card'), closeTo(_eo(0.5), 0.01));
+      expect(_dy(tester, 'card'), 280);
+      await tester.pump(_ms * 75);
+      expect(_opacity(tester, 'card'), 1);
+      await tester.pump(_ms);
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+  });
+
+  group('page bars', () {
+    Widget page(Widget bar) => Material(
+      color: IqColors.bg,
+      child: Column(children: [bar, const Spacer()]),
+    );
+
+    IqTopBar bar(String title, {bool back = true}) => IqTopBar(
+      variant: IqTopBarVariant.page,
+      title: title,
+      showBack: back,
+      onBack: () {},
+    );
+
+    /// The state the two-states page shows.
+    final state = ValueNotifier('Leaving');
+    tearDown(() => state.value = 'Leaving');
+
+    Future<GoRouter> bars(WidgetTester tester) => _pumpWith(
+      tester,
+      GoRouter(
+        initialLocation: '/first',
+        routes: [
+          GoRoute(
+            path: '/first',
+            pageBuilder: (c, s) => pushPage(s, page(bar('First'))),
+          ),
+          GoRoute(
+            path: '/second',
+            pageBuilder: (c, s) => pushPage(s, page(bar('Second'))),
+          ),
+          GoRoute(
+            path: '/wrapped',
+            pageBuilder: (c, s) => pushPage(
+              s,
+              page(
+                ChromeHero(
+                  tag: ChromeTags.back,
+                  shuttle: IqTopBar.shuttle,
+                  child: bar('Wrapped'),
+                ),
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/two-states',
+            pageBuilder: (c, s) => pushPage(
+              s,
+              ValueListenableBuilder(
+                valueListenable: state,
+                builder: (context, title, _) => page(
+                  Dissolve(
+                    child: KeyedSubtree(
+                      key: ValueKey(title),
+                      child: bar(title),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/home',
+            pageBuilder: (c, s) =>
+                pushPage(s, page(const IqTopBar(title: 'Discover'))),
+          ),
+          GoRoute(
+            path: '/no-back',
+            pageBuilder: (c, s) =>
+                pushPage(s, page(bar('Withdraw', back: false))),
+          ),
+        ],
+      ),
+    );
+
+    /// Where the bar is drawn: its flying copy while one flies.
+    Offset drawn(WidgetTester tester) =>
+        tester.getTopLeft(find.byType(IqTopBar).last);
+
+    testWidgets('every Page bar holds its back button across a push and a '
+        'pop while the titles cross (spec 4.3)', (tester) async {
+      final router = await bars(tester);
+      final rest = drawn(tester);
+      router.push('/second');
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 60);
+      expect(drawn(tester), rest);
+      expect(
+        _opacityOf(tester, find.text('First').last),
+        closeTo(1 - _ei(0.5), 0.02),
+      );
+      expect(_opacityOf(tester, find.text('Second').last), 0);
+      await tester.pumpAndSettle();
+
+      router.pop();
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 48);
+      expect(drawn(tester), rest);
+      expect(
+        _opacityOf(tester, find.text('Second').last),
+        closeTo(1 - _ei(0.5), 0.02),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Second'), findsNothing);
+      expect(find.byType(IqTopBar), findsOneWidget);
+    });
+
+    testWidgets('a bar a screen already wraps in the chrome hero flies once', (
+      tester,
+    ) async {
+      final router = await bars(tester);
+      final rest = drawn(tester);
+      router.push('/wrapped');
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 150);
+      expect(drawn(tester), rest);
+      await tester.pumpAndSettle();
+      expect(find.byType(Hero), findsOneWidget);
+    });
+
+    testWidgets('a page that holds two bars as one state dissolves into the '
+        'next flies the bar of the state that stays, both ways', (
+      tester,
+    ) async {
+      final router = await bars(tester);
+      final rest = drawn(tester);
+      router.push('/two-states');
+      await tester.pumpAndSettle();
+
+      state.value = 'Coming';
+      await tester.pump();
+      await tester.pump(_ms * 100);
+      expect(find.text('Leaving'), findsOneWidget);
+      router.push('/second');
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 60);
+      expect(tester.takeException(), isNull);
+      expect(drawn(tester), rest);
+      expect(
+        _opacityOf(tester, find.text('Coming').last),
+        closeTo(1 - _ei(0.5), 0.02),
+      );
+      await tester.pumpAndSettle();
+
+      router.pop();
+      await tester.pumpAndSettle();
+      state.value = 'Leaving';
+      await tester.pump();
+      await tester.pump(_ms * 100);
+      expect(find.text('Coming'), findsOneWidget);
+      router.pop();
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 48);
+      expect(tester.takeException(), isNull);
+      expect(drawn(tester), rest);
+      expect(
+        _opacityOf(tester, find.text('Leaving').last),
+        closeTo(1 - _ei(0.5), 0.02),
+      );
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('a Home bar, and a Page bar with no back button, ride their '
+        'page', (tester) async {
+      final router = await bars(tester);
+      final rest = drawn(tester);
+      for (final location in ['/home', '/no-back']) {
+        router.push(location);
+        await tester.pump();
+        await tester.pump();
+        await tester.pump(_ms * 150);
+        expect(drawn(tester).dx, closeTo(rest.dx + 24 * (1 - _eo(0.5)), 0.5));
+        await tester.pumpAndSettle();
+        router.pop();
+        await tester.pumpAndSettle();
+      }
+    });
+  });
+
+  group('heroes', () {
+    Widget page(String name, Alignment at) => ColoredBox(
+      color: IqColors.bg,
+      child: Align(
+        alignment: at,
+        child: Hero(
+          tag: 'mark',
+          child: SizedBox(key: ValueKey('mark-$name'), width: 40, height: 40),
+        ),
+      ),
+    );
+
+    Future<GoRouter> heroes(WidgetTester tester, {required bool reduced}) =>
+        _pumpWith(
+          tester,
+          GoRouter(
+            initialLocation: '/one',
+            routes: [
+              GoRoute(
+                path: '/one',
+                pageBuilder: (c, s) =>
+                    pushPage(s, page('one', Alignment.topLeft)),
+              ),
+              GoRoute(
+                path: '/two',
+                pageBuilder: (c, s) =>
+                    pushPage(s, page('two', Alignment.bottomRight)),
+              ),
+            ],
+          ),
+          reduced: reduced,
+        );
+
+    bool flying(WidgetTester tester) =>
+        find.byKey(const ValueKey('mark-two')).evaluate().isNotEmpty &&
+        tester.getTopLeft(find.byKey(const ValueKey('mark-two'))) !=
+            const Offset(350, 804);
+
+    testWidgets('a shared element flies with the push', (tester) async {
+      final router = await heroes(tester, reduced: false);
+      router.push('/two');
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 100);
+      expect(flying(tester), isTrue);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('reduced motion: no flight, the element waits in place', (
+      tester,
+    ) async {
+      final router = await heroes(tester, reduced: true);
+      router.push('/two');
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(_ms * 75);
+      expect(flying(tester), isFalse);
+      await tester.pumpAndSettle();
+    });
+  });
+}
