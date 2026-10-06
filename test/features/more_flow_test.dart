@@ -8,6 +8,7 @@ import 'package:iqly_mobile/data/referrals_service.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/entry/landing_screen.dart';
 import 'package:iqly_mobile/features/more/more_screen.dart';
+import 'package:iqly_mobile/features/outcomes/points_leaderboard_screen.dart';
 import 'package:iqly_mobile/features/more/more_state.dart';
 import 'package:iqly_mobile/features/profile/profile_routes.dart';
 import 'package:iqly_mobile/features/profile/your_details_screen.dart';
@@ -16,6 +17,8 @@ import 'package:iqly_mobile/features/wallet/wallet_state.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/dock.dart';
+import 'package:iqly_mobile/ui/icon.dart';
+import 'package:iqly_mobile/ui/quick_action.dart';
 import 'package:iqly_mobile/ui/top_bar.dart';
 
 import '../golden/golden.dart' show loadAppFonts;
@@ -58,7 +61,7 @@ void main() {
 
     for (final (label, path) in [
       ('Your details', Routes.yourDetails),
-      ('Notifications', Routes.notifications),
+      ('Leaderboard', Routes.pointsLeaderboard),
       ('Help centre', Routes.helpCentre),
       ('Terms and conditions', Routes.terms),
     ]) {
@@ -69,6 +72,39 @@ void main() {
       expect(_path(tester), Routes.more);
       expect(find.byType(IqDock), findsOneWidget);
     }
+  });
+
+  testWidgets('the Leaderboard quick link replaces Notifications; the bell '
+      'still opens notifications and the pass points open the leaderboard', (
+    tester,
+  ) async {
+    await pumpMore(tester, Routes.more);
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is IqQuickAction && w.label == 'Notifications',
+      ),
+      findsNothing,
+    );
+    final link = tester.widget<IqQuickAction>(
+      find.byWidgetPredicate(
+        (w) => w is IqQuickAction && w.label == 'Leaderboard',
+      ),
+    );
+    expect(link.icon, IqIcons.trophy);
+
+    await _tap(tester, find.bySemanticsLabel(RegExp('Notifications')));
+    expect(_path(tester), Routes.notifications);
+    await _back(tester);
+
+    await _tap(tester, find.text('1,240'));
+    expect(_path(tester), Routes.pointsLeaderboard);
+    expect(find.byType(PointsLeaderboardScreen), findsOneWidget);
+    expect(find.byType(IqDock), findsNothing);
+    await _back(tester);
+    expect(_path(tester), Routes.more);
+
+    await _tap(tester, find.text('Adaeze Okafor'));
+    expect(_path(tester), Routes.profile);
   });
 
   testWidgets('the first visit shows the pass and invite card as a '

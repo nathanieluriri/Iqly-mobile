@@ -1,5 +1,6 @@
 import 'drafts_data.dart';
 import 'models.dart';
+import 'points_data.dart';
 
 /// Sanctioned sample dataset, mirrored from src/data/demo.ts in the web repo.
 /// Every figure the UI shows is computed from these rows. Three brief titles
@@ -260,6 +261,14 @@ class DemoData {
   static const savedBriefIds = ['c5', 'c4'];
 
   static const closeReminderIds = ['c5'];
+
+  /// The iQL points board (548:25018), the contributor's row from the pass.
+  late final PointsBoard pointsBoard = PointsDemo.of(
+    now,
+    points: points,
+    wins: submissions.where((s) => s.status == SubmissionStatus.winner).length,
+    submissions: submissions.length,
+  );
 
   late final List<Submission> submissions = [
     Submission(

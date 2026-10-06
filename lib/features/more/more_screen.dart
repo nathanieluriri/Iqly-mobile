@@ -99,6 +99,8 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
                           field3: '${pass.wins}',
                           code: pass.code,
                           avatar: const IqSampleAvatar(size: 44),
+                          onSecondaryTap: () =>
+                              context.push(Routes.pointsLeaderboard),
                         ),
                       ),
                     ),
@@ -141,9 +143,9 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
               () => context.push(Routes.moreSavedBriefs),
             ),
           (
-            IqIcons.bell,
-            'Notifications',
-            () => context.push(Routes.notifications),
+            IqIcons.trophy,
+            'Leaderboard',
+            () => context.push(Routes.pointsLeaderboard),
           ),
           (IqIcons.bank, 'Bank account', () => context.push(Routes.selectBank)),
           (

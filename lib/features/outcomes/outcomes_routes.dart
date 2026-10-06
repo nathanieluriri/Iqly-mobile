@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/transitions.dart';
 import '../../router.dart';
 import 'leaderboard_screen.dart';
+import 'points_leaderboard_screen.dart';
 import 'result_screen.dart';
 import 'share_sheet.dart';
 
@@ -13,6 +14,11 @@ String leaderboardPath(String id) => '/submissions/$id/result/leaderboard';
 /// either result and the share sheet rises over the Winner on the brand .35
 /// scrim (MOTION-SPEC §7.8, §3.3; Figma wires them Instant).
 final outcomeRoutes = <RouteBase>[
+  GoRoute(
+    path: Routes.pointsLeaderboard,
+    pageBuilder: (context, state) =>
+        pushPage(state, const PointsLeaderboardScreen()),
+  ),
   GoRoute(
     path: Routes.result,
     pageBuilder: (context, state) =>

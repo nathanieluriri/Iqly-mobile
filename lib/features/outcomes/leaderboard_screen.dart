@@ -86,26 +86,6 @@ class _Board extends StatelessWidget {
 
   final Leaderboard board;
 
-  static const _people = {
-    'Chinedu A.': IqSampleAvatarPerson.person1,
-    'Tunde F.': IqSampleAvatarPerson.person2,
-    'Ngozi E.': IqSampleAvatarPerson.person3,
-  };
-
-  /// Sample portraits by name; Anonymous is a tint disc (193:9779).
-  static Widget _avatar(String name, double size) {
-    final person = _people[name];
-    if (person != null) return IqSampleAvatar(person: person, size: size);
-    return Container(
-      width: size,
-      height: size,
-      decoration: const BoxDecoration(
-        color: IqColors.tint,
-        shape: BoxShape.circle,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final podium = board.podium;
@@ -132,13 +112,13 @@ class _Board extends StatelessWidget {
           IqPodium(
             name1: name(0),
             amount1: amount(0),
-            avatar1: _avatar(name(0), 64),
+            avatar1: leaderboardAvatar(name(0), 64),
             name2: name(1),
             amount2: amount(1),
-            avatar2: _avatar(name(1), 52),
+            avatar2: leaderboardAvatar(name(1), 52),
             name3: name(2),
             amount3: amount(2),
-            avatar3: _avatar(name(2), 52),
+            avatar3: leaderboardAvatar(name(2), 52),
           ),
           const SizedBox(height: IqSpace.s3 * 3),
           Stagger(
@@ -172,6 +152,27 @@ class _Board extends StatelessWidget {
       rankDelay: row.you && index < Stagger.moving
           ? IqDurations.stagger * index + IqDurations.chain
           : null,
+    ),
+  );
+}
+
+const _people = {
+  'Chinedu A.': IqSampleAvatarPerson.person1,
+  'Tunde F.': IqSampleAvatarPerson.person2,
+  'Ngozi E.': IqSampleAvatarPerson.person3,
+};
+
+/// Sample portraits by name on the podium; anyone else, Anonymous too, is a
+/// tint disc (193:9779).
+Widget leaderboardAvatar(String name, double size) {
+  final person = _people[name];
+  if (person != null) return IqSampleAvatar(person: person, size: size);
+  return Container(
+    width: size,
+    height: size,
+    decoration: const BoxDecoration(
+      color: IqColors.tint,
+      shape: BoxShape.circle,
     ),
   );
 }

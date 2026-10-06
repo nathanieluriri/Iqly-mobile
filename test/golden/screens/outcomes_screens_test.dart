@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/features/outcomes/outcomes_routes.dart';
 import 'package:iqly_mobile/features/submissions/submissions_routes.dart';
+import 'package:iqly_mobile/router.dart';
 
 import '../golden.dart';
 import 'app_harness.dart';
@@ -36,6 +37,10 @@ void main() {
 
   testWidgets('leaderboard: not selected (225:10747)', (tester) async {
     await _golden(tester, 'leaderboard_not_selected', leaderboardPath('s5'));
+  });
+
+  testWidgets('leaderboard: iQL points (548:25018)', (tester) async {
+    await _golden(tester, 'leaderboard_points', Routes.pointsLeaderboard);
   });
 
   testWidgets('result: a winner whose board is not out', (tester) async {
