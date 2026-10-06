@@ -25,10 +25,13 @@ import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/data/activations_service.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/help_service.dart';
+import 'package:iqly_mobile/data/media_service.dart';
 import 'package:iqly_mobile/data/notifications_service.dart';
 import 'package:iqly_mobile/data/polls_service.dart';
 import 'package:iqly_mobile/data/repository.dart';
+import 'package:iqly_mobile/data/submit_service.dart';
 import 'package:iqly_mobile/data/wallet_service.dart';
+import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/theme/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -71,7 +74,7 @@ final _filmNow = DateTime(2026, 10, 2, 9, 41);
 /// The app's clock and every demo source that dates things, at [_filmNow],
 /// so deadlines, ages and greetings agree with the status bar. Each mirrors
 /// the app's own provider with the clock passed in.
-List<Override> _pinnedClock() {
+List<Override> _pinnedClock(_Sources sources) {
   DateTime now() => _filmNow;
   return [
     clockProvider.overrideWithValue(now),
@@ -86,20 +89,45 @@ List<Override> _pinnedClock() {
           DemoNotificationsService(ref.watch(repositoryProvider), clock: now),
     ),
     activationsServiceProvider.overrideWith((ref) {
-      final service = DemoActivationsService(clock: now);
+      final service =
+          sources.activations?.call(now) ?? DemoActivationsService(clock: now);
       ref.onDispose(service.dispose);
       return service;
     }),
+    // The phone's own pickers cannot open here; their demo stand-ins answer
+    // as a person picking would.
+    mediaServiceProvider.overrideWithValue(
+      sources.media ?? DemoMediaService(access: MediaAccess.allowed),
+    ),
+    attachmentPickerProvider.overrideWithValue(DemoAttachmentPicker()),
+    if (sources.link case final link?)
+      routerProvider.overrideWith((ref) => buildRouter(initialLocation: link)),
   ];
+}
+
+/// Demo sources a film swaps in to reach a state, such as an upload that
+/// fails; each is built at the film's clock.
+class _Sources {
+  const _Sources({this.activations, this.media, this.link});
+
+  final DemoActivationsService Function(DateTime Function() now)? activations;
+  final MediaService? media;
+  final String? link;
 }
 
 /// Registers one film. [prefs] seeds SharedPreferences as the device holds
 /// them when the app opens; empty is a fresh install. Errors the app reports
 /// are logged to `film/out/<name>.errors` instead of stopping the film.
+/// [activations] and [media] replace those demo sources for a film that
+/// needs a failure or another starting state. [link] opens the app from
+/// that link instead of the splash.
 void film(
   String name,
   FilmScript script, {
   Map<String, Object> prefs = const {},
+  DemoActivationsService Function(DateTime Function() now)? activations,
+  MediaService? media,
+  String? link,
 }) {
   setUpAll(loadAppFonts);
   testWidgets(name, (tester) async {
@@ -112,7 +140,10 @@ void film(
     // ends, before any tear-down, so it is restored here.
     debugDisableShadows = false;
     try {
-      await d._open(prefs);
+      await d._open(
+        prefs,
+        _Sources(activations: activations, media: media, link: link),
+      );
       await script(d);
       await d._close();
     } catch (_) {
@@ -222,6 +253,26 @@ class Director {
       point,
       _slug(label ?? finder.describeMatch(Plurality.one)),
       press: () => gesture.down(point, timeStamp: _clock),
+      release: () => gesture.up(timeStamp: _clock),
+    );
+  }
+
+  /// Holds a finger on the one hit-testable widget [finder] matches for
+  /// [seconds], past the long-press deadline, then lifts.
+  Future<void> longPress(
+    Finder finder, {
+    String? label,
+    double seconds = 0.7,
+  }) async {
+    final point = _centreOf(finder);
+    final gesture = await tester.createGesture();
+    await _touch(
+      point,
+      _slug('long-${label ?? finder.describeMatch(Plurality.one)}'),
+      press: () async {
+        await gesture.down(point, timeStamp: _clock);
+        await hold(seconds);
+      },
       release: () => gesture.up(timeStamp: _clock),
     );
   }
@@ -362,7 +413,7 @@ class Director {
     }
   }
 
-  Future<void> _open(Map<String, Object> prefs) async {
+  Future<void> _open(Map<String, Object> prefs, _Sources sources) async {
     final view = tester.view;
     view.physicalSize = const Size(_outputWidth, _outputHeight);
     view.devicePixelRatio = _pixelRatio;
@@ -399,7 +450,7 @@ class Director {
         app: ProviderScope(
           overrides: [
             sharedPreferencesProvider.overrideWithValue(shared),
-            ..._pinnedClock(),
+            ..._pinnedClock(sources),
           ],
           child: const IqlyApp(),
         ),

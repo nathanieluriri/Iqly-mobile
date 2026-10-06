@@ -12,6 +12,8 @@ flutter test film/flows/forgot_password_film.dart   # the video only
 
 Output lands in `film/out/` (not committed): `<name>.mp4`, `<name>-sheet.png` (a frame every 0.5 s), `<name>-transitions/` (the second after each tap at 30 fps, cropped to the screen at 390 wide), `<name>.taps` (tap times), `<name>.haptics` (each haptic the app asked for, with the time and screen) and `<name>.errors` (errors the app reported, with the time and screen).
 
+`film()` takes `prefs` for the device's saved state (`returning` in `steps.dart` is a signed-in contributor past onboarding), `activations` and `media` to swap in demo sources that fail or start elsewhere (`activations_errors`), and `link` to open the app from a link instead of the splash (`invite_signup`). The phone's own pickers cannot open under the test engine, so the films answer them with the demo pickers (photo access allowed unless a film passes its own `media`).
+
 The status bar and home indicator are the Figma Mobile/StatusBar and Mobile/HomeIndicator exports in `assets/`. The drawn keyboard also sets the view's bottom inset, as iOS does, so a focused field scrolls clear of it.
 
 ## Clock
