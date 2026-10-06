@@ -80,6 +80,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   Timer? _doneTimer;
   Timer? _shineTimer;
   bool _shine = false;
+  bool _proposalsPending = false;
+
+  /// Whether the skeleton drew the proposals above its cards (165:8171):
+  /// set when it first shows, so nothing above the cards is inserted later,
+  /// and what it drew stands still through the hand-over.
+  bool? _standing;
 
   @override
   void dispose() {
@@ -304,6 +310,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
     final nudge = _nudge ??= !onboardingDone;
     final payout = ref.watch(recentPayoutProvider);
+    _proposalsPending = proposalsPending;
     final loading = (data == null && !failed) || proposalsPending;
     if (!_built) {
       _built = true;
@@ -455,40 +462,62 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     FeedData? data,
     bool nudge,
   ) {
+    if (phase == GatePhase.waiting) _standing = null;
+    if (phase == GatePhase.skeleton) {
+      _standing ??= !_proposalsPending && _proposals().isNotEmpty;
+    }
+    final standing = _standing ?? false;
     final content = phase == GatePhase.handover || phase == GatePhase.content;
     final slivers = <Widget>[
       if (phase == GatePhase.skeleton)
-        SliverList.list(key: const ValueKey('skeleton'), children: _loading()),
+        SliverList.list(
+          key: const ValueKey('skeleton'),
+          children: _loading(nudge: nudge),
+        ),
       if (phase == GatePhase.handover)
         SliverOverlay(
           key: const ValueKey('skeleton-out'),
           child: FadeTransition(
             opacity: skeletonOpacity,
-            child: Column(children: _loading()),
+            child: Column(children: _loading(nudge: nudge, handover: true)),
           ),
         ),
       if (content && nudge)
-        const SliverToBoxAdapter(
-          key: ValueKey('nudge'),
-          child: ArriveItem(child: _SetupNudgeSlot()),
+        SliverToBoxAdapter(
+          key: const ValueKey('nudge'),
+          child: standing
+              ? const _SetupNudgeSlot()
+              : const ArriveItem(child: _SetupNudgeSlot()),
         ),
       if (content)
         SliverList.list(
           key: const ValueKey('feed'),
-          children: _spaced(data == null ? _failed() : _feed(data)),
+          children: _spaced(
+            data == null ? _failed() : _feed(data),
+            standing: standing,
+          ),
         ),
     ];
     if (slivers.isEmpty) return const SliverToBoxAdapter();
     return SliverMainAxisGroup(slivers: slivers);
   }
 
-  /// The first load: the two skeleton cards under the Briefs heading, with
-  /// Quick polls and Activations above them once they are in (B1 165:8171);
-  /// before then the skeleton cards alone (B12 192:9042).
-  List<Widget> _loading() {
+  /// The first load: the two skeleton cards alone (B12 192:9042), or under
+  /// the setup nudge, Quick polls, Activations and the Briefs heading when
+  /// those were all in as the skeleton showed (B1 165:8171). In the
+  /// hand-over only the cards fade: the rest is the feed's own, standing
+  /// in place, so this keeps its space and draws nothing.
+  List<Widget> _loading({required bool nudge, bool handover = false}) {
+    final cards = gapped([
+      _inset(const _SkeletonCard()),
+      _inset(const _SkeletonCard()),
+    ]);
+    if (!(_standing ?? false)) return cards;
     final proposals = _proposals();
-    return [
-      if (proposals.isNotEmpty) ...[
+    final lead = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (nudge) const _SetupNudgeSlot(),
         for (final (i, item) in proposals.indexed) ...[
           if (i > 0) SizedBox(height: item.gap),
           item.child,
@@ -497,22 +526,45 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         _briefsTitle(),
         const SizedBox(height: IqSpace.s3),
       ],
-      ...gapped([_inset(const _SkeletonCard()), _inset(const _SkeletonCard())]),
+    );
+    return [
+      if (handover)
+        IgnorePointer(
+          child: ExcludeSemantics(child: Opacity(opacity: 0, child: lead)),
+        )
+      else
+        lead,
+      ...cards,
     ];
   }
 
   /// Each item arrives on its own, the first right under the chips, the
-  /// rest 12 apart.
-  List<Widget> _spaced(List<_Item> items) => [
-    for (final (i, item) in items.indexed)
-      ArriveItem(
-        key: ValueKey(item.key),
-        child: Padding(
-          padding: EdgeInsets.only(top: i == 0 ? 0 : item.gap),
-          child: item.child,
-        ),
-      ),
-  ];
+  /// rest 12 apart; with [standing], what the skeleton drew (everything down
+  /// to the Briefs heading) stands in place.
+  List<Widget> _spaced(List<_Item> items, {bool standing = false}) {
+    final drawn = standing
+        ? items.indexWhere((item) => item.key == 'briefs-title')
+        : -1;
+    return [
+      for (final (i, item) in items.indexed)
+        if (i <= drawn)
+          KeyedSubtree(
+            key: ValueKey(item.key),
+            child: Padding(
+              padding: EdgeInsets.only(top: i == 0 ? 0 : item.gap),
+              child: item.child,
+            ),
+          )
+        else
+          ArriveItem(
+            key: ValueKey(item.key),
+            child: Padding(
+              padding: EdgeInsets.only(top: i == 0 ? 0 : item.gap),
+              child: item.child,
+            ),
+          ),
+    ];
+  }
 
   List<_Item> _failed() => [
     _Item(

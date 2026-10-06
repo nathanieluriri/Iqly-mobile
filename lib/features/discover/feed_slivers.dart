@@ -135,6 +135,7 @@ class _RenderSliverOverlay extends RenderSliverSingleBoxAdapter {
     final paintExtent = calculatePaintOffset(constraints, from: 0, to: height);
     geometry = SliverGeometry(
       paintExtent: paintExtent,
+      layoutExtent: 0,
       maxPaintExtent: height,
       hitTestExtent: 0,
       hasVisualOverflow: true,
