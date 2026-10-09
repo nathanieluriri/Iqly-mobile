@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
-import 'package:iqly_mobile/data/referrals_service.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/entry/landing_screen.dart';
 import 'package:iqly_mobile/features/more/more_screen.dart';
@@ -13,11 +12,11 @@ import 'package:iqly_mobile/features/more/more_state.dart';
 import 'package:iqly_mobile/features/profile/profile_routes.dart';
 import 'package:iqly_mobile/features/profile/your_details_screen.dart';
 import 'package:iqly_mobile/features/settings/account_closing_screen.dart';
-import 'package:iqly_mobile/features/wallet/wallet_state.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/dock.dart';
 import 'package:iqly_mobile/ui/icon.dart';
+import 'package:iqly_mobile/ui/list_row.dart';
 import 'package:iqly_mobile/ui/quick_action.dart';
 import 'package:iqly_mobile/ui/top_bar.dart';
 
@@ -60,10 +59,10 @@ void main() {
     );
 
     for (final (label, path) in [
-      ('Your details', Routes.yourDetails),
       ('Leaderboard', Routes.pointsLeaderboard),
       ('Help centre', Routes.helpCentre),
       ('Terms and conditions', Routes.terms),
+      ('Privacy policy', Routes.privacy),
     ]) {
       await _tap(tester, find.text(label).first);
       expect(_path(tester), path);
@@ -74,29 +73,26 @@ void main() {
     }
   });
 
-  testWidgets('the Leaderboard quick link replaces Notifications; the bell '
-      'still opens notifications and the pass points open the leaderboard', (
-    tester,
-  ) async {
+  testWidgets('More is three plain lists under the two cards: no headings, '
+      'no quick links; the bell opens notifications, the rank the points '
+      'board and the card Your profile', (tester) async {
     await pumpMore(tester, Routes.more);
-    expect(
-      find.byWidgetPredicate(
-        (w) => w is IqQuickAction && w.label == 'Notifications',
-      ),
-      findsNothing,
+    expect(find.byType(IqQuickAction), findsNothing);
+    for (final heading in ['Quick links', 'Help & legal', 'App']) {
+      expect(find.text(heading), findsNothing);
+    }
+    expect(find.text('Your details'), findsNothing);
+    final leaderboard = tester.widget<IqListRow>(
+      find.widgetWithText(IqListRow, 'Leaderboard'),
     );
-    final link = tester.widget<IqQuickAction>(
-      find.byWidgetPredicate(
-        (w) => w is IqQuickAction && w.label == 'Leaderboard',
-      ),
-    );
-    expect(link.icon, IqIcons.trophy);
+    expect(leaderboard.icon, IqIcons.trophy);
+    expect(leaderboard.showDescription, isFalse);
 
     await _tap(tester, find.bySemanticsLabel(RegExp('Notifications')));
     expect(_path(tester), Routes.notifications);
     await _back(tester);
 
-    await _tap(tester, find.text('1,240'));
+    await _tap(tester, find.text('#7'));
     expect(_path(tester), Routes.pointsLeaderboard);
     expect(find.byType(PointsLeaderboardScreen), findsOneWidget);
     expect(find.byType(IqDock), findsNothing);
@@ -112,7 +108,7 @@ void main() {
     tester,
   ) async {
     await pumpMore(tester, Routes.more);
-    final links = tester.getTopLeft(find.text('Quick links')).dy;
+    final links = tester.getTopLeft(find.text('Quick polls')).dy;
 
     final pass = Completer<ContributorPass>();
     await pumpMore(
@@ -124,23 +120,23 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump();
     expect(find.bySemanticsLabel('Loading'), findsOneWidget);
-    expect(tester.getTopLeft(find.text('Quick links')).dy, links);
+    expect(tester.getTopLeft(find.text('Quick polls')).dy, links);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(minutes: 1));
   });
 
-  testWidgets('the pass foots to the wallet: earned ₦65,000.00 with the '
-      'referral and activation rewards, ₦15,000.00 available', (tester) async {
+  testWidgets('the summary card foots to the account: 1,240 iQL points, '
+      '#7 this month on the points board and the invite code', (tester) async {
     final container = await pumpMore(tester, Routes.more);
-    final wallet = await container.read(walletProvider.future);
-    expect(wallet.totals.totalEarnedKobo, 6500000);
-    expect(wallet.totals.withdrawableKobo, 1500000);
-    expect(referralEarnedKobo(wallet.ledger), 100000);
-    expect(find.text('₦65,000.00'), findsOneWidget);
-    expect(find.text('IQL POINTS'), findsOneWidget);
+    final board = await container.read(repositoryProvider).pointsLeaderboard();
+    expect(board.you?.rank, 7);
+    expect(board.you?.points, 1240);
     expect(find.text('1,240'), findsOneWidget);
-    expect(find.text('LAST WIN'), findsNothing);
-    expect(find.text('3 joined'), findsOneWidget);
+    expect(find.text('iQL points'), findsOneWidget);
+    expect(find.text('#7'), findsOneWidget);
+    expect(find.text('this month'), findsOneWidget);
+    expect(find.text('ADAEZE24'), findsOneWidget);
+    expect(find.text('Invite friends, earn ₦500'), findsOneWidget);
   });
 
   testWidgets('the pass reads iQL points through the repository', (

@@ -9,6 +9,7 @@ import '../../data/onboarding_service.dart';
 import '../../data/profile_service.dart';
 import '../../data/reference_data.dart';
 import '../../data/repository.dart';
+import '../avatar/avatar_state.dart';
 import '../discover/discover_state.dart';
 import '../onboarding/onboarding_draft.dart';
 import '../onboarding/what_you_like_screen.dart';
@@ -127,6 +128,7 @@ Future<void> forgetAccount(WidgetRef ref) async {
   ref.read(onboardingDraftProvider.notifier).clear();
   await forgetSubmitDrafts(ref.read(sharedPreferencesProvider));
   await ref.read(accountDetailsProvider.notifier).clear();
+  await ref.read(avatarProvider.notifier).forget();
   await session.setFirstTipSeen(false);
   await session.setOnboardingDone(false);
   await session.setFirstName(null);

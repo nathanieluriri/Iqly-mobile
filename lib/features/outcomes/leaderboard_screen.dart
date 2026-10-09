@@ -12,7 +12,7 @@ import '../../theme/theme.dart';
 import '../../ui/button.dart';
 import '../../ui/leaderboard_row.dart';
 import '../../ui/podium.dart';
-import '../../ui/sample_avatar.dart';
+import '../../ui/avatar.dart';
 import '../../ui/top_bar.dart';
 import '../submissions/brief_art.dart';
 import '../submissions/submissions_routes.dart';
@@ -149,6 +149,7 @@ class _Board extends StatelessWidget {
       state: row.you
           ? IqLeaderboardRowState.you
           : IqLeaderboardRowState.standard,
+      accentRank: true,
       rankDelay: row.you && index < Stagger.moving
           ? IqDurations.stagger * index + IqDurations.chain
           : null,
@@ -157,16 +158,17 @@ class _Board extends StatelessWidget {
 }
 
 const _people = {
-  'Chinedu A.': IqSampleAvatarPerson.person1,
-  'Tunde F.': IqSampleAvatarPerson.person2,
-  'Ngozi E.': IqSampleAvatarPerson.person3,
+  'Chinedu A.': IqAvatarPresets.person2,
+  'Tunde F.': IqAvatarPresets.person3,
+  'Ngozi E.': IqAvatarPresets.person4,
 };
 
-/// Sample portraits by name on the podium; anyone else, Anonymous too, is a
-/// tint disc (193:9779).
+/// The sample people's avatars by name on the podium (B13, 548:25018);
+/// anyone else, Anonymous too, is a tint disc (193:9779). The B13 frames
+/// copy a person onto Anonymous; an anonymous entry shows no one's face.
 Widget leaderboardAvatar(String name, double size) {
-  final person = _people[name];
-  if (person != null) return IqSampleAvatar(person: person, size: size);
+  final look = _people[name];
+  if (look != null) return IqAvatar(IqPersonAvatar(look), size: size);
   return Container(
     width: size,
     height: size,

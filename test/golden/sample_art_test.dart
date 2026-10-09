@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:iqly_mobile/ui/sample_avatar.dart';
 import 'package:iqly_mobile/ui/sample_cover.dart';
 import 'package:iqly_mobile/ui/sample_logo.dart';
 
@@ -40,29 +39,12 @@ void main() {
     );
   });
 
-  testWidgets('sample_avatar', (tester) async {
-    await expectComponentGolden(
-      tester,
-      'sample_avatar',
-      Row(
-        children: [
-          for (final person in IqSampleAvatarPerson.values)
-            IqSampleAvatar(person: person, size: 60),
-        ],
-      ),
-      size: const Size(360, 60),
-    );
-  });
-
   test('every sample asset exists', () {
     for (final brand in IqSampleLogoBrand.values) {
       expect(File(brand.logo).existsSync(), isTrue, reason: brand.logo);
       for (var shot = 1; shot <= brand.shots; shot++) {
         expect(File(brand.cover(shot)).existsSync(), isTrue);
       }
-    }
-    for (final person in IqSampleAvatarPerson.values) {
-      expect(File(person.asset).existsSync(), isTrue, reason: person.asset);
     }
   });
 }
