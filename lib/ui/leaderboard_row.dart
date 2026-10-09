@@ -24,7 +24,6 @@ class IqLeaderboardRow extends StatelessWidget {
     this.amount = '₦25,000',
     this.showAmount = true,
     this.state = IqLeaderboardRowState.standard,
-    this.accentRank = false,
     this.rankDelay,
   });
 
@@ -35,10 +34,6 @@ class IqLeaderboardRow extends StatelessWidget {
   final String amount;
   final bool showAmount;
   final IqLeaderboardRowState state;
-
-  /// Not a Figma prop: every board frame (B13 193:9779, 225:10747,
-  /// 548:25018) overrides each row's disc to accent with a card number.
-  final bool accentRank;
   final Duration? rankDelay;
 
   static const double height = 56;
@@ -62,16 +57,12 @@ class IqLeaderboardRow extends StatelessWidget {
               height: 32,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: you || accentRank
-                    ? IqColors.accent
-                    : IqColors.tintStrong,
+                color: you ? IqColors.accent : IqColors.tintStrong,
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Text(
                 rank,
-                style: IqText.label.copyWith(
-                  color: accentRank ? IqColors.card : IqColors.brand,
-                ),
+                style: IqText.label.copyWith(color: IqColors.brand),
               ),
             ),
           ),

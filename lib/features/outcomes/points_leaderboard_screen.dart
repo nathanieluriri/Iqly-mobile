@@ -147,7 +147,6 @@ class _Board extends StatelessWidget {
                         state: row.you
                             ? IqLeaderboardRowState.you
                             : IqLeaderboardRowState.standard,
-                        accentRank: true,
                         rankDelay: row.you && i < Stagger.moving
                             ? IqDurations.stagger * i + IqDurations.chain
                             : null,
