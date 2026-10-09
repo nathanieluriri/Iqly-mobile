@@ -139,6 +139,231 @@ abstract final class IqColors {
   static const brandFg60 = Color(0x992D0048);
 }
 
+/// The illustrated avatar palette (Figma Avatar collection). Lists keep
+/// the variable order, so skin[0] is skin/1.
+abstract final class IqAvatarColors {
+  static const skin = <Color>[
+    Color(0xFF3B2219),
+    Color(0xFF55301F),
+    Color(0xFF6E4130),
+    Color(0xFF8A5238),
+    Color(0xFFA3653F),
+    Color(0xFFBB7D52),
+    Color(0xFFCC9467),
+    Color(0xFFDCAB80),
+    Color(0xFFEBC6A0),
+    Color(0xFFF5DCC3),
+  ];
+  static const skinShade = <Color>[
+    Color(0xFF2A170F),
+    Color(0xFF3F2216),
+    Color(0xFF562F21),
+    Color(0xFF6E3E29),
+    Color(0xFF86502F),
+    Color(0xFF9C633D),
+    Color(0xFFB07A4F),
+    Color(0xFFC39066),
+    Color(0xFFD6AA83),
+    Color(0xFFE6C1A1),
+  ];
+  static const skinLabels = <String>[
+    'Skin tone 1 (deepest)',
+    'Skin tone 2',
+    'Skin tone 3',
+    'Skin tone 4',
+    'Skin tone 5',
+    'Skin tone 6',
+    'Skin tone 7',
+    'Skin tone 8',
+    'Skin tone 9',
+    'Skin tone 10 (lightest)',
+  ];
+  static const hair = <Color>[
+    Color(0xFF1B1311),
+    Color(0xFF3A2418),
+    Color(0xFF6B3E22),
+    Color(0xFFA3521F),
+    Color(0xFFD6A03F),
+    Color(0xFFA39E98),
+    Color(0xFF7128A5),
+    Color(0xFFF58028),
+  ];
+  static const hairLabels = <String>[
+    'Black',
+    'Dark brown',
+    'Brown',
+    'Auburn',
+    'Blonde',
+    'Grey',
+    'Violet',
+    'Orange',
+  ];
+  static const eye = <Color>[
+    Color(0xFF24170F),
+    Color(0xFF5A3A20),
+    Color(0xFF3F6B3A),
+    Color(0xFF2F5F8A),
+    Color(0xFF6B6B6B),
+  ];
+  static const eyeLabels = <String>[
+    'Dark brown',
+    'Hazel',
+    'Green',
+    'Blue',
+    'Grey',
+  ];
+  static const cloth = <Color>[
+    Color(0xFF7128A5),
+    Color(0xFFF58028),
+    Color(0xFFC7A6E6),
+    Color(0xFF3F9B5A),
+    Color(0xFF2F6FD6),
+    Color(0xFFC23B4A),
+    Color(0xFFF2C12E),
+    Color(0xFFF4F1EC),
+    Color(0xFF2B2B2B),
+  ];
+  static const clothShade = <Color>[
+    Color(0xFF4F1A77),
+    Color(0xFFCF6418),
+    Color(0xFFA581CB),
+    Color(0xFF2D7743),
+    Color(0xFF2153A6),
+    Color(0xFF962A37),
+    Color(0xFFCF9F14),
+    Color(0xFFD9D3CA),
+    Color(0xFF151515),
+  ];
+  static const clothLabels = <String>[
+    'Violet',
+    'Orange',
+    'Lilac',
+    'Green',
+    'Blue',
+    'Red',
+    'Yellow',
+    'White',
+    'Black',
+  ];
+  static const bg = <Color>[
+    Color(0xFFEDE2F8),
+    Color(0xFFFDE3CF),
+    Color(0xFFD8F1E4),
+    Color(0xFFD9E8FB),
+    Color(0xFFFBF0C4),
+    Color(0xFFFADDE3),
+    Color(0xFFEFE4D6),
+    Color(0xFFC7A6E6),
+    Color(0xFFF9C99F),
+    Color(0xFFBFE6DD),
+    Color(0xFFE6E3DF),
+    Color(0xFF2D0048),
+  ];
+  static const bgLabels = <String>[
+    'Lilac',
+    'Peach',
+    'Mint',
+    'Sky',
+    'Butter',
+    'Rose',
+    'Sand',
+    'Lilac strong',
+    'Apricot',
+    'Teal',
+    'Stone',
+    'Aubergine',
+  ];
+
+  /// Mouth interior and lips line
+  static const mouth = Color(0xFF3B1414);
+
+  /// Teeth and eye highlights
+  static const teeth = Color(0xFFFFFFFF);
+
+  /// Cheek blush, used at 35 % layer opacity
+  static const cheek = Color(0xFFF5806A);
+
+  /// Glasses frames and shades
+  static const lens = Color(0xFF2D0048);
+
+  /// Eyebrows
+  static const brow = Color(0xFF1B1311);
+  static const sclera = Color(0xFFFFFCF9);
+  static const tongue = Color(0xFFE8737A);
+  static const byName = <String, Color>{
+    'skin/1': Color(0xFF3B2219),
+    'skin/1-shade': Color(0xFF2A170F),
+    'skin/2': Color(0xFF55301F),
+    'skin/2-shade': Color(0xFF3F2216),
+    'skin/3': Color(0xFF6E4130),
+    'skin/3-shade': Color(0xFF562F21),
+    'skin/4': Color(0xFF8A5238),
+    'skin/4-shade': Color(0xFF6E3E29),
+    'skin/5': Color(0xFFA3653F),
+    'skin/5-shade': Color(0xFF86502F),
+    'skin/6': Color(0xFFBB7D52),
+    'skin/6-shade': Color(0xFF9C633D),
+    'skin/7': Color(0xFFCC9467),
+    'skin/7-shade': Color(0xFFB07A4F),
+    'skin/8': Color(0xFFDCAB80),
+    'skin/8-shade': Color(0xFFC39066),
+    'skin/9': Color(0xFFEBC6A0),
+    'skin/9-shade': Color(0xFFD6AA83),
+    'skin/10': Color(0xFFF5DCC3),
+    'skin/10-shade': Color(0xFFE6C1A1),
+    'hair/1': Color(0xFF1B1311),
+    'hair/2': Color(0xFF3A2418),
+    'hair/3': Color(0xFF6B3E22),
+    'hair/4': Color(0xFFA3521F),
+    'hair/5': Color(0xFFD6A03F),
+    'hair/6': Color(0xFFA39E98),
+    'hair/7': Color(0xFF7128A5),
+    'hair/8': Color(0xFFF58028),
+    'eye/1': Color(0xFF24170F),
+    'eye/2': Color(0xFF5A3A20),
+    'eye/3': Color(0xFF3F6B3A),
+    'eye/4': Color(0xFF2F5F8A),
+    'eye/5': Color(0xFF6B6B6B),
+    'cloth/1': Color(0xFF7128A5),
+    'cloth/1-shade': Color(0xFF4F1A77),
+    'cloth/2': Color(0xFFF58028),
+    'cloth/2-shade': Color(0xFFCF6418),
+    'cloth/3': Color(0xFFC7A6E6),
+    'cloth/3-shade': Color(0xFFA581CB),
+    'cloth/4': Color(0xFF3F9B5A),
+    'cloth/4-shade': Color(0xFF2D7743),
+    'cloth/5': Color(0xFF2F6FD6),
+    'cloth/5-shade': Color(0xFF2153A6),
+    'cloth/6': Color(0xFFC23B4A),
+    'cloth/6-shade': Color(0xFF962A37),
+    'cloth/7': Color(0xFFF2C12E),
+    'cloth/7-shade': Color(0xFFCF9F14),
+    'cloth/8': Color(0xFFF4F1EC),
+    'cloth/8-shade': Color(0xFFD9D3CA),
+    'cloth/9': Color(0xFF2B2B2B),
+    'cloth/9-shade': Color(0xFF151515),
+    'bg/1': Color(0xFFEDE2F8),
+    'bg/2': Color(0xFFFDE3CF),
+    'bg/3': Color(0xFFD8F1E4),
+    'bg/4': Color(0xFFD9E8FB),
+    'bg/5': Color(0xFFFBF0C4),
+    'bg/6': Color(0xFFFADDE3),
+    'bg/7': Color(0xFFEFE4D6),
+    'bg/8': Color(0xFFC7A6E6),
+    'bg/9': Color(0xFFF9C99F),
+    'bg/10': Color(0xFFBFE6DD),
+    'bg/11': Color(0xFFE6E3DF),
+    'bg/12': Color(0xFF2D0048),
+    'mouth': Color(0xFF3B1414),
+    'teeth': Color(0xFFFFFFFF),
+    'cheek': Color(0xFFF5806A),
+    'lens': Color(0xFF2D0048),
+    'brow': Color(0xFF1B1311),
+    'sclera': Color(0xFFFFFCF9),
+    'tongue': Color(0xFFE8737A),
+  };
+}
+
 abstract final class IqSpace {
   static const double s1 = 4;
   static const double s2 = 8;
@@ -273,6 +498,15 @@ abstract final class IqText {
     fontWeight: FontWeight.w700,
     height: 1.2143,
     letterSpacing: -0.28,
+  );
+
+  /// Emoji used as an avatar (120 circle). Rendered with the system emoji font.
+  static const emoji = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 64,
+    fontWeight: FontWeight.w400,
+    height: 1,
+    letterSpacing: 0,
   );
 }
 

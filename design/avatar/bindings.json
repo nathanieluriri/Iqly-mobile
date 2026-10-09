@@ -1,0 +1,352 @@
+{
+  "body-hoodie": {
+    "node": "513:2203",
+    "fills": {
+      "cloth": "cloth/1",
+      "cloth-shade": "cloth/1-shade"
+    }
+  },
+  "body-kaftan": {
+    "node": "513:2236",
+    "fills": {
+      "cloth": "cloth/1",
+      "cloth-shade": "cloth/1-shade"
+    }
+  },
+  "body-shirt": {
+    "node": "513:2221",
+    "fills": {
+      "cloth": "cloth/1",
+      "cloth-shade": "cloth/1-shade"
+    }
+  },
+  "body-tee": {
+    "node": "513:2191",
+    "fills": {
+      "cloth": "cloth/1",
+      "cloth-shade": "cloth/1-shade"
+    }
+  },
+  "buddy-bean": {
+    "node": "529:2773",
+    "fills": {
+      "Kind=Bean": "bg/2",
+      "body": "cloth/2",
+      "eyes": "brow",
+      "mouth": "brow"
+    }
+  },
+  "buddy-blob": {
+    "node": "529:2812",
+    "fills": {
+      "Kind=Blob": "bg/1",
+      "body": "cloth/1",
+      "sclera": "sclera",
+      "pupils": "brow"
+    }
+  },
+  "buddy-box": {
+    "node": "529:2792",
+    "fills": {
+      "Kind=Box": "bg/4",
+      "body": "cloth/5",
+      "sclera": "sclera",
+      "pupils": "brow"
+    }
+  },
+  "buddy-cloud": {
+    "node": "529:2909",
+    "fills": {
+      "Kind=Cloud": "bg/8",
+      "body": "cloth/8",
+      "sclera": "sclera",
+      "pupils": "brow",
+      "cheeks": "cheek"
+    }
+  },
+  "buddy-drop": {
+    "node": "529:2889",
+    "fills": {
+      "Kind=Drop": "bg/5",
+      "body": "cloth/2",
+      "sclera": "sclera",
+      "pupils": "brow"
+    }
+  },
+  "buddy-moon": {
+    "node": "529:2869",
+    "fills": {
+      "Kind=Moon": "bg/4",
+      "body": "cloth/7",
+      "sclera": "sclera",
+      "pupils": "brow"
+    }
+  },
+  "buddy-paw": {
+    "node": "529:2832",
+    "fills": {
+      "Kind=Paw": "bg/6",
+      "body": "cloth/6",
+      "sclera": "sclera",
+      "pupils": "brow"
+    }
+  },
+  "buddy-spark": {
+    "node": "529:2852",
+    "fills": {
+      "Kind=Spark": "bg/3",
+      "body": "cloth/4",
+      "face": "brow"
+    }
+  },
+  "face-calm": {
+    "node": "511:2167",
+    "fills": {
+      "cheeks": "cheek",
+      "brows": "brow",
+      "sclera": "sclera",
+      "eyes": "eye/1",
+      "pupils": "brow",
+      "highlights": "sclera",
+      "lids": "brow",
+      "upper-lid": "skin/3",
+      "lid-line": "brow",
+      "mouth": "mouth"
+    }
+  },
+  "face-grin": {
+    "node": "511:2088",
+    "fills": {
+      "cheeks": "cheek",
+      "brows": "brow",
+      "sclera": "sclera",
+      "eyes": "eye/1",
+      "pupils": "brow",
+      "highlights": "sclera",
+      "lids": "brow",
+      "lower-lid": "skin/3",
+      "mouth": "mouth",
+      "tongue": "tongue",
+      "teeth": "sclera"
+    }
+  },
+  "face-smile": {
+    "node": "511:2051",
+    "fills": {
+      "cheeks": "cheek",
+      "brows": "brow",
+      "sclera": "sclera",
+      "eyes": "eye/1",
+      "pupils": "brow",
+      "highlights": "sclera",
+      "lids": "brow",
+      "lower-lid": "skin/3",
+      "mouth": "mouth",
+      "tongue": "tongue",
+      "teeth": "sclera"
+    }
+  },
+  "face-wink": {
+    "node": "511:2129",
+    "fills": {
+      "cheeks": "cheek",
+      "brows": "brow",
+      "sclera": "sclera",
+      "eyes": "eye/1",
+      "pupils": "brow",
+      "highlights": "sclera",
+      "lids": "brow",
+      "lower-lid": "skin/3",
+      "eye-closed": "brow",
+      "mouth": "mouth",
+      "teeth": "sclera"
+    }
+  },
+  "face-wow": {
+    "node": "511:2199",
+    "fills": {
+      "cheeks": "cheek",
+      "brows": "brow",
+      "sclera": "sclera",
+      "eyes": "eye/1",
+      "pupils": "brow",
+      "highlights": "sclera",
+      "lids": "brow",
+      "mouth": "mouth",
+      "tongue": "tongue"
+    }
+  },
+  "facial-hair-beard": {
+    "node": "513:2035",
+    "fills": {
+      "hair": "hair/1"
+    }
+  },
+  "facial-hair-goatee": {
+    "node": "513:2027",
+    "fills": {
+      "hair": "hair/1"
+    }
+  },
+  "facial-hair-moustache": {
+    "node": "513:2021",
+    "fills": {
+      "hair": "hair/1"
+    }
+  },
+  "facial-hair-stubble": {
+    "node": "513:2045",
+    "fills": {
+      "hair": "hair/1"
+    }
+  },
+  "glasses-round": {
+    "node": "513:2057",
+    "fills": {
+      "frame": "brow"
+    }
+  },
+  "glasses-shades": {
+    "node": "513:2089",
+    "fills": {
+      "frame": "lens",
+      "shine": "teeth"
+    }
+  },
+  "glasses-square": {
+    "node": "513:2073",
+    "fills": {
+      "frame": "brow"
+    }
+  },
+  "hair-back-afro": {
+    "node": "512:2021",
+    "fills": {
+      "hair": "hair/1",
+      "depth": "brow"
+    }
+  },
+  "hair-back-bun": {
+    "node": "512:2035",
+    "fills": {
+      "hair": "hair/1",
+      "shine": "sclera",
+      "tie": "cloth/2"
+    }
+  },
+  "hair-back-locs": {
+    "node": "512:2041",
+    "fills": {
+      "hair": "hair/1",
+      "depth": "brow",
+      "segments": "sclera"
+    }
+  },
+  "hair-back-puffs": {
+    "node": "512:2027",
+    "fills": {
+      "hair": "hair/1",
+      "depth": "brow",
+      "shine": "sclera",
+      "ties": "cloth/2"
+    }
+  },
+  "hair-front-afro": {
+    "node": "512:2076",
+    "fills": {
+      "hair": "hair/1",
+      "curls": "sclera"
+    }
+  },
+  "hair-front-bald": {
+    "node": "512:2058",
+    "fills": {
+      "shine": "sclera"
+    }
+  },
+  "hair-front-bun": {
+    "node": "512:2097",
+    "fills": {
+      "hair": "hair/1",
+      "strands": "brow",
+      "shine": "sclera"
+    }
+  },
+  "hair-front-cornrows": {
+    "node": "512:2132",
+    "fills": {
+      "hair": "hair/1",
+      "rows": "brow",
+      "shine": "sclera"
+    }
+  },
+  "hair-front-high-top": {
+    "node": "512:2065",
+    "fills": {
+      "hair": "hair/1",
+      "curls": "sclera",
+      "shine": "sclera"
+    }
+  },
+  "hair-front-locs": {
+    "node": "512:2114",
+    "fills": {
+      "hair": "hair/1",
+      "roots": "sclera"
+    }
+  },
+  "hair-front-low-cut": {
+    "node": "512:2059",
+    "fills": {
+      "hair": "hair/1",
+      "shine": "sclera"
+    }
+  },
+  "hair-front-puffs": {
+    "node": "512:2082",
+    "fills": {
+      "hair": "hair/1",
+      "strands": "brow",
+      "shine": "sclera"
+    }
+  },
+  "head": {
+    "node": "511:2021",
+    "fills": {
+      "neck": "skin/3-shade",
+      "ears": "skin/3",
+      "ear-inner": "skin/3-shade",
+      "face": "skin/3",
+      "nose": "skin/3-shade"
+    }
+  },
+  "headwear-beanie": {
+    "node": "513:2125",
+    "fills": {
+      "cloth": "cloth/1",
+      "cloth-shade": "cloth/1-shade"
+    }
+  },
+  "headwear-cap": {
+    "node": "513:2107",
+    "fills": {
+      "cloth": "cloth/1",
+      "cloth-shade": "cloth/1-shade"
+    }
+  },
+  "headwear-gele": {
+    "node": "513:2166",
+    "fills": {
+      "cloth": "cloth/1",
+      "pleats": "cloth/1-shade",
+      "shine": "sclera",
+      "band": "cloth/1-shade"
+    }
+  },
+  "headwear-kufi": {
+    "node": "513:2155",
+    "fills": {
+      "cloth": "cloth/1"
+    }
+  }
+}

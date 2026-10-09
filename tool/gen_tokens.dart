@@ -5,6 +5,8 @@ const _source = 'design/tokens.json';
 const _target = 'lib/theme/tokens.g.dart';
 const _androidColors = 'android/app/src/main/res/values/iq_colors.xml';
 const _swiftColors = 'ios/IqlySurfaces/IqColors.swift';
+const _avatarSource = 'design/avatar';
+const _avatarTarget = 'lib/ui/avatar_art.g.dart';
 
 void main(List<String> args) {
   final json =
@@ -13,6 +15,7 @@ void main(List<String> args) {
     _target: _formatted(_generate(json)),
     _androidColors: _generateAndroid(json),
     _swiftColors: _generateSwift(json),
+    _avatarTarget: _formatted(_generateAvatarArt()),
   };
   if (args.contains('--check')) {
     final stale = [
@@ -134,6 +137,7 @@ String _generate(Map<String, dynamic> json) {
     ..writeln();
   _writeColors(b, 'IqPrimitives', collection('Primitives'), 'Value', '');
   _writeColors(b, 'IqColors', collection('Color'), 'Light', 'Color/');
+  _writeAvatarColors(b, collection('Avatar'));
   _writeNumbers(b, collection('Spacing & Radius'));
   _writeText(b, (json['textStyles'] as List).cast<Map<String, dynamic>>());
   _writeShadows(b, (json['effectStyles'] as List).cast<Map<String, dynamic>>());
@@ -160,6 +164,57 @@ void _writeColors(
     }
     b.writeln('  static const ${_ident(name)} = ${_color(hex)};');
   }
+  b.writeln('}');
+  b.writeln();
+}
+
+void _writeAvatarColors(StringBuffer b, Map<String, dynamic> collection) {
+  final vars = (collection['variables'] as List).cast<Map<String, dynamic>>();
+  String hex(Map<String, dynamic> v) =>
+      (v['valuesByMode'] as Map)['Default'] as String;
+  String label(Map<String, dynamic> v) =>
+      "'${(v['description'] as String).replaceAll("'", r"\'")}'";
+  final families = <String, List<Map<String, dynamic>>>{};
+  final shades = <String, List<Map<String, dynamic>>>{};
+  final singles = <Map<String, dynamic>>[];
+  for (final v in vars) {
+    final m = RegExp(r'^(\w+)/\d+(-shade)?$').firstMatch(v['name'] as String);
+    if (m == null) {
+      singles.add(v);
+    } else {
+      (m[2] == null ? families : shades).putIfAbsent(m[1]!, () => []).add(v);
+    }
+  }
+  b.writeln(
+    '/// The illustrated avatar palette (Figma Avatar collection). Lists keep',
+  );
+  b.writeln('/// the variable order, so skin[0] is skin/1.');
+  b.writeln('abstract final class IqAvatarColors {');
+  for (final MapEntry(key: family, value: list) in families.entries) {
+    b.writeln(
+      '  static const $family = <Color>[${list.map((v) => _color(hex(v))).join(', ')}];',
+    );
+    if (shades[family] case final shade?) {
+      b.writeln(
+        '  static const ${family}Shade = <Color>[${shade.map((v) => _color(hex(v))).join(', ')}];',
+      );
+    }
+    b.writeln(
+      '  static const ${family}Labels = <String>[${list.map(label).join(', ')}];',
+    );
+  }
+  for (final v in singles) {
+    final desc = (v['description'] as String?) ?? '';
+    if (desc.isNotEmpty) b.writeln('  /// $desc');
+    b.writeln(
+      '  static const ${_ident(v['name'] as String)} = ${_color(hex(v))};',
+    );
+  }
+  b.writeln('  static const byName = <String, Color>{');
+  for (final v in vars) {
+    b.writeln("    '${v['name']}': ${_color(hex(v))},");
+  }
+  b.writeln('  };');
   b.writeln('}');
   b.writeln();
 }
@@ -318,4 +373,212 @@ String _num(num v) =>
 String _round(double v) {
   final r = double.parse(v.toStringAsFixed(4));
   return r == r.roundToDouble() ? '${r.toInt()}' : '$r';
+}
+
+/// The Exp/Avatar part exports in design/avatar as paint data: every path
+/// with the slot its Figma variable fills it from (bindings.json), and the
+/// layers with opacity, a clip or a layer blur as groups. Person parts use
+/// the slots the avatar record controls; buddies keep their variable names.
+String _generateAvatarArt() {
+  final bindings = jsonDecode(
+    File('$_avatarSource/bindings.json').readAsStringSync(),
+  ) as Map<String, dynamic>;
+  const parts = {
+    'hair-back': 'hairBack',
+    'hair-front': 'hairFront',
+    'facial-hair': 'facialHair',
+    'face': 'face',
+    'glasses': 'glasses',
+    'headwear': 'headwear',
+    'head': 'head',
+    'body': 'body',
+    'buddy': 'buddy',
+  };
+  int nodeOrder(String stem) =>
+      int.parse(((bindings[stem] as Map)['node'] as String).split(':').last);
+  final stems = bindings.keys.toList()
+    ..sort((a, b) => nodeOrder(a).compareTo(nodeOrder(b)));
+  final art = <String, Map<String, String>>{};
+  for (final stem in stems) {
+    final prefix = parts.keys.firstWhere(
+      (p) => stem == p || stem.startsWith('$p-'),
+    );
+    final part = parts[prefix]!;
+    final fills = ((bindings[stem] as Map)['fills'] as Map)
+        .cast<String, String>();
+    String slot(String variable) {
+      if (part == 'buddy') return variable;
+      final m = RegExp(r'^(\w+)/\d+(-shade)?$').firstMatch(variable);
+      if (m == null) return variable;
+      final shade = m[2] != null;
+      return switch (m[1]) {
+        'skin' => shade ? 'skinShade' : 'skin',
+        'hair' => part == 'facialHair' ? 'facialHair' : 'hair',
+        'eye' => 'eye',
+        'cloth' when part == 'headwear' => shade ? 'headwearShade' : 'headwear',
+        'cloth' => shade ? 'clothShade' : 'cloth',
+        _ => throw StateError('$stem binds $variable'),
+      };
+    }
+
+    final svg = _parseSvg(File('$_avatarSource/$stem.svg').readAsStringSync());
+    final defs = svg.children
+        .where((e) => e.name == 'defs')
+        .expand((d) => d.children);
+    final clips = {
+      for (final c in defs.where((e) => e.name == 'clipPath'))
+        c.attrs['id']!: _shapePath(c.children.single),
+    };
+    final blurs = {
+      for (final f in defs.where((e) => e.name == 'filter'))
+        f.attrs['id']!: num.parse(
+          f.children
+              .firstWhere((e) => e.name == 'feGaussianBlur')
+              .attrs['stdDeviation']!,
+        ),
+    };
+    final root = svg.children.firstWhere((e) => e.name == 'g');
+    final variant = RegExp(r'^(?:Style|Expression|Kind)=(.+)$')
+        .firstMatch(root.attrs['id']!)?[1];
+    final nodes = _avatarNodes([root], null, fills, slot, clips, blurs);
+    art.putIfAbsent(part, () => {})[variant ?? ''] =
+        '<AvatarNode>[${nodes.join(', ')}]';
+  }
+  final b = StringBuffer()
+    ..writeln(
+      '// Generated by tool/gen_tokens.dart from $_avatarSource. Do not edit by hand.',
+    )
+    ..writeln(
+      '// Source of truth: the Exp/Avatar components in the iQLY Figma design system.',
+    )
+    ..writeln()
+    ..writeln("part of 'avatar_art.dart';")
+    ..writeln()
+    ..writeln(
+      '/// Exp/Avatar part art keyed by Figma variant: the person parts on the',
+    )
+    ..writeln('/// 240 canvas, the buddies on their 120 one.')
+    ..writeln('abstract final class IqAvatarArt {')
+    ..writeln('  static const head = ${art['head']!['']};')
+    ..writeln();
+  for (final part in [
+    'face',
+    'hairBack',
+    'hairFront',
+    'facialHair',
+    'glasses',
+    'headwear',
+    'body',
+    'buddy',
+  ]) {
+    b.writeln('  static const $part = <String, List<AvatarNode>>{');
+    for (final MapEntry(:key, :value) in art[part]!.entries) {
+      b.writeln("    '$key': $value,");
+    }
+    b.writeln('  };');
+    b.writeln();
+  }
+  b.writeln('}');
+  return b.toString();
+}
+
+class _SvgElement {
+  _SvgElement(this.name, this.attrs);
+  final String name;
+  final Map<String, String> attrs;
+  final children = <_SvgElement>[];
+}
+
+_SvgElement _parseSvg(String svg) {
+  final top = _SvgElement('', {});
+  final stack = [top];
+  for (final t in RegExp(r'<(/?)([\w:]+)([^>]*?)(/?)>').allMatches(svg)) {
+    if (t[1]!.isNotEmpty) {
+      stack.removeLast();
+      continue;
+    }
+    final element = _SvgElement(t[2]!, {
+      for (final a in RegExp(r'([\w:-]+)="([^"]*)"').allMatches(t[3]!))
+        a[1]!: a[2]!,
+    });
+    stack.last.children.add(element);
+    if (t[4]!.isEmpty) stack.add(element);
+  }
+  return top.children.single;
+}
+
+/// A path's data, or a rect's as a path (the buddies' 120 circles).
+String _shapePath(_SvgElement e) {
+  if (e.name == 'path') return e.attrs['d']!;
+  if (e.name != 'rect' ||
+      e.attrs.containsKey('x') ||
+      e.attrs.containsKey('y')) {
+    throw StateError('Unsupported <${e.name}>');
+  }
+  final w = num.parse(e.attrs['width']!);
+  final h = num.parse(e.attrs['height']!);
+  final r = num.parse(e.attrs['rx'] ?? '0');
+  if (r == 0) return 'M0 0H${_num(w)}V${_num(h)}H0Z';
+  if (r * 2 != w || w != h) throw StateError('Only circles are supported');
+  return 'M${_num(r)} 0A${_num(r)} ${_num(r)} 0 1 1 ${_num(r)} ${_num(h)}'
+      'A${_num(r)} ${_num(r)} 0 1 1 ${_num(r)} 0Z';
+}
+
+List<String> _avatarNodes(
+  List<_SvgElement> elements,
+  String? owner,
+  Map<String, String> fills,
+  String Function(String variable) slot,
+  Map<String, String> clips,
+  Map<String, num> blurs,
+) {
+  final out = <String>[];
+  for (final e in elements) {
+    final id = e.attrs['id'];
+    final mine = id != null && fills.containsKey(id) ? id : owner;
+    if (e.name == 'g') {
+      final children = _avatarNodes(
+        e.children,
+        mine,
+        fills,
+        slot,
+        clips,
+        blurs,
+      );
+      final opacity = num.parse(e.attrs['opacity'] ?? '1');
+      final clip = switch (e.attrs['clip-path']) {
+        final String url => clips[url.substring(5, url.length - 1)]!,
+        null => null,
+      };
+      final blur = switch (e.attrs['filter']) {
+        final String url => blurs[url.substring(5, url.length - 1)]!,
+        null => null,
+      };
+      if (opacity == 1 && clip == null && blur == null) {
+        out.addAll(children);
+        continue;
+      }
+      out.add(
+        'AvatarGroup([${children.join(', ')}]'
+        '${opacity == 1 ? '' : ', opacity: ${_num(opacity)}'}'
+        "${clip == null ? '' : ", clip: '$clip'"}"
+        '${blur == null ? '' : ', blur: ${_num(blur)}'})',
+      );
+      continue;
+    }
+    final fill = e.attrs['fill'];
+    if (e.attrs.containsKey('stroke') || e.attrs.containsKey('fill-opacity')) {
+      throw StateError('Unsupported paint on <${e.name}>');
+    }
+    if (fill == null || fill == 'none') continue;
+    if (mine == null) throw StateError('Unbound fill $fill on <${e.name}>');
+    final evenOdd = e.attrs['fill-rule'] == 'evenodd';
+    final opacity = num.parse(e.attrs['opacity'] ?? '1');
+    out.add(
+      "AvatarShape('${_shapePath(e)}', '${slot(fills[mine]!)}'"
+      '${evenOdd ? ', evenOdd: true' : ''}'
+      '${opacity == 1 ? '' : ', opacity: ${_num(opacity)}'})',
+    );
+  }
+  return out;
 }
