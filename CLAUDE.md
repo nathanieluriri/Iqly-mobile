@@ -44,10 +44,10 @@ Targets: Android and iOS first, Windows kept responsive (no separate desktop des
 
 ### Layout
 - `design/tokens.json`: the Figma variables, text styles and effects, pulled from the design system. Re-pull from Figma, never edit by hand.
-- `tool/gen_tokens.dart`: generates `lib/theme/tokens.g.dart` (`IqColors`, `IqPrimitives`, `IqSpace`, `IqRadius`, `IqText`, `IqShadows`). Run `dart run tool/gen_tokens.dart` after updating the JSON; CI checks it is current.
+- `tool/gen_tokens.dart`: generates `lib/theme/tokens.g.dart` (`IqColors`, `IqPrimitives`, `IqAvatarColors`, `IqSpace`, `IqRadius`, `IqText`, `IqShadows`), and `lib/ui/avatar_art.g.dart` from `design/avatar/` (the Exp/Avatar part exports, each cropped to its variant, with `bindings.json` naming the variable each layer is bound to). Run `dart run tool/gen_tokens.dart` after updating either; CI checks it is current.
 - `lib/theme/`: theme built only from the generated tokens.
 - `lib/ui/`: the Exp/* component library, one widget per Figma component, same names, variants and props.
-- `lib/features/<row>/`: screens, grouped by the Figma row (splash, entry, onboarding, discover, submissions, wallet, profile, notifications, polls, submit, activations, help, outcomes, withdrawals, settings).
+- `lib/features/<row>/`: screens, grouped by the Figma row (splash, entry, onboarding, discover, submissions, wallet, profile, notifications, polls, submit, activations, help, outcomes, withdrawals, settings, avatar).
 - `lib/data/`: models, `DemoData` (mirrors `src/data/demo.ts` in the web repo) and the `IqlyRepository` interface with its demo implementation.
 - `lib/core/`: session state, feature flags (`Flags`), money formatting (`naira`, `rewardPool`), responsive helpers (`CenteredContent`).
 - `assets/fonts/`: Bricolage Grotesque, Plus Jakarta Sans and Geist Mono as static instances of the Google Fonts variable files, with their OFL licences. Figma sets Bricolage at an automatic optical size, so each Bricolage Mob style has its own instance at its size (`tool/gen_fonts.py` cuts them from tokens.json; one family per size, `IqFonts.bricolage34` and so on). `assets/brand/`: the official logo files, never redrawn or recoloured. `assets/icons/`, `assets/illustrations/`: SVG exports from Figma, 1x, never re-exported at a different stroke. `assets/splash/`: the splash layers derived from the official logomark (the grey boot state is authorised for the splash only) and the native splash PNGs.

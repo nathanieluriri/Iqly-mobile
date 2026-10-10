@@ -11,6 +11,7 @@ import 'welcome_screen.dart';
 import 'what_you_like_screen.dart';
 import 'where_you_live_screen.dart';
 import 'where_you_studied_screen.dart';
+import 'your_avatar_screen.dart';
 
 /// Welcome, Resume and Done take over from another flow (the splash, sign
 /// up, the last step), so they hand off; the steps and Add your university
@@ -29,6 +30,7 @@ final onboardingRoutes = <RouteBase>[
     ),
   ),
   _push(Routes.onboardingWhatYouLike, const WhatYouLikeScreen()),
+  _push(Routes.onboardingYourAvatar, const YourAvatarScreen()),
   _handoff(Routes.onboardingDone, const DoneScreen()),
 ];
 

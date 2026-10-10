@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/motion.dart';
 import '../../data/reference_data.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -30,7 +29,8 @@ const interestChipLabels = {
 };
 
 /// B11 · Step 3 · What you like (188:8390): interests order the feed.
-/// Finish stays off under two picks; Skip for now goes on to Done.
+/// Finish stays off under two picks; Finish and Skip for now go on to Your
+/// avatar.
 class WhatYouLikeScreen extends ConsumerWidget {
   const WhatYouLikeScreen({super.key});
 
@@ -84,8 +84,6 @@ class InterestChips extends StatelessWidget {
   }
 }
 
-/// Finishing the steps lands the onboarding: the success haptic and Done.
-void _finish(BuildContext context) {
-  IqHaptics.success.play();
-  context.go(Routes.onboardingDone);
-}
+/// Finishing the steps, or skipping the last, goes on to the optional Your
+/// avatar step (B22, designer doc 6 Oct), which lands the onboarding.
+void _finish(BuildContext context) => context.push(Routes.onboardingYourAvatar);

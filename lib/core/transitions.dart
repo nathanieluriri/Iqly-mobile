@@ -36,6 +36,9 @@ abstract final class IqScrim {
   /// The first-run tip.
   static final Color tip = _brand(IqOpacity.tipScrim);
 
+  /// The avatar frames (B22 582:27615, 590:28885): fg, not brand, at 50%.
+  static final Color fg = IqColors.fg.withValues(alpha: IqOpacity.sheetScrim);
+
   static Color _brand(double opacity) =>
       IqColors.brand.withValues(alpha: opacity);
 }
@@ -664,8 +667,12 @@ class IqSheetRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
     required this.scrim,
     this.barrierLabel,
     this.expand,
+    this.rise = IqDurations.sheetRise,
     super.settings,
   });
+
+  /// How long the sheet takes to rise; the avatar sheet's note sets 280.
+  final Duration rise;
 
   /// Opens the page the sheet was dragged up into.
   final ValueChanged<BuildContext>? expand;
@@ -745,8 +752,7 @@ class IqSheetRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
   Curve get barrierCurve => IqCurves.easeOut;
 
   @override
-  Duration get transitionDuration =>
-      reduced ? IqDurations.crossfade : IqDurations.sheetRise;
+  Duration get transitionDuration => reduced ? IqDurations.crossfade : rise;
 
   /// Expanded, the blank sheet stays up under its page until the page is
   /// in.

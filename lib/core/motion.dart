@@ -52,6 +52,13 @@ abstract final class IqDurations {
   /// Reduced-motion swaps, stamp and tag kind changes, quick fades.
   static const crossfade = Duration(milliseconds: 150);
 
+  /// How long the moved ring holds before the avatar sheet closes (note ·
+  /// avatar picker).
+  static const ringHold = Duration(milliseconds: 150);
+
+  /// The avatar sheet's rise (note · avatar picker).
+  static const avatarSheetRise = Duration(milliseconds: 280);
+
   /// Digit roll, check draw, help line reveal, label colour, switch.
   static const tick = Duration(milliseconds: 160);
 
@@ -327,6 +334,10 @@ abstract final class IqScale {
 
   /// Chat bubble and TipCard on arrival, BrandBubble press.
   static const double soft = 0.96;
+
+  /// An avatar part swapping in the editor pops from here back to 1
+  /// (DS/Note Exp/Avatar).
+  static const double partSwap = 0.96;
 
   /// The NextFab disc as its peel starts.
   static const double peel = 0.92;

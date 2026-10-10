@@ -41,8 +41,10 @@
 		<true/>
 		<key>NSFaceIDUsageDescription</key>
 		<string>iQLY uses Face ID to confirm it is you before a withdrawal.</string>
+		<key>NSCameraUsageDescription</key>
+		<string>To take a photo for your avatar. You can change this later in Settings.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
-		<string>To add your screen recording. You can change this later in Settings.</string>
+		<string>To add your screen recording or a photo for your avatar. You can change this later in Settings.</string>
 		<key>NSSupportsLiveActivities</key>
 		<true/>
 		<key>UIApplicationSceneManifest</key>

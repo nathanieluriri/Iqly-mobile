@@ -18,23 +18,24 @@ import '../../ui/confirm_sheet.dart';
 import '../../ui/icon.dart';
 import '../../ui/list_row.dart';
 import '../../ui/pressable.dart';
-import '../../ui/quick_action.dart';
 import '../../ui/referral_card.dart';
-import '../../ui/sample_avatar.dart';
-import '../../ui/section_title.dart';
 import '../../ui/skeleton.dart';
 import '../../ui/top_bar.dart';
+import '../avatar/avatar_state.dart';
+import '../avatar/choose_avatar.dart';
 import '../discover/app_shell.dart';
 import '../profile/profile_state.dart';
 import '../referrals/referrals_screen.dart';
 import 'more_state.dart';
 import 'more_widgets.dart';
 
-/// B7 · More (428:18424, scrolled 428:18663), the fourth tab root: the
-/// contributor pass, the invite card, quick links, help and legal, and the
-/// app rows. Every row opens a sub page over the shell (no dock); Clear
-/// cache and Sign out ask first on an Exp/ConfirmSheet (429:19063,
-/// 484:23036).
+/// B7 · More (428:18424, scrolled 428:18663; 7 Oct), the fourth tab root:
+/// the summary card and the invite card, then three plain lists (the
+/// shortcuts, help and legal, the app) and the version line. No headings,
+/// no descriptions. The card opens Your profile, its avatar or pencil the
+/// avatar picker and its rank the iQL points board. Every row opens a sub
+/// page over the shell (no dock); Clear cache and Sign out ask first on an
+/// Exp/ConfirmSheet (429:19063, 484:23036).
 ///
 /// Figma over its prop: the Delete account row is Danger with the kit's
 /// close glyph, as the frame draws it (its Icon prop says profile).
@@ -76,6 +77,7 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
     final cache = ref.watch(cacheProvider).value;
     final ios = defaultTargetPlatform == TargetPlatform.iOS;
 
+    final avatar = ref.watch(avatarProvider.select((a) => a.spec));
     final children = <Widget>[
       SizedBox(
         height: _PassSkeleton.height,
@@ -86,85 +88,74 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
               ? const SizedBox.shrink()
               : Column(
                   children: [
-                    IqPressable(
+                    _CardPress(
                       onTap: () => context.push(Routes.profile),
-                      semanticLabel: 'Your profile',
-                      builder: (context, pressed) => Center(
-                        child: IqAchievementCard(
-                          name: pass.user.name,
-                          amount: pass.earned,
-                          secondary: wholeNumber(pass.points),
-                          field1: pass.since,
-                          field2: '${pass.submissions}',
-                          field3: '${pass.wins}',
-                          code: pass.code,
-                          avatar: const IqSampleAvatar(size: 44),
-                          onSecondaryTap: () =>
-                              context.push(Routes.pointsLeaderboard),
-                        ),
+                      label: 'Your profile',
+                      child: IqAchievementCard(
+                        name: pass.user.name,
+                        points: wholeNumber(pass.points),
+                        rank: pass.rank == null ? '' : '#${pass.rank}',
+                        avatar: avatar,
+                        onAvatarTap: () => chooseAvatar(context),
+                        onRankTap: () => context.push(Routes.pointsLeaderboard),
                       ),
                     ),
                     const SizedBox(height: IqSpace.s3),
-                    IqPressable(
+                    _CardPress(
                       onTap: () => context.push(Routes.referrals),
-                      semanticLabel: 'Referrals',
-                      builder: (context, pressed) => Center(
-                        child: IqReferralCard(
-                          code: pass.code,
-                          joined: '${pass.joined} joined',
-                          onCopy: () => copyInviteCode(context, pass.code),
-                          onInvite: () => context.push(Routes.referrals),
-                        ),
+                      label: 'Referrals',
+                      child: IqReferralCard(
+                        code: pass.code,
+                        onCopy: () => copyInviteCode(context, pass.code),
                       ),
                     ),
                   ],
                 ),
         ),
       ),
-      const IqSectionTitle(
-        title: 'Quick links',
-        showCount: false,
-        showLink: false,
-      ),
-      _QuickLinks(
-        actions: [
+      RowGroup(
+        children: [
           if (Flags.polls)
-            (IqIcons.polls, 'Quick polls', () => context.push(Routes.polls)),
+            IqListRow(
+              label: 'Quick polls',
+              showDescription: false,
+              icon: IqIcons.polls,
+              onTap: () => context.push(Routes.polls),
+            ),
           if (Flags.activations)
-            (
-              IqIcons.zap,
-              'Activations',
-              () => context.push(Routes.activations),
+            IqListRow(
+              label: 'Activations',
+              showDescription: false,
+              icon: IqIcons.zap,
+              onTap: () => context.push(Routes.activations),
             ),
           if (Flags.savedBriefs)
-            (
-              IqIcons.heart,
-              'Saved briefs',
-              () => context.push(Routes.moreSavedBriefs),
+            IqListRow(
+              label: 'Saved briefs',
+              showDescription: false,
+              icon: IqIcons.heart,
+              onTap: () => context.push(Routes.moreSavedBriefs),
             ),
-          (
-            IqIcons.trophy,
-            'Leaderboard',
-            () => context.push(Routes.pointsLeaderboard),
+          IqListRow(
+            label: 'Leaderboard',
+            showDescription: false,
+            icon: IqIcons.trophy,
+            onTap: () => context.push(Routes.pointsLeaderboard),
           ),
-          (IqIcons.bank, 'Bank account', () => context.push(Routes.selectBank)),
-          (
-            IqIcons.profile,
-            'Your details',
-            () => context.push(Routes.yourDetails),
+          IqListRow(
+            label: 'Bank account',
+            showDescription: false,
+            icon: IqIcons.bank,
+            divider: false,
+            onTap: () => context.push(Routes.selectBank),
           ),
         ],
-      ),
-      const IqSectionTitle(
-        title: 'Help & legal',
-        showCount: false,
-        showLink: false,
       ),
       RowGroup(
         children: [
           IqListRow(
             label: 'Help centre',
-            description: 'FAQs, chat with us, report an issue',
+            showDescription: false,
             icon: IqIcons.lifebuoy,
             onTap: () => context.push(Routes.helpCentre),
           ),
@@ -183,14 +174,11 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
           ),
         ],
       ),
-      const IqSectionTitle(title: 'App', showCount: false, showLink: false),
       RowGroup(
         children: [
           IqListRow(
             label: 'Clear cache',
-            description:
-                '${megabytes(cache ?? 0)} of saved briefs and images on this '
-                'phone',
+            showDescription: false,
             icon: IqIcons.eraser,
             onTap: cache == null ? null : () => _clearCache(cache),
           ),
@@ -211,15 +199,12 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
             ),
         ],
       ),
-      SizedBox(
-        height: 46,
-        child: Padding(
-          padding: const EdgeInsets.only(top: IqSpace.s2),
-          child: Text(
-            AppRelease.footer(ios: ios),
-            textAlign: TextAlign.center,
-            style: IqText.mono.copyWith(color: IqColors.fg2),
-          ),
+      Padding(
+        padding: const EdgeInsets.only(bottom: IqSpace.s2),
+        child: Text(
+          AppRelease.footer(ios: ios),
+          textAlign: TextAlign.center,
+          style: IqText.mono.copyWith(color: IqColors.fg3),
         ),
       ),
     ];
@@ -247,13 +232,13 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
                     controller: _scroll,
                     padding: EdgeInsets.fromLTRB(
                       IqSpace.s4,
-                      IqSpace.s4,
+                      IqSpace.s5,
                       IqSpace.s4,
                       AppShell.contentInset(context),
                     ),
                     children: [
                       for (final (i, child) in children.indexed) ...[
-                        if (i > 0) const SizedBox(height: IqSpace.s3),
+                        if (i > 0) const SizedBox(height: IqSpace.s4),
                         child,
                       ],
                     ],
@@ -268,15 +253,14 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
   }
 }
 
-/// The pass and the invite card while the pass loads on the tab's first
-/// visit (spec 2.6): their two cards as tint blocks with the bars of their
-/// name, amount and code, pulsing on the screen's beat.
+/// The summary and invite cards while the pass loads on the tab's first
+/// visit (spec 2.6): their two cards as tint blocks with the bars of the
+/// avatar, the name, the points and the code, pulsing on the screen's beat.
 class _PassSkeleton extends StatelessWidget {
   const _PassSkeleton();
 
-  static const double _pass = 240;
-  static const double _invite = 140;
-  static const double height = _pass + IqSpace.s3 + _invite;
+  static double get height =>
+      IqAchievementCard.size.height + IqSpace.s3 + IqReferralCard.size.height;
 
   @override
   Widget build(BuildContext context) {
@@ -292,41 +276,48 @@ class _PassSkeleton extends StatelessWidget {
             ),
           ),
         );
-    Widget card(double height, List<Widget> bars) => Container(
-      width: double.infinity,
-      height: height,
-      padding: const EdgeInsets.all(IqSpace.s4),
-      decoration: BoxDecoration(
-        color: IqColors.tint,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (final (i, b) in bars.indexed) ...[
-            if (i > 0) const SizedBox(height: IqSpace.s2p5),
-            b,
-          ],
-        ],
-      ),
-    );
+    Widget card(Size size, Color colour, Widget lead, List<Widget> bars) =>
+        Container(
+          width: double.infinity,
+          height: size.height,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            color: colour,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Row(
+            children: [
+              lead,
+              const SizedBox(width: 14),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final (i, b) in bars.indexed) ...[
+                    if (i > 0) const SizedBox(height: IqSpace.s2),
+                    b,
+                  ],
+                ],
+              ),
+            ],
+          ),
+        );
     return Semantics(
       label: 'Loading',
       child: SkeletonPulse(
         builder: (context, opacity) => Column(
           children: [
-            card(_pass, [
-              bar(opacity, 44, 44),
+            card(IqAchievementCard.size, IqColors.tint, bar(opacity, 60, 60), [
               bar(opacity, 140, 14),
-              bar(opacity, 200, 28),
-              bar(opacity, 120, 12),
+              bar(opacity, 96, 12),
             ]),
             const SizedBox(height: IqSpace.s3),
-            card(_invite, [
-              bar(opacity, 160, 14),
-              bar(opacity, 240, 12),
-              bar(opacity, 113, 28),
-            ]),
+            card(
+              IqReferralCard.size,
+              IqColors.accentSoft,
+              bar(opacity, 52, 52),
+              [bar(opacity, 180, 14), bar(opacity, 86, 12)],
+            ),
           ],
         ),
       ),
@@ -334,25 +325,33 @@ class _PassSkeleton extends StatelessWidget {
   }
 }
 
-class _QuickLinks extends StatelessWidget {
-  const _QuickLinks({required this.actions});
+/// A card that opens a page: it sinks to the card press scale while held.
+class _CardPress extends StatelessWidget {
+  const _CardPress({
+    required this.onTap,
+    required this.label,
+    required this.child,
+  });
 
-  final List<(IqIcons, String, VoidCallback)> actions;
+  final VoidCallback onTap;
+  final String label;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: IqSpace.s2,
-      runSpacing: IqSpace.s2,
-      children: [
-        for (final (icon, label, onTap) in actions)
-          IqQuickAction(
-            kind: IqQuickActionKind.standard,
-            icon: icon,
-            label: label,
-            onTap: onTap,
-          ),
-      ],
+    return IqPressable(
+      onTap: onTap,
+      semanticLabel: label,
+      builder: (context, pressed) => Center(
+        child: AnimatedScale(
+          scale: pressed && !MediaQuery.disableAnimationsOf(context)
+              ? IqScale.cardPress
+              : 1,
+          duration: pressMotion(context, pressed),
+          curve: IqCurves.easeOut,
+          child: child,
+        ),
+      ),
     );
   }
 }

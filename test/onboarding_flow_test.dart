@@ -20,6 +20,7 @@ import 'package:iqly_mobile/features/onboarding/welcome_screen.dart';
 import 'package:iqly_mobile/features/onboarding/what_you_like_screen.dart';
 import 'package:iqly_mobile/features/onboarding/where_you_live_screen.dart';
 import 'package:iqly_mobile/features/onboarding/where_you_studied_screen.dart';
+import 'package:iqly_mobile/features/onboarding/your_avatar_screen.dart';
 import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/tip_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -135,6 +136,10 @@ void main() {
     await _tap(tester, find.text('Finance & fintech'));
     expect(_nextOn(tester), isTrue);
     await _tap(tester, find.text('Finish'));
+
+    expect(find.byType(YourAvatarScreen), findsOneWidget);
+    expect(find.text('Meet your avatar'), findsOneWidget);
+    await _tap(tester, find.text('Looks good, continue'));
 
     expect(find.byType(DoneScreen), findsOneWidget);
     expect(find.text('Nice one, Adaeze'), findsOneWidget);
@@ -267,6 +272,11 @@ void main() {
     expect(find.byType(WhereYouStudiedScreen), findsOneWidget);
     await _tap(tester, find.text('Skip for now'));
     await _tap(tester, find.text('Skip for now'));
+    expect(find.byType(YourAvatarScreen), findsOneWidget);
+    await _tap(tester, find.bySemanticsLabel('Back'));
+    expect(find.byType(WhatYouLikeScreen), findsOneWidget);
+    await _tap(tester, find.text('Skip for now'));
+    await _tap(tester, find.text('Looks good, continue'));
     expect(find.byType(DoneScreen), findsOneWidget);
   });
 

@@ -14,6 +14,7 @@ import 'package:iqly_mobile/features/onboarding/done_screen.dart';
 import 'package:iqly_mobile/features/onboarding/onboarding_sheets.dart';
 import 'package:iqly_mobile/features/onboarding/what_you_like_screen.dart';
 import 'package:iqly_mobile/features/onboarding/where_you_live_screen.dart';
+import 'package:iqly_mobile/features/onboarding/your_avatar_screen.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/theme/theme.dart';
 import 'package:iqly_mobile/ui/button.dart';
@@ -30,6 +31,7 @@ const _ms = Duration(milliseconds: 1);
 const _light = 'HapticFeedbackType.lightImpact';
 const _select = 'HapticFeedbackType.selectionClick';
 const _success = 'HapticFeedbackType.successNotification';
+const _commit = 'HapticFeedbackType.lightImpact';
 const _keyboard = 336.0;
 
 double _eo(double t) => IqCurves.easeOut.transform(t);
@@ -422,7 +424,8 @@ void main() {
 
   group('What you like (spec 6.16)', () {
     testWidgets('the off Finish shakes "Pick at least 2" with no haptic; '
-        'chips select; Finish plays success', (tester) async {
+        'chips select; Finish commits to Your avatar, which lands the '
+        'onboarding with success', (tester) async {
       final haptics = recordHaptics(tester);
       await _open(
         tester,
@@ -454,8 +457,13 @@ void main() {
       await tester.tap(_primary);
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
+      expect(find.byType(YourAvatarScreen), findsOneWidget);
+      expect(haptics, [_select, _select, _commit]);
+      await tester.tap(find.text('Looks good, continue'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
       expect(find.byType(DoneScreen), findsOneWidget);
-      expect(haptics, [_select, _select, _success]);
+      expect(haptics, [_select, _select, _commit, _success]);
     });
 
     testWidgets('Finish peels at the second pick, as Next does on the other '

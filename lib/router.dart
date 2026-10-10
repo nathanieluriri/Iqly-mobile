@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/transitions.dart';
+import 'features/avatar/avatar_routes.dart';
 import 'features/discover/discover_routes.dart';
 import 'features/drafts/drafts_routes.dart';
 import 'features/entry/forgot_password_screen.dart';
@@ -40,6 +41,7 @@ abstract final class Routes {
   static const onboardingWhereYouStudied = '/onboarding/where-you-studied';
   static const onboardingAddUniversity = '/onboarding/add-university';
   static const onboardingWhatYouLike = '/onboarding/what-you-like';
+  static const onboardingYourAvatar = '/onboarding/your-avatar';
   static const onboardingResume = '/onboarding/resume';
   static const onboardingDone = '/onboarding/done';
   static const savedBriefs = '/home/saved';
@@ -76,6 +78,8 @@ abstract final class Routes {
   static const reportSent = '/help-centre/report/sent';
   static const support = '/support';
   static const newConversation = '/support/new';
+  static const avatarEditor = '/avatar';
+  static const avatarPhoto = '/avatar/photo';
   static const terms = '/terms';
   static const privacy = '/privacy';
 
@@ -126,6 +130,7 @@ GoRouter buildRouter({String initialLocation = Routes.splash}) {
       ...pickBriefRoutes,
       ...moreRoutes,
       ...profileRoutes,
+      ...avatarRoutes,
       ...referralsRoutes,
       ...helpRoutes,
     ],

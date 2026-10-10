@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/session.dart';
 import '../../data/invite.dart';
+import '../avatar/avatar_state.dart';
 
 class EntryDraft {
   const EntryDraft({this.email = '', this.firstName = '', this.lastName = ''});
@@ -70,7 +71,9 @@ Future<void> completeSignIn(WidgetRef ref, {required bool newAccount}) async {
   await session.setFirstName(
     newAccount && typedName.isNotEmpty ? typedName : null,
   );
-  if (!newAccount) {
+  if (newAccount) {
+    await ref.read(avatarProvider.notifier).startNewcomer();
+  } else {
     await session.setOnboardingDone(true);
     await session.setFirstTipSeen(true);
   }

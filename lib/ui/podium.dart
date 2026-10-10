@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../theme/theme.dart';
-import 'sample_avatar.dart';
+import 'avatar.dart';
 
 /// Exp/Podium: the top three of a brief leaderboard. The centre column is
 /// first (amber ring, medal, brand pedestal); second and third step down
@@ -15,13 +15,16 @@ class IqPodium extends StatelessWidget {
     this.amount2 = '₦100k',
     this.name3 = 'Anonymous',
     this.amount3 = '₦62.5k',
-    this.avatar1 = const IqSampleAvatar(size: 64),
-    this.avatar2 = const IqSampleAvatar(
-      person: IqSampleAvatarPerson.person2,
+    this.avatar1 = const IqAvatar(
+      IqPersonAvatar(IqAvatarPresets.person1),
+      size: 64,
+    ),
+    this.avatar2 = const IqAvatar(
+      IqPersonAvatar(IqAvatarPresets.person2),
       size: 52,
     ),
-    this.avatar3 = const IqSampleAvatar(
-      person: IqSampleAvatarPerson.person3,
+    this.avatar3 = const IqAvatar(
+      IqPersonAvatar(IqAvatarPresets.person3),
       size: 52,
     ),
   });
