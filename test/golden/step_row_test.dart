@@ -25,6 +25,20 @@ void main() {
     });
   }
 
+  for (final state in IqStepRowState.values) {
+    testWidgets('${state.name} state with reward and devices', (tester) async {
+      await expectComponentGolden(
+        tester,
+        'step_row_${state.name}_reward_devices',
+        SizedBox(
+          width: 358,
+          child: IqStepRow(state: state, showReward: true, showDevices: true),
+        ),
+        size: Size(358, heights[state]! + 20),
+      );
+    });
+  }
+
   testWidgets('completing a step pops the bubble and drops the mark', (
     tester,
   ) async {
@@ -56,5 +70,7 @@ void main() {
       findsNothing,
     );
     expect(find.byType(CustomPaint), findsNothing);
+    expect(find.text('₦250'), findsNothing);
+    expect(find.text('iPhone or Android'), findsNothing);
   });
 }

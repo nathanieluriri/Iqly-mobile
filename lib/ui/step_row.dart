@@ -19,6 +19,11 @@ enum IqStepRowState { todo, active, done }
 /// Figma over brief: the number and title are per-instance text, so they are
 /// parameters here beside the Figma Body, Show body and Divider props.
 /// Figma over its title: the dashed thread is the divider under each row.
+///
+/// Round 18: [showReward] puts a step amount at the right when several steps
+/// pay, and [showDevices] adds a device line under the body when steps use
+/// different devices ([deviceIcon]: smartphone, devices or laptop). The
+/// device icon takes the line's fg3, as its label does.
 class IqStepRow extends StatefulWidget {
   const IqStepRow({
     super.key,
@@ -28,6 +33,11 @@ class IqStepRow extends StatefulWidget {
     this.body = 'Settings → Verification. About 2 minutes.',
     this.showBody = true,
     this.divider = true,
+    this.showReward = false,
+    this.reward = '₦250',
+    this.showDevices = false,
+    this.devices = 'iPhone or Android',
+    this.deviceIcon = IqIcons.smartphone,
   });
 
   final IqStepRowState state;
@@ -36,6 +46,11 @@ class IqStepRow extends StatefulWidget {
   final String body;
   final bool showBody;
   final bool divider;
+  final bool showReward;
+  final String reward;
+  final bool showDevices;
+  final String devices;
+  final IqIcons deviceIcon;
 
   static const Duration pop = IqDurations.swap;
   static const Duration check = IqDurations.tick;
@@ -116,9 +131,36 @@ class _IqStepRowState extends State<IqStepRow> with TickerProviderStateMixin {
                         style: IqText.small.copyWith(color: IqColors.fg3),
                       ),
                     ],
+                    if (widget.showDevices) ...[
+                      const SizedBox(height: IqSpace.s0p5),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IqIcon(
+                            widget.deviceIcon,
+                            size: 14,
+                            color: IqColors.fg3,
+                          ),
+                          const SizedBox(width: IqSpace.s1),
+                          Flexible(
+                            child: Text(
+                              widget.devices,
+                              style: IqText.small.copyWith(color: IqColors.fg3),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
+              if (widget.showReward) ...[
+                const SizedBox(width: IqSpace.s3),
+                Text(
+                  widget.reward,
+                  style: IqText.bodyStrong.copyWith(color: IqColors.fg),
+                ),
+              ],
             ],
           ),
         ),

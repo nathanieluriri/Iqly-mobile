@@ -3,11 +3,23 @@ import 'package:flutter/widgets.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 
-enum IqMetaKind { reward, time, deadline, urgent, polls, done, plain, failed }
+enum IqMetaKind {
+  reward,
+  time,
+  deadline,
+  urgent,
+  polls,
+  done,
+  plain,
+  failed,
+  devices,
+}
 
 /// Exp/Meta: one fact per chip (the prize, the time it takes, the
 /// deadline), at most three on a card. Urgent sits on the accent-soft pill;
-/// the others are bare.
+/// the others are bare. Devices says which phones or computers an
+/// activation works on ("iPhone or Android"), on the activation page only,
+/// never on cards.
 class IqMeta extends StatelessWidget {
   const IqMeta({
     super.key,
@@ -27,6 +39,7 @@ class IqMeta extends StatelessWidget {
     IqMetaKind.polls => IqIcons.polls,
     IqMetaKind.done => IqIcons.check,
     IqMetaKind.failed => IqIcons.error,
+    IqMetaKind.devices => IqIcons.smartphone,
     IqMetaKind.plain => null,
   };
 
