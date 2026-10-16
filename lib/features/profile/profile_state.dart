@@ -139,6 +139,6 @@ Future<void> forgetAccount(WidgetRef ref) async {
   await ref.read(avatarProvider.notifier).forget();
   await session.setFirstTipSeen(false);
   await session.setOnboardingDone(false);
-  await session.setFirstName(null);
+  await session.setName(null);
   await session.setSignedIn(false);
 }

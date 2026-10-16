@@ -15,6 +15,7 @@ import '../avatar/choose_avatar.dart';
 import '../more/more_screen.dart';
 import '../more/more_state.dart';
 import '../more/more_widgets.dart';
+import '../onboarding/onboarding_draft.dart';
 import '../referrals/referrals_screen.dart';
 
 /// B7 · Your profile (40:24; 7 Oct, settings style): the big centred avatar
@@ -88,7 +89,7 @@ class ProfileScreen extends ConsumerWidget {
                       : Column(
                           children: [
                             Text(
-                              pass.user.name,
+                              ref.watch(accountNameProvider) ?? pass.user.name,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               textAlign: TextAlign.center,

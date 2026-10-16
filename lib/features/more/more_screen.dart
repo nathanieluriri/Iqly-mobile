@@ -25,6 +25,7 @@ import '../../ui/top_bar.dart';
 import '../avatar/avatar_state.dart';
 import '../avatar/choose_avatar.dart';
 import '../discover/app_shell.dart';
+import '../onboarding/onboarding_draft.dart';
 import '../profile/profile_state.dart';
 import '../referrals/referrals_screen.dart';
 import 'more_state.dart';
@@ -93,7 +94,7 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
                       onTap: () => context.open(Routes.profile),
                       label: 'Your profile',
                       child: IqAchievementCard(
-                        name: pass.user.name,
+                        name: ref.watch(accountNameProvider) ?? pass.user.name,
                         points: wholeNumber(pass.points),
                         rank: pass.rank == null ? '' : '#${pass.rank}',
                         avatar: avatar,

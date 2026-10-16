@@ -94,7 +94,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       errorHaptic();
       return;
     }
-    await completeSignIn(ref, newAccount: result.newAccount);
+    await completeSignIn(ref, newAccount: result.newAccount, name: result.name);
     if (!mounted) return;
     IqHaptics.success.play();
     FocusManager.instance.primaryFocus?.unfocus();
