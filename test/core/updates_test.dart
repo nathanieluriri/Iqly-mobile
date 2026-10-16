@@ -88,10 +88,17 @@ void main() {
     expect(service.calls, 2);
   });
 
-  test('offers each newer build once', () async {
+  test('offers a newer build at once, then daily until installed', () async {
     final c = await container();
     final updates = c.read(updatesProvider.notifier);
     await updates.check();
+    expect(updates.offer, isTrue);
+    await updates.offered();
+    expect(updates.offer, isFalse);
+
+    now = now.add(const Duration(hours: 23, minutes: 59));
+    expect(updates.offer, isFalse);
+    now = now.add(const Duration(minutes: 1));
     expect(updates.offer, isTrue);
     await updates.offered();
     expect(updates.offer, isFalse);

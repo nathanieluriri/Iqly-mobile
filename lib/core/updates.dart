@@ -10,8 +10,12 @@ import 'session.dart';
 /// (Figma note 1313:92110). A check that fails keeps what was known, so a
 /// fault never locks anyone out.
 class UpdatesNotifier extends Notifier<AppRelease?> {
-  /// The newest version Discover has offered, so it offers each one once.
+  /// The newest version Discover has offered, and when.
   static const offeredKey = 'updates.offered';
+  static const offeredAtKey = 'updates.offeredAt';
+
+  /// Discover offers the same version again after this, until it is installed.
+  static const reofferAfter = Duration(hours: 24);
 
   /// A resume checks again at most this often.
   static const resumeEvery = Duration(hours: 1);
@@ -55,18 +59,27 @@ class UpdatesNotifier extends Notifier<AppRelease?> {
     unawaited(check());
   }
 
-  /// Whether Discover should offer the newer build: once per version.
+  /// Whether Discover should offer the newer build: at once for a new
+  /// version, then once a day until it is installed.
   bool get offer {
     final release = state;
     if (release?.status != UpdateStatus.available) return false;
-    final offered = ref.read(sharedPreferencesProvider).getString(offeredKey);
-    return release!.latest != offered;
+    final prefs = ref.read(sharedPreferencesProvider);
+    if (release!.latest != prefs.getString(offeredKey)) return true;
+    final at = DateTime.tryParse(prefs.getString(offeredAtKey) ?? '');
+    return at == null ||
+        !ref.read(clockProvider)().isBefore(at.add(reofferAfter));
   }
 
   Future<void> offered() async {
     final latest = state?.latest;
     if (latest == null) return;
-    await ref.read(sharedPreferencesProvider).setString(offeredKey, latest);
+    final prefs = ref.read(sharedPreferencesProvider);
+    await prefs.setString(offeredKey, latest);
+    await prefs.setString(
+      offeredAtKey,
+      ref.read(clockProvider)().toIso8601String(),
+    );
   }
 }
 

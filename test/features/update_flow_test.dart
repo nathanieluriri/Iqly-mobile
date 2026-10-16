@@ -303,9 +303,7 @@ void main() {
       return (container, device);
     }
 
-    testWidgets('once per version: Not now waits for the next one', (
-      tester,
-    ) async {
+    testWidgets('Not now waits a day or the next version', (tester) async {
       final (container, device) = await pumpHome(tester);
       expect(find.text('A new version is available'), findsOneWidget);
       expect(

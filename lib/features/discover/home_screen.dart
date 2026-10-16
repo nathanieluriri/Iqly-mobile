@@ -58,8 +58,8 @@ import 'feed_slivers.dart';
 /// first load lands, never on a refresh.
 ///
 /// A newer build is offered here only (B · Update · available, 1311:26531),
-/// once per version, after the feed has landed and the first tip has had
-/// its turn; Not now, or closing the sheet, waits for the next version.
+/// after the feed has landed and the first tip has had its turn: at once for
+/// a new version, then once a day until it is installed.
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
