@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/motion.dart';
 import '../../core/session.dart';
 import '../../core/transitions.dart';
+import '../../core/updates.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/brand_logo.dart';
@@ -35,6 +37,17 @@ class SplashScreen extends ConsumerStatefulWidget {
   /// Set once the light-up has played on this device.
   static const litKey = 'splash.lit';
 
+  /// Where the settled wordmark stands on a [size] screen, for a screen that
+  /// takes it over.
+  static Rect wordmarkRect(Size size) => Rect.fromCenter(
+    center: Offset(
+      size.width / 2,
+      size.height * _Frame.markCentreY / _Frame.frame,
+    ),
+    width: _Frame.wordmarkWidth,
+    height: _Frame.wordmarkHeight,
+  );
+
   @override
   ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
@@ -48,6 +61,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   late _Timeline _timeline;
   bool _started = false;
   bool _handedOff = false;
+  bool _holding = false;
   bool _landed = false;
   OverlayEntry? _statusHold;
 
@@ -68,6 +82,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       ..duration = _timeline.total
       ..addListener(_onTick)
       ..forward();
+    unawaited(ref.read(updatesProvider.notifier).check());
   }
 
   Duration get _now => _timeline.total * _clock.value;
@@ -79,7 +94,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         now >= _timeline.handoff + IqSplashTiming.statusBarAt) {
       _releaseStatusBar();
     }
-    if (_timeline.lockup && !_landed && _clock.isCompleted) {
+    if (_timeline.lockup && !_holding && !_landed && _clock.isCompleted) {
       _landed = true;
       context.go(Routes.landing, extra: Arrival.lockup);
     }
@@ -88,6 +103,37 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   void _handOff() {
     _handedOff = true;
     ref.read(sharedPreferencesProvider).setBool(SplashScreen.litKey, true);
+    final updates = ref.read(updatesProvider.notifier);
+    if (!updates.checking) {
+      _leave();
+      return;
+    }
+    // The settled splash holds up to 2 s past its own run for the version
+    // check, from the hand-off itself whatever frame crossed it; no answer
+    // by then opens the app as usual.
+    _holding = true;
+    _clock
+      ..stop()
+      ..value =
+          _timeline.handoff.inMicroseconds / _timeline.total.inMicroseconds;
+    updates.settled(UpdatesNotifier.splashWait).then((_) {
+      if (!mounted) return;
+      _holding = false;
+      _leave();
+      if (!_landed) _clock.forward();
+    });
+  }
+
+  void _leave() {
+    if (ref.read(updatesProvider.notifier).required) {
+      _clock.stop();
+      _landed = true;
+      context.go(
+        Routes.update,
+        extra: MediaQuery.disableAnimationsOf(context) ? null : Arrival.lockup,
+      );
+      return;
+    }
     if (_timeline.lockup) return;
     final session = ref.read(sessionProvider);
     final String next;

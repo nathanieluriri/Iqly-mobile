@@ -55,6 +55,15 @@ Page<T> pushPage<T>(GoRouterState state, Widget child) =>
 Page<T> handoffPage<T>(GoRouterState state, Widget child) =>
     _IqPage<T>(state, child, _Move.of(state.extra, _Move.handoff));
 
+/// A page that takes over the whole app (Figma note 1313:92110): it fades
+/// in over 150 ms, or with no transition at all when the splash hands its
+/// wordmark over ([Arrival.lockup]).
+Page<T> takeoverPage<T>(GoRouterState state, Widget child) => _IqPage<T>(
+  state,
+  child,
+  state.extra == Arrival.lockup ? _Move.cut : _Move.takeover,
+);
+
 /// A lens over the same chrome (spec 3.7): the page fades in place over
 /// 200 ms while the page beneath stays still; a cut under reduced motion.
 Page<T> lensPage<T>(GoRouterState state, Widget child) =>
@@ -186,6 +195,7 @@ enum _Move {
   splash(IqDurations.handoff, IqDurations.screenBack),
   expand(IqDurations.swap, IqDurations.screenBack),
   lens(IqDurations.swap, IqDurations.swap),
+  takeover(IqDurations.crossfade, IqDurations.crossfade),
   cut(Duration.zero, IqDurations.screenBack);
 
   const _Move(this.enter, this.exit);

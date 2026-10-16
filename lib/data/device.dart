@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Platform capabilities the screens ask for. The demo resolves without
 /// touching the OS; the real one wraps the plugins named on each method.
@@ -47,6 +48,32 @@ class DemoDeviceService implements DeviceService {
   Future<void> openUrl(Uri url) async {
     opened.add(url);
   }
+}
+
+/// The phone itself: links open in the browser or the app that owns them.
+/// The other capabilities still stand in until their plugins land.
+class PlatformDeviceService implements DeviceService {
+  PlatformDeviceService([DeviceService? rest])
+    : _rest = rest ?? DemoDeviceService();
+
+  final DeviceService _rest;
+
+  @override
+  Future<void> openUrl(Uri url) =>
+      launchUrl(url, mode: LaunchMode.externalApplication);
+
+  @override
+  Future<bool> requestNotificationPermission() =>
+      _rest.requestNotificationPermission();
+
+  @override
+  Future<bool> notificationsAllowed() => _rest.notificationsAllowed();
+
+  @override
+  Future<void> openNotificationSettings() => _rest.openNotificationSettings();
+
+  @override
+  Future<void> openEmailApp() => _rest.openEmailApp();
 }
 
 final deviceServiceProvider = Provider<DeviceService>(
