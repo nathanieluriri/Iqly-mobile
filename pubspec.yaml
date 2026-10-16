@@ -43,6 +43,7 @@ flutter:
     - assets/samples/logos/
     - assets/splash/
     - assets/vectors/
+    - shorebird.yaml
 
   fonts:
     - family: Bricolage Grotesque 32pt
