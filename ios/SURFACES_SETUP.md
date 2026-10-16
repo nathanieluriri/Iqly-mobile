@@ -13,13 +13,13 @@ None of the Swift below has been compiled: this lane had no Xcode, and CI builds
 
 ## Steps
 
-1. Apple Developer: create the App Group `group.net.iqly.iqlyMobile` and enable it for `net.iqly.iqlyMobile`.
-2. Open `ios/Runner.xcworkspace`. File > New > Target > Widget Extension. Product name `IqlySurfaces`, bundle id `net.iqly.iqlyMobile.IqlySurfaces`, tick "Include Live Activity", untick "Include Configuration App Intent". Deployment target iOS 16.1. Delete the template Swift files and the template Info.plist / asset catalog Xcode creates.
+1. Apple Developer: create the App Group `group.net.iqly.app` and enable it for `net.iqly.app`.
+2. Open `ios/Runner.xcworkspace`. File > New > Target > Widget Extension. Product name `IqlySurfaces`, bundle id `net.iqly.app.IqlySurfaces`, tick "Include Live Activity", untick "Include Configuration App Intent". Deployment target iOS 16.1. Delete the template Swift files and the template Info.plist / asset catalog Xcode creates.
 3. Add the existing folder `ios/IqlySurfaces` to the IqlySurfaces target (Create groups, target IqlySurfaces only). Set the target's Info.plist File to `IqlySurfaces/Info.plist` and Code Signing Entitlements to `IqlySurfaces/IqlySurfaces.entitlements`.
 4. Add `ios/IqlySurfaces/Shared/SurfaceShared.swift` to the Runner target as well (Target Membership: Runner and IqlySurfaces).
 5. Add `ios/RunnerSurfaces/SurfacesChannel.swift` to the Runner target only.
 6. Fonts for the extension: add `assets/fonts/PlusJakartaSans-Regular.ttf`, `PlusJakartaSans-SemiBold.ttf` and `BricolageGrotesque-30pt.ttf` to the IqlySurfaces target (Copy Bundle Resources). The extension Info.plist already lists them in UIAppFonts. PostScript names used: PlusJakartaSans-Regular, PlusJakartaSans-SemiBold, BricolageGrotesque30ptExtraBold.
-7. Runner target > Signing & Capabilities: add App Groups (`group.net.iqly.iqlyMobile`); Xcode will point CODE_SIGN_ENTITLEMENTS at `Runner/Runner.entitlements`. Add the same capability to IqlySurfaces.
+7. Runner target > Signing & Capabilities: add App Groups (`group.net.iqly.app`); Xcode will point CODE_SIGN_ENTITLEMENTS at `Runner/Runner.entitlements`. Add the same capability to IqlySurfaces.
 8. Embed: Runner > General > Frameworks, Libraries and Embedded Content should list IqlySurfaces.appex (Xcode adds "Embed Foundation Extensions" when the target is created). Make sure the Embed phase runs before "Thin Binary" or the Flutter build can fail with a cycle error.
 9. Register the channel in `ios/Runner/AppDelegate.swift`:
 

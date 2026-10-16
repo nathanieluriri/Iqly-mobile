@@ -6,7 +6,7 @@ import ActivityKit
 
 // In both the Runner and the IqlySurfaces targets.
 enum SurfaceShared {
-  static let appGroup = "group.net.iqly.iqlyMobile"
+  static let appGroup = "group.net.iqly.app"
   static let timelineKey = "widget_timeline"
   static let thumbsFolder = "surfaces"
 

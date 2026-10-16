@@ -116,7 +116,7 @@ void main() {
     final strings = File('android/app/src/main/res/values/surfaces.xml')
         .readAsStringSync();
     final kotlin = File(
-      'android/app/src/main/kotlin/net/iqly/iqly_mobile/NotificationChannels.kt',
+      'android/app/src/main/kotlin/net/iqly/app/NotificationChannels.kt',
     ).readAsStringSync();
     for (final channel in SurfaceChannel.values) {
       final (title, description) = notificationCopy[topics[channel]]!;
