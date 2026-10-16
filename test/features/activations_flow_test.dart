@@ -34,8 +34,9 @@ import '../golden/screens/activations_harness.dart';
 import '../golden/screens/app_harness.dart' show signedInPrefs;
 import 'entry_harness.dart' show recordHaptics;
 
+const _light = 'HapticFeedbackType.lightImpact';
 const _success = 'HapticFeedbackType.successNotification';
-const _commit = 'HapticFeedbackType.lightImpact';
+const _commit = 'HapticFeedbackType.mediumImpact';
 const _error = 'HapticFeedbackType.mediumImpact';
 
 /// Taps [finder], scrolling the screen's list to it first when it waits in
@@ -143,10 +144,11 @@ void main() {
       );
       expect(find.text('Closes in 2 days'), findsOneWidget);
       expect(find.text('Settings → Verification. About 2 min'), findsOne);
-      expect(haptics, isEmpty);
+      const opened = [_light, _light];
+      expect(haptics, opened);
 
       await _tap(tester, find.text('Start activation'));
-      expect(haptics, [_commit]);
+      expect(haptics, [...opened, _commit]);
       expect(find.text('Not started · 3 steps'), findsOneWidget);
       expect(find.text('Settings → Verification'), findsOneWidget);
       expect(find.text('Earn ₦1,500'), findsOneWidget);
@@ -161,7 +163,10 @@ void main() {
         find.text('Kudi Box is checking. Usually a few minutes.'),
         findsOneWidget,
       );
-      expect(haptics, [_commit], reason: 'a confirmation is passive');
+      expect(haptics, [
+        ...opened,
+        _commit,
+      ], reason: 'a confirmation is passive');
 
       await tester.pump(const Duration(seconds: 4));
       await tester.pumpAndSettle();
@@ -173,7 +178,7 @@ void main() {
       );
       expect(find.text('Steps confirmed by Kudi Box'), findsOneWidget);
       expect(find.text('Thu, 1:55 pm · 3 of 3 steps'), findsOneWidget);
-      expect(haptics, [_commit, _success]);
+      expect(haptics, [...opened, _commit, _success]);
       expect(_awards(container), {'activation-a2': 150000});
 
       await _tap(tester, find.text('View wallet'));

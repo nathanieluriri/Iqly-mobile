@@ -66,7 +66,7 @@ class IqButton extends StatelessWidget {
       haptic: switch (kind) {
         IqButtonKind.primary || IqButtonKind.inverse => IqHaptics.commit,
         IqButtonKind.danger => IqHaptics.destructive,
-        IqButtonKind.secondary || IqButtonKind.ghost => null,
+        IqButtonKind.secondary || IqButtonKind.ghost => IqHaptics.tap,
       },
       builder: (context, pressed) => SizedBox(
         width: width,

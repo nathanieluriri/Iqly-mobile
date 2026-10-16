@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'reference_data.dart';
+
 /// What first run collects. Option fields hold the API values from
 /// [Reference]; state and university are stored by name, as the web profile
 /// does.
@@ -11,6 +13,7 @@ class OnboardingProfile {
     this.education,
     this.university,
     this.interests = const [],
+    this.otherInterest = '',
     this.dateOfBirth,
     this.phone = '',
   });
@@ -21,6 +24,10 @@ class OnboardingProfile {
   final String? education;
   final String? university;
   final List<String> interests;
+
+  /// What "Other" means, typed when the Other interest is picked. The API has
+  /// no field for it yet, so it stays with the answers on the device.
+  final String otherInterest;
 
   /// Collected on About you; under 18 is blocked there (answers 10 and 17).
   final DateTime? dateOfBirth;
@@ -37,6 +44,7 @@ class OnboardingProfile {
     String? education,
     String? university,
     List<String>? interests,
+    String? otherInterest,
     DateTime? dateOfBirth,
     String? phone,
   }) => OnboardingProfile(
@@ -46,8 +54,23 @@ class OnboardingProfile {
     education: education ?? this.education,
     university: university ?? this.university,
     interests: interests ?? this.interests,
+    otherInterest: otherInterest ?? this.otherInterest,
     dateOfBirth: dateOfBirth ?? this.dateOfBirth,
     phone: phone ?? this.phone,
+  );
+
+  /// The same answers with [education] set, dropping the university when
+  /// that education has none.
+  OnboardingProfile withEducation(String education) => OnboardingProfile(
+    occupation: occupation,
+    state: state,
+    city: city,
+    education: education,
+    university: Reference.studiesAtUniversity(education) ? university : null,
+    interests: interests,
+    otherInterest: otherInterest,
+    dateOfBirth: dateOfBirth,
+    phone: phone,
   );
 }
 

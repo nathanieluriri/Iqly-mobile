@@ -402,6 +402,7 @@ class EntryLink extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IqPressable(
+      tactile: false,
       onTap: onTap,
       semanticLabel: label,
       builder: (context, pressed) => SizedBox(

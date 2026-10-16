@@ -6,6 +6,7 @@ import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
+import '../../ui/toast.dart';
 import '../../ui/top_bar.dart';
 
 /// Back to the opener; a page opened on its own (a deep link) falls back to
@@ -19,7 +20,8 @@ void goBack(BuildContext context) {
 }
 
 /// A sub page of More: the Page top bar with Back and [title], [body]
-/// below it and an optional [actions] bar over the home indicator. No dock.
+/// below it and an optional [actions] bar over the home indicator, which
+/// toasts float above. No dock.
 class SubPage extends StatelessWidget {
   const SubPage({
     super.key,
@@ -67,15 +69,17 @@ class SubPage extends StatelessWidget {
                 if (actions.isNotEmpty)
                   Padding(
                     padding: actionsPadding,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (final (i, action) in actions.indexed) ...[
-                          if (i > 0) const SizedBox(height: IqSpace.s2),
-                          action,
+                    child: IqToastFloor(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (final (i, action) in actions.indexed) ...[
+                            if (i > 0) const SizedBox(height: IqSpace.s2),
+                            action,
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
               ],

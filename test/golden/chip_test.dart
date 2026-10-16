@@ -18,6 +18,15 @@ void main() {
     });
   }
 
+  testWidgets('refused', (tester) async {
+    await expectComponentGolden(
+      tester,
+      'chip_refused',
+      IqChip(refused: true, onChanged: (_) {}),
+      size: const Size(204, 44),
+    );
+  });
+
   testWidgets('tap toggles the state through onChanged', (tester) async {
     var state = IqChipState.standard;
     await tester.pumpWidget(

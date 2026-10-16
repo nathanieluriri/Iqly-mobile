@@ -1,6 +1,5 @@
 import 'package:flutter/widgets.dart';
 
-import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 import 'pressable.dart';
@@ -88,7 +87,8 @@ class IqReferralCard extends StatelessWidget {
                 IqPressable(
                   onTap: onCopy,
                   semanticLabel: 'Copy code $code',
-                  haptic: IqHaptics.select,
+                  hint: 'Copy code $code',
+                  haptic: null,
                   builder: (context, pressed) => PressDim(
                     pressed: pressed,
                     child: Row(

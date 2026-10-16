@@ -78,7 +78,7 @@ class OnboardingDraft {
       profile.state != null &&
       profile.city.trim().isNotEmpty &&
       profile.education != null;
-  bool get whatYouLikeDone => profile.interests.length >= minInterests;
+  bool get whatYouLikeDone => interestsComplete(profile);
 
   int get stepsLeft => [
     aboutYouDone,
@@ -97,6 +97,18 @@ class OnboardingDraft {
   }
 
   static const minInterests = 2;
+  static const maxInterests = 3;
+
+  /// The interest whose words the contributor types.
+  static const otherInterest = 'other';
+
+  /// 2 or 3 interests, and the words for Other when Other is one of them.
+  static bool interestsComplete(OnboardingProfile profile) {
+    final picked = profile.interests.length;
+    if (picked < minInterests || picked > maxInterests) return false;
+    return !profile.interests.contains(otherInterest) ||
+        profile.otherInterest.trim().isNotEmpty;
+  }
 
   OnboardingDraft copyWith({
     OnboardingProfile? profile,
@@ -115,6 +127,7 @@ class OnboardingDraft {
     'education': profile.education,
     'university': profile.university,
     'interests': profile.interests,
+    'otherInterest': profile.otherInterest,
     'dateOfBirth': profile.dateOfBirth?.toIso8601String(),
     'phone': profile.phone,
     'lastStep': lastStep?.name,
@@ -130,6 +143,7 @@ class OnboardingDraft {
       university: json['university'] as String?,
       interests: [...(json['interests'] as List<Object?>? ?? const [])]
           .cast<String>(),
+      otherInterest: json['otherInterest'] as String? ?? '',
       dateOfBirth: DateTime.tryParse(json['dateOfBirth'] as String? ?? ''),
       phone: json['phone'] as String? ?? '',
     ),
@@ -169,7 +183,9 @@ class OnboardingDraftNotifier extends Notifier<OnboardingDraft> {
 
   void setCity(String value) => _save(_profile(city: value));
 
-  void setEducation(String value) => _save(_profile(education: value));
+  /// SSCE / WAEC drops any university picked before.
+  void setEducation(String value) =>
+      _save(state.copyWith(profile: _p.withEducation(value)));
 
   void setUniversity(String value) => _save(_profile(university: value));
 
@@ -177,11 +193,21 @@ class OnboardingDraftNotifier extends Notifier<OnboardingDraft> {
 
   void setPhone(String value) => _save(_profile(phone: value));
 
-  void toggleInterest(String value) {
+  /// Adds or removes [value]; a 4th pick is refused and returns false.
+  bool toggleInterest(String value) {
     final next = [..._p.interests];
-    next.contains(value) ? next.remove(value) : next.add(value);
+    if (next.contains(value)) {
+      next.remove(value);
+    } else if (next.length >= OnboardingDraft.maxInterests) {
+      return false;
+    } else {
+      next.add(value);
+    }
     _save(_profile(interests: next));
+    return true;
   }
+
+  void setOtherInterest(String value) => _save(_profile(otherInterest: value));
 
   /// Profile's Your details edits the same answers.
   void setProfile(OnboardingProfile profile) =>
@@ -210,6 +236,7 @@ class OnboardingDraftNotifier extends Notifier<OnboardingDraft> {
     String? education,
     String? university,
     List<String>? interests,
+    String? otherInterest,
     DateTime? dateOfBirth,
     String? phone,
   }) => this.state.copyWith(
@@ -220,6 +247,7 @@ class OnboardingDraftNotifier extends Notifier<OnboardingDraft> {
       education: education ?? _p.education,
       university: university ?? _p.university,
       interests: interests ?? _p.interests,
+      otherInterest: otherInterest ?? _p.otherInterest,
       dateOfBirth: dateOfBirth ?? _p.dateOfBirth,
       phone: phone ?? _p.phone,
     ),

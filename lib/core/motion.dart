@@ -71,6 +71,12 @@ abstract final class IqDurations {
   /// One element appears: fade and rise 8, sticker pop, chat bubble.
   static const appear = Duration(milliseconds: 220);
 
+  /// How long a refused pick stays flashed in the error tones.
+  static const refused = Duration(milliseconds: 400);
+
+  /// How long a toast stays before it leaves.
+  static const toast = Duration(seconds: 2);
+
   /// Marker wipe, stamp land, banner arrives, thread draws, shake.
   static const mark = Duration(milliseconds: 240);
 
@@ -347,6 +353,12 @@ abstract final class IqScale {
 
   /// The Done rocket's flame at the low point of a flicker.
   static const double flicker = 0.85;
+
+  /// Any other pressable sinks by this many points across its longer side,
+  /// so a small icon dips more than a wide row but both feel the same push.
+  static const double pressShrink = 8;
+  static const double pressMin = 0.94;
+  static const double pressMax = 0.985;
 }
 
 /// Angles in degrees (spec 2.3).
@@ -396,53 +408,80 @@ Duration pressMotion(BuildContext context, bool pressed) {
   return motion(context, IqDurations.release);
 }
 
-/// The haptic moments (spec 2.7). The platform setting decides whether they
-/// play; reduced motion does not change them.
+/// The haptic moments (spec 2.7), in three weights: [tap] light for
+/// ordinary taps, [commit] medium for the action a screen exists for,
+/// [destructive] heavy for what can't be taken back. The platform setting
+/// decides whether they play; reduced motion does not change them.
 ///
-/// A commit plays as its frame ends, so a result that lands in that frame
-/// (a refused email, Finish, Save changes with nothing left to send) plays
-/// in its place: two pulses in one frame read as one muddled tap. A result
-/// that comes in a later frame still follows its commit.
+/// A tap or a commit plays as its frame ends, so a result that lands in that
+/// frame (a refused email, Finish, Looks good, continue) plays in its place:
+/// two pulses in one frame read as one muddled tap. A result that comes in a
+/// later frame still follows its press.
 enum IqHaptics {
+  /// Rows, cards, links, icon buttons, back: any tap without a heavier job.
+  tap,
+
   /// Chips, switches, option rows, bookmarks, dock tabs, poll picks.
   select,
+
+  /// One notch of a wheel or stepper, with the system click.
+  tick,
 
   /// Primary and Inverse buttons, the NextFab, the Email provider button.
   commit,
 
+  /// Holding something down long enough to open its hint or its menu.
+  hold,
+
+  /// A list dragged into its end.
+  edge,
+
   /// The start of a destructive confirm's sink (the Danger button).
   destructive,
 
-  /// The result of the user's action lands.
+  /// The result of the user's action lands, a copied code or link too.
   success,
 
   /// The user's action failed.
   error;
 
-  static Object? _commit;
+  static Object? _press;
+
+  static Future<void> _atFrameEnd(Future<void> Function() buzz) {
+    final mine = _press = Object();
+    SchedulerBinding.instance
+      ..addPostFrameCallback((_) {
+        if (!identical(_press, mine)) return;
+        _press = null;
+        buzz();
+      })
+      ..ensureVisualUpdate();
+    return Future.value();
+  }
 
   /// Plays it; an error is the iOS error pattern, a medium impact on Android.
   Future<void> play() {
     switch (this) {
+      case tap:
+        return _atFrameEnd(HapticFeedback.lightImpact);
       case select:
         return HapticFeedback.selectionClick();
+      case tick:
+        SystemSound.play(SystemSoundType.click);
+        return HapticFeedback.selectionClick();
       case commit:
-        final mine = _commit = Object();
-        SchedulerBinding.instance
-          ..addPostFrameCallback((_) {
-            if (!identical(_commit, mine)) return;
-            _commit = null;
-            HapticFeedback.lightImpact();
-          })
-          ..ensureVisualUpdate();
-        return Future.value();
-      case destructive:
+        return _atFrameEnd(HapticFeedback.mediumImpact);
+      case hold:
+        return HapticFeedback.heavyImpact();
+      case edge:
         return HapticFeedback.mediumImpact();
+      case destructive:
+        return HapticFeedback.heavyImpact();
       case success:
-        _commit = null;
+        _press = null;
         return HapticFeedback.successNotification();
       case error:
-        _commit = null;
+        _press = null;
         return defaultTargetPlatform == TargetPlatform.iOS
             ? HapticFeedback.errorNotification()
             : HapticFeedback.mediumImpact();

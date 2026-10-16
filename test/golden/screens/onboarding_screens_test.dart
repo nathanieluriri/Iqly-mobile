@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/core/motion.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/features/onboarding/about_you_screen.dart';
 import 'package:iqly_mobile/features/onboarding/add_university_screen.dart';
@@ -149,6 +150,54 @@ void main() {
       tester,
       'onboarding_what_you_like',
       onboardingFrame(prefs, const WhatYouLikeScreen()),
+    );
+  });
+
+  testWidgets('1284:90206 Step 3 a 4th pick', (tester) async {
+    final prefs = await onboardingPrefs(
+      draft: {
+        ...sampleWhatYouLike,
+        'interests': [
+          'tech_gadgets',
+          'marketing_advertising',
+          'finance_fintech',
+        ],
+      },
+    );
+    await pumpOnboardingScreen(tester, prefs, const WhatYouLikeScreen());
+    await tester.tap(find.text('Education'));
+    await tester.pump();
+    await tester.pump(IqDurations.mark + IqDurations.stagger);
+    await expectMatchesGolden(
+      find.byType(MaterialApp),
+      'goldens/onboarding_what_you_like_refused.png',
+    );
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('1284:90430 Step 3 Other', (tester) async {
+    final prefs = await onboardingPrefs(
+      draft: {
+        ...sampleWhatYouLike,
+        'interests': ['marketing_advertising', 'finance_fintech', 'other'],
+        'otherInterest': 'Real estate',
+      },
+    );
+    await expectGolden(
+      tester,
+      'onboarding_what_you_like_other',
+      onboardingFrame(prefs, const WhatYouLikeScreen()),
+    );
+  });
+
+  testWidgets('1284:90545 Step 2 Where you studied, SSCE', (tester) async {
+    final prefs = await onboardingPrefs(
+      draft: {...sampleWhereYouStudied, 'education': 'ssce'},
+    );
+    await expectGolden(
+      tester,
+      'onboarding_where_you_studied_ssce',
+      onboardingFrame(prefs, const WhereYouStudiedScreen()),
     );
   });
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/edge_haptics.dart';
 import 'router.dart';
 import 'theme/theme.dart';
 
@@ -15,7 +16,9 @@ class IqlyApp extends ConsumerWidget {
       routerConfig: ref.watch(routerProvider),
       debugShowCheckedModeBanner: false,
       // Paper under every route, so no transition ever fades to black.
-      builder: (context, child) => ColoredBox(color: IqColors.bg, child: child),
+      builder: (context, child) => EdgeHaptics(
+        child: ColoredBox(color: IqColors.bg, child: child),
+      ),
     );
   }
 }

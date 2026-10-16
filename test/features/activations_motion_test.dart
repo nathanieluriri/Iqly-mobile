@@ -21,8 +21,9 @@ import '../golden/golden.dart' show loadAppFonts;
 import '../golden/screens/activations_harness.dart';
 import 'entry_harness.dart' show recordHaptics;
 
+const _light = 'HapticFeedbackType.lightImpact';
 const _success = 'HapticFeedbackType.successNotification';
-const _commit = 'HapticFeedbackType.lightImpact';
+const _commit = 'HapticFeedbackType.mediumImpact';
 
 /// Pumps [ms] of frames 10 ms apart, as a device draws them, calling [each]
 /// after every frame with the time since the first.
@@ -325,7 +326,7 @@ void main() {
       expect(fading, inInclusiveRange(13, 16), reason: '150 ms of frames');
       expect(layer.last, 1);
       expect(find.text('Verify your BVN in the app'), findsNothing);
-      expect(haptics, [_success]);
+      expect(haptics, [_light, _success]);
     });
   });
 

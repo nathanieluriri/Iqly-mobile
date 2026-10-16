@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/reference_data.dart';
+import '../../core/motion.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/chip.dart';
+import '../../ui/field.dart';
 import '../../ui/step_mark.dart';
+import '../../ui/toast.dart';
 import 'onboarding_draft.dart';
 import 'onboarding_layout.dart';
 
@@ -28,34 +32,56 @@ const interestChipLabels = {
   'other': 'Other',
 };
 
-/// B11 · Step 3 · What you like (188:8390): interests order the feed.
-/// Finish stays off under two picks; Finish and Skip for now go on to Your
-/// avatar.
+/// B11 · Step 3 · What you like (188:8390, with the 2 or 3 rule frames
+/// 1284:68479 to 1284:90430): interests order the feed. Finish stays off
+/// until 2 or 3 are picked, and while Other is picked without its words;
+/// Finish and Skip for now go on to Your avatar.
 class WhatYouLikeScreen extends ConsumerWidget {
   const WhatYouLikeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final interests = ref.watch(
-      onboardingDraftProvider.select((d) => d.profile.interests),
-    );
+    final profile = ref.watch(onboardingDraftProvider.select((d) => d.profile));
     final draft = ref.read(onboardingDraftProvider.notifier);
     return OnboardingStepScaffold(
       step: IqStepMarkStep.threeOfThree,
       title: 'What are you into?',
-      caption: 'Pick at least ${OnboardingDraft.minInterests}',
+      caption: interestsCaption,
       onBack: () => leaveStep(context, Routes.onboardingWhereYouStudied),
       onSkip: () => _finish(context),
       onNext: () => _finish(context),
-      nextEnabled: interests.length >= OnboardingDraft.minInterests,
+      nextEnabled: OnboardingDraft.interestsComplete(profile),
       nextLabel: 'Finish',
-      child: InterestChips(selected: interests, onToggle: draft.toggleInterest),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InterestChips(
+            selected: profile.interests,
+            onToggle: draft.toggleInterest,
+          ),
+          OtherInterestField(
+            shown: profile.interests.contains(OnboardingDraft.otherInterest),
+            value: profile.otherInterest,
+            onChanged: draft.setOtherInterest,
+          ),
+        ],
+      ),
     );
   }
 }
 
-/// The 13 interest chips, shared with Profile's interests sheet.
-class InterestChips extends StatelessWidget {
+const interestsCaption =
+    'Pick ${OnboardingDraft.minInterests} or ${OnboardingDraft.maxInterests}';
+
+/// The words for a 4th pick, shown in the Error toast.
+const interestLimitMessage =
+    'Max ${OnboardingDraft.maxInterests} interests. Unselect one first.';
+
+/// The 13 interest chips, shared with Profile's interests sheet. Up to
+/// [OnboardingDraft.maxInterests] can be picked: a further tap is refused
+/// with a shake, the chip's error flash, the error haptic and a toast, and
+/// [onToggle] is not called.
+class InterestChips extends StatefulWidget {
   const InterestChips({
     super.key,
     required this.selected,
@@ -63,7 +89,48 @@ class InterestChips extends StatelessWidget {
   });
 
   final List<String> selected;
-  final ValueChanged<String> onToggle;
+  final void Function(String value) onToggle;
+
+  @override
+  State<InterestChips> createState() => _InterestChipsState();
+}
+
+class _InterestChipsState extends State<InterestChips>
+    with SingleTickerProviderStateMixin {
+  final _shakes = <String, int>{};
+  String? _refused;
+  late final AnimationController _flash = AnimationController(
+    vsync: this,
+    duration: IqDurations.refused,
+    animationBehavior: AnimationBehavior.preserve,
+  )..addStatusListener(_flashEnded);
+
+  void _flashEnded(AnimationStatus status) {
+    if (status == AnimationStatus.completed && mounted) {
+      setState(() => _refused = null);
+    }
+  }
+
+  bool get _full => widget.selected.length >= OnboardingDraft.maxInterests;
+
+  void _tap(String value) {
+    if (widget.selected.contains(value) || !_full) {
+      return widget.onToggle(value);
+    }
+    setState(() {
+      _shakes[value] = (_shakes[value] ?? 0) + 1;
+      _refused = value;
+    });
+    _flash.forward(from: 0);
+    IqHaptics.error.play();
+    IqToast.show(context, interestLimitMessage, kind: IqToastKind.error);
+  }
+
+  @override
+  void dispose() {
+    _flash.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,14 +139,83 @@ class InterestChips extends StatelessWidget {
       runSpacing: IqSpace.s2,
       children: [
         for (final option in Reference.interests)
-          IqChip(
-            label: interestChipLabels[option.value] ?? option.label,
-            state: selected.contains(option.value)
-                ? IqChipState.selected
-                : IqChipState.standard,
-            onChanged: (_) => onToggle(option.value),
+          Shake(
+            trigger: _shakes[option.value] ?? 0,
+            child: IqChip(
+              label: interestChipLabels[option.value] ?? option.label,
+              state: widget.selected.contains(option.value)
+                  ? IqChipState.selected
+                  : IqChipState.standard,
+              refused: _refused == option.value,
+              haptic: _full && !widget.selected.contains(option.value)
+                  ? null
+                  : IqHaptics.select,
+              onChanged: (_) => _tap(option.value),
+            ),
           ),
       ],
+    );
+  }
+}
+
+/// The Other interest's words (Exp/Field, frame 1284:90430): it opens under
+/// the chips while Other is picked, taking the keyboard when the pick is
+/// new, so a field that opens below the fold scrolls into view.
+class OtherInterestField extends StatefulWidget {
+  const OtherInterestField({
+    super.key,
+    required this.shown,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final bool shown;
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<OtherInterestField> createState() => _OtherInterestFieldState();
+}
+
+class _OtherInterestFieldState extends State<OtherInterestField> {
+  late final _words = TextEditingController(text: widget.value);
+  final _focus = FocusNode();
+
+  @override
+  void didUpdateWidget(OtherInterestField old) {
+    super.didUpdateWidget(old);
+    if (widget.shown == old.shown) return;
+    widget.shown ? _focus.requestFocus() : _focus.unfocus();
+  }
+
+  @override
+  void dispose() {
+    _words.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RevealSlot(
+      shown: widget.shown,
+      child: Padding(
+        padding: const EdgeInsets.only(top: IqSpace.s3),
+        child: IqField(
+          label: 'Other interest',
+          value: '',
+          state: _words.text.trim().isEmpty ? null : IqFieldState.valid,
+          showNote: false,
+          controller: _words,
+          focusNode: _focus,
+          textInputAction: TextInputAction.done,
+          inputFormatters: [LengthLimitingTextInputFormatter(60)],
+          onChanged: (text) {
+            setState(() {});
+            widget.onChanged(text);
+          },
+        ),
+      ),
     );
   }
 }

@@ -91,10 +91,11 @@ class _ShareSheetState extends ConsumerState<ShareSheet> {
     });
   }
 
+  /// Pops true, so the result says so above its own buttons.
   Future<void> _copy(String link) async {
     await Clipboard.setData(ClipboardData(text: link));
     IqHaptics.success.play();
-    if (mounted) context.pop();
+    if (mounted) context.pop(true);
   }
 
   @override

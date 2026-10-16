@@ -131,6 +131,7 @@ class _IqBrandBubbleState extends State<IqBrandBubble>
   @override
   Widget build(BuildContext context) {
     return IqPressable(
+      tactile: false,
       onTap: widget.onTap,
       builder: (context, pressed) => SizedBox(
         width: 88,

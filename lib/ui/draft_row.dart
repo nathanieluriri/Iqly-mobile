@@ -58,7 +58,7 @@ class IqDraftRow extends StatelessWidget {
       onLongPress: onLongPress,
       child: IqPressable(
         onTap: onTap,
-        haptic: selecting ? IqHaptics.select : null,
+        haptic: selecting ? IqHaptics.select : IqHaptics.tap,
         semanticLabel:
             '$title, $meta${selecting ? (on ? ', selected' : ', not selected') : ''}',
         builder: (context, pressed) => AnimatedContainer(

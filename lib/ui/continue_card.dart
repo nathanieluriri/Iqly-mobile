@@ -35,6 +35,7 @@ class IqContinueCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final reduced = MediaQuery.disableAnimationsOf(context);
     return IqPressable(
+      tactile: false,
       onTap: onTap,
       semanticLabel: '$title. $status',
       builder: (context, pressed) => AnimatedScale(

@@ -117,6 +117,7 @@ class _IqActivationTicketState extends State<IqActivationTicket>
           child: child,
         ),
         child: IqPressable(
+          tactile: false,
           onTap: widget.onTap,
           builder: (context, pressed) => AnimatedScale(
             scale: pressed && !_reduced ? IqScale.cardPress : 1,

@@ -18,6 +18,7 @@ import 'package:iqly_mobile/features/onboarding/your_avatar_screen.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/theme/theme.dart';
 import 'package:iqly_mobile/ui/button.dart';
+import 'package:iqly_mobile/ui/chip.dart';
 import 'package:iqly_mobile/ui/brief_card.dart';
 import 'package:iqly_mobile/ui/illustration.dart';
 import 'package:iqly_mobile/ui/option_row.dart';
@@ -31,7 +32,8 @@ const _ms = Duration(milliseconds: 1);
 const _light = 'HapticFeedbackType.lightImpact';
 const _select = 'HapticFeedbackType.selectionClick';
 const _success = 'HapticFeedbackType.successNotification';
-const _commit = 'HapticFeedbackType.lightImpact';
+const _commit = 'HapticFeedbackType.mediumImpact';
+const _error = 'HapticFeedbackType.mediumImpact';
 const _keyboard = 336.0;
 
 double _eo(double t) => IqCurves.easeOut.transform(t);
@@ -183,7 +185,7 @@ void main() {
         const lag = 40 / 300;
         final own = _eo((0.5 - lag) / (1 - lag));
         expect(midTrail - trail(), closeTo(24 * (_eo(0.5) - own), 0.5));
-        expect(haptics, [_light]);
+        expect(haptics, [_commit]);
       },
     );
 
@@ -287,7 +289,7 @@ void main() {
       await tester.tap(find.text('University of Lagos'));
       await tester.pump();
       expect(tester.testTextInput.isVisible, isFalse);
-      expect(haptics, [_select]);
+      expect(haptics, [_light, _select]);
       tester.view.viewInsets = FakeViewPadding.zero;
       await tester.pumpAndSettle();
       expect(_on(tester, 'Use this'), isTrue);
@@ -325,7 +327,7 @@ void main() {
       await tester.pump();
       expect(find.byType(WhatYouLikeScreen), findsOneWidget);
       await tester.pumpAndSettle();
-      expect(haptics, [_select, _light]);
+      expect(haptics, [_light, _select, _commit]);
     });
 
     testWidgets('reduced motion: Use this lands the university and moves on '
@@ -378,6 +380,35 @@ void main() {
       expect(find.text('Postgraduate'), findsOneWidget);
     });
 
+    testWidgets('SSCE / WAEC folds University away and drops the one '
+        'picked (1284:90545)', (tester) async {
+      await _open(
+        tester,
+        Routes.onboardingWhereYouStudied,
+        draft: {..._studied, 'university': 'University of Lagos'},
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('University of Lagos'), findsOneWidget);
+
+      await tester.tap(find.text('HND / BSc'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('SSCE / WAEC'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Use this'));
+      await tester.pumpAndSettle();
+      expect(find.text('SSCE / WAEC'), findsOneWidget);
+      expect(find.text('University'), findsNothing);
+      expect(find.text('University of Lagos'), findsNothing);
+
+      await tester.tap(find.text('SSCE / WAEC'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ND / NCE'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Use this'));
+      await tester.pumpAndSettle();
+      expect(find.text('Search universities'), findsOneWidget);
+    });
+
     testWidgets('State of residence takes the full 724', (tester) async {
       await _open(
         tester,
@@ -423,7 +454,7 @@ void main() {
   });
 
   group('What you like (spec 6.16)', () {
-    testWidgets('the off Finish shakes "Pick at least 2" with no haptic; '
+    testWidgets('the off Finish shakes "Pick 2 or 3" with no haptic; '
         'chips select; Finish commits to Your avatar, which lands the '
         'onboarding with success', (tester) async {
       final haptics = recordHaptics(tester);
@@ -433,7 +464,7 @@ void main() {
         draft: {..._aboutYou, 'lastStep': 'whatYouLike'},
       );
       await tester.pumpAndSettle();
-      final caption = find.text('Pick at least 2');
+      final caption = find.text('Pick 2 or 3');
       final rest = tester.getTopLeft(caption).dx;
 
       await tester.tap(_primary);
@@ -464,6 +495,114 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       expect(find.byType(DoneScreen), findsOneWidget);
       expect(haptics, [_select, _select, _commit, _success]);
+    });
+
+    testWidgets('a 4th pick is refused: the chip shakes and flashes red, the '
+        'error haptic plays and the toast says why; the 3 stay (1284:90206)', (
+      tester,
+    ) async {
+      final haptics = recordHaptics(tester);
+      await _open(
+        tester,
+        Routes.onboardingWhatYouLike,
+        draft: {
+          ..._aboutYou,
+          'interests': ['tech_gadgets', 'education', 'health_wellness'],
+          'lastStep': 'whatYouLike',
+        },
+      );
+      await tester.pumpAndSettle();
+      final chip = find.widgetWithText(IqChip, 'Business');
+      final rest = tester.getTopLeft(chip).dx;
+
+      await tester.tap(chip);
+      await tester.pump();
+      expect(tester.widget<IqChip>(chip).refused, isTrue);
+      expect(find.text('Max 3 interests. Unselect one first.'), findsOneWidget);
+      var furthest = 0.0;
+      for (var i = 0; i < 12; i++) {
+        await tester.pump(_ms * 20);
+        final away = (tester.getTopLeft(chip).dx - rest).abs();
+        if (away > furthest) furthest = away;
+      }
+      expect(furthest, inInclusiveRange(1, 2));
+      await tester.pump(IqDurations.refused);
+      expect(tester.widget<IqChip>(chip).refused, isFalse);
+      expect(tester.widget<IqChip>(chip).state, IqChipState.standard);
+      expect(haptics, [_error]);
+      await tester.pumpAndSettle();
+      expect(find.text('Max 3 interests. Unselect one first.'), findsNothing);
+
+      await tester.tap(find.text('Education'));
+      await tester.pumpAndSettle();
+      await tester.tap(chip);
+      await tester.pumpAndSettle();
+      expect(tester.widget<IqChip>(chip).state, IqChipState.selected);
+      expect(haptics, [_error, _select, _select]);
+    });
+
+    testWidgets('reduced motion: the refused chip holds still, its flash and '
+        'the toast keep their time', (tester) async {
+      await _open(
+        tester,
+        Routes.onboardingWhatYouLike,
+        draft: {
+          ..._aboutYou,
+          'interests': ['tech_gadgets', 'education', 'health_wellness'],
+          'lastStep': 'whatYouLike',
+        },
+        reduced: true,
+      );
+      await tester.pumpAndSettle();
+      final chip = find.widgetWithText(IqChip, 'Business');
+      final rest = tester.getTopLeft(chip).dx;
+      await tester.tap(chip);
+      await tester.pump();
+      await tester.pump(_ms * 120);
+      expect(tester.getTopLeft(chip).dx, rest);
+      await tester.pump(IqDurations.refused - _ms * 140);
+      expect(tester.widget<IqChip>(chip).refused, isTrue);
+      await tester.pump(_ms * 40);
+      expect(tester.widget<IqChip>(chip).refused, isFalse);
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Max 3 interests. Unselect one first.'), findsOneWidget);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('Other opens a field for its words, and Finish waits for them '
+        '(1284:90430)', (tester) async {
+      await _open(
+        tester,
+        Routes.onboardingWhatYouLike,
+        draft: {
+          ..._aboutYou,
+          'interests': ['tech_gadgets'],
+          'lastStep': 'whatYouLike',
+        },
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Other interest'), findsNothing);
+
+      final other = find.text('Other');
+      await tester.ensureVisible(other);
+      await tester.pumpAndSettle();
+      await tester.tap(other);
+      await tester.pumpAndSettle();
+      expect(find.text('Other interest'), findsOneWidget);
+      expect(tester.testTextInput.isVisible, isTrue);
+      expect(_on(tester, 'Finish'), isFalse);
+
+      tester.testTextInput.enterText('Real estate');
+      await tester.pumpAndSettle();
+      expect(_on(tester, 'Finish'), isTrue);
+
+      await tester.ensureVisible(other);
+      await tester.pumpAndSettle();
+      await tester.tap(other);
+      await tester.pumpAndSettle();
+      expect(find.text('Other interest'), findsNothing);
+      expect(tester.testTextInput.isVisible, isFalse);
+      expect(_on(tester, 'Finish'), isFalse);
     });
 
     testWidgets('Finish peels at the second pick, as Next does on the other '

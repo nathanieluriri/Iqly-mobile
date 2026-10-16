@@ -101,6 +101,7 @@ class _IqSearchBoxState extends State<IqSearchBox> {
                 const SizedBox(width: IqSpace.s2p5),
                 IqPressable(
                   semanticLabel: 'Clear search',
+                  hint: 'Clear search',
                   onTap: () {
                     _controller.clear();
                     widget.onChanged?.call('');

@@ -214,8 +214,10 @@ class _IqVideoPreviewState extends State<IqVideoPreview>
           ),
         ],
         IqPressable(
+          tactile: false,
           onTap: state == IqVideoPreviewState.ready ? widget.onPlay : null,
           semanticLabel: 'Play',
+          hint: 'Play',
           behavior: HitTestBehavior.deferToChild,
           builder: (context, pressed) => AnimatedScale(
             scale: pressed && !reduced ? IqScale.playPress : 1,

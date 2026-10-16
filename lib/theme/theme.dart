@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
 import 'tokens.g.dart';
 
 export 'tokens.g.dart';
@@ -12,6 +13,20 @@ ThemeData buildTheme() {
   );
   return base.copyWith(
     scaffoldBackgroundColor: IqColors.bg,
+    // DS Tooltip (9:65): foreground fill, background text, text-xs, 8 radius.
+    tooltipTheme: TooltipThemeData(
+      decoration: BoxDecoration(
+        color: IqColors.fg,
+        borderRadius: BorderRadius.circular(IqRadius.md),
+      ),
+      textStyle: IqText.label.copyWith(color: IqColors.bg),
+      padding: const EdgeInsets.symmetric(
+        horizontal: IqSpace.s3,
+        vertical: IqSpace.s1p5,
+      ),
+      preferBelow: false,
+      showDuration: IqDurations.toast,
+    ),
     colorScheme: const ColorScheme.light(
       primary: IqColors.brand,
       onPrimary: IqColors.card,

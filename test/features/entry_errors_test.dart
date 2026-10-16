@@ -15,6 +15,7 @@ import 'package:iqly_mobile/ui/banner.dart';
 
 import 'entry_harness.dart';
 
+const _light = 'HapticFeedbackType.lightImpact';
 const _medium = 'HapticFeedbackType.mediumImpact';
 
 IqField _field(WidgetTester tester, String label) => tester.widget<IqField>(
@@ -124,7 +125,7 @@ void main() {
         await _tapText(tester, button);
         expect(find.byType(LandingScreen), findsOneWidget);
         expect(_banner(tester), EntryCopy.social(provider));
-        expect(haptics, [_medium]);
+        expect(haptics, [_medium], reason: 'the failure replaces the tap');
 
         await tester.tap(find.byType(IqBoxField));
         await tester.pumpAndSettle();
@@ -144,7 +145,7 @@ void main() {
       await _tapText(tester, 'Continue with Apple');
       expect(find.byType(LandingScreen), findsOneWidget);
       expect(_banner(tester), isNull);
-      expect(haptics, isEmpty);
+      expect(haptics, [_light]);
     });
   });
 

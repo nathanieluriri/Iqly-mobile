@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
@@ -147,8 +148,8 @@ void main() {
     expect(await DemoRepository(DemoData(now: figmaNow)).points(), 1240);
   });
 
-  testWidgets('Edit · Interests saves at two or more and Your details reads '
-      'the new picks', (tester) async {
+  testWidgets('Edit · Interests saves at 2 or 3, refuses a 4th, and Your '
+      'details reads the new picks', (tester) async {
     final service = TestProfileService();
     await pumpMore(tester, Routes.yourDetails, profile: service);
     await _tap(tester, find.text('Interests'));
@@ -157,6 +158,10 @@ void main() {
     expect(_button(tester, 'Save').disabled, isTrue);
     await _tap(tester, find.text('Health'));
     expect(_button(tester, 'Save').disabled, isFalse);
+    await _tap(tester, find.text('Technology'));
+    await _tap(tester, find.text('Business'));
+    expect(_button(tester, 'Save').disabled, isFalse);
+    await _tap(tester, find.text('Technology'));
     await _tap(tester, find.text('Save'));
     expect(_path(tester), Routes.yourDetails);
     expect(
@@ -165,6 +170,34 @@ void main() {
     );
     expect(find.text('Marketing & advertising · Health'), findsOneWidget);
     expect(service.saves, 1);
+  });
+
+  testWidgets('copying the invite code says so: the success haptic and a '
+      'toast', (tester) async {
+    final calls = <String>[];
+    final messenger = tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      calls.add('${call.method} ${call.arguments}');
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+    await pumpMore(tester, Routes.more);
+    final copy = find.bySemanticsLabel(RegExp('^Copy code'));
+    await tester.ensureVisible(copy);
+    await tester.pumpAndSettle();
+    calls.clear();
+    await tester.tap(copy);
+    await tester.pump();
+    await tester.pump();
+    expect(calls, [
+      startsWith('Clipboard.setData'),
+      'HapticFeedback.vibrate HapticFeedbackType.successNotification',
+    ]);
+    expect(find.text('Code copied'), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.text('Code copied'), findsNothing);
   });
 
   testWidgets('a new phone number is confirmed with the code before it '

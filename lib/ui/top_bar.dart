@@ -375,6 +375,7 @@ class _RoundButton extends StatelessWidget {
     return IqPressable(
       onTap: onTap,
       semanticLabel: semanticLabel,
+      hint: semanticLabel,
       builder: (context, pressed) => AnimatedContainer(
         width: 44,
         height: 44,

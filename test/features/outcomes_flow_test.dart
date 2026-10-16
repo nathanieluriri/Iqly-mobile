@@ -30,8 +30,14 @@ import '../golden/screens/app_harness.dart';
 const _success = 'HapticFeedbackType.successNotification';
 
 /// The Segmented's pick haptic aside.
-List<String> _felt(List<String> haptics) =>
-    haptics.where((h) => h != 'HapticFeedbackType.selectionClick').toList();
+/// What the screens played, without the taps that got there.
+List<String> _felt(List<String> haptics) => haptics
+    .where(
+      (h) =>
+          h != 'HapticFeedbackType.selectionClick' &&
+          h != 'HapticFeedbackType.lightImpact',
+    )
+    .toList();
 
 Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);

@@ -22,6 +22,7 @@ import '../../ui/pressable.dart';
 import '../../ui/section_title.dart';
 import '../../ui/share_card.dart';
 import '../../ui/skeleton.dart';
+import '../../ui/toast.dart';
 import '../../ui/top_bar.dart';
 import '../discover/discover_widgets.dart';
 import '../submissions/brief_art.dart';
@@ -163,14 +164,16 @@ class ResultActions extends StatelessWidget {
         horizontal: IqSpace.s4,
         vertical: IqSpace.s3,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final (i, child) in children.indexed) ...[
-            if (i > 0) const SizedBox(height: IqSpace.s2),
-            _sized(child),
+      child: IqToastFloor(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final (i, child) in children.indexed) ...[
+              if (i > 0) const SizedBox(height: IqSpace.s2),
+              _sized(child),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -406,7 +409,12 @@ class _WinnerViewState extends ConsumerState<WinnerView>
               label: 'Share your win',
               showIcon: false,
               width: double.infinity,
-              onTap: () => context.push(sharePath(id)),
+              onTap: () async {
+                final copied = await context.push<bool>(sharePath(id));
+                if (copied == true && context.mounted) {
+                  IqToast.show(context, 'Link copied');
+                }
+              },
             ),
             IqButton(
               label: 'View wallet',

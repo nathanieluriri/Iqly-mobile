@@ -17,15 +17,17 @@ import '../../ui/illustration.dart';
 import '../../ui/list_row.dart';
 import '../../ui/share_target.dart';
 import '../../ui/pressable.dart';
+import '../../ui/toast.dart';
 import '../../ui/top_bar.dart';
 import '../discover/discover_state.dart';
 import '../more/more_widgets.dart';
 import 'referrals_state.dart';
 
-/// Puts the invite [code] on the clipboard.
+/// Puts the invite [code] on the clipboard and says so.
 Future<void> copyInviteCode(BuildContext context, String code) async {
   await Clipboard.setData(ClipboardData(text: code));
-  await IqHaptics.select.play();
+  IqHaptics.success.play();
+  if (context.mounted) IqToast.show(context, 'Code copied');
 }
 
 /// B20 · Referrals (430:19109): the Gift figure, the ₦500 promise, the
@@ -190,15 +192,17 @@ class _ReferralsScreenState extends ConsumerState<ReferralsScreen> {
 
 /// B20 · Invite · share sheet (433:19672): the message, the apps, Copy link
 /// and Save image.
-Future<void> showInviteSheet(BuildContext context, String code) =>
-    showIqSheet<void>(
-      Navigator.of(context, rootNavigator: true).context,
-      (context) => Material(
-        type: MaterialType.transparency,
-        child: _InviteSheet(code: code),
-      ),
-      scrim: IqScrim.share,
-    );
+Future<void> showInviteSheet(BuildContext context, String code) async {
+  final copied = await showIqSheet<bool>(
+    Navigator.of(context, rootNavigator: true).context,
+    (context) => Material(
+      type: MaterialType.transparency,
+      child: _InviteSheet(code: code),
+    ),
+    scrim: IqScrim.share,
+  );
+  if (copied == true && context.mounted) IqToast.show(context, 'Link copied');
+}
 
 class _InviteSheet extends ConsumerWidget {
   const _InviteSheet({required this.code});
@@ -293,8 +297,8 @@ class _InviteSheet extends ConsumerWidget {
                     await Clipboard.setData(
                       ClipboardData(text: ReferralsService.link(code)),
                     );
-                    await IqHaptics.select.play();
-                    if (context.mounted) close();
+                    IqHaptics.success.play();
+                    if (context.mounted) Navigator.of(context).pop(true);
                   },
                 ),
                 IqListRow(

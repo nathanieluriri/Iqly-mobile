@@ -37,6 +37,7 @@ class IqBarButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final inset = MediaQuery.viewPaddingOf(context).bottom;
     return IqPressable(
+      tactile: false,
       onTap: onTap,
       enabled: state == IqBarButtonState.standard,
       semanticLabel: label,
