@@ -31,7 +31,10 @@ final profileAnswersProvider = Provider<OnboardingProfile>((ref) {
         : user?.city ?? '',
     education: draft.education ?? user?.education,
     university:
-        Reference.studiesAtUniversity(draft.education ?? user?.education)
+        Reference.namesUniversity(
+          draft.occupation ?? user?.occupation,
+          draft.education ?? user?.education,
+        )
         ? draft.university ?? user?.university
         : null,
     interests: ref.watch(feedInterestsProvider),

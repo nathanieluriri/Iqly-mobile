@@ -43,7 +43,7 @@ class _NotificationsAskScreenState
     return EntryScaffold(
       hasFields: false,
       settle: true,
-      onBack: () => goBack(context, Routes.onboardingDone),
+      onBack: () => goBack(context, Routes.home),
       action: EntryButtons(
         primary: 'Turn on notifications',
         onPrimary: _turnOn,

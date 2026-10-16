@@ -253,8 +253,10 @@ abstract final class Reference {
     RefOption('other', 'Other'),
   ];
 
-  /// Secondary school leavers have no university to name.
-  static bool studiesAtUniversity(String? education) => education != 'ssce';
+  /// Only students name a university, and secondary school leavers have
+  /// none to name.
+  static bool namesUniversity(String? occupation, String? education) =>
+      occupation == 'student' && education != 'ssce';
 
   static const education = [
     RefOption('ssce', 'SSCE / WAEC'),

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../data/reference_data.dart';
 import '../../core/motion.dart';
@@ -11,6 +10,7 @@ import '../../ui/chip.dart';
 import '../../ui/field.dart';
 import '../../ui/step_mark.dart';
 import '../../ui/toast.dart';
+import 'done_screen.dart';
 import 'onboarding_draft.dart';
 import 'onboarding_layout.dart';
 
@@ -35,12 +35,14 @@ const interestChipLabels = {
 /// B11 · Step 3 · What you like (188:8390, with the 2 or 3 rule frames
 /// 1284:68479 to 1284:90430): interests order the feed. Finish stays off
 /// until 2 or 3 are picked, and while Other is picked without its words;
-/// Finish and Skip for now go on to Your avatar.
+/// Finish and Skip for now end first run. Start here's briefs load while the
+/// interests are picked, so the hand-off rarely waits for them.
 class WhatYouLikeScreen extends ConsumerWidget {
   const WhatYouLikeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen(startHereBriefsProvider, (_, _) {});
     final profile = ref.watch(onboardingDraftProvider.select((d) => d.profile));
     final draft = ref.read(onboardingDraftProvider.notifier);
     return OnboardingStepScaffold(
@@ -48,8 +50,8 @@ class WhatYouLikeScreen extends ConsumerWidget {
       title: 'What are you into?',
       caption: interestsCaption,
       onBack: () => leaveStep(context, Routes.onboardingWhereYouStudied),
-      onSkip: () => _finish(context),
-      onNext: () => _finish(context),
+      onSkip: () => finishOnboarding(context, ref),
+      onNext: () => finishOnboarding(context, ref),
       nextEnabled: OnboardingDraft.interestsComplete(profile),
       nextLabel: 'Finish',
       child: Column(
@@ -219,7 +221,3 @@ class _OtherInterestFieldState extends State<OtherInterestField> {
     );
   }
 }
-
-/// Finishing the steps, or skipping the last, goes on to the optional Your
-/// avatar step (B22, designer doc 6 Oct), which lands the onboarding.
-void _finish(BuildContext context) => context.push(Routes.onboardingYourAvatar);

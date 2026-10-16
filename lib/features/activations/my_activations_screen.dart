@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/deadline.dart';
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../data/activations_data.dart';
 import '../../theme/theme.dart';
@@ -141,7 +141,7 @@ class _Cards extends StatelessWidget {
             activation: a,
             now: now,
             feature: i == 0,
-            onTap: () => context.push(activationPath(a.id)),
+            onTap: () => context.open(activationPath(a.id)),
           ),
         ],
       ],

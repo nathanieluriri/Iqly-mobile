@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -369,6 +370,7 @@ enum IqFigures {
 
 /// [arrive] fades it in as it rises 16, 320 ms ease-out, once, after
 /// [delay] (MOTION-SPEC 5.29); it fades only, 150, under reduced motion.
+/// [confettiFalls] lets a figure's confetti fall past it (Cheer).
 class IqFigure extends StatelessWidget {
   const IqFigure(
     this.figure, {
@@ -376,28 +378,244 @@ class IqFigure extends StatelessWidget {
     this.width = designWidth,
     this.arrive = false,
     this.delay = Duration.zero,
+    this.confettiFalls = false,
   });
 
   final IqFigures figure;
   final double width;
   final bool arrive;
   final Duration delay;
+  final bool confettiFalls;
 
   static const double designWidth = 320;
   static const double designHeight = 340;
 
   @override
   Widget build(BuildContext context) {
-    final picture = SvgPicture.asset(
-      figure.asset,
-      width: width,
-      height: width * designHeight / designWidth,
-      excludeFromSemantics: true,
-    );
+    final height = width * designHeight / designWidth;
+    final Widget picture = confettiFalls
+        ? FallingConfetti(asset: figure.asset, width: width, height: height)
+        : SvgPicture.asset(
+            figure.asset,
+            width: width,
+            height: height,
+            excludeFromSemantics: true,
+          );
     if (!arrive) return picture;
     return Sequence(
       length: delay + BeatMove.rise.length,
       child: Beat(at: delay, move: BeatMove.rise, child: picture),
+    );
+  }
+}
+
+/// A figure whose confetti falls past it (owner, 16 Oct; Figma
+/// B11 · Done). The official file is split as it loads, never edited: the
+/// figure draws without its "confetti" group, and each piece draws on its
+/// own from the same markup, starting where Figma puts it. Every piece falls
+/// through the figure's box at its own pace, swaying and spinning, and comes
+/// back in above; the pieces fall behind the figure. Reduced motion, and
+/// the frames before the file is split, show the figure as drawn.
+@visibleForTesting
+class FallingConfetti extends StatefulWidget {
+  const FallingConfetti({
+    super.key,
+    required this.asset,
+    required this.width,
+    required this.height,
+  });
+
+  final String asset;
+  final double width;
+  final double height;
+
+  @override
+  State<FallingConfetti> createState() => _FallingConfettiState();
+}
+
+class _FallingConfettiState extends State<FallingConfetti>
+    with SingleTickerProviderStateMixin {
+  static final _split = <String, ConfettiFigure>{};
+
+  late final AnimationController _loop = AnimationController(
+    vsync: this,
+    duration: IqDurations.confettiLoop,
+  );
+  late ConfettiFigure? _parts = _split[widget.asset];
+  bool _reduced = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_parts != null) return;
+    rootBundle.loadString(widget.asset).then((svg) {
+      final parts = _split[widget.asset] ??= ConfettiFigure.split(svg);
+      if (mounted) setState(() => _parts = parts);
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduced = MediaQuery.disableAnimationsOf(context);
+    if (_reduced) {
+      _loop.stop();
+    } else if (!_loop.isAnimating) {
+      _loop.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _loop.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final parts = _parts;
+    if (parts == null || _reduced || parts.pieces.isEmpty) {
+      return SvgPicture.asset(
+        widget.asset,
+        width: widget.width,
+        height: widget.height,
+        excludeFromSemantics: true,
+      );
+    }
+    final scale = widget.width / IqFigure.designWidth;
+    return SizedBox(
+      width: widget.width,
+      height: widget.height,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          for (final (i, piece) in parts.pieces.indexed)
+            AnimatedBuilder(
+              key: ValueKey('confetti-$i'),
+              animation: _loop,
+              builder: (context, child) {
+                final fall = piece.fallAt(
+                  _loop.value * IqDurations.confettiLoop.inMilliseconds / 1000,
+                );
+                return Opacity(
+                  opacity: fall.opacity,
+                  child: Transform(
+                    origin: piece.centre * scale,
+                    transform: Matrix4.translationValues(
+                      fall.offset.dx * scale,
+                      fall.offset.dy * scale,
+                      0,
+                    )..rotateZ(fall.turn),
+                    child: child,
+                  ),
+                );
+              },
+              child: SvgPicture(
+                SvgStringLoader(piece.markup),
+                width: widget.width,
+                height: widget.height,
+                excludeFromSemantics: true,
+              ),
+            ),
+          SvgPicture(
+            SvgStringLoader(parts.figure),
+            width: widget.width,
+            height: widget.height,
+            excludeFromSemantics: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A figure file split into the figure without its confetti and the pieces.
+@visibleForTesting
+class ConfettiFigure {
+  const ConfettiFigure(this.figure, this.pieces);
+
+  final String figure;
+  final List<ConfettiPiece> pieces;
+
+  static final _group = RegExp(r'<g id="confetti">([\s\S]*?)</g>');
+  static final _piece = RegExp(r'<path id="confetti-\d+"[^>]*/>');
+
+  static ConfettiFigure split(String svg) {
+    final group = _group.firstMatch(svg);
+    if (group == null) return ConfettiFigure(svg, const []);
+    final open = RegExp(r'<svg[^>]*>').firstMatch(svg)!.group(0)!;
+    final pieces = [
+      for (final (i, m) in _piece.allMatches(group.group(1)!).indexed)
+        ConfettiPiece.from(open, m.group(0)!, i),
+    ];
+    return ConfettiFigure(svg.replaceRange(group.start, group.end, ''), pieces);
+  }
+}
+
+/// One piece of confetti: its own markup on the figure's canvas, where it
+/// rests, and how it falls.
+@visibleForTesting
+class ConfettiPiece {
+  const ConfettiPiece({
+    required this.markup,
+    required this.centre,
+    required this.period,
+    required this.sway,
+    required this.spin,
+  });
+
+  factory ConfettiPiece.from(String open, String path, int index) {
+    final d = RegExp(r' d="([^"]*)"').firstMatch(path)!.group(1)!;
+    final numbers = [
+      for (final m in RegExp(r'-?\d+(\.\d+)?').allMatches(d))
+        double.parse(m.group(0)!),
+    ];
+    var box = Rect.fromLTRB(numbers[0], numbers[1], numbers[0], numbers[1]);
+    for (var i = 2; i + 1 < numbers.length; i += 2) {
+      box = box.expandToInclude(
+        Rect.fromLTWH(numbers[i], numbers[i + 1], 0, 0),
+      );
+    }
+    final pace = _paces[index % _paces.length];
+    return ConfettiPiece(
+      markup: '$open$path</svg>',
+      centre: box.center,
+      period: pace,
+      sway: 6 + (index % 3) * 2,
+      spin: index.isEven ? 1 : -1,
+    );
+  }
+
+  /// Seconds per fall through the box; each divides the loop, so it wraps
+  /// without a jump.
+  static const _paces = [4.8, 6.0, 8.0, 6.0];
+
+  /// Where a fall starts and how far it goes, in the figure's 320 x 340:
+  /// from above the box to the shoulders, so the pieces stay in the open
+  /// space around the head and hands.
+  static const double top = -24;
+  static const double span = 244;
+
+  /// How far in from either end a piece fades.
+  static const double fade = 32;
+
+  final String markup;
+  final Offset centre;
+  final double period;
+  final double sway;
+
+  /// Whole turns per fall, so the loop wraps at the same angle.
+  final int spin;
+
+  ({Offset offset, double turn, double opacity}) fallAt(double seconds) {
+    final lap = seconds / period;
+    final travelled = ((centre.dy - top) / span + lap) % 1;
+    final y = top + travelled * span;
+    final edge = math.min(y - top, top + span - y);
+    return (
+      offset: Offset(math.sin(lap * 2 * math.pi * 2) * sway, y - centre.dy),
+      turn: lap * 2 * math.pi * spin,
+      opacity: (edge / fade).clamp(0.0, 1.0),
     );
   }
 }

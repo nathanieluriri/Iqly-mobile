@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/highlight.dart';
@@ -48,7 +48,7 @@ class _YourNameScreenState extends ConsumerState<YourNameScreen> {
     if (_first.text.isEmpty) return _first.nudge();
     if (_last.text.isEmpty) return _last.nudge();
     ref.read(entryDraftProvider.notifier).setName(_first.text, _last.text);
-    context.push(Routes.createPassword);
+    context.open(Routes.createPassword);
   }
 
   Widget _field(EntryInput input, String label, {required bool last}) =>

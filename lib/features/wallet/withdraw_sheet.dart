@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/money.dart';
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/transitions.dart';
 import '../../data/biometric_service.dart';
 import '../../data/models.dart';
@@ -182,7 +183,7 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
     if (!reduced && sheet != null) await sheet.completed;
     IqHaptics.success.play();
     if (router.state.uri == under) {
-      router.push(withdrawalPendingPath(withdrawal.id));
+      router.open(withdrawalPendingPath(withdrawal.id));
     }
   }
 

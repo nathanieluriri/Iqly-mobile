@@ -83,6 +83,10 @@ abstract final class IqDurations {
   /// Arrive and settle.
   static const enter = Duration(milliseconds: 260);
 
+  /// The Segmented pill sliding to the picked option, and the lens under it
+  /// sliding with it.
+  static const lensSlide = Duration(milliseconds: 260);
+
   /// Every sheet rises in 300 and drops in 200 (owner rule).
   static const sheetRise = Duration(milliseconds: 300);
 
@@ -173,6 +177,9 @@ abstract final class IqDurations {
 
   /// The patch dialog's rise toward [IqPatchFill.hold]; it reaches 60% at 3 s.
   static const patchRise = Duration(seconds: 12);
+
+  /// Loop: the Cheer figure's confetti falling; every piece's pace divides it.
+  static const confettiLoop = Duration(seconds: 24);
 }
 
 /// The patch dialog's logomark fill (Figma B · Patch · fill motion).

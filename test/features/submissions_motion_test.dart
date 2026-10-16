@@ -175,21 +175,24 @@ void main() {
     expect(find.text('Bring the shop to the hostel'), findsOneWidget);
   });
 
-  testWidgets('a lens switch crosses the content, 200 ms, and keeps the '
-      'chrome still', (tester) async {
+  testWidgets('a lens switch slides the pill and the lens over from the '
+      'picked side, 260 ms, and keeps the chrome still', (tester) async {
     await pumpApp(tester, Routes.submissions, reducedMotion: false);
     final segmented = tester.getTopLeft(find.byType(SubmissionsSegmented));
-    await tester.tap(find.text('Winners · 2'));
+    final pill = find.byKey(const ValueKey('pill'));
+    final pillAt = tester.getTopLeft(pill).dx;
+    await tester.tap(find.text('Winners'));
     await tester.pump();
-    await tester.pump(_ms * 100);
-    final fading = find.byWidgetPredicate(
-      (w) => w is RawImage && w.fit == BoxFit.fill,
-    );
-    expect(fading, findsOneWidget);
+    await tester.pump(_ms * 130);
+    final won = find.text('₦62,500.00 won from 2 briefs');
+    expect(won, findsOneWidget);
+    final sliding = tester.getTopLeft(won).dx;
+    expect(tester.getTopLeft(pill).dx, greaterThan(pillAt));
     expect(tester.getTopLeft(find.byType(SubmissionsSegmented)), segmented);
-    await tester.pump(_ms * 110);
-    expect(fading, findsNothing);
-    expect(find.text('₦62,500.00 won from 2 briefs'), findsOneWidget);
+    await tester.pump(_ms * 140);
+    await tester.pump();
+    expect(tester.getTopLeft(won).dx, lessThan(sliding));
+    expect(find.text('Bring the shop to the hostel'), findsNothing);
   });
 
   testWidgets('a card opens its detail drawn on the first frame', (

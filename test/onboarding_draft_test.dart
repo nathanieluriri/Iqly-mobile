@@ -116,6 +116,7 @@ void main() {
 
   test('SSCE / WAEC drops the university picked before', () async {
     final c = await _container({
+      'occupation': 'student',
       'education': 'hnd_bsc',
       'university': 'University of Lagos',
     });
@@ -128,6 +129,24 @@ void main() {
     draft.setEducation('ssce');
     final profile = c.read(onboardingDraftProvider).profile;
     expect(profile.education, 'ssce');
+    expect(profile.university, isNull);
+  });
+
+  test('anything but Student drops the university picked before', () async {
+    final c = await _container({
+      'occupation': 'student',
+      'education': 'hnd_bsc',
+      'university': 'University of Lagos',
+    });
+    final draft = c.read(onboardingDraftProvider.notifier);
+    draft.setOccupation('student');
+    expect(
+      c.read(onboardingDraftProvider).profile.university,
+      'University of Lagos',
+    );
+    draft.setOccupation('employed');
+    final profile = c.read(onboardingDraftProvider).profile;
+    expect(profile.occupation, 'employed');
     expect(profile.university, isNull);
   });
 }

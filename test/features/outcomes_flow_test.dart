@@ -162,7 +162,7 @@ void main() {
         Routes.submissions,
         overrides: [shareServiceProvider.overrideWithValue(share)],
       );
-      await _tap(tester, find.text('Winners · 2'));
+      await _tap(tester, find.text('Winners'));
       await _tap(tester, find.text('Sunday is data day'));
       expect(find.byType(WinnerView), findsOneWidget);
       expect(find.text('You did it.'), findsOneWidget);
@@ -269,7 +269,7 @@ void main() {
       final semantics = tester.ensureSemantics();
       final platform = _platform(tester);
       final container = await pumpApp(tester, Routes.submissions);
-      await _tap(tester, find.text('Not selected · 1'));
+      await _tap(tester, find.text('Not selected'));
       await _tap(tester, find.text('One counter for quick jobs'));
       expect(find.byType(NotSelectedView), findsOneWidget);
       expect(
@@ -348,7 +348,7 @@ void main() {
     'returns to the result',
     (tester) async {
       await pumpApp(tester, Routes.submissions);
-      await _tap(tester, find.text('Not selected · 1'));
+      await _tap(tester, find.text('Not selected'));
       await _tap(tester, find.text('One counter for quick jobs'));
       await _tap(tester, find.text('Your submission'));
       expect(find.byType(SubmissionDetailScreen), findsOneWidget);
@@ -373,7 +373,7 @@ void main() {
   ) async {
     final platform = _platform(tester);
     await pumpApp(tester, Routes.submissions);
-    await _tap(tester, find.text('Winners · 2'));
+    await _tap(tester, find.text('Winners'));
     await _tap(tester, find.text('Sunday is data day'));
     expect(_felt(platform.haptics), [_success]);
     await _tap(tester, find.bySemanticsLabel('Back'));

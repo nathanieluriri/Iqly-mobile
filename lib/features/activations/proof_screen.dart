@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../data/activations_data.dart';
 import '../../data/media_service.dart';
@@ -228,7 +229,7 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
                                 onPick: _pick,
                                 onRetry: () => _retry(draft),
                                 onRemove: _remove,
-                                onPlay: () => context.push(
+                                onPlay: () => context.open(
                                   proofPlayerPath(activation.id),
                                 ),
                               ),

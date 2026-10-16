@@ -26,9 +26,9 @@ void main() {
     tester,
   ) async {
     await pumpApp(tester, Routes.submissions);
-    expect(find.text('Under review · 2'), findsOneWidget);
-    expect(find.text('Winners · 2'), findsOneWidget);
-    expect(find.text('Not selected · 1'), findsOneWidget);
+    expect(find.text('Under review'), findsOneWidget);
+    expect(find.text('Winners'), findsOneWidget);
+    expect(find.text('Not selected'), findsOneWidget);
     expect(find.text('Closes in 20 days'), findsOneWidget);
     expect(find.text('Sent 1 day ago'), findsOneWidget);
     expect(find.byType(IqDock), findsOneWidget);
@@ -57,7 +57,7 @@ void main() {
   testWidgets('Winners: the total foots to the awards and a card opens its '
       'result', (tester) async {
     await pumpApp(tester, Routes.submissions);
-    await _tap(tester, find.text('Winners · 2'));
+    await _tap(tester, find.text('Winners'));
     expect(find.text('₦62,500.00 won from 2 briefs'), findsOneWidget);
     expect(find.text('Won ₦50k'), findsOneWidget);
     expect(find.text('Won ₦12.5k'), findsOneWidget);
@@ -76,7 +76,7 @@ void main() {
   testWidgets('Not selected: the card opens its result, another brief its '
       'page', (tester) async {
     await pumpApp(tester, Routes.submissions);
-    await _tap(tester, find.text('Not selected · 1'));
+    await _tap(tester, find.text('Not selected'));
     expect(find.text('Didn’t pass screening'), findsOneWidget);
     expect(find.text('Try another brief'), findsOneWidget);
     expect(find.text('Rename our youth current account'), findsOneWidget);
@@ -94,7 +94,7 @@ void main() {
 
   testWidgets('the lens stays put across a dock switch', (tester) async {
     await pumpApp(tester, Routes.submissions);
-    await _tap(tester, find.text('Winners · 2'));
+    await _tap(tester, find.text('Winners'));
     await _tap(
       tester,
       find.descendant(of: find.byType(IqDock), matching: find.text('Wallet')),

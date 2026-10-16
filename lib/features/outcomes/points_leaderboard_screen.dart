@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/money.dart';
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../data/points_data.dart';
@@ -73,7 +74,7 @@ class PointsLeaderboardScreen extends ConsumerWidget {
                       kind: IqButtonKind.ghost,
                       showIcon: false,
                       width: double.infinity,
-                      onTap: () => context.push(Routes.helpCentre),
+                      onTap: () => context.open(Routes.helpCentre),
                     ),
                   ],
                 ),

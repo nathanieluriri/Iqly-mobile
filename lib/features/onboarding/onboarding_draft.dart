@@ -172,7 +172,9 @@ class OnboardingDraftNotifier extends Notifier<OnboardingDraft> {
 
   OnboardingProfile get _p => state.profile;
 
-  void setOccupation(String value) => _save(_profile(occupation: value));
+  /// Anything but Student drops any university picked before.
+  void setOccupation(String value) =>
+      _save(state.copyWith(profile: _p.withOccupation(value)));
 
   /// A new state keeps the city only if that state's list has it.
   void setState(String value) {

@@ -132,17 +132,6 @@ void main() {
     );
   });
 
-  testWidgets('leave without sending? (481:21364)', (tester) async {
-    await _golden(
-      tester,
-      'submit_leave',
-      act: (tester) async {
-        await _write(tester, SubmitCopy.answer);
-        await tester.tap(find.bySemanticsLabel('Back'));
-      },
-    );
-  });
-
   testWidgets('quick questions (34:186)', (tester) async {
     await _golden(
       tester,

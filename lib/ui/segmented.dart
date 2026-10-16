@@ -10,9 +10,10 @@ enum IqSegmentedSelected { first, second, third }
 /// list (no brand fill). The selected option is a white pill on a grey
 /// track. Two or three options; [option3] null drops the third.
 ///
-/// Motion (designer answer 28): the chrome stays still; the pill and label
-/// weight crossfade, 200 ms, and the list under it crossfades too. Reduced
-/// motion cuts.
+/// Motion (owner, 16 Oct): the pill slides to the picked option, 260 ms
+/// ease-in-out, as the labels cross weight and ink; whatever the control
+/// switches slides with it ([LensSlide]). Reduced motion: the pill moves at
+/// once.
 class IqSegmented extends StatelessWidget {
   const IqSegmented({
     super.key,
@@ -34,7 +35,7 @@ class IqSegmented extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final options = [option1, option2, ?option3];
-    final fade = motion(context, IqDurations.swap);
+    final slide = motion(context, IqDurations.lensSlide);
     return Container(
       height: height,
       padding: const EdgeInsets.all(IqSpace.s1),
@@ -42,22 +43,49 @@ class IqSegmented extends StatelessWidget {
         color: IqColors.panel,
         borderRadius: BorderRadius.circular(IqRadius.full),
       ),
-      child: Row(
-        children: [
-          for (var i = 0; i < options.length; i++) ...[
-            if (i > 0) const SizedBox(width: IqSpace.s1),
-            Expanded(
-              child: _Option(
-                label: options[i],
-                selected: selected.index == i,
-                fade: fade,
-                onTap: onChanged == null
-                    ? null
-                    : () => onChanged!(IqSegmentedSelected.values[i]),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          const gap = IqSpace.s1;
+          final width =
+              (box.maxWidth - gap * (options.length - 1)) / options.length;
+          return Stack(
+            children: [
+              AnimatedPositioned(
+                key: const ValueKey('pill'),
+                duration: slide,
+                curve: IqCurves.easeInOut,
+                left: selected.index * (width + gap),
+                top: 0,
+                bottom: 0,
+                width: width,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: IqColors.card,
+                    borderRadius: BorderRadius.circular(IqRadius.full),
+                    boxShadow: IqShadows.xs,
+                  ),
+                ),
               ),
-            ),
-          ],
-        ],
+              Row(
+                children: [
+                  for (var i = 0; i < options.length; i++) ...[
+                    if (i > 0) const SizedBox(width: gap),
+                    Expanded(
+                      child: _Option(
+                        label: options[i],
+                        selected: selected.index == i,
+                        fade: slide,
+                        onTap: onChanged == null
+                            ? null
+                            : () => onChanged!(IqSegmentedSelected.values[i]),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -84,17 +112,10 @@ class _Option extends StatelessWidget {
         onTap: onTap,
         semanticLabel: label,
         haptic: IqHaptics.select,
-        builder: (context, pressed) => AnimatedContainer(
-          duration: fade,
-          curve: IqCurves.easeInOut,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: selected ? IqColors.card : IqColors.panel,
-            borderRadius: BorderRadius.circular(IqRadius.full),
-            boxShadow: selected ? IqShadows.xs : const [],
-          ),
+        builder: (context, pressed) => Center(
           child: AnimatedDefaultTextStyle(
             duration: fade,
+            curve: IqCurves.easeInOut,
             style: selected
                 ? IqText.smallStrong.copyWith(color: IqColors.fg)
                 : IqText.small.copyWith(color: IqColors.fg2),

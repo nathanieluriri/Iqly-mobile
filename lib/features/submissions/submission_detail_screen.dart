@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/deadline.dart';
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../router.dart';
@@ -75,7 +76,7 @@ class SubmissionDetailScreen extends ConsumerWidget {
                       kind: IqButtonKind.secondary,
                       showIcon: false,
                       width: double.infinity,
-                      onTap: () => context.push(
+                      onTap: () => context.open(
                         Routes.brief(item.submission.briefId),
                         extra: item.brief,
                       ),

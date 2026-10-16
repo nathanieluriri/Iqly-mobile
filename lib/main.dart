@@ -49,7 +49,7 @@ Future<void> main() async {
             Routes.home,
             Routes.submissions,
             Routes.wallet,
-            Routes.profile,
+            Routes.more,
           },
         ),
       ),

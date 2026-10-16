@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/deadline.dart';
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../data/activations_data.dart';
@@ -175,7 +176,7 @@ class _List extends StatelessWidget {
                 activation: a,
                 now: now,
                 feature: i == 0,
-                onTap: () => context.push(activationPath(a.id)),
+                onTap: () => context.open(activationPath(a.id)),
               ),
             ),
           ],
@@ -188,7 +189,7 @@ class _List extends StatelessWidget {
                   label: 'My activations',
                   description: myActivationsLine(lead),
                   divider: false,
-                  onTap: () => context.push(myActivationsTarget(all)),
+                  onTap: () => context.open(myActivationsTarget(all)),
                 ),
               ),
             ),

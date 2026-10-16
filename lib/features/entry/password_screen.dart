@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/transitions.dart';
 import '../../data/auth.dart';
 import '../../router.dart';
@@ -89,7 +90,7 @@ class _PasswordScreenState extends ConsumerState<PasswordScreen> {
     setState(() => _busy = false);
     IqHaptics.success.play();
     FocusManager.instance.primaryFocus?.unfocus();
-    context.push(Routes.verifyEmail);
+    context.open(Routes.verifyEmail);
   }
 
   @override

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/deadline.dart';
 import '../../core/flags.dart';
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../core/session.dart';
 import '../../core/transitions.dart';
@@ -53,7 +54,7 @@ class ResultScreen extends ConsumerWidget {
     ref.listen(submissionItemProvider(id), (_, next) {
       if (next.value?.underReview != true) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (context.mounted) context.replace(submissionPath(id));
+        if (context.mounted) context.openInstead(submissionPath(id));
       });
     });
     final result = ref.watch(resultProvider(id));
@@ -327,7 +328,7 @@ class _WinnerViewState extends ConsumerState<WinnerView>
     final data = widget.data;
     final id = data.item.id;
     final board = Leaderboard.of(data) != null;
-    void openBoard() => context.push(leaderboardPath(id));
+    void openBoard() => context.open(leaderboardPath(id));
     final card = WinnerCard(
       data: data,
       markerReveal: _marker,
@@ -488,7 +489,7 @@ class NotSelectedView extends ConsumerWidget {
                         descriptionMaxLines: 1,
                         icon: IqIcons.document,
                         divider: false,
-                        onTap: () => context.push(submissionPath(data.item.id)),
+                        onTap: () => context.open(submissionPath(data.item.id)),
                       ),
                     ),
                   ),
@@ -511,7 +512,7 @@ class NotSelectedView extends ConsumerWidget {
                           showDescription: false,
                           divider: false,
                           onTap: () =>
-                              context.push(leaderboardPath(data.item.id)),
+                              context.open(leaderboardPath(data.item.id)),
                         ),
                       ),
                     ),
@@ -533,7 +534,7 @@ class NotSelectedView extends ConsumerWidget {
                           meta: featureBriefMeta(next, now),
                           closingSoon: closingSoonOutline(next, now),
                           onTap: () =>
-                              context.push(Routes.brief(next.id), extra: next),
+                              context.open(Routes.brief(next.id), extra: next),
                         ),
                       ),
                   ],

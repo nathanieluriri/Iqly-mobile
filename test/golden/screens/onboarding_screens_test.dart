@@ -211,6 +211,10 @@ void main() {
   });
 
   testWidgets('188:8490 Done', (tester) async {
+    // Figma draws the confetti at rest; it falls only with motion on.
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
     final prefs = await onboardingPrefs(draft: sampleWhatYouLike);
     await expectGolden(
       tester,

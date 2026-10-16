@@ -465,7 +465,9 @@ class _OccupationEditState extends ConsumerState<_OccupationEdit> {
       title: 'Occupation',
       canSave: picked != null,
       onSave: () async {
-        await saveProfile(ref, answers: (a) => _answers(a, occupation: picked));
+        if (picked != null) {
+          await saveProfile(ref, answers: (a) => a.withOccupation(picked));
+        }
         return true;
       },
       body: ListView(

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/flags.dart';
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/avatar.dart';
@@ -134,20 +134,20 @@ class ProfileScreen extends ConsumerWidget {
                 label: 'Invite friends',
                 description: '₦500 when a friend wins a brief',
                 icon: IqIcons.gift,
-                onTap: () => context.push(Routes.referrals),
+                onTap: () => context.open(Routes.referrals),
               ),
               IqListRow(
                 label: 'Your details',
                 description: 'Phone, date of birth, interests',
                 icon: IqIcons.profile,
-                onTap: () => context.push(Routes.yourDetails),
+                onTap: () => context.open(Routes.yourDetails),
               ),
               if (Flags.notificationPreferences)
                 IqListRow(
                   label: 'Notification preferences',
                   description: 'Closing soon, results, payouts',
                   icon: IqIcons.bell,
-                  onTap: () => context.push(Routes.notificationPreferences),
+                  onTap: () => context.open(Routes.notificationPreferences),
                 ),
               IqListRow(
                 label: 'Sign out',

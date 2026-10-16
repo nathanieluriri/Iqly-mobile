@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/flags.dart';
 import '../../core/money.dart';
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../data/cache_service.dart';
 import '../../data/repository.dart';
@@ -89,7 +90,7 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
               : Column(
                   children: [
                     _CardPress(
-                      onTap: () => context.push(Routes.profile),
+                      onTap: () => context.open(Routes.profile),
                       label: 'Your profile',
                       child: IqAchievementCard(
                         name: pass.user.name,
@@ -97,12 +98,12 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
                         rank: pass.rank == null ? '' : '#${pass.rank}',
                         avatar: avatar,
                         onAvatarTap: () => chooseAvatar(context),
-                        onRankTap: () => context.push(Routes.pointsLeaderboard),
+                        onRankTap: () => context.open(Routes.pointsLeaderboard),
                       ),
                     ),
                     const SizedBox(height: IqSpace.s3),
                     _CardPress(
-                      onTap: () => context.push(Routes.referrals),
+                      onTap: () => context.open(Routes.referrals),
                       label: 'Referrals',
                       child: IqReferralCard(
                         code: pass.code,
@@ -120,34 +121,34 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
               label: 'Quick polls',
               showDescription: false,
               icon: IqIcons.polls,
-              onTap: () => context.push(Routes.polls),
+              onTap: () => context.open(Routes.polls),
             ),
           if (Flags.activations)
             IqListRow(
               label: 'Activations',
               showDescription: false,
               icon: IqIcons.zap,
-              onTap: () => context.push(Routes.activations),
+              onTap: () => context.open(Routes.activations),
             ),
           if (Flags.savedBriefs)
             IqListRow(
               label: 'Saved briefs',
               showDescription: false,
               icon: IqIcons.heart,
-              onTap: () => context.push(Routes.moreSavedBriefs),
+              onTap: () => context.open(Routes.moreSavedBriefs),
             ),
           IqListRow(
             label: 'Leaderboard',
             showDescription: false,
             icon: IqIcons.trophy,
-            onTap: () => context.push(Routes.pointsLeaderboard),
+            onTap: () => context.open(Routes.pointsLeaderboard),
           ),
           IqListRow(
             label: 'Bank account',
             showDescription: false,
             icon: IqIcons.bank,
             divider: false,
-            onTap: () => context.push(Routes.selectBank),
+            onTap: () => context.open(Routes.selectBank),
           ),
         ],
       ),
@@ -157,20 +158,20 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
             label: 'Help centre',
             showDescription: false,
             icon: IqIcons.lifebuoy,
-            onTap: () => context.push(Routes.helpCentre),
+            onTap: () => context.open(Routes.helpCentre),
           ),
           IqListRow(
             label: 'Terms and conditions',
             showDescription: false,
             icon: IqIcons.document,
-            onTap: () => context.push(Routes.terms),
+            onTap: () => context.open(Routes.terms),
           ),
           IqListRow(
             label: 'Privacy policy',
             showDescription: false,
             icon: IqIcons.shield,
             divider: false,
-            onTap: () => context.push(Routes.privacy),
+            onTap: () => context.open(Routes.privacy),
           ),
         ],
       ),
@@ -195,7 +196,7 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
               tone: IqListRowTone.danger,
               showDescription: false,
               divider: false,
-              onTap: () => context.push(Routes.deleteAccount),
+              onTap: () => context.open(Routes.deleteAccount),
             ),
         ],
       ),
@@ -227,7 +228,7 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
                   count: '$unread',
                   showCount: unread > 0,
                   showWallet: false,
-                  onBell: () => context.push(Routes.notifications),
+                  onBell: () => context.open(Routes.notifications),
                 ),
                 Expanded(
                   child: ListView(

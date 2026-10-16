@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../data/models.dart';
@@ -15,7 +16,6 @@ import '../../ui/banner.dart';
 import '../../ui/button.dart';
 import '../../ui/top_bar.dart';
 import '../discover/discover_state.dart';
-import '../drafts/draft_sheets.dart';
 import '../drafts/drafts_state.dart';
 import '../submissions/submissions_routes.dart';
 import '../submissions/submissions_state.dart';
@@ -33,9 +33,9 @@ import 'submit_widgets.dart';
 /// into the moment. A brief that cannot take a response says why, and one
 /// already answered opens that submission instead.
 ///
-/// Back pops to whichever page opened it; from the questions it returns to
-/// the answer, and from the answer with something written it asks first
-/// (481:21364).
+/// Back pops to whichever page opened it, and from the questions it returns
+/// to the answer. Every word is saved as it is typed, so leaving never asks
+/// (owner, 16 Oct): the draft waits in Drafts.
 class SubmitScreen extends ConsumerWidget {
   const SubmitScreen({super.key, required this.briefId});
 
@@ -110,7 +110,7 @@ class SubmitScreen extends ConsumerWidget {
     final sent = opening?.submissionId;
     if (opening?.block != SubmitBlock.alreadySubmitted || sent == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (context.mounted) context.replace(submissionPath(sent));
+      if (context.mounted) context.openInstead(submissionPath(sent));
     });
   }
 }
@@ -152,9 +152,7 @@ class _FlowState extends ConsumerState<_Flow> {
   String get _id => widget.brief.id;
   SubmitForm get _form => widget.form;
 
-  bool _asking = false;
-
-  Future<void> _back() async {
+  void _back() {
     final flow = ref.read(submitFlowProvider(_id));
     switch (flow.step) {
       case SubmitStep.sent:
@@ -163,18 +161,8 @@ class _FlowState extends ConsumerState<_Flow> {
         FocusScope.of(context).unfocus();
         ref.read(submitFlowProvider(_id).notifier).back();
       case SubmitStep.answer:
-        if (flow.draft.isEmpty) {
-          leaveSubmit(context, _id);
-          return;
-        }
-        if (_asking) return;
-        _asking = true;
         FocusScope.of(context).unfocus();
-        final keep = await showLeaveSheet(context);
-        _asking = false;
-        if (!mounted || keep != false) return;
-        await ref.read(submitFlowProvider(_id).notifier).discard();
-        if (mounted) leaveSubmit(context, _id);
+        leaveSubmit(context, _id);
     }
   }
 
@@ -220,9 +208,7 @@ class _FlowState extends ConsumerState<_Flow> {
     final receipt = flow.receipt;
     final sent = flow.step == SubmitStep.sent && receipt != null;
     return PopScope(
-      canPop:
-          flow.step == SubmitStep.sent ||
-          (flow.step == SubmitStep.answer && flow.draft.isEmpty),
+      canPop: flow.step != SubmitStep.questions,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _back();
       },

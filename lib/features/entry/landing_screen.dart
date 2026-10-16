@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../data/auth.dart';
@@ -249,13 +250,13 @@ class _LandingScreenState extends ConsumerState<LandingScreen>
       _setBanner(const _Banner(EntryCopy.emailRegistered, signIn: true));
       return;
     }
-    context.push(Routes.yourName);
+    context.open(Routes.yourName);
   }
 
   void _signIn() {
     final email = _email.text;
     if (isEmail(email)) ref.read(entryDraftProvider.notifier).setEmail(email);
-    context.push(Routes.signIn);
+    context.open(Routes.signIn);
   }
 
   Future<void> _continueWith(AuthProvider provider) async {

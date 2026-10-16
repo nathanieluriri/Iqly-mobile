@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/transitions.dart';
 import '../../data/photo_service.dart';
 import '../../router.dart';
@@ -31,7 +32,7 @@ Future<void> chooseAvatar(BuildContext context) async {
     ),
   );
   if (edit == true && context.mounted) {
-    await context.push(Routes.avatarEditor);
+    await context.open(Routes.avatarEditor);
   }
 }
 

@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../../core/deadline.dart';
 import '../../core/flags.dart';
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../core/session.dart';
 import '../../core/transitions.dart';
@@ -647,7 +648,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       for (final a in activations)
         if (!a.closedAt(now) && !a.credited) a,
     ]..sort((a, b) => a.closesAt.compareTo(b.closesAt));
-    void openActivations() => context.push(
+    void openActivations() => context.open(
       open.length == 1 ? activationPath(open.single.id) : Routes.activations,
     );
     return [
@@ -658,7 +659,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             IqSectionTitle(
               title: 'Quick polls',
               showCount: false,
-              onSeeAll: () => context.push(Routes.polls),
+              onSeeAll: () => context.open(Routes.polls),
             ),
           ),
         ),
@@ -673,7 +674,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 for (final business in businesses)
                   QuickPollTile(
                     business: business,
-                    onTap: () => context.push(quickPollsFor(business.id)),
+                    onTap: () => context.open(quickPollsFor(business.id)),
                   ),
               ]),
             ),
@@ -785,7 +786,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               : view.total == 1
               ? 'That’s the only $status brief'
               : 'That’s all ${view.total} $status briefs',
-          onAdjust: () => context.go(Routes.yourDetails),
+          onAdjust: () => context.open(Routes.yourDetails),
         ),
         gap: 0,
       ),

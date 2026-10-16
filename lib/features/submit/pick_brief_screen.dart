@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/deadline.dart';
 import '../../core/flags.dart';
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../data/activations_data.dart';
@@ -160,7 +161,7 @@ class _PickBriefScreenState extends ConsumerState<PickBriefScreen> {
                               IqSectionTitle(
                                 title: 'Activations',
                                 onSeeAll: () =>
-                                    context.push(Routes.activations),
+                                    context.open(Routes.activations),
                               ),
                               const SizedBox(height: IqSpace.s3),
                               _ActivationCard(activation: activation, now: now),
@@ -265,7 +266,7 @@ class _BriefCard extends StatelessWidget {
           label: closesIn(left),
         ),
       ],
-      onTap: () => context.push(Routes.brief(brief.id), extra: brief),
+      onTap: () => context.open(Routes.brief(brief.id), extra: brief),
     );
   }
 }
@@ -298,7 +299,7 @@ class _ActivationCard extends StatelessWidget {
           label: 'Closes in ${countdownText(activationLeft(activation, now))}',
         ),
       ],
-      onTap: () => context.push('${Routes.activations}/${activation.id}'),
+      onTap: () => context.open('${Routes.activations}/${activation.id}'),
     );
   }
 }

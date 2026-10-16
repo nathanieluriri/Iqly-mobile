@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/money.dart';
+import '../../core/navigation.dart';
 import '../../core/relative_time.dart';
 import '../../data/models.dart';
 import '../../theme/theme.dart';
@@ -78,7 +78,7 @@ class WalletActivityRow extends StatelessWidget {
           : debit(w.amountKobo),
       when: timeAgo(w.createdAt, now),
       divider: divider,
-      onTap: () => context.push(withdrawalPath(w.id)),
+      onTap: () => context.open(withdrawalPath(w.id)),
     );
   }
 

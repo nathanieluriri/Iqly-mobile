@@ -112,13 +112,4 @@ void main() {
       await _golden(tester, 'crop');
     });
   });
-
-  testWidgets('582:28894 Onboarding · Your avatar', (tester) async {
-    await pumpMore(
-      tester,
-      Routes.onboardingYourAvatar,
-      prefs: signedInPrefs(onboardingDone: false, firstTipSeen: false),
-    );
-    await _golden(tester, 'onboarding');
-  });
 }

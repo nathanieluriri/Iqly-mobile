@@ -6,6 +6,7 @@ import '../../core/brief_labels.dart';
 import '../../core/deadline.dart';
 import '../../core/flags.dart';
 import '../../core/money.dart';
+import '../../core/navigation.dart';
 import '../../core/transitions.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
@@ -37,8 +38,8 @@ class DiscoverTopBar extends ConsumerWidget {
       showWallet: false,
       showGift: true,
       giftTwinkle: giftShine,
-      onGift: () => context.push(Routes.referrals),
-      onBell: () => context.push(Routes.notifications),
+      onGift: () => context.open(Routes.referrals),
+      onBell: () => context.open(Routes.notifications),
     );
   }
 }
@@ -135,7 +136,7 @@ class BriefTicket extends ConsumerWidget {
       onBookmarkChanged: (state) => ref
           .read(savedBriefsProvider.notifier)
           .setSaved(brief, state == IqBookmarkState.on),
-      onTap: () => context.push(Routes.brief(brief.id), extra: brief),
+      onTap: () => context.open(Routes.brief(brief.id), extra: brief),
     );
   }
 }
@@ -191,7 +192,7 @@ class BriefFeatureCard extends ConsumerWidget {
       onBookmarkChanged: (state) => ref
           .read(savedBriefsProvider.notifier)
           .setSaved(brief, state == IqBookmarkState.on),
-      onTap: () => context.push(Routes.brief(brief.id), extra: brief),
+      onTap: () => context.open(Routes.brief(brief.id), extra: brief),
     );
   }
 }

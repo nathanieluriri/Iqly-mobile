@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/deadline.dart';
-import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../data/models.dart';
@@ -83,9 +82,10 @@ List<ActivityItem> activityRows(
 ];
 
 /// B5 · Activity · All (343:16290), Rewards (331:15107) and Withdrawals
-/// (343:16311): one sub page. The segmented control swaps the list in
-/// place, a 200 ms crossfade under still chrome (designer answer 28); the
-/// Filter link opens the Filter activity sheet (332:15891).
+/// (343:16311): one sub page. The segmented control slides the list over
+/// to the picked lens under still chrome (LensSlide; a filter only
+/// crossfades); the Filter link opens the Filter activity sheet
+/// (332:15891).
 ///
 /// Figma slips not copied: the frames' result counts (5, 2, 3) and the
 /// Kudi Box and referral rows under Earlier; counts and groups come from
@@ -214,14 +214,10 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                   ),
                 ),
                 Expanded(
-                  child: AnimatedSwitcher(
-                    duration: motion(context, IqDurations.swap),
-                    layoutBuilder: (current, previous) => Stack(
-                      alignment: Alignment.topCenter,
-                      children: [...previous, ?current],
-                    ),
+                  child: LensSlide(
+                    index: _tab.index,
+                    contentKey: (_filter.status, _filter.when),
                     child: ListView(
-                      key: ValueKey((_tab, _filter.status, _filter.when)),
                       padding: EdgeInsets.fromLTRB(
                         IqSpace.s4,
                         IqSpace.s3,
