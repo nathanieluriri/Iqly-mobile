@@ -162,9 +162,10 @@ class Surfaces {
   }
 
   /// Refreshes the widgets and shortcuts; call when the data behind them
-  /// changes (a brief closes, a poll is answered, a draft is saved).
-  Future<void> publish(SurfaceInputs inputs) async {
-    if (!supported) return;
+  /// changes (a brief closes, a poll is answered, a draft is saved). True
+  /// when the phone has widgets to draw them.
+  Future<bool> publish(SurfaceInputs inputs) async {
+    if (!supported) return false;
     await _quickActions.setShortcutItems([
       for (final s in appShortcuts(
         polls: inputs.polls,
@@ -173,7 +174,7 @@ class Surfaces {
       ))
         ShortcutItem(type: s.type, localizedTitle: s.label, icon: s.icon),
     ]);
-    if (!Flags.homeWidgets) return;
+    if (!Flags.homeWidgets) return false;
     final timeline = WidgetTimeline.of(
       briefs: inputs.briefs,
       polls: inputs.polls,
@@ -188,22 +189,22 @@ class Surfaces {
         thumbs[name] = await renderThumb(brand);
       }
     }
-    await _bridge.publishWidgets(timeline, thumbs);
+    return _bridge.publishWidgets(timeline, thumbs);
   }
 
   /// The Wallet lane calls this when a withdrawal is asked for and on every
   /// status change: the Live Activity on iOS, the progress notification on
-  /// Android.
+  /// Android, and on an iPhone whose build has no Live Activity yet.
   Future<void> payoutChanged(Withdrawal w, SurfaceInputs inputs) async {
     if (!supported) return;
     final feedId = inputs.feedIdFor(w.id);
     final state = PayoutActivityState.of(w, notificationId: feedId);
     if (Flags.payoutLiveActivity &&
         defaultTargetPlatform == TargetPlatform.iOS) {
-      await (state == null
+      final live = await (state == null
           ? _bridge.endPayoutActivity(w.id)
           : _bridge.payoutActivity(state));
-      return;
+      if (live) return;
     }
     if (!Flags.pushNotifications) return;
     final note = payoutNotification(w, notificationId: feedId);
@@ -216,6 +217,7 @@ class Surfaces {
 
   Future<void> show(SurfaceNotification note) async {
     if (!supported || !Flags.pushNotifications) return;
+    final countdownTo = note.countdownTo;
     final thumb = note.thumb;
     final largeIcon = thumb == null
         ? null
@@ -246,6 +248,18 @@ class Surfaces {
           progress: note.progress ?? 0,
           ongoing: note.ongoing,
           onlyAlertOnce: note.kind == SurfaceNotificationKind.payout,
+          priority: _priority(note.kind),
+          category: _category(note.kind),
+          visibility: _private(note.channel)
+              ? NotificationVisibility.private
+              : NotificationVisibility.public,
+          when: countdownTo?.millisecondsSinceEpoch,
+          usesChronometer: countdownTo != null,
+          chronometerCountDown: countdownTo != null,
+          timeoutAfter: countdownTo
+              ?.difference(DateTime.now())
+              .inMilliseconds
+              .clamp(0, 1 << 31),
           actions: [
             for (final a in note.actions)
               AndroidNotificationAction(
@@ -258,10 +272,45 @@ class Surfaces {
         iOS: DarwinNotificationDetails(
           threadIdentifier: note.group,
           categoryIdentifier: note.actions.isEmpty ? null : _pollCategory,
+          interruptionLevel: _interruption(note.kind),
+          presentAlert: true,
+          presentBanner: true,
+          presentList: true,
+          presentSound: true,
         ),
       ),
     );
   }
+
+  /// Money and a closing draft break through Focus on iOS (Time Sensitive,
+  /// once the capability is in the build); results and polls are active.
+  static InterruptionLevel _interruption(SurfaceNotificationKind kind) =>
+      switch (kind) {
+        SurfaceNotificationKind.payout ||
+        SurfaceNotificationKind.deadline => InterruptionLevel.timeSensitive,
+        SurfaceNotificationKind.result ||
+        SurfaceNotificationKind.poll => InterruptionLevel.active,
+      };
+
+  static Priority _priority(SurfaceNotificationKind kind) => switch (kind) {
+    SurfaceNotificationKind.payout ||
+    SurfaceNotificationKind.result => Priority.high,
+    SurfaceNotificationKind.deadline ||
+    SurfaceNotificationKind.poll => Priority.defaultPriority,
+  };
+
+  static AndroidNotificationCategory _category(
+    SurfaceNotificationKind kind,
+  ) => switch (kind) {
+    SurfaceNotificationKind.payout => AndroidNotificationCategory.progress,
+    SurfaceNotificationKind.result => AndroidNotificationCategory.status,
+    SurfaceNotificationKind.deadline => AndroidNotificationCategory.reminder,
+    SurfaceNotificationKind.poll => AndroidNotificationCategory.recommendation,
+  };
+
+  /// Money and results stay hidden on a locked Android phone.
+  static bool _private(SurfaceChannel channel) =>
+      channel == SurfaceChannel.payouts || channel == SurfaceChannel.results;
 
   Future<void> _initNotifications() async {
     await _notifications.initialize(

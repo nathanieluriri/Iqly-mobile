@@ -77,6 +77,7 @@ abstract final class Routes {
   static const restoreAccount = '/restore-account';
   static const phoneCode = '/profile/details/phone/code';
   static const moreSavedBriefs = '/saved-briefs';
+  static const tryNotifications = '/try-notifications';
   static const referrals = '/referrals';
   static const inviteCode = '/referrals/code';
   static const referralHistory = '/referrals/history';

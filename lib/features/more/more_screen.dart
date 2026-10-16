@@ -203,12 +203,18 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
       ),
       Padding(
         padding: const EdgeInsets.only(bottom: IqSpace.s2),
-        child: Text(
-          (ref.watch(buildInfoProvider).value ?? BuildInfo.sample).footer(
-            ios: ios,
+        child: GestureDetector(
+          onLongPress: () {
+            IqHaptics.hold.play();
+            context.open(Routes.tryNotifications);
+          },
+          child: Text(
+            (ref.watch(buildInfoProvider).value ?? BuildInfo.sample).footer(
+              ios: ios,
+            ),
+            textAlign: TextAlign.center,
+            style: IqText.mono.copyWith(color: IqColors.fg3),
           ),
-          textAlign: TextAlign.center,
-          style: IqText.mono.copyWith(color: IqColors.fg3),
         ),
       ),
     ];
