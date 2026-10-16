@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../theme/theme.dart';
@@ -132,7 +133,7 @@ class _FeedState extends ConsumerState<_Feed> {
       context.go(link.location);
       return;
     }
-    await context.push(link.location);
+    await context.open(link.location);
     if (!mounted) return;
     whenUncovered(context, () => feed.markRead(item.note.id).ignore());
   }

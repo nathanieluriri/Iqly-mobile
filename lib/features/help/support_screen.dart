@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/navigation.dart';
 import '../../data/help_data.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -59,7 +60,7 @@ class SupportScreen extends ConsumerWidget {
                 label: ticket.subject,
                 description: conversationLine(ticket),
                 icon: IqIcons.chat,
-                onTap: () => context.push(helpThreadPath(ticket.id)),
+                onTap: () => context.open(helpThreadPath(ticket.id)),
               ),
             ),
         ],
@@ -69,7 +70,7 @@ class SupportScreen extends ConsumerWidget {
           label: 'Start a new conversation',
           showIcon: false,
           width: double.infinity,
-          onTap: () => context.push(Routes.newConversation),
+          onTap: () => context.open(Routes.newConversation),
         ),
       ],
     );

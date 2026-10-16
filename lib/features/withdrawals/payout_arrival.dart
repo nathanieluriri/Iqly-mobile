@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/deadline.dart';
 import '../../core/money.dart';
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../data/models.dart';
 import '../../data/wallet_service.dart';
 import '../../ui/icon.dart';
@@ -47,7 +47,7 @@ class PayoutArrivalRow extends StatelessWidget {
         showDescription: bank != null,
         icon: IqIcons.bank,
         divider: false,
-        onTap: () => context.push(withdrawalPath(payout.id)),
+        onTap: () => context.open(withdrawalPath(payout.id)),
       ),
     );
   }

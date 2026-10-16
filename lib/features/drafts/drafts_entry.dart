@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/deadline.dart';
+import '../../core/navigation.dart';
 import '../../router.dart';
 import '../../ui/icon.dart';
 import '../../ui/list_row.dart';
@@ -23,7 +23,7 @@ class DraftsEntry extends ConsumerWidget {
       description: draftsEntryDescription(items, now),
       icon: IqIcons.document,
       divider: false,
-      onTap: () => context.push(Routes.drafts),
+      onTap: () => context.open(Routes.drafts),
     );
   }
 }

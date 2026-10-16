@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../theme/theme.dart';
@@ -20,7 +21,7 @@ import 'onboarding_draft.dart';
 /// (answer 26).
 void goToStep(BuildContext context, WidgetRef ref, OnboardingStep step) {
   ref.read(onboardingDraftProvider.notifier).visit(step);
-  context.push(step.route);
+  context.open(step.route);
 }
 
 /// Back to the opener, or [fallback] when the step was opened on its own

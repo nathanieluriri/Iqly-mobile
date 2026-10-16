@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/deadline.dart';
 import '../../core/flags.dart';
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../data/models.dart';
 import '../../router.dart';
@@ -119,14 +119,14 @@ class _ActionBar extends ConsumerWidget {
         label: 'View your submission',
         kind: IqButtonKind.secondary,
         width: double.infinity,
-        onTap: () => context.push(submissionPath(sent)),
+        onTap: () => context.open(submissionPath(sent)),
       );
     } else {
       button = IqButton(
         label: closed ? 'Closed · results soon' : 'Start your submission',
         width: double.infinity,
         disabled: closed,
-        onTap: () => context.push(Routes.submitTo(brief.id)),
+        onTap: () => context.open(Routes.submitTo(brief.id)),
       );
     }
     return Padding(

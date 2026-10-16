@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../data/repository.dart';
 import '../../router.dart';
@@ -101,7 +102,7 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
                   title: 'Wallet',
                   count: '$unread',
                   showCount: unread > 0,
-                  onBell: () => context.push(Routes.notifications),
+                  onBell: () => context.open(Routes.notifications),
                   showWallet: false,
                 ),
                 Expanded(

@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/deadline.dart';
 import '../../core/money.dart';
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../data/activations_data.dart';
@@ -162,7 +163,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
 
   void _recordAgain() {
     ref.read(proofDraftProvider(widget.id).notifier).clear();
-    context.push(proofPath(widget.id));
+    context.open(proofPath(widget.id));
   }
 
   @override
@@ -196,7 +197,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
           onBack: _back,
           onRefresh: _refresh,
           onOpen: () => _open(activation),
-          onProof: () => context.push(proofPath(activation.id)),
+          onProof: () => context.open(proofPath(activation.id)),
         ),
         _Layout.proof => _ProofPage(
           activation: activation,
@@ -694,7 +695,7 @@ class _ProofPage extends StatelessWidget {
                 label: 'Ask for help',
                 showIcon: false,
                 width: double.infinity,
-                onTap: () => context.push(helpPath(about: a.id)),
+                onTap: () => context.open(helpPath(about: a.id)),
               ),
             ],
           ),
@@ -705,7 +706,7 @@ class _ProofPage extends StatelessWidget {
             showRemove: false,
             thumbnail: const ProofFrame(),
             heroTag: proofHeroTag(a.id),
-            onPlay: () => context.push(proofPlayerPath(a.id)),
+            onPlay: () => context.open(proofPlayerPath(a.id)),
           ),
         ], IqSpace.s4),
       ),

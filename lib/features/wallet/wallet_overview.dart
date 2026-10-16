@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/deadline.dart';
 import '../../core/money.dart';
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/icon.dart';
@@ -129,7 +129,7 @@ class WalletOverview extends ConsumerWidget {
                 label: 'Withdraw',
                 icon: IqIcons.arrow,
                 disabled: totals.withdrawableKobo <= 0,
-                onTap: () => context.push(Routes.withdraw),
+                onTap: () => context.open(Routes.withdraw),
               ),
             ),
             const SizedBox(width: IqSpace.s2),
@@ -138,7 +138,7 @@ class WalletOverview extends ConsumerWidget {
                 kind: IqQuickActionKind.standard,
                 label: 'Bank account',
                 icon: IqIcons.bank,
-                onTap: () => context.push(bankAccountPath),
+                onTap: () => context.open(bankAccountPath),
               ),
             ),
           ],
@@ -157,7 +157,7 @@ class WalletOverview extends ConsumerWidget {
                 title: rewardsOnly ? 'Recent rewards' : 'Recent activity',
                 onSeeAll: empty
                     ? null
-                    : () => context.push(
+                    : () => context.open(
                         activityPath(
                           rewardsOnly ? ActivityTab.rewards : ActivityTab.all,
                         ),

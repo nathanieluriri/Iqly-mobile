@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/motion.dart';
 import '../../core/deadline.dart';
 import '../../core/money.dart';
+import '../../core/navigation.dart';
 import '../../core/session.dart';
 import '../../data/models.dart';
 import '../../data/onboarding_service.dart';
@@ -64,7 +65,7 @@ Future<void> _finish(BuildContext context, WidgetRef ref) async {
   try {
     briefs = await ref
         .read(startHereBriefsProvider.future)
-        .timeout(DoneScreen.briefsWait);
+        .timeout(OnboardingService.briefsWait);
   } catch (_) {
     // No answer in time counts as nothing open: never hold the hand-off.
   }
@@ -83,10 +84,6 @@ Future<void> _finish(BuildContext context, WidgetRef ref) async {
 /// land later); the button comes with the page.
 class DoneScreen extends ConsumerStatefulWidget {
   const DoneScreen({super.key});
-
-  /// How long finishing waits for Start here's briefs before going on
-  /// without them.
-  static const briefsWait = Duration(seconds: 2);
 
   static const double heroHeight = 128;
   static const double figureWidth =
@@ -161,7 +158,7 @@ class _DoneScreenState extends ConsumerState<DoneScreen> {
           ),
       ],
       primary: 'Go to Discover',
-      onPrimary: () => context.push(Routes.notificationsAsk),
+      onPrimary: () => context.open(Routes.notificationsAsk),
     );
   }
 
@@ -186,7 +183,7 @@ class _DoneScreenState extends ConsumerState<DoneScreen> {
           label: closesIn(left),
         ),
       ],
-      onTap: () => context.push(Routes.brief(brief.id)),
+      onTap: () => context.open(Routes.brief(brief.id)),
     );
   }
 }

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../data/models.dart';
@@ -109,7 +110,7 @@ class SubmitScreen extends ConsumerWidget {
     final sent = opening?.submissionId;
     if (opening?.block != SubmitBlock.alreadySubmitted || sent == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (context.mounted) context.replace(submissionPath(sent));
+      if (context.mounted) context.openInstead(submissionPath(sent));
     });
   }
 }

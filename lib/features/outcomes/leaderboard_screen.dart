@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/money.dart';
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../router.dart';
@@ -68,7 +69,7 @@ class LeaderboardScreen extends ConsumerWidget {
                         kind: IqButtonKind.ghost,
                         showIcon: false,
                         width: double.infinity,
-                        onTap: () => context.push(Routes.brief(board.brief.id)),
+                        onTap: () => context.open(Routes.brief(board.brief.id)),
                       ),
                     ],
                   ),

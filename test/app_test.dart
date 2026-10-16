@@ -43,4 +43,22 @@ void main() {
       reason: 'Use IqColors from the generated token layer',
     );
   });
+
+  test('pages open through the open rule, never a bare push', () {
+    final push = RegExp(r'\b(context|router)\.push\(');
+    final offenders = Directory('lib')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.dart'))
+        .where((f) => push.hasMatch(f.readAsStringSync()))
+        .map((f) => f.path)
+        .toList();
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'Use context.open (lib/core/navigation.dart) so a page is never '
+          'open twice; push<T> stays for a page that answers',
+    );
+  });
 }

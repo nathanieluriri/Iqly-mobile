@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../data/polls_data.dart';
 import '../../theme/theme.dart';
@@ -44,7 +44,7 @@ class _PollsScreenState extends ConsumerState<PollsScreen> {
         .firstOrNull;
     if (business == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.push(pollsOf(business.id));
+      if (mounted) context.open(pollsOf(business.id));
     });
   }
 
@@ -154,7 +154,7 @@ class _BusinessesState extends ConsumerState<_Businesses> {
               child: QuickPollTile(
                 key: ValueKey(business.id),
                 business: business,
-                onTap: () => context.push(pollsOf(business.id)),
+                onTap: () => context.open(pollsOf(business.id)),
               ),
             ),
           ],

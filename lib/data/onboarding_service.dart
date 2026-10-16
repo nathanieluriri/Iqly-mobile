@@ -87,6 +87,10 @@ class OnboardingProfile {
 
 /// Sends the first-run answers to the contributor's profile.
 abstract class OnboardingService {
+  /// How long finishing first run waits for Start here's briefs before it
+  /// goes on without them.
+  static const briefsWait = Duration(seconds: 2);
+
   Future<void> saveProfile(OnboardingProfile profile);
 }
 

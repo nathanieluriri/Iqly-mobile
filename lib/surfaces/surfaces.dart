@@ -9,6 +9,7 @@ import 'package:quick_actions/quick_actions.dart';
 
 import '../core/deep_links.dart';
 import '../core/flags.dart';
+import '../core/navigation.dart';
 import '../data/demo_data.dart';
 import '../data/models.dart';
 import '../data/notifications_data.dart';
@@ -335,15 +336,22 @@ class Surfaces {
 
   void _open(String route) {
     final now = _queue.offer(route, location: _location, signedIn: signedIn());
-    if (now != null) unawaited(router.push(now));
+    if (now != null) unawaited(router.open(now));
   }
 
   void _onNavigate() {
     final route = _queue.onLocation(_location, signedIn: signedIn());
-    if (route != null) unawaited(router.push(route));
+    if (route != null) unawaited(router.open(route));
   }
 
-  String get _location => router.routerDelegate.currentConfiguration.uri.path;
+  /// The page at the bottom of the stack: the tab, under whatever is open
+  /// over it.
+  String get _location =>
+      openPages(router.routerDelegate.currentConfiguration)
+          .firstOrNull
+          ?.location
+          .path ??
+      '';
 }
 
 /// Null under test and wherever main.dart did not start the surfaces.

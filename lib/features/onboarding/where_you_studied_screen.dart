@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../data/reference_data.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -73,7 +73,7 @@ class _WhereYouStudiedScreenState extends ConsumerState<WhereYouStudiedScreen>
     if (!mounted) return;
     final typed = adding;
     if (typed != null) {
-      context.push(Routes.onboardingAddUniversity, extra: typed);
+      context.open(Routes.onboardingAddUniversity, extra: typed);
       return;
     }
     if (picked == null) return;

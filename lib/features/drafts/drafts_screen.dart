@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/deadline.dart';
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../data/drafts_data.dart';
@@ -73,7 +74,7 @@ class _DraftsScreenState extends ConsumerState<DraftsScreen> {
   });
 
   void _open(DraftItem item) =>
-      context.push(Routes.submitTo(item.draft.briefId));
+      context.open(Routes.submitTo(item.draft.briefId));
 
   Future<void> _discardSelected() async {
     final count = _selected.length;

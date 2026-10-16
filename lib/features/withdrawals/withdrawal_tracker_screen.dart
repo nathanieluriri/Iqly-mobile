@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/deadline.dart';
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../data/models.dart';
 import '../../router.dart';
@@ -81,7 +81,7 @@ class WithdrawalTrackerScreen extends ConsumerWidget {
                         kind: IqButtonKind.ghost,
                         showIcon: false,
                         width: double.infinity,
-                        onTap: () => context.push(Routes.help),
+                        onTap: () => context.open(Routes.help),
                       ),
                     ),
                   ),

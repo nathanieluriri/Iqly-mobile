@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../core/transitions.dart';
 import '../../data/referrals_service.dart';
 import '../../data/share_service.dart';
@@ -161,19 +161,19 @@ class _ReferralsScreenState extends ConsumerState<ReferralsScreen> {
             kind: IqButtonKind.secondary,
             showIcon: false,
             width: double.infinity,
-            onTap: () => context.push(Routes.inviteCode),
+            onTap: () => context.open(Routes.inviteCode),
           ),
         IqButton(
           label: 'Referral history',
           kind: IqButtonKind.secondary,
           showIcon: false,
           width: double.infinity,
-          onTap: () => context.push(Routes.referralHistory),
+          onTap: () => context.open(Routes.referralHistory),
         ),
         Center(
           child: IqPressable(
             semanticLabel: 'Terms and conditions',
-            onTap: () => context.push(Routes.terms),
+            onTap: () => context.open(Routes.terms),
             builder: (context, pressed) => SizedBox(
               height: 24,
               child: Center(

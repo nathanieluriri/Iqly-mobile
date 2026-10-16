@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../core/navigation.dart';
 import '../../core/transitions.dart';
 import '../../data/help_data.dart';
 import '../../router.dart';
@@ -51,7 +51,7 @@ class _HelpCentreScreenState extends State<HelpCentreScreen> {
 
   void _push(String location) {
     _leave();
-    context.push(location);
+    context.open(location);
   }
 
   void _open(Faq faq) {
@@ -64,7 +64,7 @@ class _HelpCentreScreenState extends State<HelpCentreScreen> {
           faq: faq,
           onChat: () {
             Navigator.of(sheet).pop();
-            context.push(Routes.support);
+            context.open(Routes.support);
           },
         ),
       ),

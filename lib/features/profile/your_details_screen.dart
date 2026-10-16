@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../core/navigation.dart';
 import '../../data/onboarding_service.dart';
 import '../../data/profile_service.dart';
 import '../../data/reference_data.dart';
@@ -102,7 +102,7 @@ class YourDetailsScreen extends ConsumerWidget {
                 label: field.label,
                 description: detailValue(field, details, answers),
                 icon: field.icon,
-                onTap: () => context.push(editDetailPath(field)),
+                onTap: () => context.open(editDetailPath(field)),
               ),
           const SizedBox(height: IqSpace.s2),
           Text(

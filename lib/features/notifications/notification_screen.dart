@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/navigation.dart';
 import '../../theme/theme.dart';
 import '../../ui/button.dart';
 import '../../ui/notification.dart';
@@ -66,7 +67,7 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
                   width: double.infinity,
                   onTap: () => page.link.tab
                       ? context.go(page.link.location)
-                      : context.push(page.link.location),
+                      : context.open(page.link.location),
                 ),
               ],
             ),

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/deadline.dart';
 import '../../core/motion.dart';
 import '../../core/money.dart';
+import '../../core/navigation.dart';
 import '../../core/relative_time.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
@@ -107,7 +108,7 @@ class _MySubmissionsScreenState extends ConsumerState<MySubmissionsScreen> {
                   title: 'My submissions',
                   count: '$unread',
                   showCount: unread > 0,
-                  onBell: () => context.push(Routes.notifications),
+                  onBell: () => context.open(Routes.notifications),
                   showWallet: false,
                 ),
                 Expanded(
@@ -197,7 +198,7 @@ class _Lenses extends ConsumerWidget {
         child: SubmissionCardFor(
           item: item,
           now: now,
-          onTap: () => context.push(submissionPath(item.id)),
+          onTap: () => context.open(submissionPath(item.id)),
         ),
       ),
   ];
@@ -228,7 +229,7 @@ class _Lenses extends ConsumerWidget {
           child: SubmissionCardFor(
             item: item,
             now: now,
-            onTap: () => context.push(resultPath(item.id)),
+            onTap: () => context.open(resultPath(item.id)),
           ),
         ),
     ];
@@ -243,7 +244,7 @@ class _Lenses extends ConsumerWidget {
           child: SubmissionCardFor(
             item: item,
             now: now,
-            onTap: () => context.push(resultPath(item.id)),
+            onTap: () => context.open(resultPath(item.id)),
           ),
         ),
       if (briefs.isNotEmpty) ...[
@@ -265,7 +266,7 @@ class _Lenses extends ConsumerWidget {
               cover: briefCover(brief),
               logo: briefLogo(brief),
               meta: rowBriefMeta(brief, now),
-              onTap: () => context.push(Routes.brief(brief.id), extra: brief),
+              onTap: () => context.open(Routes.brief(brief.id), extra: brief),
             ),
           ),
       ],
@@ -416,7 +417,7 @@ class _Empty extends StatelessWidget {
             label: 'Browse briefs',
             showIcon: false,
             width: 200,
-            onTap: () => context.push(Routes.pickBrief),
+            onTap: () => context.open(Routes.pickBrief),
           ),
         ],
       ),

@@ -234,7 +234,7 @@ void main() {
 
       await _tap(tester, find.bySemanticsLabel('Back'));
       expect(find.byType(MySubmissionsScreen), findsOneWidget);
-      expect(find.text('Under review · 3'), findsOneWidget);
+      expect(find.byType(SubmissionCardFor), findsNWidgets(3));
       expect(find.text(SubmitCopy.title), findsOneWidget);
     },
   );
@@ -271,7 +271,7 @@ void main() {
     expect(find.text('Under review'), findsOneWidget);
 
     await _tap(tester, find.bySemanticsLabel('Back'));
-    expect(find.text('Under review · 3'), findsOneWidget);
+    expect(find.byType(SubmissionCardFor), findsNWidgets(3));
     expect(find.text(SubmitCopy.title), findsOneWidget);
   });
 

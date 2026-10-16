@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
+import '../../core/navigation.dart';
 import '../../data/auth.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -105,12 +106,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     if (failure != null) return _fail(EntryCopy.signIn(failure));
     ref.read(entryDraftProvider.notifier).setEmail(_email.text);
     FocusManager.instance.primaryFocus?.unfocus();
-    context.push(Routes.verifyEmail);
+    context.open(Routes.verifyEmail);
   }
 
   void _forgot() {
     ref.read(entryDraftProvider.notifier).setEmail(_email.text);
-    context.push(Routes.forgotPassword);
+    context.open(Routes.forgotPassword);
   }
 
   @override

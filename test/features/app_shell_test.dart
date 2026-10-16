@@ -42,7 +42,7 @@ void main() {
     await _tab(tester, 'Submissions');
     expect(find.byType(MySubmissionsScreen), findsOneWidget);
     expect(find.byType(HomeScreen), findsNothing);
-    await tester.tap(find.text('Winners · 2'));
+    await tester.tap(find.text('Winners'));
     await tester.pumpAndSettle();
 
     await _tab(tester, 'Wallet');
