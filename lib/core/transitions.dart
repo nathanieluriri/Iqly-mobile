@@ -295,6 +295,9 @@ class _IqPageRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
   _IqPageRoute<dynamic>? _cover;
   Route<dynamic>? _next;
 
+  /// An Android back swipe is showing the page beneath (see [_BackPreview]).
+  bool _previewing = false;
+
   late final Animation<double> _fadeIn = animation!.drive(
     CurveTween(
       curve: _move.slidesIn
@@ -391,6 +394,19 @@ class _IqPageRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
     final swiping = navigator!.userGestureInProgress;
     final width = MediaQuery.sizeOf(context).width;
 
+    if (_previewing) {
+      return _swipeBack(
+        context,
+        _BackPreview.leaving(animation, width, reduced, child),
+      );
+    }
+    if (_cover?._previewing ?? false) {
+      return _swipeBack(
+        context,
+        _BackPreview.uncovered(secondaryAnimation, reduced, child),
+      );
+    }
+
     var inX = 0.0;
     Animation<double> inFade = reduced ? _crossfadeIn : _fadeIn;
     var outX = 0.0;
@@ -412,20 +428,31 @@ class _IqPageRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
       outFade = _fadeOut;
     }
 
-    Widget page = child;
-    if (_move.slides && Theme.of(context).platform == TargetPlatform.iOS) {
-      page = _BackSwipe(route: this, child: page);
-    }
-    return Transform.translate(
-      offset: Offset(outX, 0),
-      child: FadeTransition(
-        opacity: outFade,
-        child: Transform.translate(
-          offset: Offset(inX, 0),
-          child: FadeTransition(opacity: inFade, child: page),
+    return _swipeBack(
+      context,
+      Transform.translate(
+        offset: Offset(outX, 0),
+        child: FadeTransition(
+          opacity: outFade,
+          child: Transform.translate(
+            offset: Offset(inX, 0),
+            child: FadeTransition(opacity: inFade, child: child),
+          ),
         ),
       ),
     );
+  }
+
+  /// The page with the platform's back swipe around its moves, so the swipe
+  /// stays the same widget whichever move is playing: the iOS edge swipe, or
+  /// the Android preview.
+  Widget _swipeBack(BuildContext context, Widget moved) {
+    if (!_move.slides) return moved;
+    return switch (Theme.of(context).platform) {
+      TargetPlatform.iOS => _BackSwipe(route: this, child: moved),
+      TargetPlatform.android => _BackPreview(route: this, child: moved),
+      _ => moved,
+    };
   }
 }
 
@@ -580,6 +607,177 @@ class _BackSwipeState extends State<_BackSwipe> {
       ],
     );
   }
+}
+
+/// The Android back swipe (the owner's recording, 16 Oct): as the swipe
+/// starts, the page slides right as it fades and the page beneath fades in
+/// at 90%, sliding 24 in from the left, 200 ms, then holds while the finger
+/// stays down. Letting go grows the page beneath to full size in 200; taking
+/// the swipe back plays the preview in reverse over 240. Reduced motion: the
+/// pages crossfade in place, and the page beneath stays full size.
+///
+/// The route's own move carries it: the preview takes it from 1 to
+/// [_held], and letting go from there to 0 as the route pops, so the page
+/// beneath follows on its secondary animation. Android sends the swipe only
+/// when the app has opted in to predictive back (Android 16 does by default
+/// at target SDK 36); otherwise a back pops as it always has.
+class _BackPreview extends StatefulWidget {
+  const _BackPreview({required this.route, required this.child});
+
+  final _IqPageRoute<dynamic> route;
+  final Widget child;
+
+  static const double _held = 0.5;
+
+  /// How far right the page slides while it fades, in widths.
+  static const double _slide = 0.5;
+
+  /// How far into the preview the page has faded out.
+  static const Interval _fade = Interval(0, 0.6, curve: IqCurves.easeOut);
+
+  /// The page being swiped back, on its [move].
+  static Widget leaving(
+    Animation<double> move,
+    double width,
+    bool reduced,
+    Widget page,
+  ) {
+    return AnimatedBuilder(
+      animation: move,
+      child: page,
+      builder: (context, page) {
+        final t = ((1 - move.value) / (1 - _held)).clamp(0.0, 1.0);
+        return Transform.translate(
+          offset: Offset(reduced ? 0 : width * _slide * t, 0),
+          child: Opacity(opacity: 1 - _fade.transform(t), child: page),
+        );
+      },
+    );
+  }
+
+  /// The page beneath, on the [move] of the page being swiped back.
+  static Widget uncovered(Animation<double> move, bool reduced, Widget page) {
+    return AnimatedBuilder(
+      animation: move,
+      child: page,
+      builder: (context, page) {
+        final shown = ((1 - move.value) / (1 - _held)).clamp(0.0, 1.0);
+        final grown = (1 - move.value / _held).clamp(0.0, 1.0);
+        if (reduced) return Opacity(opacity: shown, child: page);
+        return ColoredBox(
+          color: IqColors.bg,
+          child: Transform.scale(
+            scale: ui.lerpDouble(IqScale.backPreview, 1, grown),
+            child: Transform.translate(
+              offset: Offset(-IqTravel.screen * (1 - shown), 0),
+              child: Opacity(opacity: shown, child: page),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  State<_BackPreview> createState() => _BackPreviewState();
+}
+
+class _BackPreviewState extends State<_BackPreview>
+    with WidgetsBindingObserver {
+  NavigatorState? _navigator;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  /// The page a back would close: the current page of its navigator, in a
+  /// tab that is showing, inside pages that are current all the way up.
+  bool get _onTop {
+    if (!TickerMode.valuesOf(context).enabled) return false;
+    for (
+      ModalRoute<dynamic>? route = widget.route;
+      route != null;
+      route = route.navigator?.context
+          .getInheritedWidgetOfExactType<_PageScope>()
+          ?.route
+    ) {
+      if (!route.isCurrent) return false;
+    }
+    return true;
+  }
+
+  Duration _length(Duration full) =>
+      MediaQuery.disableAnimationsOf(context) ? IqDurations.crossfade : full;
+
+  @override
+  bool handleStartBackGesture(PredictiveBackEvent backEvent) {
+    final route = widget.route;
+    if (backEvent.isButtonEvent || !route.popGestureEnabled || !_onTop) {
+      return false;
+    }
+    _navigator = route.navigator!..didStartUserGesture();
+    route._previewing = true;
+    route._swipe.animateBack(
+      _BackPreview._held,
+      duration: _length(IqDurations.swap),
+      curve: IqCurves.easeOut,
+    );
+    return true;
+  }
+
+  @override
+  void handleCommitBackGesture() => _end(close: true);
+
+  @override
+  void handleCancelBackGesture() => _end(close: false);
+
+  /// Lets go, closing the page when [close]; a page that is no longer the
+  /// current one (something else opened or closed during the swipe) comes
+  /// back unless it has already gone.
+  void _end({required bool close}) {
+    final navigator = _navigator;
+    if (navigator == null) return;
+    _navigator = null;
+    final route = widget.route;
+    final controller = route._swipe;
+    final pop = route.isCurrent ? close : !route.isActive;
+    if (pop && route.isCurrent) navigator.pop();
+    if (pop) {
+      controller.animateBack(
+        0,
+        duration: _length(IqDurations.swap),
+        curve: IqCurves.easeOut,
+      );
+    } else {
+      controller.animateTo(
+        1,
+        duration: _length(IqDurations.screenBack),
+        curve: IqCurves.easeOut,
+      );
+    }
+    _whenSettled(controller, () {
+      route._previewing = false;
+      navigator.didStopUserGesture();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    final navigator = _navigator;
+    if (navigator != null) {
+      widget.route._previewing = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (navigator.mounted) navigator.didStopUserGesture();
+      });
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// Sends a route's [controller] to [target] when the finger lets go, ease-out
