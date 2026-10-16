@@ -32,9 +32,21 @@
 					<string>iqly</string>
 				</array>
 			</dict>
+			<dict>
+				<key>CFBundleURLName</key>
+				<string>google-sign-in</string>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>com.googleusercontent.apps.724865297296-ccsujpput3002mq4br7c7t17mqt61s5m</string>
+				</array>
+			</dict>
 		</array>
 		<key>CFBundleVersion</key>
 		<string>$(FLUTTER_BUILD_NUMBER)</string>
+		<key>GIDClientID</key>
+		<string>724865297296-ccsujpput3002mq4br7c7t17mqt61s5m.apps.googleusercontent.com</string>
+		<key>GIDServerClientID</key>
+		<string>724865297296-pjv4fpqllacbo0cp1t6rcmigjao7d26j.apps.googleusercontent.com</string>
 		<key>FlutterDeepLinkingEnabled</key>
 		<false/>
 		<key>LSRequiresIPhoneOS</key>

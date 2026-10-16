@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/session.dart';
+import '../../data/auth.dart';
 import '../../data/models.dart';
 import '../../data/onboarding_service.dart';
 import '../../data/profile_service.dart';
@@ -125,6 +126,7 @@ String interestsLine(List<String> values) => [
 /// answers and the cached details. Sign out and account deletion end here.
 Future<void> forgetAccount(WidgetRef ref) async {
   final session = ref.read(sessionProvider.notifier);
+  await ref.read(authServiceProvider).signOut();
   ref.read(onboardingDraftProvider.notifier).clear();
   await forgetSubmitDrafts(ref.read(sharedPreferencesProvider));
   await ref.read(accountDetailsProvider.notifier).clear();

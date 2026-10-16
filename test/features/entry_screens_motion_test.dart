@@ -10,7 +10,7 @@ import 'package:iqly_mobile/features/entry/forgot_password_screen.dart';
 import 'package:iqly_mobile/features/entry/password_screen.dart';
 import 'package:iqly_mobile/features/entry/reset_link_sent_screen.dart';
 import 'package:iqly_mobile/features/entry/sign_in_screen.dart';
-import 'package:iqly_mobile/features/onboarding/welcome_screen.dart';
+import 'package:iqly_mobile/features/entry/verify_email_screen.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/step_mark.dart';
@@ -225,7 +225,7 @@ void main() {
   });
 
   testWidgets('Password works while the account is made: one call, then the '
-      'success haptic and Welcome', (tester) async {
+      'success haptic and Verify email', (tester) async {
     final haptics = recordHaptics(tester);
     final auth = _SlowAuth();
     await bootApp(
@@ -254,10 +254,10 @@ void main() {
     await tester.pump(_ms * 500);
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
-    expect(find.byType(WelcomeScreen), findsOneWidget);
+    expect(find.byType(VerifyEmailScreen), findsOneWidget);
     expect(auth.signUps, 1);
     expect(haptics, [_light, _success]);
-    expect(tester.testTextInput.isVisible, isFalse);
+    expect(tester.testTextInput.isVisible, isTrue);
   });
 
   testWidgets('Forgot password to Reset link sent and back to Sign in: no '

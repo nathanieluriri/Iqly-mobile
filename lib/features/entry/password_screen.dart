@@ -21,8 +21,8 @@ import 'show_password.dart';
 /// holding still (the step mark fills its third bar) while the title rides
 /// the push and the field trails it by 40 ms; Password has focus from the
 /// first frame. Create account works (a spinner) while the account is made,
-/// then the success haptic and the hand-off to Welcome, the keyboard going
-/// down with it.
+/// then the success haptic and the push to Verify email, which emails the
+/// code that finishes sign up.
 class PasswordScreen extends ConsumerStatefulWidget {
   const PasswordScreen({super.key});
 
@@ -86,11 +86,10 @@ class _PasswordScreenState extends ConsumerState<PasswordScreen> {
       errorHaptic();
       return;
     }
-    await completeSignIn(ref, newAccount: true);
-    if (!mounted) return;
+    setState(() => _busy = false);
     IqHaptics.success.play();
     FocusManager.instance.primaryFocus?.unfocus();
-    context.go(Routes.onboarding);
+    context.push(Routes.verifyEmail);
   }
 
   @override

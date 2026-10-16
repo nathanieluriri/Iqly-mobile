@@ -4,6 +4,12 @@ import 'demo_data.dart';
 
 enum AuthProvider { apple, google }
 
+abstract final class AuthTiming {
+  /// A new email code can go out once a minute.
+  static const codeResendAfter = Duration(seconds: 60);
+  static const countdownStep = Duration(seconds: 1);
+}
+
 /// Why an auth call failed. The live API layer maps its codes onto these
 /// (INVALID_EMAIL_OR_PASSWORD to [wrongCredentials], EMAIL_NOT_VERIFIED to
 /// [emailNotVerified], and so on); the screens choose the words.
@@ -18,6 +24,12 @@ enum AuthFailure {
 
   /// The person closed the Apple or Google sheet.
   cancelled,
+
+  /// The email code doesn't match the one sent.
+  wrongCode,
+
+  /// The email code is past its 5 minutes; a new one is needed.
+  codeExpired,
   unknown,
 }
 
@@ -48,9 +60,22 @@ abstract class AuthService {
   });
   Future<AuthResult> signIn({required String email, required String password});
 
+  /// Whether this device offers [provider] on the landing.
+  bool offers(AuthProvider provider);
+
   /// Apple needs sign_in_with_apple, Google needs google_sign_in.
   Future<AuthResult> continueWith(AuthProvider provider);
   Future<AuthResult> sendResetLink(String email);
+
+  /// Emails a 6-digit code that confirms [email]. Sign up and a sign in
+  /// before verifying both end on the code screen.
+  Future<AuthResult> sendVerificationCode(String email);
+
+  /// Confirms [email] with [code] and signs in. [AuthResult.newAccount] is
+  /// set while onboarding is still to do.
+  Future<AuthResult> verifyEmail({required String email, required String code});
+
+  Future<void> signOut();
 }
 
 /// The sample account is [DemoData.user] with [password]. The other
@@ -81,6 +106,12 @@ class DemoAuthService implements AuthService {
   /// Looks new; signing up, signing in and resets fail as
   /// [AuthFailure.unknown].
   static const brokenEmail = 'broken@example.com';
+
+  /// Verifies any email; [expiredCode] and [lockedCode] act out those
+  /// failures and anything else is [AuthFailure.wrongCode].
+  static const code = '482915';
+  static const expiredCode = '000000';
+  static const lockedCode = '999999';
 
   final Duration delay;
 
@@ -148,6 +179,9 @@ class DemoAuthService implements AuthService {
   }
 
   @override
+  bool offers(AuthProvider provider) => true;
+
+  @override
   Future<AuthResult> continueWith(AuthProvider provider) async {
     await _wait();
     final failure = socialFailure;
@@ -164,6 +198,35 @@ class DemoAuthService implements AuthService {
       _ => const AuthResult.success(),
     };
   }
+
+  @override
+  Future<AuthResult> sendVerificationCode(String email) async {
+    await _wait();
+    return switch (_normal(email)) {
+      offlineEmail => const AuthResult.failure(AuthFailure.offline),
+      brokenEmail => const AuthResult.failure(AuthFailure.unknown),
+      _ => const AuthResult.success(),
+    };
+  }
+
+  @override
+  Future<AuthResult> verifyEmail({
+    required String email,
+    required String code,
+  }) async {
+    await _wait();
+    return switch (code) {
+      DemoAuthService.code => AuthResult.success(
+        newAccount: !_known.contains(_normal(email)),
+      ),
+      expiredCode => const AuthResult.failure(AuthFailure.codeExpired),
+      lockedCode => const AuthResult.failure(AuthFailure.tooManyAttempts),
+      _ => const AuthResult.failure(AuthFailure.wrongCode),
+    };
+  }
+
+  @override
+  Future<void> signOut() async {}
 }
 
 final authServiceProvider = Provider<AuthService>((ref) => DemoAuthService());

@@ -19,7 +19,8 @@ import 'show_password.dart';
 /// Motion (MOTION-SPEC 6.6): it pushes in as the title, EMAIL, PASSWORD and
 /// "Forgot your password?" settle 40 apart, the right field focused from
 /// the first frame. The next button works (a spinner) while signing in;
-/// success hands off to Discover with the keyboard going down.
+/// success hands off to Discover with the keyboard going down. An email not
+/// verified yet gets a code and goes on to Verify email.
 class SignInScreen extends ConsumerStatefulWidget {
   const SignInScreen({super.key});
 
@@ -81,14 +82,30 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         .signIn(email: _email.text, password: _password.controller.text);
     if (!mounted) return;
     final failure = result.failure;
+    if (failure == AuthFailure.emailNotVerified) return _verifyFirst();
     if (failure != null) {
       setState(() => _busy = false);
       return _fail(EntryCopy.signIn(failure));
     }
-    await completeSignIn(ref, newAccount: false);
+    await completeSignIn(ref, newAccount: result.newAccount);
     if (!mounted) return;
     FocusManager.instance.primaryFocus?.unfocus();
-    context.go(Routes.home);
+    context.go(result.newAccount ? Routes.onboarding : Routes.home);
+  }
+
+  /// The account exists but its email isn't confirmed yet: send a code and
+  /// finish on Verify email.
+  Future<void> _verifyFirst() async {
+    final sent = await ref
+        .read(authServiceProvider)
+        .sendVerificationCode(_email.text);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    final failure = sent.failure;
+    if (failure != null) return _fail(EntryCopy.signIn(failure));
+    ref.read(entryDraftProvider.notifier).setEmail(_email.text);
+    FocusManager.instance.primaryFocus?.unfocus();
+    context.push(Routes.verifyEmail);
   }
 
   void _forgot() {

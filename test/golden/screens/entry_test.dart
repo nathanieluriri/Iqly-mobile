@@ -10,6 +10,7 @@ import 'package:iqly_mobile/features/entry/notifications_ask_screen.dart';
 import 'package:iqly_mobile/features/entry/password_screen.dart';
 import 'package:iqly_mobile/features/entry/reset_link_sent_screen.dart';
 import 'package:iqly_mobile/features/entry/sign_in_screen.dart';
+import 'package:iqly_mobile/features/entry/verify_email_screen.dart';
 import 'package:iqly_mobile/features/entry/your_name_screen.dart';
 import 'package:iqly_mobile/ui/box_field.dart';
 import 'package:iqly_mobile/ui/button.dart';
@@ -92,6 +93,15 @@ void main() {
       tester,
       'entry_reset_link_sent',
       const ResetLinkSentScreen(),
+      prepare: (c) => c.read(entryDraftProvider.notifier).setEmail(email),
+    );
+  });
+
+  testWidgets('verify email (1268:25917)', (tester) async {
+    await expectScreenGolden(
+      tester,
+      'entry_verify_email',
+      const VerifyEmailScreen(),
       prepare: (c) => c.read(entryDraftProvider.notifier).setEmail(email),
     );
   });
@@ -205,5 +215,23 @@ void main() {
         );
       },
     );
+
+    for (final (frame, name, code) in [
+      ('1268:26029', 'wrong_code', '482951'),
+      ('1268:26145', 'code_expired', DemoAuthService.expiredCode),
+    ]) {
+      testWidgets('verify email $name ($frame)', (tester) async {
+        await expectScreenGolden(
+          tester,
+          'entry_verify_email_$name',
+          const VerifyEmailScreen(),
+          overrides: instant,
+          prepare: (c) => c.read(entryDraftProvider.notifier).setEmail(email),
+          act: (tester) async {
+            await tester.enterText(find.byType(EditableText), code);
+          },
+        );
+      });
+    }
   });
 }

@@ -12,6 +12,7 @@ import 'features/entry/notifications_ask_screen.dart';
 import 'features/entry/password_screen.dart';
 import 'features/entry/reset_link_sent_screen.dart';
 import 'features/entry/sign_in_screen.dart';
+import 'features/entry/verify_email_screen.dart';
 import 'features/entry/your_name_screen.dart';
 import 'features/help/help_routes.dart';
 import 'features/more/more_routes.dart';
@@ -32,6 +33,7 @@ abstract final class Routes {
   static const yourName = '/sign-up/name';
   static const createPassword = '/sign-up/password';
   static const signIn = '/sign-in';
+  static const verifyEmail = '/verify-email';
   static const forgotPassword = '/forgot-password';
   static const resetLinkSent = '/forgot-password/sent';
   static const notificationsAsk = '/turn-on-notifications';
@@ -143,6 +145,7 @@ final _entryRoutes = [
   _push(Routes.yourName, const YourNameScreen()),
   _push(Routes.createPassword, const PasswordScreen()),
   _push(Routes.signIn, const SignInScreen()),
+  _push(Routes.verifyEmail, const VerifyEmailScreen()),
   _push(Routes.forgotPassword, const ForgotPasswordScreen()),
   _push(Routes.resetLinkSent, const ResetLinkSentScreen()),
   _push(Routes.notificationsAsk, const NotificationsAskScreen()),
