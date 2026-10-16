@@ -12,8 +12,8 @@ import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/onboarding/about_you_screen.dart';
 import 'package:iqly_mobile/features/onboarding/done_screen.dart';
 import 'package:iqly_mobile/features/onboarding/onboarding_sheets.dart';
-import 'package:iqly_mobile/features/onboarding/what_you_like_screen.dart';
 import 'package:iqly_mobile/features/onboarding/where_you_live_screen.dart';
+import 'package:iqly_mobile/features/onboarding/where_you_studied_screen.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/theme/theme.dart';
 import 'package:iqly_mobile/ui/button.dart';
@@ -138,7 +138,7 @@ void main() {
 
   group('one question per screen (spec 4.1)', () {
     testWidgets(
-      'About you to Where you live: back, the step mark, Continue and Skip '
+      'About you to Where you study: back, the step mark, Continue and Skip '
       'hold, the question rides the push, the control trails',
       (tester) async {
         final haptics = recordHaptics(tester);
@@ -164,18 +164,18 @@ void main() {
           tester.getTopLeft(find.text('What do you do?')).dx,
           closeTo(question - 24 * _ei(0.5), 0.5),
         );
-        final title = find.text('Where do you live?');
+        final title = find.text('Where do you study?');
         expect(
           tester.getTopLeft(title).dx,
           closeTo(question + 24 * (1 - _eo(0.5)), 0.5),
         );
-        final control = find.text('Select state');
+        final control = find.text('Select…');
         double trail() =>
             tester.getTopLeft(control).dx - tester.getTopLeft(title).dx;
         final midTrail = trail();
 
         await tester.pumpAndSettle();
-        expect(find.byType(WhereYouLiveScreen), findsOneWidget);
+        expect(find.byType(WhereYouStudiedScreen), findsOneWidget);
         expect(find.byType(AboutYouScreen), findsNothing);
         expect(
           tester.widget<IqStepMark>(find.byType(IqStepMark)).step,
@@ -192,11 +192,11 @@ void main() {
         'over 240', (tester) async {
       await _open(
         tester,
-        Routes.onboardingWhereYouLive,
-        draft: {..._aboutYou, 'lastStep': 'whereYouLive'},
+        Routes.onboardingWhereYouStudied,
+        draft: {..._aboutYou, 'lastStep': 'whereYouStudied'},
       );
       await tester.pumpAndSettle();
-      final question = tester.getTopLeft(find.text('Where do you live?')).dx;
+      final question = tester.getTopLeft(find.text('Where do you study?')).dx;
       await tester.tap(find.bySemanticsLabel('Back'));
       await _playTo(tester, _ms * 120);
       expect(
@@ -204,7 +204,7 @@ void main() {
         closeTo(question - 24 * (1 - _eo(0.5)), 0.5),
       );
       expect(
-        tester.getTopLeft(find.text('Where do you live?')).dx,
+        tester.getTopLeft(find.text('Where do you study?')).dx,
         closeTo(question + 24 * _ei(0.5), 0.5),
       );
       await tester.pumpAndSettle();
@@ -227,7 +227,7 @@ void main() {
       final question = tester.getTopLeft(find.text('What do you do?')).dx;
       await tester.tap(_primary);
       await _playTo(tester, _ms * 75);
-      final title = find.text('Where do you live?');
+      final title = find.text('Where do you study?');
       expect(tester.getTopLeft(title).dx, question);
       expect(_opacity(tester, title), closeTo(_eo(0.5), 0.02));
       final mark = find.byType(IqStepMark).last;
@@ -319,12 +319,12 @@ void main() {
       final landed = find.text('University of Lagos');
       expect(landed, findsWidgets);
       await tester.pump(_ms * 170);
-      expect(find.byType(WhatYouLikeScreen), findsNothing);
+      expect(find.byType(WhereYouLiveScreen), findsNothing);
       expect(_opacity(tester, landed.last), greaterThan(0.5));
 
       await tester.pump(_ms * 171);
       await tester.pump();
-      expect(find.byType(WhatYouLikeScreen), findsOneWidget);
+      expect(find.byType(WhereYouLiveScreen), findsOneWidget);
       await tester.pumpAndSettle();
       expect(haptics, [_light, _select, _commit]);
     });
@@ -349,7 +349,7 @@ void main() {
       await tester.pump();
       await tester.pump();
       await tester.pump();
-      expect(find.byType(WhatYouLikeScreen), findsOneWidget);
+      expect(find.byType(WhereYouLiveScreen), findsOneWidget);
     });
 
     testWidgets('Education takes the full 724, Use this at its foot', (

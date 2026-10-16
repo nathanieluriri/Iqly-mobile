@@ -46,6 +46,7 @@ abstract final class Routes {
   static const onboardingAboutYou = '/onboarding/about-you';
   static const onboardingWhereYouLive = '/onboarding/where-you-live';
   static const onboardingWhereYouStudied = '/onboarding/where-you-studied';
+  static const onboardingYourWork = '/onboarding/your-work';
   static const onboardingAddUniversity = '/onboarding/add-university';
   static const onboardingWhatYouLike = '/onboarding/what-you-like';
   static const onboardingResume = '/onboarding/resume';

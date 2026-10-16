@@ -19,8 +19,10 @@ import '../../ui/field.dart';
 import '../../ui/option_row.dart';
 import '../more/more_widgets.dart';
 import '../onboarding/onboarding_draft.dart';
+import '../onboarding/onboarding_flow.dart';
 import '../onboarding/onboarding_sheets.dart';
 import '../onboarding/what_you_like_screen.dart';
+import '../onboarding/your_work_screen.dart';
 import 'profile_sheets.dart';
 import 'profile_state.dart';
 import 'your_details_screen.dart';
@@ -457,16 +459,37 @@ class _OccupationEdit extends ConsumerStatefulWidget {
 
 class _OccupationEditState extends ConsumerState<_OccupationEdit> {
   String? _choice;
+  String? _sector;
+  String? _otherSector;
 
   @override
   Widget build(BuildContext context) {
-    final picked = _choice ?? ref.watch(profileAnswersProvider).occupation;
+    final answers = ref.watch(profileAnswersProvider);
+    final picked = _choice ?? answers.occupation;
+    final sector = _sector ?? answers.sector;
+    final otherSector = _otherSector ?? answers.otherSector;
+    final asksWork =
+        picked != null &&
+        OnboardingFlow.current
+            .path(answers.withOccupation(picked))
+            .contains(OnboardingStep.yourWork);
+    final wordsMissing =
+        asksWork &&
+        sector == OnboardingFlow.otherSector &&
+        otherSector.trim().isEmpty;
     return _EditPage(
       title: 'Occupation',
-      canSave: picked != null,
+      canSave: picked != null && !wordsMissing,
       onSave: () async {
         if (picked != null) {
-          await saveProfile(ref, answers: (a) => a.withOccupation(picked));
+          await saveProfile(
+            ref,
+            answers: (a) => OnboardingFlow.current.tidy(
+              a
+                  .withOccupation(picked)
+                  .copyWith(sector: sector, otherSector: otherSector),
+            ),
+          );
         }
         return true;
       },
@@ -490,6 +513,29 @@ class _OccupationEditState extends ConsumerState<_OccupationEdit> {
                   onChanged: (_) => setState(() => _choice = option.value),
                 ),
             ],
+          ),
+          RevealSlot(
+            shown: asksWork,
+            child: Padding(
+              padding: const EdgeInsets.only(top: IqSpace.s6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    workQuestion(picked),
+                    style: IqText.bodyStrong.copyWith(color: IqColors.fg),
+                  ),
+                  const SizedBox(height: IqSpace.s2),
+                  SectorChips(
+                    sector: sector,
+                    otherSector: otherSector,
+                    onSector: (value) => setState(() => _sector = value),
+                    onOtherSector: (text) =>
+                        setState(() => _otherSector = text),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),

@@ -8,7 +8,6 @@ import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/chip.dart';
 import '../../ui/field.dart';
-import '../../ui/step_mark.dart';
 import '../profile/profile_sheets.dart';
 import 'onboarding_draft.dart';
 import 'onboarding_layout.dart';
@@ -38,7 +37,7 @@ class AboutYouScreen extends ConsumerWidget {
     final today = ref.watch(clockProvider)();
     final tooYoung = born != null && !isAdult(born, today);
     final draft = ref.read(onboardingDraftProvider.notifier);
-    void next() => goToStep(context, ref, OnboardingStep.whereYouLive);
+    void next() => goToNextStep(context, ref, OnboardingStep.aboutYou);
 
     Future<void> pickDate() async {
       final picked = await showOnboardingSheet<DateTime>(
@@ -49,7 +48,7 @@ class AboutYouScreen extends ConsumerWidget {
     }
 
     return OnboardingStepScaffold(
-      step: IqStepMarkStep.oneOfThree,
+      step: OnboardingStep.aboutYou.mark,
       title: 'What do you do?',
       banner: tooYoung ? underAge : null,
       onBack: () => leaveStep(context, Routes.onboarding),

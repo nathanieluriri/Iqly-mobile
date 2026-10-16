@@ -21,6 +21,7 @@ import 'package:iqly_mobile/features/onboarding/welcome_screen.dart';
 import 'package:iqly_mobile/features/onboarding/what_you_like_screen.dart';
 import 'package:iqly_mobile/features/onboarding/where_you_live_screen.dart';
 import 'package:iqly_mobile/features/onboarding/where_you_studied_screen.dart';
+import 'package:iqly_mobile/features/onboarding/your_work_screen.dart';
 import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/tip_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -125,6 +126,18 @@ void main() {
     expect(_nextOn(tester), isTrue);
     await _tap(tester, find.text('Continue'));
 
+    expect(find.byType(WhereYouStudiedScreen), findsOneWidget);
+    expect(find.text('Where do you study?'), findsOneWidget);
+    await _tap(tester, find.text('Select…'));
+    await _tap(tester, find.text('HND / BSc'));
+    await _tap(tester, find.text('Use this'));
+    await _tap(tester, find.text('Search universities'));
+    expect(find.byType(UniversitySheet), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'Lag');
+    await tester.pumpAndSettle();
+    await _tap(tester, find.text('University of Lagos'));
+    await _tap(tester, find.text('Use this'));
+
     expect(find.byType(WhereYouLiveScreen), findsOneWidget);
     await _tap(tester, find.text('Select state'));
     await _tap(tester, find.text('Lagos'));
@@ -140,17 +153,6 @@ void main() {
     await tester.enterText(find.byType(TextField), '+234 803 000 0000');
     await tester.pumpAndSettle();
     await _tap(tester, find.text('Continue'));
-
-    expect(find.byType(WhereYouStudiedScreen), findsOneWidget);
-    await _tap(tester, find.text('Select…'));
-    await _tap(tester, find.text('HND / BSc'));
-    await _tap(tester, find.text('Use this'));
-    await _tap(tester, find.text('Search universities'));
-    expect(find.byType(UniversitySheet), findsOneWidget);
-    await tester.enterText(find.byType(TextField), 'Lag');
-    await tester.pumpAndSettle();
-    await _tap(tester, find.text('University of Lagos'));
-    await _tap(tester, find.text('Use this'));
 
     expect(find.byType(WhatYouLikeScreen), findsOneWidget);
     await _tap(tester, find.text('Marketing & advertising'));
@@ -169,6 +171,7 @@ void main() {
     expect(service.saved?.phone, '+234 803 000 0000');
     expect(service.saved?.education, 'hnd_bsc');
     expect(service.saved?.university, 'University of Lagos');
+    expect(service.saved?.sector, isNull);
     expect(service.saved?.interests, [
       'marketing_advertising',
       'finance_fintech',
@@ -182,7 +185,7 @@ void main() {
       'the notifications ask', (tester) async {
     final (prefs, _) = await _launch(tester, repository: _NothingOpen());
     await _tap(tester, find.text('Start'));
-    for (var i = 0; i < 3; i++) {
+    for (var i = 0; i < 2; i++) {
       await _tap(tester, find.text('Skip for now'));
     }
     expect(find.byType(WhatYouLikeScreen), findsOneWidget);
@@ -195,28 +198,62 @@ void main() {
     expect(find.byType(HomeScreen), findsOneWidget);
   });
 
-  testWidgets('only a student names a university', (tester) async {
-    await _launch(tester);
+  testWidgets('a student says where they study next; anyone else what '
+      'their work is, and a change of mind drops the other answer', (
+    tester,
+  ) async {
+    final (prefs, service) = await _launch(tester);
+    Map<String, Object?> saved() =>
+        jsonDecode(prefs.getString('onboarding.draft')!)
+            as Map<String, Object?>;
     await _tap(tester, find.text('Start'));
     await _tap(tester, find.text('Employed'));
     await _tap(tester, find.text('Skip for now'));
+    expect(find.byType(YourWorkScreen), findsOneWidget);
+    expect(find.text('Which sector do you work in?'), findsOneWidget);
+    expect(_nextOn(tester), isFalse);
+    await _tap(tester, find.text('Banking & finance'));
+    expect(_nextOn(tester), isTrue);
+    expect(saved()['sector'], 'finance');
+    await _tap(tester, find.text('Continue'));
+    expect(find.byType(WhereYouLiveScreen), findsOneWidget);
+
+    await _tap(tester, find.bySemanticsLabel('Back'));
+    expect(find.byType(YourWorkScreen), findsOneWidget);
+    await _tap(tester, find.bySemanticsLabel('Back'));
+    expect(find.byType(AboutYouScreen), findsOneWidget);
+    await _tap(tester, find.text('Self-employed'));
+    await _tap(tester, find.text('Skip for now'));
+    expect(find.text('What kind of work do you do?'), findsOneWidget);
+    await _tap(tester, find.bySemanticsLabel('Back'));
+
+    await _tap(tester, find.text('Student'));
+    expect(saved()['sector'], isNull);
     await _tap(tester, find.text('Skip for now'));
     expect(find.byType(WhereYouStudiedScreen), findsOneWidget);
     await _tap(tester, find.text('Select…'));
     await _tap(tester, find.text('HND / BSc'));
     await _tap(tester, find.text('Use this'));
-    expect(find.text('HND / BSc'), findsOneWidget);
-    expect(find.text('Search universities'), findsNothing);
-    expect(_nextOn(tester), isTrue);
-
-    await _tap(tester, find.bySemanticsLabel('Back'));
-    await _tap(tester, find.bySemanticsLabel('Back'));
-    expect(find.byType(AboutYouScreen), findsOneWidget);
-    await _tap(tester, find.text('Student'));
-    await _tap(tester, find.text('Skip for now'));
-    await _tap(tester, find.text('Skip for now'));
-    expect(find.byType(WhereYouStudiedScreen), findsOneWidget);
     expect(find.text('Search universities'), findsOneWidget);
+    await _tap(tester, find.bySemanticsLabel('Back'));
+
+    await _tap(tester, find.text('Entrepreneur'));
+    expect(saved()['education'], isNull);
+    await _tap(tester, find.text('Skip for now'));
+    expect(find.text('What does your business do?'), findsOneWidget);
+    await _tap(tester, find.text('Other'));
+    expect(_nextOn(tester), isFalse);
+    await tester.enterText(find.byType(TextField), 'Event planning');
+    await tester.pumpAndSettle();
+    expect(_nextOn(tester), isTrue);
+    await _tap(tester, find.text('Continue'));
+    await _tap(tester, find.text('Skip for now'));
+    await _land(tester, find.text('Skip for now'));
+    expect(service.saved?.occupation, 'entrepreneur');
+    expect(service.saved?.sector, 'other');
+    expect(service.saved?.otherSector, 'Event planning');
+    expect(service.saved?.education, isNull);
+    expect(service.saved?.university, isNull);
   });
 
   testWidgets('a tap on the step puts the phone keypad away, so Continue '
@@ -318,17 +355,18 @@ void main() {
       'the opener', (tester) async {
     await _launch(tester);
     await _tap(tester, find.text('Start'));
+    await _tap(tester, find.text('Student'));
     for (final screen in [
       AboutYouScreen,
-      WhereYouLiveScreen,
       WhereYouStudiedScreen,
+      WhereYouLiveScreen,
     ]) {
       expect(find.byType(screen), findsOneWidget);
       await _tap(tester, find.text('Skip for now'));
     }
     expect(find.byType(WhatYouLikeScreen), findsOneWidget);
     await _tap(tester, find.bySemanticsLabel('Back'));
-    expect(find.byType(WhereYouStudiedScreen), findsOneWidget);
+    expect(find.byType(WhereYouLiveScreen), findsOneWidget);
     await _tap(tester, find.text('Skip for now'));
     expect(find.byType(WhatYouLikeScreen), findsOneWidget);
     await _land(tester, find.text('Skip for now'));

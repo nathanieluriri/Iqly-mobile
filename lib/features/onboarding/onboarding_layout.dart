@@ -7,6 +7,7 @@ import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
+import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/button.dart';
@@ -16,12 +17,28 @@ import '../../ui/toast.dart';
 import '../../ui/top_bar.dart';
 import '../entry/entry_widgets.dart';
 import 'onboarding_draft.dart';
+import 'onboarding_flow.dart';
 
 /// Pushes [step] over the page that opens it, so back returns there
 /// (answer 26).
 void goToStep(BuildContext context, WidgetRef ref, OnboardingStep step) {
   ref.read(onboardingDraftProvider.notifier).visit(step);
   context.open(step.route);
+}
+
+/// Moves on from [from] to the step the answers so far lead to.
+void goToNextStep(BuildContext context, WidgetRef ref, OnboardingStep from) {
+  final answers = ref.read(onboardingDraftProvider).profile;
+  final next = OnboardingFlow.current.next(from, answers);
+  if (next != null) goToStep(context, ref, next);
+}
+
+/// Back to the opener, or to the step before [step] on the path when the
+/// step was opened on its own.
+void leaveToPrevious(BuildContext context, WidgetRef ref, OnboardingStep step) {
+  final answers = ref.read(onboardingDraftProvider).profile;
+  final before = OnboardingFlow.current.previous(step, answers);
+  leaveStep(context, before?.route ?? Routes.onboarding);
 }
 
 /// Back to the opener, or [fallback] when the step was opened on its own
