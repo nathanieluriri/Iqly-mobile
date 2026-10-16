@@ -56,57 +56,92 @@ class NotificationPreferencesScreen extends ConsumerWidget {
       if (!taken) errorHaptic();
     }
 
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
-      child: Scaffold(
-        backgroundColor: IqColors.bg,
-        body: SafeArea(
-          child: CenteredContent(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                IqTopBar(
-                  variant: IqTopBarVariant.page,
-                  title: 'Notification preferences',
-                  onBack: () => goBack(context),
-                ),
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(
-                      IqSpace.s4,
-                      IqSpace.s4,
-                      IqSpace.s4,
-                      IqSpace.s4,
-                    ),
-                    children: [
-                      IqBanner(
-                        title: 'Notifications are off for iQLY on this phone.',
-                        action: 'Open settings',
-                        visible: !allowed,
-                        margin: const EdgeInsets.only(bottom: IqSpace.s3),
-                        onAction: () => ref
-                            .read(deviceServiceProvider)
-                            .openNotificationSettings(),
-                      ),
-                      if (preferences != null)
-                        for (final (i, topic) in topics.indexed)
-                          IqSettingRow(
-                            label: notificationCopy[topic]!.$1,
-                            description: notificationCopy[topic]!.$2,
-                            divider: i < topics.length - 1,
-                            state: preferences[topic] ?? false
-                                ? IqSwitchState.on
-                                : IqSwitchState.off,
-                            onChanged: (state) => flip(topic, state),
-                          ),
-                    ],
+    return _RecheckOnResume(
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.dark,
+        child: Scaffold(
+          backgroundColor: IqColors.bg,
+          body: SafeArea(
+            child: CenteredContent(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  IqTopBar(
+                    variant: IqTopBarVariant.page,
+                    title: 'Notification preferences',
+                    onBack: () => goBack(context),
                   ),
-                ),
-              ],
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(
+                        IqSpace.s4,
+                        IqSpace.s4,
+                        IqSpace.s4,
+                        IqSpace.s4,
+                      ),
+                      children: [
+                        IqBanner(
+                          title:
+                              'Notifications are off for iQLY on this phone.',
+                          action: 'Open settings',
+                          visible: !allowed,
+                          margin: const EdgeInsets.only(bottom: IqSpace.s3),
+                          onAction: () => ref
+                              .read(deviceServiceProvider)
+                              .openNotificationSettings(),
+                        ),
+                        if (preferences != null)
+                          for (final (i, topic) in topics.indexed)
+                            IqSettingRow(
+                              label: notificationCopy[topic]!.$1,
+                              description: notificationCopy[topic]!.$2,
+                              divider: i < topics.length - 1,
+                              state: preferences[topic] ?? false
+                                  ? IqSwitchState.on
+                                  : IqSwitchState.off,
+                              onChanged: (state) => flip(topic, state),
+                            ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
   }
+}
+
+/// Coming back from the phone's settings checks the permission again, so
+/// the banner goes as soon as notifications are allowed.
+class _RecheckOnResume extends ConsumerStatefulWidget {
+  const _RecheckOnResume({required this.child});
+
+  final Widget child;
+
+  @override
+  ConsumerState<_RecheckOnResume> createState() => _RecheckOnResumeState();
+}
+
+class _RecheckOnResumeState extends ConsumerState<_RecheckOnResume> {
+  late final _lifecycle = AppLifecycleListener(
+    onResume: () => ref.invalidate(notificationsAllowedProvider),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle;
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

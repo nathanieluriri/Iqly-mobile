@@ -263,27 +263,6 @@ class Surfaces {
     );
   }
 
-  /// For the Turn on button of the notifications ask (B0 484:23576).
-  Future<bool> requestNotificationPermission() async {
-    final android = _notifications
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >();
-    if (android != null) {
-      return await android.requestNotificationsPermission() ?? false;
-    }
-    final ios = _notifications
-        .resolvePlatformSpecificImplementation<
-          IOSFlutterLocalNotificationsPlugin
-        >();
-    return await ios?.requestPermissions(
-          alert: true,
-          badge: true,
-          sound: true,
-        ) ??
-        false;
-  }
-
   Future<void> _initNotifications() async {
     await _notifications.initialize(
       settings: InitializationSettings(
