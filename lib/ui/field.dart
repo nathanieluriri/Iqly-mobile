@@ -429,6 +429,7 @@ class _IqFieldState extends State<IqField> {
       );
     }
     return IqPressable(
+      tactile: false,
       onTap: widget.onTap,
       semanticLabel:
           '${widget.pickerLabel}, ${state == IqFieldState.empty ? widget.pickerPlaceholder : widget.pickerValue}',

@@ -97,6 +97,7 @@ class _IqGiftButtonState extends State<IqGiftButton>
     return IqPressable(
       onTap: widget.onTap,
       semanticLabel: 'Invite friends',
+      hint: 'Invite friends',
       builder: (context, pressed) => AnimatedBuilder(
         animation: _loop,
         builder: (context, _) {

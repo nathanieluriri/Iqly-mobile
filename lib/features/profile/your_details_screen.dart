@@ -93,12 +93,14 @@ class YourDetailsScreen extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
         children: [
           for (final field in DetailField.values)
-            IqListRow(
-              label: field.label,
-              description: detailValue(field, details, answers),
-              icon: field.icon,
-              onTap: () => context.push(editDetailPath(field)),
-            ),
+            if (field != DetailField.university ||
+                Reference.studiesAtUniversity(answers.education))
+              IqListRow(
+                label: field.label,
+                description: detailValue(field, details, answers),
+                icon: field.icon,
+                onTap: () => context.push(editDetailPath(field)),
+              ),
           const SizedBox(height: IqSpace.s2),
           Text(
             'Tap a row to change it. Your email stays as your sign-in.',

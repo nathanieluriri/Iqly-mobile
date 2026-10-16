@@ -17,15 +17,17 @@ import '../../ui/illustration.dart';
 import '../../ui/list_row.dart';
 import '../../ui/share_target.dart';
 import '../../ui/pressable.dart';
+import '../../ui/toast.dart';
 import '../../ui/top_bar.dart';
 import '../discover/discover_state.dart';
 import '../more/more_widgets.dart';
 import 'referrals_state.dart';
 
-/// Puts the invite [code] on the clipboard.
+/// Puts the invite [code] on the clipboard and says so.
 Future<void> copyInviteCode(BuildContext context, String code) async {
   await Clipboard.setData(ClipboardData(text: code));
-  await IqHaptics.select.play();
+  IqHaptics.success.play();
+  if (context.mounted) IqToast.show(context, 'Code copied');
 }
 
 /// B20 · Referrals (430:19109): the Gift figure, the ₦500 promise, the
@@ -293,8 +295,10 @@ class _InviteSheet extends ConsumerWidget {
                     await Clipboard.setData(
                       ClipboardData(text: ReferralsService.link(code)),
                     );
-                    await IqHaptics.select.play();
-                    if (context.mounted) close();
+                    IqHaptics.success.play();
+                    if (!context.mounted) return;
+                    IqToast.show(context, 'Link copied');
+                    close();
                   },
                 ),
                 IqListRow(

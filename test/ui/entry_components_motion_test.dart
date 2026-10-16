@@ -239,7 +239,7 @@ void main() {
       await _pump(tester, fab(IqNextFabState.enabled));
       await tester.tap(find.byType(IqNextFab));
       await tester.pumpAndSettle();
-      expect(haptics, ['HapticFeedbackType.lightImpact']);
+      expect(haptics, ['HapticFeedbackType.mediumImpact']);
     });
   });
 

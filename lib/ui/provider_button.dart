@@ -46,7 +46,9 @@ class IqProviderButton extends StatelessWidget {
     return IqPressable(
       onTap: onTap,
       semanticLabel: kind.label,
-      haptic: kind == IqProviderButtonKind.email ? IqHaptics.commit : null,
+      haptic: kind == IqProviderButtonKind.email
+          ? IqHaptics.commit
+          : IqHaptics.tap,
       builder: (context, pressed) {
         final email = kind == IqProviderButtonKind.email;
         final ink = email ? IqColors.card : IqColors.fg;

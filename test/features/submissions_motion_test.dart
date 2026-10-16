@@ -266,11 +266,14 @@ void main() {
     await tester.pump(_ms * 400);
     await tester.pump();
     expect(find.byType(SkeletonSubmissionCard), findsNWidgets(3));
-    expect(haptics, isEmpty);
+    expect(haptics, ['HapticFeedbackType.lightImpact']);
     repository.loads.last.completeError(Exception('offline'));
     await tester.pumpAndSettle();
     expect(find.byType(IqBanner), findsOneWidget);
-    expect(haptics, ['HapticFeedbackType.mediumImpact']);
+    expect(haptics, [
+      'HapticFeedbackType.lightImpact',
+      'HapticFeedbackType.mediumImpact',
+    ]);
   });
 
   testWidgets('the lit tab is inert: tapping it leaves the list where it is', (

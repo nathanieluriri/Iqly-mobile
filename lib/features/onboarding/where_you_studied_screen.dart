@@ -14,7 +14,8 @@ import 'onboarding_sheets.dart';
 
 /// B11 · Step 2 · Where you studied (223:10826): education (the option
 /// sheet, 480:20164), then the university search (188:8340), whose "Add my
-/// university" opens Add your university (480:20477).
+/// university" opens Add your university (480:20477). SSCE / WAEC has no
+/// university, so the field folds away (1284:90545).
 ///
 /// "Use this" in the university search moves on to What you like, as Figma
 /// wires it (188:8380 to 188:8390), but only once the sheet has dropped and
@@ -109,14 +110,21 @@ class _WhereYouStudiedScreenState extends ConsumerState<WhereYouStudiedScreen>
             pickerPlaceholder: 'Select…',
             onTap: () => _pickEducation(profile.education),
           ),
-          const SizedBox(height: IqSpace.s6),
-          IqField(
-            kind: IqFieldKind.picker,
-            state: university == null ? IqFieldState.empty : IqFieldState.valid,
-            pickerLabel: 'University',
-            pickerValue: university ?? '',
-            pickerPlaceholder: 'Search universities',
-            onTap: () => _pickUniversity(university, profile.state),
+          RevealSlot(
+            shown: Reference.studiesAtUniversity(profile.education),
+            child: Padding(
+              padding: const EdgeInsets.only(top: IqSpace.s6),
+              child: IqField(
+                kind: IqFieldKind.picker,
+                state: university == null
+                    ? IqFieldState.empty
+                    : IqFieldState.valid,
+                pickerLabel: 'University',
+                pickerValue: university ?? '',
+                pickerPlaceholder: 'Search universities',
+                onTap: () => _pickUniversity(university, profile.state),
+              ),
+            ),
           ),
         ],
       ),

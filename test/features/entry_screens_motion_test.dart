@@ -123,7 +123,7 @@ void main() {
       expect(tester.getTopLeft(find.byType(IqStepMark)), mark);
       expect(find.text('Create account'), findsOneWidget);
       expect(tester.testTextInput.isVisible, isTrue);
-      expect(haptics, [_light]);
+      expect(haptics, [_medium]);
     },
   );
 
@@ -157,7 +157,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ForgotPasswordScreen), findsOneWidget);
     expect(find.text('Send reset link'), findsOneWidget);
-    expect(haptics, isEmpty);
+    expect(haptics, [_light]);
   });
 
   testWidgets('Sign in fails: the error haptic, and the Forgot row moves down '
@@ -190,7 +190,7 @@ void main() {
     expect(banner, greaterThan(60));
     expect(start - rest, lessThan(banner * 0.2));
     expect(mid - rest, closeTo(banner * _eo(0.5), banner * 0.1));
-    expect(haptics, [_light, _medium]);
+    expect(haptics, [_medium, _medium]);
     await tester.pumpAndSettle();
   });
 
@@ -249,14 +249,14 @@ void main() {
     await tester.tap(find.byType(IqButton), warnIfMissed: false);
     await tester.pump(_ms * 100);
     expect(auth.signUps, 1);
-    expect(haptics, [_light]);
+    expect(haptics, [_medium]);
 
     await tester.pump(_ms * 500);
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     expect(find.byType(VerifyEmailScreen), findsOneWidget);
     expect(auth.signUps, 1);
-    expect(haptics, [_light, _success]);
+    expect(haptics, [_medium, _success]);
     expect(tester.testTextInput.isVisible, isTrue);
   });
 
@@ -282,7 +282,8 @@ void main() {
     for (var i = 0; i < 40; i++) {
       await keyboard.frame();
       final leaving = top('Send reset link');
-      if (leaving != null) expect(leaving, send);
+      // The press sink scales the button's paint, never its layout.
+      if (leaving != null) expect(leaving, closeTo(send, 1));
       final coming = top('Open email app');
       if (coming != null) {
         open ??= coming;
@@ -345,7 +346,7 @@ void main() {
       for (final finder in [title, sent, remembered]) {
         expect(_opacity(tester, finder), 1);
       }
-      expect(haptics, [_light, _success]);
+      expect(haptics, [_light, _medium, _success]);
     });
 
     testWidgets('Resend rolls the Sent to line once and plays success', (
@@ -365,7 +366,7 @@ void main() {
       expect(leaving, lessThan(coming));
       await tester.pumpAndSettle();
       expect(sent, findsOneWidget);
-      expect(haptics, [_success]);
+      expect(haptics, [_light, _success]);
     });
 
     testWidgets('Sign in pops only this page back onto Sign in', (

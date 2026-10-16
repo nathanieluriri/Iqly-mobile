@@ -106,7 +106,9 @@ class _IqBookmarkState extends State<IqBookmark> with TickerProviderStateMixin {
     return Semantics(
       toggled: on,
       child: IqPressable(
+        tactile: false,
         semanticLabel: on ? 'Saved' : 'Save',
+        hint: on ? 'Saved' : 'Save',
         haptic: IqHaptics.select,
         onTap: widget.onChanged == null ? null : _tap,
         builder: (context, pressed) => AnimatedScale(

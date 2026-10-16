@@ -11,6 +11,7 @@ import 'package:iqly_mobile/ui/sticker.dart';
 
 const _light = 'HapticFeedbackType.lightImpact';
 const _medium = 'HapticFeedbackType.mediumImpact';
+const _heavy = 'HapticFeedbackType.heavyImpact';
 const _select = 'HapticFeedbackType.selectionClick';
 
 List<String> _haptics(WidgetTester tester) {
@@ -213,7 +214,8 @@ void main() {
   });
 
   group('Button', () {
-    testWidgets('haptics: commit on Primary and Inverse, medium on Danger', (
+    testWidgets('haptics: commit on Primary and Inverse, the heavy '
+        'destructive on Danger, a light tap on Secondary and Ghost', (
       tester,
     ) async {
       final played = _haptics(tester);
@@ -222,14 +224,15 @@ void main() {
         await tester.tap(find.byType(IqButton));
         await tester.pump(const Duration(milliseconds: 200));
       }
-      expect(played, [_light, _medium, _light]);
+      const kinds = [_medium, _light, _heavy, _light, _medium];
+      expect(played, kinds);
 
       await _pump(tester, IqButton(disabled: true, onTap: () {}));
       await tester.tap(find.byType(IqButton), warnIfMissed: false);
       await _pump(tester, IqNextFab(onTap: () {}));
       await tester.tap(find.byType(IqNextFab), warnIfMissed: false);
       await tester.pump(const Duration(milliseconds: 200));
-      expect(played, [_light, _medium, _light]);
+      expect(played, kinds);
 
       await _pump(
         tester,
@@ -240,7 +243,7 @@ void main() {
       await _pump(tester, IqChip(onChanged: (_) {}));
       await tester.tap(find.byType(IqChip));
       await tester.pump(const Duration(milliseconds: 200));
-      expect(played, [_light, _medium, _light, _light, _select]);
+      expect(played, [...kinds, _medium, _select]);
     });
 
     testWidgets('Ghost dims instead of dropping', (tester) async {

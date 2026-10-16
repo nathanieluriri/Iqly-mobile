@@ -93,9 +93,11 @@ class _IqNextFabState extends State<IqNextFab>
     final enabled = _enabled;
     final curve = enabled ? IqCurves.easeOut : IqCurves.easeIn;
     final fab = IqPressable(
+      tactile: false,
       onTap: widget.onTap,
       enabled: enabled && !widget.loading,
       semanticLabel: widget.semanticLabel,
+      hint: widget.semanticLabel,
       haptic: IqHaptics.commit,
       builder: (context, pressed) => SizedBox.square(
         dimension: IqNextFab.size,

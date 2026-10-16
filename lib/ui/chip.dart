@@ -21,17 +21,26 @@ enum IqChipState { standard, selected }
 /// The width never changes. A change made while the chip is hidden (its page
 /// covered) is in place when it shows again. Reduced motion: colours cut,
 /// no scale.
+///
+/// [refused] is the peak of a refused pick (Row note 1284:90609, frame
+/// 1284:90206): the outline and label take the error tones on the white
+/// pill and ease back when it clears. [haptic] is the select tick unless the caller answers
+/// the tap with its own.
 class IqChip extends StatelessWidget {
   const IqChip({
     super.key,
     this.label = 'Marketing & advertising',
     this.state = IqChipState.standard,
     this.onChanged,
+    this.refused = false,
+    this.haptic = IqHaptics.select,
   });
 
   final String label;
   final IqChipState state;
   final ValueChanged<IqChipState>? onChanged;
+  final bool refused;
+  final IqHaptics? haptic;
 
   static const double height = 44;
   static const Duration pop = IqDurations.press;
@@ -47,8 +56,9 @@ class IqChip extends StatelessWidget {
     return Semantics(
       selected: selected,
       child: IqPressable(
+        tactile: false,
         semanticLabel: label,
-        haptic: IqHaptics.select,
+        haptic: haptic,
         onTap: onChanged == null
             ? null
             : () => onChanged!(
@@ -65,18 +75,26 @@ class IqChip extends StatelessWidget {
               height: height,
               padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
               decoration: BoxDecoration(
-                color: selected ? IqColors.tint : IqColors.card,
+                color: selected && !refused ? IqColors.tint : IqColors.card,
                 borderRadius: shape,
               ),
               // A foreground border keeps Figma's inside stroke out of the hug width.
               foregroundDecoration: BoxDecoration(
                 borderRadius: shape,
-                border: selected
+                border: refused
+                    ? Border.all(color: IqColors.err, width: 1.5)
+                    : selected
                     ? Border.all(color: IqColors.brand, width: 1.5)
                     : Border.all(color: IqColors.line),
               ),
               child: TweenAnimationBuilder<Color?>(
-                tween: ColorTween(end: selected ? IqColors.brand : IqColors.fg),
+                tween: ColorTween(
+                  end: refused
+                      ? IqColors.errStrong
+                      : selected
+                      ? IqColors.brand
+                      : IqColors.fg,
+                ),
                 duration: ink,
                 curve: curve,
                 builder: (context, color, _) => Align(

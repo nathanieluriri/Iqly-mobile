@@ -28,7 +28,7 @@ import '../golden/screens/app_harness.dart';
 import '../golden/screens/submit_harness.dart';
 import 'entry_harness.dart' show recordHaptics;
 
-const _commit = 'HapticFeedbackType.lightImpact';
+const _commit = 'HapticFeedbackType.mediumImpact';
 const _select = 'HapticFeedbackType.selectionClick';
 const _success = 'HapticFeedbackType.successNotification';
 const _error = 'HapticFeedbackType.mediumImpact';

@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -238,7 +237,7 @@ class _Wheel extends StatelessWidget {
   }
 
   void _select(int index) {
-    if (defaultTargetPlatform == TargetPlatform.iOS) IqHaptics.select.play();
+    IqHaptics.tick.play();
     onSelected(index);
   }
 

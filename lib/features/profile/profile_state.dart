@@ -30,7 +30,10 @@ final profileAnswersProvider = Provider<OnboardingProfile>((ref) {
         ? draft.city
         : user?.city ?? '',
     education: draft.education ?? user?.education,
-    university: draft.university ?? user?.university,
+    university:
+        Reference.studiesAtUniversity(draft.education ?? user?.education)
+        ? draft.university ?? user?.university
+        : null,
     interests: ref.watch(feedInterestsProvider),
   );
 });

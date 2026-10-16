@@ -22,6 +22,7 @@ import '../golden/screens/polls_notifications_help_harness.dart';
 import '../golden/screens/wallet_harness.dart';
 import 'entry_harness.dart' show recordHaptics;
 
+const _light = 'HapticFeedbackType.lightImpact';
 const _success = 'HapticFeedbackType.successNotification';
 const _error = 'HapticFeedbackType.mediumImpact';
 
@@ -81,7 +82,7 @@ void main() {
     expect(_button(tester, 'Send to support').disabled, isFalse);
 
     await _tap(tester, find.text('Send to support'));
-    expect(haptics, [_success]);
+    expect(haptics, [_light, _success], reason: 'the clip, then the send');
     expect(find.byType(HelpRequestScreen), findsNothing);
     expect(find.byType(HelpThreadScreen), findsOneWidget);
     expect(help.requests.single.message, figmaMessage);
@@ -177,7 +178,7 @@ void main() {
     await _openFromHome(tester, help: FailingHelpService());
     await _write(tester);
     await _tap(tester, find.text('Send to support'));
-    expect(haptics, [_error]);
+    expect(haptics, [_light, _error]);
     expect(find.byType(HelpRequestScreen), findsOneWidget);
     expect(find.text('Couldn’t send. Check your connection.'), findsOneWidget);
     expect(_button(tester, 'Send to support').disabled, isFalse);

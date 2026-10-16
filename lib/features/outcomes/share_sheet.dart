@@ -14,6 +14,7 @@ import '../../ui/list_row.dart';
 import '../../ui/share_card.dart';
 import '../../ui/share_target.dart';
 import '../../ui/top_bar.dart';
+import '../../ui/toast.dart';
 import '../submissions/row_card.dart';
 import 'outcomes_state.dart';
 import 'result_screen.dart';
@@ -94,7 +95,9 @@ class _ShareSheetState extends ConsumerState<ShareSheet> {
   Future<void> _copy(String link) async {
     await Clipboard.setData(ClipboardData(text: link));
     IqHaptics.success.play();
-    if (mounted) context.pop();
+    if (!mounted) return;
+    IqToast.show(context, 'Link copied');
+    context.pop();
   }
 
   @override

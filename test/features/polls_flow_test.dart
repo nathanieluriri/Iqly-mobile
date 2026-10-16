@@ -16,6 +16,7 @@ import '../golden/screens/discover_harness.dart';
 import '../golden/screens/polls_notifications_help_harness.dart';
 import 'entry_harness.dart' show recordHaptics;
 
+const _light = 'HapticFeedbackType.lightImpact';
 const _select = 'HapticFeedbackType.selectionClick';
 const _error = 'HapticFeedbackType.mediumImpact';
 
@@ -77,7 +78,7 @@ void main() {
     expect(_card(tester, _flavour).state, IqPollCardState.open);
 
     await _tap(tester, find.text('Zobo and ginger'));
-    expect(haptics, [_select]);
+    expect(haptics, [_light, _light, _select]);
     expect(_card(tester, _flavour).state, IqPollCardState.voted);
     expect(find.text('You voted · 214 votes'), findsOneWidget);
     expect(find.text('45%'), findsOneWidget);
@@ -283,7 +284,7 @@ void main() {
     );
     await _tap(tester, find.text(_books));
     await _tap(tester, find.text('WhatsApp sellers'));
-    expect(haptics, [_select, _error]);
+    expect(haptics, [_light, _select, _error]);
     expect(find.text('Couldn’t send. Check your connection.'), findsOneWidget);
     expect(_card(tester, _books).state, IqPollCardState.open);
     expect(find.text('Quick polls'), findsWidgets);

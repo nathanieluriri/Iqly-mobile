@@ -167,20 +167,40 @@ void main() {
       return played;
     }
 
-    testWidgets('commit, select, destructive, success and error', (
-      tester,
-    ) async {
+    testWidgets('each moment in its weight: light taps, medium commits, '
+        'heavy holds and destructive starts', (tester) async {
       final played = record(tester);
       for (final haptic in IqHaptics.values) {
         await haptic.play();
         await tester.pump(Duration.zero);
       }
       expect(played, [
-        'HapticFeedbackType.selectionClick',
         'HapticFeedbackType.lightImpact',
+        'HapticFeedbackType.selectionClick',
+        'HapticFeedbackType.selectionClick',
         'HapticFeedbackType.mediumImpact',
+        'HapticFeedbackType.heavyImpact',
+        'HapticFeedbackType.mediumImpact',
+        'HapticFeedbackType.heavyImpact',
         'HapticFeedbackType.successNotification',
         'HapticFeedbackType.mediumImpact',
+      ]);
+    });
+
+    testWidgets('a wheel tick also plays the system click', (tester) async {
+      final calls = <String>[];
+      final messenger = tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        calls.add('${call.method} ${call.arguments}');
+        return null;
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      await IqHaptics.tick.play();
+      expect(calls, [
+        'SystemSound.play SystemSoundType.click',
+        'HapticFeedback.vibrate HapticFeedbackType.selectionClick',
       ]);
     });
 
@@ -203,14 +223,29 @@ void main() {
       ]);
     });
 
+    testWidgets('a tap gives way to a result in its frame too', (tester) async {
+      final played = record(tester);
+      IqHaptics.tap.play();
+      IqHaptics.success.play();
+      await tester.pump(Duration.zero);
+      expect(played, ['HapticFeedbackType.successNotification']);
+
+      IqHaptics.tap.play();
+      await tester.pump(Duration.zero);
+      expect(played, [
+        'HapticFeedbackType.successNotification',
+        'HapticFeedbackType.lightImpact',
+      ]);
+    });
+
     testWidgets('a result that comes later follows its commit', (tester) async {
       final played = record(tester);
       IqHaptics.commit.play();
       await tester.pump(Duration.zero);
-      expect(played, ['HapticFeedbackType.lightImpact']);
+      expect(played, ['HapticFeedbackType.mediumImpact']);
       IqHaptics.success.play();
       expect(played, [
-        'HapticFeedbackType.lightImpact',
+        'HapticFeedbackType.mediumImpact',
         'HapticFeedbackType.successNotification',
       ]);
     });

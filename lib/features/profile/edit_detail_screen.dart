@@ -402,6 +402,7 @@ class _InterestsEdit extends ConsumerStatefulWidget {
 
 class _InterestsEditState extends ConsumerState<_InterestsEdit> {
   List<String>? _choice;
+  String? _other;
 
   void _toggle(List<String> picked, String value) => setState(
     () => _choice = picked.contains(value)
@@ -411,25 +412,35 @@ class _InterestsEditState extends ConsumerState<_InterestsEdit> {
 
   @override
   Widget build(BuildContext context) {
-    final picked = _choice ?? ref.watch(profileAnswersProvider).interests;
+    final answers = ref.watch(profileAnswersProvider);
+    final picked = _choice ?? answers.interests;
+    final other = _other ?? answers.otherInterest;
+    final next = answers.copyWith(interests: picked, otherInterest: other);
     return _EditPage(
       title: 'Interests',
-      canSave: picked.length >= OnboardingDraft.minInterests,
+      canSave: OnboardingDraft.interestsComplete(next),
       onSave: () async {
-        await saveProfile(ref, answers: (a) => _answers(a, interests: picked));
+        await saveProfile(
+          ref,
+          answers: (a) => a.copyWith(interests: picked, otherInterest: other),
+        );
         return true;
       },
       body: ListView(
         children: [
           Text(
-            'Pick at least ${OnboardingDraft.minInterests}. They order your '
-            'Discover feed.',
+            '$interestsCaption. They order your Discover feed.',
             style: IqText.body.copyWith(color: IqColors.fg2),
           ),
           const SizedBox(height: IqSpace.s2),
           InterestChips(
             selected: picked,
             onToggle: (value) => _toggle(picked, value),
+          ),
+          OtherInterestField(
+            shown: picked.contains(OnboardingDraft.otherInterest),
+            value: other,
+            onChanged: (text) => setState(() => _other = text),
           ),
         ],
       ),
@@ -612,7 +623,7 @@ class _OptionEditState extends ConsumerState<_OptionEdit> {
         ),
         DetailField.university => _answers(now, university: picked),
         DetailField.city => _answers(now, city: picked),
-        _ => _answers(now, education: picked),
+        _ => now.withEducation(picked),
       };
 
   @override

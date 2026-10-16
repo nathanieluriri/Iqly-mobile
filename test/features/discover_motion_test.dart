@@ -627,14 +627,17 @@ void main() {
     expect(banner(), lessThan(height));
     await tester.pump(_ms * 100);
     expect(banner(), 0);
-    expect(haptics, isEmpty);
+    expect(haptics, ['HapticFeedbackType.lightImpact']);
 
     repository.retry!.completeError(Exception('offline'));
     await tester.pump();
     await tester.pump();
     await tester.pump(IqBanner.enter + _ms);
     expect(banner(), height);
-    expect(haptics, ['HapticFeedbackType.mediumImpact']);
+    expect(haptics, [
+      'HapticFeedbackType.lightImpact',
+      'HapticFeedbackType.mediumImpact',
+    ]);
   });
 
   testWidgets('the lit tab is inert: tapping it leaves the feed where it is', (

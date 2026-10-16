@@ -54,6 +54,16 @@ void main() {
       },
     );
 
+    test('SSCE / WAEC answers carry no university, even the account '
+        'one', () async {
+      final (container, _) = await _container({
+        'onboarding.draft': jsonEncode({'education': 'ssce'}),
+      });
+      final answers = container.read(profileAnswersProvider);
+      expect(answers.education, 'ssce');
+      expect(answers.university, isNull);
+    });
+
     test('setProfile writes the draft onboarding reads', () async {
       final (container, _) = await _container();
       container

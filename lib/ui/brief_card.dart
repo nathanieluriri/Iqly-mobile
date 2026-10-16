@@ -96,6 +96,7 @@ class IqBriefCard extends StatelessWidget {
       child: row ? _row() : _stacked(),
     );
     return IqPressable(
+      tactile: false,
       onTap: onTap,
       semanticLabel: '$brand, $title',
       builder: (context, pressed) => AnimatedScale(
