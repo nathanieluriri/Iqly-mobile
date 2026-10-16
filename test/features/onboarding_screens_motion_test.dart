@@ -541,6 +541,34 @@ void main() {
       expect(haptics, [_error, _select, _select]);
     });
 
+    testWidgets('reduced motion: the refused chip holds still, its flash and '
+        'the toast keep their time', (tester) async {
+      await _open(
+        tester,
+        Routes.onboardingWhatYouLike,
+        draft: {
+          ..._aboutYou,
+          'interests': ['tech_gadgets', 'education', 'health_wellness'],
+          'lastStep': 'whatYouLike',
+        },
+        reduced: true,
+      );
+      await tester.pumpAndSettle();
+      final chip = find.widgetWithText(IqChip, 'Business');
+      final rest = tester.getTopLeft(chip).dx;
+      await tester.tap(chip);
+      await tester.pump();
+      await tester.pump(_ms * 120);
+      expect(tester.getTopLeft(chip).dx, rest);
+      await tester.pump(IqDurations.refused - _ms * 140);
+      expect(tester.widget<IqChip>(chip).refused, isTrue);
+      await tester.pump(_ms * 40);
+      expect(tester.widget<IqChip>(chip).refused, isFalse);
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Max 3 interests. Unselect one first.'), findsOneWidget);
+      await tester.pumpAndSettle();
+    });
+
     testWidgets('Other opens a field for its words, and Finish waits for them '
         '(1284:90430)', (tester) async {
       await _open(

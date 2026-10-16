@@ -192,15 +192,17 @@ class _ReferralsScreenState extends ConsumerState<ReferralsScreen> {
 
 /// B20 · Invite · share sheet (433:19672): the message, the apps, Copy link
 /// and Save image.
-Future<void> showInviteSheet(BuildContext context, String code) =>
-    showIqSheet<void>(
-      Navigator.of(context, rootNavigator: true).context,
-      (context) => Material(
-        type: MaterialType.transparency,
-        child: _InviteSheet(code: code),
-      ),
-      scrim: IqScrim.share,
-    );
+Future<void> showInviteSheet(BuildContext context, String code) async {
+  final copied = await showIqSheet<bool>(
+    Navigator.of(context, rootNavigator: true).context,
+    (context) => Material(
+      type: MaterialType.transparency,
+      child: _InviteSheet(code: code),
+    ),
+    scrim: IqScrim.share,
+  );
+  if (copied == true && context.mounted) IqToast.show(context, 'Link copied');
+}
 
 class _InviteSheet extends ConsumerWidget {
   const _InviteSheet({required this.code});
@@ -296,9 +298,7 @@ class _InviteSheet extends ConsumerWidget {
                       ClipboardData(text: ReferralsService.link(code)),
                     );
                     IqHaptics.success.play();
-                    if (!context.mounted) return;
-                    IqToast.show(context, 'Link copied');
-                    close();
+                    if (context.mounted) Navigator.of(context).pop(true);
                   },
                 ),
                 IqListRow(

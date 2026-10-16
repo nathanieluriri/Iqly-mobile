@@ -102,6 +102,7 @@ class _InterestChipsState extends State<InterestChips>
   late final AnimationController _flash = AnimationController(
     vsync: this,
     duration: IqDurations.refused,
+    animationBehavior: AnimationBehavior.preserve,
   )..addStatusListener(_flashEnded);
 
   void _flashEnded(AnimationStatus status) {
@@ -199,7 +200,7 @@ class _OtherInterestFieldState extends State<OtherInterestField> {
     return RevealSlot(
       shown: widget.shown,
       child: Padding(
-        padding: const EdgeInsets.only(top: IqSpace.s6),
+        padding: const EdgeInsets.only(top: IqSpace.s3),
         child: IqField(
           label: 'Other interest',
           value: '',

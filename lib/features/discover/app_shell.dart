@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/transitions.dart';
 import '../../theme/theme.dart';
 import '../../ui/dock.dart';
+import '../../ui/toast.dart';
 import '../entry/first_tip.dart';
 
 /// A dock switch onto [tab]: a tab that comes back shows what it had and
@@ -64,18 +65,20 @@ class AppShell extends ConsumerWidget {
                 left: 0,
                 right: 0,
                 bottom: 0,
-                child: ColoredBox(
-                  color: IqColors.bg,
-                  child: Padding(
-                    padding: EdgeInsets.only(bottom: bottom),
-                    child: IqDock(
-                      active: active,
-                      onChanged: onTab == null
-                          ? null
-                          : (tab) {
-                              ref.read(tabEntryProvider.notifier).enter(tab);
-                              onTab(tab);
-                            },
+                child: IqToastFloor(
+                  child: ColoredBox(
+                    color: IqColors.bg,
+                    child: Padding(
+                      padding: EdgeInsets.only(bottom: bottom),
+                      child: IqDock(
+                        active: active,
+                        onChanged: onTab == null
+                            ? null
+                            : (tab) {
+                                ref.read(tabEntryProvider.notifier).enter(tab);
+                                onTab(tab);
+                              },
+                      ),
                     ),
                   ),
                 ),

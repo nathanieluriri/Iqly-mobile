@@ -11,6 +11,7 @@ import '../../ui/banner.dart';
 import '../../ui/button.dart';
 import '../../ui/illustration.dart';
 import '../../ui/step_mark.dart';
+import '../../ui/toast.dart';
 import '../../ui/top_bar.dart';
 import '../entry/entry_widgets.dart';
 import 'onboarding_draft.dart';
@@ -175,29 +176,31 @@ class _OnboardingStepScaffoldState extends State<OnboardingStepScaffold> {
                     IqSpace.s4,
                     IqSpace.s6,
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      ChromeHero(
-                        tag: ChromeTags.next,
-                        child: _Next(
-                          label: widget.nextLabel,
-                          enabled: widget.nextEnabled,
-                          onTap: widget.onNext,
-                          onTapDisabled: caption == null
-                              ? null
-                              : () => setState(() => _missing++),
+                  child: IqToastFloor(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        ChromeHero(
+                          tag: ChromeTags.next,
+                          child: _Next(
+                            label: widget.nextLabel,
+                            enabled: widget.nextEnabled,
+                            onTap: widget.onNext,
+                            onTapDisabled: caption == null
+                                ? null
+                                : () => setState(() => _missing++),
+                          ),
                         ),
-                      ),
-                      ChromeHero(
-                        tag: ChromeTags.skip,
-                        child: GhostAction(
-                          label: 'Skip for now',
-                          onTap: widget.onSkip,
+                        ChromeHero(
+                          tag: ChromeTags.skip,
+                          child: GhostAction(
+                            label: 'Skip for now',
+                            onTap: widget.onSkip,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ],

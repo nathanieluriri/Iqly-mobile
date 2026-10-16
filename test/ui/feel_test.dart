@@ -248,6 +248,93 @@ void main() {
       expect(find.text('Max 3 interests. Unselect one first.'), findsNothing);
     });
 
+    Future<BuildContext> floored(
+      WidgetTester tester, {
+      bool floor = true,
+      double keyboard = 0,
+      bool reduced = false,
+    }) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      tester.view.viewPadding = const FakeViewPadding(bottom: 34);
+      tester.view.viewInsets = FakeViewPadding(bottom: keyboard);
+      addTearDown(tester.view.reset);
+      if (reduced) {
+        tester.platformDispatcher.accessibilityFeaturesTestValue =
+            const FakeAccessibilityFeatures(disableAnimations: true);
+        addTearDown(
+          tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+        );
+      }
+      late BuildContext ctx;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildTheme(),
+          home: Scaffold(
+            resizeToAvoidBottomInset: false,
+            body: Column(
+              children: [
+                Expanded(
+                  child: Builder(
+                    builder: (context) {
+                      ctx = context;
+                      return const SizedBox.expand();
+                    },
+                  ),
+                ),
+                if (floor) const IqToastFloor(child: SizedBox(height: 100)),
+                const SizedBox(height: 34),
+              ],
+            ),
+          ),
+        ),
+      );
+      return ctx;
+    }
+
+    double toastBottom(WidgetTester tester) =>
+        tester.getBottomLeft(find.byType(IqToast)).dy;
+
+    testWidgets('floats 24 above its screen\'s floor, or above the home '
+        'indicator without one (1284:90206)', (tester) async {
+      var ctx = await floored(tester);
+      IqToast.show(ctx, 'Code copied');
+      await tester.pump();
+      await tester.pump(IqDurations.appear);
+      expect(toastBottom(tester), 844 - 34 - 100 - 24);
+      await tester.pumpAndSettle();
+
+      ctx = await floored(tester, floor: false);
+      IqToast.show(ctx, 'Code copied');
+      await tester.pump();
+      await tester.pump(IqDurations.appear);
+      expect(toastBottom(tester), 844 - 34 - 24);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('rides above the keyboard while it is up', (tester) async {
+      final ctx = await floored(tester, keyboard: 336);
+      IqToast.show(ctx, 'Max 3 interests. Unselect one first.');
+      await tester.pump();
+      await tester.pump(IqDurations.appear);
+      expect(toastBottom(tester), 844 - 336 - 24);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('reduced motion: no rise, and it still stays its 2 s', (
+      tester,
+    ) async {
+      final ctx = await floored(tester, reduced: true);
+      IqToast.show(ctx, 'Code copied');
+      await tester.pump();
+      await tester.pump(IqDurations.appear);
+      expect(toastBottom(tester), 844 - 34 - 100 - 24);
+      await tester.pump(IqDurations.toast - IqDurations.appear);
+      expect(find.text('Code copied'), findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(find.text('Code copied'), findsNothing);
+    });
+
     testWidgets('a new toast replaces the one showing', (tester) async {
       late BuildContext ctx;
       await _pump(
