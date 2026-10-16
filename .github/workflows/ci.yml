@@ -36,3 +36,5 @@ jobs:
           IQLY_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           IQLY_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           IQLY_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      - name: Show the signing certificate
+        run: keytool -printcert -jarfile build/app/outputs/flutter-apk/app-debug.apk | grep -E "SHA1|Owner"
