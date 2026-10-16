@@ -21,7 +21,7 @@ import 'phone_keyboard.dart';
 
 const _ms = Duration(milliseconds: 1);
 const _light = 'HapticFeedbackType.lightImpact';
-const _medium = 'HapticFeedbackType.mediumImpact';
+const _heavy = 'HapticFeedbackType.heavyImpact';
 const _success = 'HapticFeedbackType.successNotification';
 
 double _eo(double t) => IqCurves.easeOut.transform(t);
@@ -123,7 +123,7 @@ void main() {
       expect(tester.getTopLeft(find.byType(IqStepMark)), mark);
       expect(find.text('Create account'), findsOneWidget);
       expect(tester.testTextInput.isVisible, isTrue);
-      expect(haptics, [_medium]);
+      expect(haptics, [_heavy]);
     },
   );
 
@@ -190,7 +190,7 @@ void main() {
     expect(banner, greaterThan(60));
     expect(start - rest, lessThan(banner * 0.2));
     expect(mid - rest, closeTo(banner * _eo(0.5), banner * 0.1));
-    expect(haptics, [_medium, _medium]);
+    expect(haptics, [_heavy, _heavy]);
     await tester.pumpAndSettle();
   });
 
@@ -249,14 +249,14 @@ void main() {
     await tester.tap(find.byType(IqButton), warnIfMissed: false);
     await tester.pump(_ms * 100);
     expect(auth.signUps, 1);
-    expect(haptics, [_medium]);
+    expect(haptics, [_heavy]);
 
     await tester.pump(_ms * 500);
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     expect(find.byType(VerifyEmailScreen), findsOneWidget);
     expect(auth.signUps, 1);
-    expect(haptics, [_medium, _success]);
+    expect(haptics, [_heavy, _success]);
     expect(tester.testTextInput.isVisible, isTrue);
   });
 
@@ -346,7 +346,7 @@ void main() {
       for (final finder in [title, sent, remembered]) {
         expect(_opacity(tester, finder), 1);
       }
-      expect(haptics, [_light, _medium, _success]);
+      expect(haptics, [_light, _heavy, _success]);
     });
 
     testWidgets('Resend rolls the Sent to line once and plays success', (

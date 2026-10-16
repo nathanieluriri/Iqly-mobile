@@ -459,22 +459,33 @@ enum IqHaptics {
     return Future.value();
   }
 
-  /// Plays it; an error is the iOS error pattern, a medium impact on Android.
+  /// Many Android phones play nothing for CLOCK_TICK or KEYBOARD_TAP, which
+  /// is what Flutter's selection click and medium impact use there, so
+  /// Android gets VIRTUAL_KEY and CONTEXT_CLICK in their place.
+  static bool get _android => defaultTargetPlatform == TargetPlatform.android;
+
+  static Future<void> _selection() =>
+      _android ? HapticFeedback.lightImpact() : HapticFeedback.selectionClick();
+
+  static Future<void> _medium() =>
+      _android ? HapticFeedback.heavyImpact() : HapticFeedback.mediumImpact();
+
+  /// Plays it; an error is the iOS error pattern, a medium impact elsewhere.
   Future<void> play() {
     switch (this) {
       case tap:
         return _atFrameEnd(HapticFeedback.lightImpact);
       case select:
-        return HapticFeedback.selectionClick();
+        return _selection();
       case tick:
         SystemSound.play(SystemSoundType.click);
-        return HapticFeedback.selectionClick();
+        return _selection();
       case commit:
-        return _atFrameEnd(HapticFeedback.mediumImpact);
+        return _atFrameEnd(_medium);
       case hold:
         return HapticFeedback.heavyImpact();
       case edge:
-        return HapticFeedback.mediumImpact();
+        return _medium();
       case destructive:
         return HapticFeedback.heavyImpact();
       case success:
@@ -484,7 +495,7 @@ enum IqHaptics {
         _press = null;
         return defaultTargetPlatform == TargetPlatform.iOS
             ? HapticFeedback.errorNotification()
-            : HapticFeedback.mediumImpact();
+            : _medium();
     }
   }
 }

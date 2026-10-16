@@ -386,7 +386,7 @@ void main() {
     );
     await gesture.moveBy(const Offset(0, 20));
     await tester.pump();
-    expect(haptics, ['HapticFeedbackType.selectionClick']);
+    expect(haptics, ['HapticFeedbackType.lightImpact']);
 
     await gesture.up();
     await tester.pump();
@@ -411,7 +411,7 @@ void main() {
     expect(_top(tester, _chips), lessThan(listTop + IqTravel.refreshSlot));
     await tester.pumpAndSettle();
     expect(_top(tester, _chips), listTop);
-    expect(haptics, ['HapticFeedbackType.selectionClick']);
+    expect(haptics, ['HapticFeedbackType.lightImpact']);
   });
 
   testWidgets('a pull let go before 64 does not refresh', (tester) async {
@@ -493,7 +493,7 @@ void main() {
     await tester.pump();
     expect(old, findsNothing);
     expect(_shown(tester, shared), 1);
-    expect(haptics, ['HapticFeedbackType.selectionClick']);
+    expect(haptics, ['HapticFeedbackType.lightImpact']);
 
     // Saved is its own route, served with no page transition.
     await tester.tap(find.text('Saved'));
@@ -636,7 +636,7 @@ void main() {
     expect(banner(), height);
     expect(haptics, [
       'HapticFeedbackType.lightImpact',
-      'HapticFeedbackType.mediumImpact',
+      'HapticFeedbackType.heavyImpact',
     ]);
   });
 

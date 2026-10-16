@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/edge_haptics.dart';
 import '../../core/transitions.dart';
 import '../../data/models.dart';
 import '../../router.dart';
@@ -38,7 +39,7 @@ RouteBase appShellRoute(GlobalKey<NavigatorState> rootKey) =>
             GoRoute(
               path: Routes.home,
               pageBuilder: (context, state) =>
-                  pushPage(state, const HomeScreen()),
+                  pushPage(state, const PullsToRefresh(child: HomeScreen())),
               routes: [
                 GoRoute(
                   path: 'saved',

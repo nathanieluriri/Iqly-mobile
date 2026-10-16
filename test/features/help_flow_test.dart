@@ -24,7 +24,7 @@ import 'entry_harness.dart' show recordHaptics;
 
 const _light = 'HapticFeedbackType.lightImpact';
 const _success = 'HapticFeedbackType.successNotification';
-const _error = 'HapticFeedbackType.mediumImpact';
+const _error = 'HapticFeedbackType.heavyImpact';
 
 Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);

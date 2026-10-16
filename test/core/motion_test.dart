@@ -183,7 +183,27 @@ void main() {
         'HapticFeedbackType.mediumImpact',
         'HapticFeedbackType.heavyImpact',
         'HapticFeedbackType.successNotification',
-        'HapticFeedbackType.mediumImpact',
+        'HapticFeedbackType.errorNotification',
+      ]);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('Android plays clicks its phones have: no CLOCK_TICK or '
+        'KEYBOARD_TAP, which many play as nothing', (tester) async {
+      final played = record(tester);
+      for (final haptic in IqHaptics.values) {
+        await haptic.play();
+        await tester.pump(Duration.zero);
+      }
+      expect(played, [
+        'HapticFeedbackType.lightImpact',
+        'HapticFeedbackType.lightImpact',
+        'HapticFeedbackType.lightImpact',
+        'HapticFeedbackType.heavyImpact',
+        'HapticFeedbackType.heavyImpact',
+        'HapticFeedbackType.heavyImpact',
+        'HapticFeedbackType.heavyImpact',
+        'HapticFeedbackType.successNotification',
+        'HapticFeedbackType.heavyImpact',
       ]);
     });
 
@@ -200,7 +220,7 @@ void main() {
       await IqHaptics.tick.play();
       expect(calls, [
         'SystemSound.play SystemSoundType.click',
-        'HapticFeedback.vibrate HapticFeedbackType.selectionClick',
+        'HapticFeedback.vibrate HapticFeedbackType.lightImpact',
       ]);
     });
 
@@ -211,14 +231,14 @@ void main() {
       IqHaptics.commit.play();
       errorHaptic();
       await tester.pump(Duration.zero);
-      expect(played, ['HapticFeedbackType.mediumImpact']);
+      expect(played, ['HapticFeedbackType.heavyImpact']);
 
       IqHaptics.commit.play();
       await Future<void>.value();
       IqHaptics.success.play();
       await tester.pump(Duration.zero);
       expect(played, [
-        'HapticFeedbackType.mediumImpact',
+        'HapticFeedbackType.heavyImpact',
         'HapticFeedbackType.successNotification',
       ]);
     });
@@ -242,10 +262,10 @@ void main() {
       final played = record(tester);
       IqHaptics.commit.play();
       await tester.pump(Duration.zero);
-      expect(played, ['HapticFeedbackType.mediumImpact']);
+      expect(played, ['HapticFeedbackType.heavyImpact']);
       IqHaptics.success.play();
       expect(played, [
-        'HapticFeedbackType.mediumImpact',
+        'HapticFeedbackType.heavyImpact',
         'HapticFeedbackType.successNotification',
       ]);
     });

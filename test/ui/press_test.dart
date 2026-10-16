@@ -10,9 +10,8 @@ import 'package:iqly_mobile/ui/pressable.dart';
 import 'package:iqly_mobile/ui/sticker.dart';
 
 const _light = 'HapticFeedbackType.lightImpact';
-const _medium = 'HapticFeedbackType.mediumImpact';
 const _heavy = 'HapticFeedbackType.heavyImpact';
-const _select = 'HapticFeedbackType.selectionClick';
+const _select = 'HapticFeedbackType.lightImpact';
 
 List<String> _haptics(WidgetTester tester) {
   final played = <String>[];
@@ -224,7 +223,7 @@ void main() {
         await tester.tap(find.byType(IqButton));
         await tester.pump(const Duration(milliseconds: 200));
       }
-      const kinds = [_medium, _light, _heavy, _light, _medium];
+      const kinds = [_heavy, _light, _heavy, _light, _heavy];
       expect(played, kinds);
 
       await _pump(tester, IqButton(disabled: true, onTap: () {}));
@@ -243,7 +242,7 @@ void main() {
       await _pump(tester, IqChip(onChanged: (_) {}));
       await tester.tap(find.byType(IqChip));
       await tester.pump(const Duration(milliseconds: 200));
-      expect(played, [...kinds, _medium, _select]);
+      expect(played, [...kinds, _heavy, _select]);
     });
 
     testWidgets('Ghost dims instead of dropping', (tester) async {

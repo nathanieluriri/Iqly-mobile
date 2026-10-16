@@ -17,8 +17,8 @@ import '../golden/screens/polls_notifications_help_harness.dart';
 import 'entry_harness.dart' show recordHaptics;
 
 const _light = 'HapticFeedbackType.lightImpact';
-const _select = 'HapticFeedbackType.selectionClick';
-const _error = 'HapticFeedbackType.mediumImpact';
+const _select = 'HapticFeedbackType.lightImpact';
+const _error = 'HapticFeedbackType.heavyImpact';
 
 Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);
