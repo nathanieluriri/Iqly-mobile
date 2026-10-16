@@ -16,10 +16,15 @@ struct ClosingSoonWidget: Widget {
 struct ClosingSoonView: View {
   let section: ClosingSoonSection?
 
+  // Two rows fit the Medium widget; a brief that has closed drops off.
+  private var rows: [BriefRow] {
+    Array((section?.rows ?? []).filter { LiveCountdown.isOpen($0.closesAt) }.prefix(2))
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       WidgetHeader(trailing: section?.title ?? "Closing soon")
-      ForEach(section?.rows ?? []) { row in
+      ForEach(rows) { row in
         Link(destination: URL(string: row.link) ?? URL(string: "iqly://app/home")!) {
           HStack(spacing: 12) {
             thumb(row.thumb)
@@ -28,7 +33,7 @@ struct ClosingSoonView: View {
                 .font(IqWidgetFont.strong)
                 .foregroundColor(IqColors.fg)
                 .lineLimit(2)
-              Text(row.meta)
+              LiveCountdown.text(row.live, closesAt: row.closesAt, fallback: row.meta)
                 .font(IqWidgetFont.meta)
                 .foregroundColor(IqColors.fg2)
                 .lineLimit(1)

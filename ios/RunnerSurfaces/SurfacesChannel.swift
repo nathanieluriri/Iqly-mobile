@@ -6,24 +6,46 @@ import WidgetKit
 import ActivityKit
 #endif
 
-// The iOS half of SurfacesBridge (lib/surfaces/surfaces.dart). Runner target
-// only; see the iOS setup steps for registration.
-final class SurfacesChannel {
+// The iOS half of SurfacesBridge (lib/surfaces/surfaces.dart), Runner target
+// only, registered from AppDelegate. It takes only iqly:// links from the
+// scene, so sign-in callbacks and other plugins' links pass untouched.
+final class SurfacesChannel: NSObject, FlutterSceneLifeCycleDelegate {
   static let name = "net.iqly/surfaces"
   static let shared = SurfacesChannel()
 
   private var channel: FlutterMethodChannel?
   private var launchLink: String?
 
-  func register(with messenger: FlutterBinaryMessenger) {
-    let channel = FlutterMethodChannel(name: Self.name, binaryMessenger: messenger)
+  func register(with registrar: FlutterPluginRegistrar) {
+    let channel = FlutterMethodChannel(name: Self.name, binaryMessenger: registrar.messenger())
     channel.setMethodCallHandler { [weak self] call, result in
       self?.handle(call, result: result)
     }
     self.channel = channel
+    registrar.addSceneDelegate(self)
   }
 
-  // From SceneDelegate: a widget or Live Activity tap.
+  // A cold start from a widget or Live Activity: Dart asks for the link once
+  // it is ready to route it.
+  func scene(
+    _ scene: UIScene, willConnectTo session: UISceneSession,
+    options connectionOptions: UIScene.ConnectionOptions?
+  ) -> Bool {
+    if let url = connectionOptions?.urlContexts.map(\.url).first(where: Self.isOurs) {
+      launchLink = url.absoluteString
+    }
+    return false
+  }
+
+  func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) -> Bool {
+    guard let url = URLContexts.map(\.url).first(where: Self.isOurs) else { return false }
+    open(url)
+    return true
+  }
+
+  private static func isOurs(_ url: URL) -> Bool { url.scheme == "iqly" }
+
+  // A widget or Live Activity tap while the app is running.
   func open(_ url: URL) {
     guard url.scheme == "iqly" else { return }
     if let channel {
