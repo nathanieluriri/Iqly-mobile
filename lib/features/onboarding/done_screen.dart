@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
 import '../../core/deadline.dart';
-import '../../core/money.dart';
 import '../../core/navigation.dart';
 import '../../core/session.dart';
 import '../../data/models.dart';
@@ -17,9 +16,9 @@ import '../../theme/theme.dart';
 import '../../ui/illustration.dart';
 import '../../ui/section_title.dart';
 import '../../ui/brief_card.dart';
-import '../../ui/meta.dart';
 import '../../ui/sample_cover.dart';
 import '../../ui/sample_logo.dart';
+import '../discover/discover_widgets.dart';
 import 'onboarding_draft.dart';
 import 'onboarding_layout.dart';
 
@@ -163,7 +162,6 @@ class _DoneScreenState extends ConsumerState<DoneScreen> {
   }
 
   Widget _card(Brief brief, DateTime now) {
-    final left = timeLeft(brief.deadline, now);
     final sample = sampleBrandOf(brief.businessName);
     return IqBriefCard(
       kind: IqBriefCardKind.feature,
@@ -171,19 +169,8 @@ class _DoneScreenState extends ConsumerState<DoneScreen> {
       title: brief.title,
       cover: IqSampleCover(sample),
       logo: IqSampleLogo(sample),
-      meta: [
-        IqMeta(
-          kind: IqMetaKind.reward,
-          label: rewardPool(brief.rewardPoolKobo),
-        ),
-        IqMeta(
-          kind: left != null && left <= DeadlineRules.closingSoon
-              ? IqMetaKind.urgent
-              : IqMetaKind.deadline,
-          label: closesIn(left),
-        ),
-      ],
-      onTap: () => context.open(Routes.brief(brief.id)),
+      meta: briefMeta(brief, now),
+      onTap: () => context.open(Routes.brief(brief.id), extra: brief),
     );
   }
 }
