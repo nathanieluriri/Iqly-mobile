@@ -9,6 +9,10 @@ class FakePatchService implements PatchService {
   int checks = 0;
   int downloads = 0;
   bool closed = false;
+  int? running;
+
+  @override
+  Future<int?> current() async => running;
 
   @override
   Future<PatchCheck> check() async {
