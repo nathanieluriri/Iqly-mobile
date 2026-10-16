@@ -202,7 +202,9 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
       Padding(
         padding: const EdgeInsets.only(bottom: IqSpace.s2),
         child: Text(
-          AppRelease.footer(ios: ios),
+          (ref.watch(buildInfoProvider).value ?? BuildInfo.sample).footer(
+            ios: ios,
+          ),
           textAlign: TextAlign.center,
           style: IqText.mono.copyWith(color: IqColors.fg3),
         ),

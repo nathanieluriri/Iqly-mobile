@@ -51,16 +51,23 @@ abstract class AppVersionService {
 
 /// Asks without the session token: the answer is the same for everyone, and
 /// it comes before sign-in too.
+///
+/// Android updates go through Google Play only: the link is the store page
+/// for this app's package, whatever installed it. Until Play lists the app
+/// (its page answers 404) nobody is asked to update, since there is nowhere
+/// to send them. Patches reach everyone through Shorebird either way.
 class LiveAppVersionService implements AppVersionService {
   LiveAppVersionService({
     http.Client? client,
     String baseUrl = ApiConfig.baseUrl,
-  }) : _api = ApiClient(
+  }) : _http = client ?? http.Client(),
+       _api = ApiClient(
          tokens: MemoryTokenStore(),
          client: client,
          baseUrl: baseUrl,
        );
 
+  final http.Client _http;
   final ApiClient _api;
 
   static String get platform => switch (defaultTargetPlatform) {
@@ -68,23 +75,49 @@ class LiveAppVersionService implements AppVersionService {
     final other => other.name,
   };
 
-  static Future<String> installedVersion() async {
-    final info = await PackageInfo.fromPlatform();
-    return info.buildNumber.isEmpty
-        ? info.version
-        : '${info.version}+${info.buildNumber}';
-  }
+  static Uri playPage(String package) =>
+      Uri.https('play.google.com', '/store/apps/details', {'id': package});
+
+  static String _version(PackageInfo info) => info.buildNumber.isEmpty
+      ? info.version
+      : '${info.version}+${info.buildNumber}';
+
+  static Future<String> installedVersion() async =>
+      _version(await PackageInfo.fromPlatform());
 
   @override
   Future<AppRelease> check() async {
-    final installed = await installedVersion();
+    final info = await PackageInfo.fromPlatform();
+    final installed = _version(info);
     final path = Uri(
       path: '/mobile/app-version',
       queryParameters: {'platform': platform, 'version': installed},
     );
     final response = await _api.get(path.toString());
     if (!response.ok) return AppRelease(installed: installed);
-    return AppRelease.fromJson(installed, response.data);
+    final release = AppRelease.fromJson(installed, response.data);
+    if (defaultTargetPlatform != TargetPlatform.android ||
+        release.status == UpdateStatus.ok) {
+      return release;
+    }
+    final page = playPage(info.packageName);
+    if (!await _listed(page)) return AppRelease(installed: installed);
+    return AppRelease(
+      installed: installed,
+      status: release.status,
+      minimum: release.minimum,
+      latest: release.latest,
+      updateUrl: page,
+    );
+  }
+
+  Future<bool> _listed(Uri page) async {
+    try {
+      final response = await _http.head(page).timeout(_api.timeout);
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
   }
 }
 

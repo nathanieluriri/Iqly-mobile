@@ -8,6 +8,9 @@ import 'package:shorebird_code_push/shorebird_code_push.dart' as shorebird;
 enum PatchCheck { none, available, ready }
 
 abstract class PatchService {
+  /// The patch this launch is running, null on the release as shipped.
+  Future<int?> current();
+
   Future<PatchCheck> check();
 
   /// Returns once the newest patch is on disk, or at once when Shorebird's
@@ -28,6 +31,12 @@ class ShorebirdPatchService implements PatchService {
   // isolate, which must not hold up the first frame.
   late final shorebird.ShorebirdUpdater _updater =
       _given ?? shorebird.ShorebirdUpdater();
+
+  @override
+  Future<int?> current() async {
+    if (!_updater.isAvailable) return null;
+    return (await _updater.readCurrentPatch())?.number;
+  }
 
   @override
   Future<PatchCheck> check() async {
@@ -54,6 +63,9 @@ class ShorebirdPatchService implements PatchService {
 /// Builds without the Shorebird engine (flutter run, tests) have no patches.
 class NoPatchService implements PatchService {
   const NoPatchService();
+
+  @override
+  Future<int?> current() async => null;
 
   @override
   Future<PatchCheck> check() async => PatchCheck.none;
