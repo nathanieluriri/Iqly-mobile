@@ -10,6 +10,7 @@ import 'package:iqly_mobile/features/entry/notifications_ask_screen.dart';
 import 'package:iqly_mobile/features/entry/password_screen.dart';
 import 'package:iqly_mobile/features/entry/reset_link_sent_screen.dart';
 import 'package:iqly_mobile/features/entry/sign_in_screen.dart';
+import 'package:iqly_mobile/features/entry/verify_email_screen.dart';
 import 'package:iqly_mobile/features/entry/your_name_screen.dart';
 import 'package:iqly_mobile/features/onboarding/done_screen.dart';
 import 'package:iqly_mobile/features/onboarding/welcome_screen.dart';
@@ -69,6 +70,17 @@ void main() {
 
     await _typeInto(tester, 0, 'longenough');
     await _next(tester);
+    expect(find.byType(VerifyEmailScreen), findsOneWidget);
+    expect(
+      find.text(
+        'We sent a 6-digit code to tolu@example.com. It expires in 5 minutes.',
+      ),
+      findsOneWidget,
+    );
+    expect(c.read(sessionProvider).signedIn, isFalse);
+
+    await _typeInto(tester, 0, DemoAuthService.code);
+    await tester.pumpAndSettle();
     expect(find.byType(WelcomeScreen), findsOneWidget);
     expect(find.text('Three quick steps, Tolu'), findsOneWidget);
     expect(c.read(sessionProvider).signedIn, isTrue);
@@ -192,6 +204,8 @@ void main() {
     await _next(tester);
     await _typeInto(tester, 0, 'longenough');
     await _next(tester);
+    await _typeInto(tester, 0, DemoAuthService.code);
+    await tester.pumpAndSettle();
     expect(find.byType(WelcomeScreen), findsOneWidget);
     expect(auth.inviteCode, 'CHIDI7');
   });

@@ -445,6 +445,7 @@ class _LandingScreenState extends ConsumerState<LandingScreen>
   );
 
   List<Widget> _bottom(bool focused) {
+    final auth = ref.read(authServiceProvider);
     final reduced = _reduced;
     final rising = !reduced && _focus.status != AnimationStatus.reverse;
     return [
@@ -452,26 +453,30 @@ class _LandingScreenState extends ConsumerState<LandingScreen>
       _stepAside(
         Column(
           children: [
-            _row(
-              0,
-              IqProviderButton(
-                kind: IqProviderButtonKind.apple,
-                width: double.infinity,
-                onTap: () => _continueWith(AuthProvider.apple),
+            if (auth.offers(AuthProvider.apple)) ...[
+              _row(
+                0,
+                IqProviderButton(
+                  kind: IqProviderButtonKind.apple,
+                  width: double.infinity,
+                  onTap: () => _continueWith(AuthProvider.apple),
+                ),
               ),
-            ),
-            const SizedBox(height: IqSpace.s3),
-            _row(
-              1,
-              IqProviderButton(
-                kind: IqProviderButtonKind.google,
-                width: double.infinity,
-                onTap: () => _continueWith(AuthProvider.google),
+              const SizedBox(height: IqSpace.s3),
+            ],
+            if (auth.offers(AuthProvider.google)) ...[
+              _row(
+                1,
+                IqProviderButton(
+                  kind: IqProviderButtonKind.google,
+                  width: double.infinity,
+                  onTap: () => _continueWith(AuthProvider.google),
+                ),
               ),
-            ),
-            const SizedBox(height: IqSpace.s3),
-            _row(2, const _OrDivider()),
-            const SizedBox(height: IqSpace.s3),
+              const SizedBox(height: IqSpace.s3),
+              _row(2, const _OrDivider()),
+              const SizedBox(height: IqSpace.s3),
+            ],
           ],
         ),
       ),

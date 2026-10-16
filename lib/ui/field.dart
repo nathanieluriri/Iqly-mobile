@@ -240,7 +240,7 @@ class _IqFieldState extends State<IqField> {
       _ => IqColors.fg3,
     };
     final showHelp =
-        state == IqFieldState.error ||
+        (state == IqFieldState.error && widget.help.isNotEmpty) ||
         (state == IqFieldState.valid && _isText && widget.showNote);
     final mockCaret =
         _large &&

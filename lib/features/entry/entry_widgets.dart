@@ -104,6 +104,8 @@ class EntryField extends StatelessWidget {
     this.textInputAction,
     this.onSubmitted,
     this.autofocus = false,
+    this.rejected = false,
+    this.inputFormatters,
   });
 
   final EntryInput input;
@@ -116,6 +118,11 @@ class EntryField extends StatelessWidget {
   final TextInputAction? textInputAction;
   final ValueChanged<String>? onSubmitted;
 
+  /// Draws Error with no words under the field, for a page that explains
+  /// the problem in its banner.
+  final bool rejected;
+  final List<TextInputFormatter>? inputFormatters;
+
   @override
   Widget build(BuildContext context) {
     return Shake(
@@ -125,7 +132,9 @@ class EntryField extends StatelessWidget {
         label: label,
         value: '',
         help: input.error ?? '',
-        state: fieldStateFor(input, valid: valid),
+        state: rejected
+            ? IqFieldState.error
+            : fieldStateFor(input, valid: valid),
         showStatus: input.error != null,
         showNote: false,
         controller: input.controller,
@@ -136,6 +145,7 @@ class EntryField extends StatelessWidget {
         autofillHints: autofillHints,
         textInputAction: textInputAction,
         onSubmitted: onSubmitted,
+        inputFormatters: inputFormatters,
       ),
     );
   }
@@ -268,11 +278,13 @@ class EntryAction extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.loading = false,
+    this.disabled = false,
   });
 
   final String label;
   final VoidCallback onTap;
   final bool loading;
+  final bool disabled;
 
   @override
   Widget build(BuildContext context) {
@@ -290,6 +302,7 @@ class EntryAction extends StatelessWidget {
           showIcon: false,
           width: double.infinity,
           loading: loading,
+          disabled: disabled,
           onTap: onTap,
         ),
       ),

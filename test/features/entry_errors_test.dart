@@ -189,14 +189,12 @@ void main() {
     final cases = {
       'wrong password': ('adaeze@example.com', 'wrongpass'),
       'too many tries': (DemoAuthService.lockedEmail, 'whatever1'),
-      'not verified': (DemoAuthService.unverifiedEmail, 'whatever1'),
       'offline': (DemoAuthService.offlineEmail, 'whatever1'),
       'anything else': (DemoAuthService.brokenEmail, 'whatever1'),
     };
     final expected = {
       'wrong password': "That password doesn't match. Try again or reset it.",
       'too many tries': 'Too many tries. Wait a minute, then try again.',
-      'not verified': 'Verification email sent. Please check your inbox.',
       'offline': 'You’re offline. Check your connection and try again.',
       'anything else': 'Login failed. Please try again.',
     };

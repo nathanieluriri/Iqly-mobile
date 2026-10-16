@@ -38,6 +38,18 @@ abstract final class EntryCopy {
     _ => ShippedCopy.signUpFailed,
   };
 
+  /// The Verify email frames (1268:26029, 1268:26086, 1268:26145).
+  static String code(AuthFailure failure) => switch (failure) {
+    AuthFailure.wrongCode =>
+      'That code isn’t right. Check the email and try again.',
+    AuthFailure.tooManyAttempts =>
+      'Too many tries. Send a new code to keep going.',
+    AuthFailure.codeExpired =>
+      'That code has expired. Send a new one to keep going.',
+    AuthFailure.offline => offline,
+    _ => ShippedCopy.loginFailed,
+  };
+
   static String resetLink(AuthFailure failure) => switch (failure) {
     AuthFailure.offline => offline,
     _ => ShippedCopy.resetFailed,
