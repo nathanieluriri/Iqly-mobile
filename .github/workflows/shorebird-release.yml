@@ -3,7 +3,9 @@ name: shorebird-release
 # A release built through Shorebird, so later Dart-only changes can be
 # patched onto it. Run it from the Actions tab once the version in
 # pubspec.yaml is new: every release needs its own version. The signed APK
-# (to install) and app bundle (for Google Play) are kept for 90 days.
+# (to install) and app bundle (for Google Play) are kept for 90 days, and
+# the APK becomes the one the fixed download link serves (the staging API's
+# /mobile/download/android) once the R2 secrets are set.
 # A pull request that changes the Shorebird setup gets a dry run instead.
 on:
   workflow_dispatch:
@@ -17,6 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -44,6 +47,21 @@ jobs:
           version=$(sed -n 's/^version: *//p' pubspec.yaml)
           mv build/app/outputs/flutter-apk/app-release.apk "iqly-$version.apk"
           mv build/app/outputs/bundle/release/app-release.aab "iqly-$version.aab"
+      - name: Publish the APK to the download link
+        if: github.event_name != 'pull_request' && env.R2_ENDPOINT != ''
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          # Newer AWS CLIs add checksums that R2 refuses unless asked for.
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+        run: |
+          version=$(sed -n 's/^version: *//p' pubspec.yaml)
+          aws s3 cp "iqly-$version.apk" s3://iqly-downloads-staging/android/iqly.apk \
+            --endpoint-url "$R2_ENDPOINT" \
+            --content-type application/vnd.android.package-archive \
+            --metadata "version=$version"
       - uses: actions/upload-artifact@v4
         if: github.event_name != 'pull_request'
         with:

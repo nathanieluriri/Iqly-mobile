@@ -12,14 +12,17 @@ import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../core/session.dart';
 import '../../core/transitions.dart';
+import '../../core/updates.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../core/money.dart';
 import '../../data/activations_data.dart';
+import '../../data/device.dart';
 import '../../data/polls_data.dart';
 import '../../ui/banner.dart';
 import '../../ui/brief_card.dart';
 import '../../ui/button.dart';
+import '../../ui/confirm_sheet.dart';
 import '../../ui/dock.dart';
 import '../../ui/illustration.dart';
 import '../../ui/meta.dart';
@@ -53,6 +56,10 @@ import 'feed_slivers.dart';
 /// quietly; the lens chips and filters cross the content under the still
 /// chips (200 ms); the gift's shine plays once a session, 0.8 s after the
 /// first load lands, never on a refresh.
+///
+/// A newer build is offered here only (B · Update · available, 1311:26531),
+/// once per version, after the feed has landed and the first tip has had
+/// its turn; Not now, or closing the sheet, waits for the next version.
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -79,6 +86,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   IqPullIndicatorState? _closingAs;
   Timer? _doneTimer;
   Timer? _shineTimer;
+  Timer? _offerTimer;
   bool _shine = false;
   bool _proposalsPending = false;
 
@@ -91,6 +99,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   void dispose() {
     _doneTimer?.cancel();
     _shineTimer?.cancel();
+    _offerTimer?.cancel();
     _scroll.dispose();
     _pull.dispose();
     _armed.dispose();
@@ -232,11 +241,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ref.read(firstTipCueProvider.notifier).cue(after);
+      _offerTimer = Timer(after + IqDurations.tipWait, _offerUpdate);
       if (ref.read(giftShineSpentProvider)) return;
       ref.read(giftShineSpentProvider.notifier).spend();
       _shineTimer = Timer(after + IqDurations.giftShineDelay, () {
         if (mounted) setState(() => _shine = true);
       });
+    });
+  }
+
+  void _offerUpdate() {
+    if (!mounted || !_landed || !TickerMode.valuesOf(context).enabled) return;
+    if (!ref.read(sessionProvider).firstTipSeen) return;
+    final updates = ref.read(updatesProvider.notifier);
+    if (!updates.offer) return;
+    whenUncovered(context, () async {
+      if (!mounted || !updates.offer) return;
+      final url = ref.read(updatesProvider)?.updateUrl;
+      final navigator = Navigator.of(context, rootNavigator: true);
+      await updates.offered();
+      if (!navigator.mounted) return;
+      final update = await showIqConfirmSheet(
+        navigator.context,
+        title: 'A new version is available',
+        body: 'Update iQLY to get the latest fixes and features.',
+        confirmLabel: 'Update iQLY',
+        cancelLabel: 'Not now',
+        confirmKind: IqButtonKind.primary,
+        scrim: IqScrim.fg,
+      );
+      if (!update || url == null || !mounted) return;
+      await ref.read(deviceServiceProvider).openUrl(url);
     });
   }
 
@@ -290,7 +325,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       if (next?.tab != IqDockActive.discover) return;
       ref.read(discoverFeedProvider.notifier).refreshQuietly();
       if (Flags.polls) ref.read(pollsProvider.notifier).refreshQuietly();
+      // The tab is told before the dock switch shows it.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _offerUpdate());
     });
+    ref.listen(updatesProvider, (previous, next) => _offerUpdate());
   }
 
   @override

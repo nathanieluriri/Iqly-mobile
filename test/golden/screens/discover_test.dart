@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/core/updates.dart';
+import 'package:iqly_mobile/data/app_version.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/features/discover/discover_state.dart';
@@ -52,6 +54,30 @@ void main() {
   testWidgets('31:24 For you (192:8644, 161:16226, 161:16247)', (tester) async {
     await _pump(tester, Routes.home);
     await _golden(tester, 'for_you');
+  });
+
+  testWidgets('1311:26531 a newer build offered', (tester) async {
+    final container = await _pump(
+      tester,
+      Routes.home,
+      overrides: [
+        appVersionServiceProvider.overrideWithValue(
+          DemoAppVersionService(
+            AppRelease(
+              installed: '0.1.0+1',
+              status: UpdateStatus.available,
+              latest: '0.1.0+2',
+              updateUrl: Uri.parse(
+                'https://staging.api.iqly.net/mobile/download/android',
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+    await container.read(updatesProvider.notifier).check();
+    await tester.pumpAndSettle();
+    await _golden(tester, 'update_available');
   });
 
   testWidgets('480:20532 All', (tester) async {

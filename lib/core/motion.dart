@@ -392,6 +392,12 @@ abstract final class IqOpacity {
 
   /// The share sheet scrim on brand.
   static const double shareScrim = 0.35;
+
+  /// Time to update's version line on brand-dark (Figma 1310:26487).
+  static const double updateVersion = 0.6;
+
+  /// Time to update's fallback line on brand-dark (Figma 1313:77).
+  static const double updateFallback = 0.8;
 }
 
 /// [normal] unless reduced motion is on: then nothing, or the 150 ms

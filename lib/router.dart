@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/transitions.dart';
+import 'core/updates.dart';
 import 'features/avatar/avatar_routes.dart';
 import 'features/discover/discover_routes.dart';
 import 'features/drafts/drafts_routes.dart';
@@ -20,11 +21,15 @@ import 'features/onboarding/onboarding_routes.dart';
 import 'features/profile/profile_routes.dart';
 import 'features/referrals/referrals_routes.dart';
 import 'features/splash/splash_screen.dart';
+import 'features/splash/update_screen.dart';
 import 'features/submissions/submissions_routes.dart';
 import 'features/submit/submit_routes.dart';
 
 abstract final class Routes {
   static const splash = '/splash';
+
+  /// Time to update: all there is while this build is below the minimum.
+  static const update = '/update';
   static const landing = '/landing';
 
   /// An invite link: the landing, holding the friend's code for sign up.
@@ -98,18 +103,39 @@ abstract final class Routes {
   static const help = '/help';
 }
 
-final routerProvider = Provider<GoRouter>((ref) => buildRouter());
+final routerProvider = Provider<GoRouter>(
+  (ref) => buildRouter(
+    updateRequired: () => ref.read(updatesProvider.notifier).required,
+  ),
+);
 
-GoRouter buildRouter({String initialLocation = Routes.splash}) {
+GoRouter buildRouter({
+  String initialLocation = Routes.splash,
+  bool Function()? updateRequired,
+}) {
   final rootKey = GlobalKey<NavigatorState>();
   return GoRouter(
     navigatorKey: rootKey,
     initialLocation: initialLocation,
+    // Never cuts into a screen: an answer that comes late applies at the
+    // next screen change. The splash hands over by itself.
+    redirect: (context, state) {
+      final path = state.uri.path;
+      if (path == Routes.update || path == Routes.splash) return null;
+      return updateRequired?.call() == true ? Routes.update : null;
+    },
     routes: [
       GoRoute(
         path: Routes.splash,
         pageBuilder: (context, state) =>
             handoffPage(state, const SplashScreen()),
+      ),
+      GoRoute(
+        path: Routes.update,
+        pageBuilder: (context, state) => takeoverPage(
+          state,
+          UpdateScreen(glide: state.extra == Arrival.lockup),
+        ),
       ),
       GoRoute(
         path: Routes.landing,
