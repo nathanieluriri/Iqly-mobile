@@ -164,6 +164,30 @@ abstract final class IqDurations {
 
   /// Loop: the BalanceHero ink wash drift.
   static const inkWash = Duration(milliseconds: 24000);
+
+  /// Loop: the patch dialog's wave drifting across the logomark.
+  static const patchWave = Duration(milliseconds: 2000);
+
+  /// The patch dialog's glass filling to the top, or draining.
+  static const patchFill = Duration(milliseconds: 400);
+
+  /// The patch dialog's rise toward [IqPatchFill.hold]; it reaches 60% at 3 s.
+  static const patchRise = Duration(seconds: 12);
+}
+
+/// The patch dialog's logomark fill (Figma B · Patch · fill motion).
+abstract final class IqPatchFill {
+  /// Shorebird reports no percentage, so the rise stops here until done.
+  static const double hold = 0.85;
+
+  /// Reduced motion: the level steps 0, [stepped], 1.
+  static const double stepped = 0.5;
+
+  /// The wave's height at the 96 pt mark, scaled with the mark.
+  static const double wave = 5;
+
+  /// The rise's time constant, in seconds.
+  static const double tau = 2.45;
 }
 
 /// The splash light-up (spec 6.1): the hold before each move, then the move.
@@ -398,6 +422,9 @@ abstract final class IqOpacity {
 
   /// Time to update's fallback line on brand-dark (Figma 1313:77).
   static const double updateFallback = 0.8;
+
+  /// The patch dialog's empty glass: the official logomark, faded.
+  static const double patchEmpty = 0.16;
 }
 
 /// [normal] unless reduced motion is on: then nothing, or the 150 ms

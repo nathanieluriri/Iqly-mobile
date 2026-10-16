@@ -12,6 +12,7 @@ import 'data/app_version.dart';
 import 'data/auth.dart';
 import 'data/device.dart';
 import 'data/live_auth.dart';
+import 'data/patches.dart';
 import 'data/token_store.dart';
 import 'router.dart';
 import 'surfaces/surfaces.dart';
@@ -23,6 +24,7 @@ Future<void> main() async {
     overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
       deviceServiceProvider.overrideWithValue(PlatformDeviceService()),
+      patchServiceProvider.overrideWithValue(ShorebirdPatchService()),
       if (ApiConfig.liveAuth) ...[
         authServiceProvider.overrideWithValue(
           LiveAuthService(api: ApiClient(tokens: SecureTokenStore())),
