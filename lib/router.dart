@@ -48,7 +48,6 @@ abstract final class Routes {
   static const onboardingWhereYouStudied = '/onboarding/where-you-studied';
   static const onboardingAddUniversity = '/onboarding/add-university';
   static const onboardingWhatYouLike = '/onboarding/what-you-like';
-  static const onboardingYourAvatar = '/onboarding/your-avatar';
   static const onboardingResume = '/onboarding/resume';
   static const onboardingDone = '/onboarding/done';
   static const savedBriefs = '/home/saved';
@@ -166,7 +165,8 @@ GoRouter buildRouter({
 }
 
 /// The sign-up, sign-in and reset steps push; the notifications ask is a
-/// push from onboarding Done.
+/// push from onboarding Done, or the hand-off from the last step when there
+/// is no Done to show.
 final _entryRoutes = [
   _push(Routes.yourName, const YourNameScreen()),
   _push(Routes.createPassword, const PasswordScreen()),

@@ -287,8 +287,10 @@ class OnboardingHeroScaffold extends StatelessWidget {
     this.ghost,
     this.onGhost,
     this.heroHeight = 208,
+    this.figureWidth = defaultFigureWidth,
     this.figureTop = IqSpace.s2,
     this.titleGap = IqSpace.s4,
+    this.confettiFalls = false,
     this.entrance,
   });
 
@@ -300,16 +302,18 @@ class OnboardingHeroScaffold extends StatelessWidget {
   final String? ghost;
   final VoidCallback? onGhost;
 
-  /// The hero slot; the figure (188 x 200) is clipped to it (Done is 171).
+  /// The hero slot; the figure ([figureWidth] wide) is clipped to it.
   final double heroHeight;
+  final double figureWidth;
   final double figureTop;
   final double titleGap;
+  final bool confettiFalls;
 
   /// How long the entrance runs, to the end of its last beat; by default
   /// the end of a line appearing at +160.
   final Duration? entrance;
 
-  static const double figureWidth = 188.24;
+  static const double defaultFigureWidth = 188.24;
 
   @override
   Widget build(BuildContext context) {
@@ -354,6 +358,7 @@ class OnboardingHeroScaffold extends StatelessWidget {
                                     figure,
                                     width: figureWidth,
                                     arrive: arriving,
+                                    confettiFalls: confettiFalls,
                                   ),
                                 ),
                               ),

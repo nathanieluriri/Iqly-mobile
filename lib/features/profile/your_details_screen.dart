@@ -94,7 +94,10 @@ class YourDetailsScreen extends ConsumerWidget {
         children: [
           for (final field in DetailField.values)
             if (field != DetailField.university ||
-                Reference.studiesAtUniversity(answers.education))
+                Reference.namesUniversity(
+                  answers.occupation,
+                  answers.education,
+                ))
               IqListRow(
                 label: field.label,
                 description: detailValue(field, details, answers),

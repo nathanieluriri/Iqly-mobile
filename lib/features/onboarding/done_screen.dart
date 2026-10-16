@@ -22,33 +22,75 @@ import '../../ui/sample_logo.dart';
 import 'onboarding_draft.dart';
 import 'onboarding_layout.dart';
 
-/// The first two live briefs, soonest close first.
+/// The first two briefs open to everyone now (live, not closed, not full),
+/// soonest close first.
 final startHereBriefsProvider = FutureProvider<List<Brief>>((ref) async {
   final briefs = await ref.watch(repositoryProvider).briefs();
-  final live =
+  final now = ref.read(clockProvider)();
+  final open =
       briefs
           .where(
             (b) =>
                 b.status == BriefStatus.live &&
                 b.deadline != null &&
+                b.deadline!.isAfter(now) &&
+                b.spotsLeft != 0 &&
                 b.businessName != null,
           )
           .toList()
         ..sort((a, b) => a.deadline!.compareTo(b.deadline!));
-  return live.take(2).toList();
+  return open.take(2).toList();
 });
 
-/// B11 · Done (188:8490). Reaching it finishes first run: the answers go to
-/// the profile and the session stops offering the setup nudge. The Cheer
-/// figure is clipped to the frame's 171 pt hero; the two soonest-closing
+Future<void>? _finishing;
+
+/// Ends first run (Finish or Skip for now on the last step, or the setup
+/// nudge once every step is answered): the answers go to the profile, the
+/// session stops offering the setup nudge, and the success haptic plays as
+/// the step hands off. Done follows only while a brief is open to start
+/// with (owner, 16 Oct); otherwise the notifications ask comes next.
+Future<void> finishOnboarding(BuildContext context, WidgetRef ref) =>
+    _finishing ??= _finish(context, ref).whenComplete(() => _finishing = null);
+
+Future<void> _finish(BuildContext context, WidgetRef ref) async {
+  final profile = ref.read(onboardingDraftProvider).profile;
+  final session = ref.read(sessionProvider.notifier);
+  ref
+      .read(onboardingServiceProvider)
+      .saveProfile(profile)
+      .then((_) => session.setOnboardingDone(true))
+      .ignore();
+  var briefs = const <Brief>[];
+  try {
+    briefs = await ref
+        .read(startHereBriefsProvider.future)
+        .timeout(DoneScreen.briefsWait);
+  } catch (_) {
+    // No answer in time counts as nothing open: never hold the hand-off.
+  }
+  if (!context.mounted) return;
+  IqHaptics.success.play();
+  context.go(briefs.isEmpty ? Routes.notificationsAsk : Routes.onboardingDone);
+}
+
+/// B11 · Done (188:8490), shown after first run while a brief is open to
+/// start with. The Cheer figure, at 75% of its first size, is clipped to a
+/// 128 pt hero and its confetti falls past it; the two soonest-closing
 /// briefs scroll under "Go to Discover", which asks for notifications next.
 ///
 /// Motion (MOTION-SPEC 5.32): the figure rises in at 0; title +120, "Start
 /// here" +200, the two cards arrive at +240 and +280 (or 40 apart when they
-/// land later); the button comes with the page. The success haptic plays as
-/// the last step hands off.
+/// land later); the button comes with the page.
 class DoneScreen extends ConsumerStatefulWidget {
   const DoneScreen({super.key});
+
+  /// How long finishing waits for Start here's briefs before going on
+  /// without them.
+  static const briefsWait = Duration(seconds: 2);
+
+  static const double heroHeight = 128;
+  static const double figureWidth =
+      OnboardingHeroScaffold.defaultFigureWidth * 0.75;
 
   @override
   ConsumerState<DoneScreen> createState() => _DoneScreenState();
@@ -61,23 +103,9 @@ class _DoneScreenState extends ConsumerState<DoneScreen> {
   bool? _onTime;
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _finish());
-  }
-
-  @override
   void dispose() {
     _cardsDue.cancel();
     super.dispose();
-  }
-
-  Future<void> _finish() async {
-    if (!mounted) return;
-    final profile = ref.read(onboardingDraftProvider).profile;
-    final session = ref.read(sessionProvider.notifier);
-    await ref.read(onboardingServiceProvider).saveProfile(profile);
-    await session.setOnboardingDone(true);
   }
 
   @override
@@ -89,8 +117,10 @@ class _DoneScreenState extends ConsumerState<DoneScreen> {
     final onTime = _onTime ?? true;
     return OnboardingHeroScaffold(
       figure: IqFigures.cheer,
-      heroHeight: 171,
+      heroHeight: DoneScreen.heroHeight,
+      figureWidth: DoneScreen.figureWidth,
       figureTop: 0,
+      confettiFalls: true,
       titleGap: IqSpace.s3,
       entrance:
           IqMomentTiming.ticketsAt +

@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
 import '../../core/session.dart';
-import '../../router.dart';
 import '../../ui/icon.dart';
 import '../../ui/list_row.dart';
+import 'done_screen.dart';
 import 'onboarding_draft.dart';
 import 'onboarding_layout.dart';
 
@@ -50,7 +49,7 @@ class _SetupNudgeState extends ConsumerState<SetupNudge> {
               onTap: () {
                 final step = draft.firstIncomplete;
                 if (step == null) {
-                  context.go(Routes.onboardingDone);
+                  finishOnboarding(context, ref);
                 } else {
                   goToStep(context, ref, step);
                 }

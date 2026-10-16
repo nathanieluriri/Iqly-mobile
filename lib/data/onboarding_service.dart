@@ -60,18 +60,29 @@ class OnboardingProfile {
   );
 
   /// The same answers with [education] set, dropping the university when
-  /// that education has none.
-  OnboardingProfile withEducation(String education) => OnboardingProfile(
-    occupation: occupation,
-    state: state,
-    city: city,
-    education: education,
-    university: Reference.studiesAtUniversity(education) ? university : null,
-    interests: interests,
-    otherInterest: otherInterest,
-    dateOfBirth: dateOfBirth,
-    phone: phone,
-  );
+  /// the answers no longer name one.
+  OnboardingProfile withEducation(String education) =>
+      _named(occupation, education);
+
+  /// The same answers with [occupation] set, dropping the university when
+  /// the answers no longer name one.
+  OnboardingProfile withOccupation(String occupation) =>
+      _named(occupation, education);
+
+  OnboardingProfile _named(String? occupation, String? education) =>
+      OnboardingProfile(
+        occupation: occupation,
+        state: state,
+        city: city,
+        education: education,
+        university: Reference.namesUniversity(occupation, education)
+            ? university
+            : null,
+        interests: interests,
+        otherInterest: otherInterest,
+        dateOfBirth: dateOfBirth,
+        phone: phone,
+      );
 }
 
 /// Sends the first-run answers to the contributor's profile.

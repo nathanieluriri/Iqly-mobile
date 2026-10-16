@@ -7,8 +7,8 @@ import '../../ui/button.dart';
 import '../../ui/top_bar.dart';
 import '../entry/entry_widgets.dart';
 
-/// B22 · Onboarding · Your avatar (582:28894) and Avatar · Crop photo
-/// (590:29839): the Page top bar, a Mob/Display heading over its caption,
+/// Avatar · Crop photo (590:29839): the Page top bar, a Mob/Display heading
+/// over its caption,
 /// the [centre] 24 under them, and the primary over a 44 ghost at the foot.
 class AvatarStepScaffold extends StatelessWidget {
   const AvatarStepScaffold({

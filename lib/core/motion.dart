@@ -173,6 +173,9 @@ abstract final class IqDurations {
 
   /// The patch dialog's rise toward [IqPatchFill.hold]; it reaches 60% at 3 s.
   static const patchRise = Duration(seconds: 12);
+
+  /// Loop: the Cheer figure's confetti falling; every piece's pace divides it.
+  static const confettiLoop = Duration(seconds: 24);
 }
 
 /// The patch dialog's logomark fill (Figma B · Patch · fill motion).

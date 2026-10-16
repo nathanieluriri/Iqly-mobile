@@ -7,6 +7,7 @@ import 'package:iqly_mobile/app.dart';
 import 'package:iqly_mobile/core/motion.dart';
 import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
+import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/onboarding_service.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
@@ -20,7 +21,6 @@ import 'package:iqly_mobile/features/onboarding/welcome_screen.dart';
 import 'package:iqly_mobile/features/onboarding/what_you_like_screen.dart';
 import 'package:iqly_mobile/features/onboarding/where_you_live_screen.dart';
 import 'package:iqly_mobile/features/onboarding/where_you_studied_screen.dart';
-import 'package:iqly_mobile/features/onboarding/your_avatar_screen.dart';
 import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/tip_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -32,9 +32,19 @@ class _RecordingService implements OnboardingService {
   Future<void> saveProfile(OnboardingProfile profile) async => saved = profile;
 }
 
+/// No brief is open to everyone.
+class _NothingOpen extends DemoRepository {
+  _NothingOpen() : super(DemoData());
+
+  @override
+  Future<List<Brief>> briefs({BriefsLoad load = BriefsLoad.any}) async =>
+      const [];
+}
+
 Future<(SharedPreferences, _RecordingService)> _launch(
   WidgetTester tester, {
   Map<String, Object?>? draft,
+  IqlyRepository? repository,
 }) async {
   SharedPreferences.setMockInitialValues({
     'session.signedIn': true,
@@ -50,7 +60,9 @@ Future<(SharedPreferences, _RecordingService)> _launch(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
         onboardingServiceProvider.overrideWithValue(service),
-        repositoryProvider.overrideWithValue(DemoRepository(DemoData())),
+        repositoryProvider.overrideWithValue(
+          repository ?? DemoRepository(DemoData()),
+        ),
       ],
       child: const IqlyApp(),
     ),
@@ -64,6 +76,16 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);
   await tester.tap(finder);
   await tester.pumpAndSettle();
+}
+
+/// Taps and lets the next page land without waiting for stillness: Done's
+/// confetti keeps falling.
+Future<void> _land(WidgetTester tester, Finder finder) async {
+  await tester.ensureVisible(finder);
+  await tester.tap(finder);
+  for (var i = 0; i < 20; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
 }
 
 /// Whether the step's primary button (Continue, Finish) is on.
@@ -135,11 +157,7 @@ void main() {
     expect(_nextOn(tester), isFalse);
     await _tap(tester, find.text('Finance & fintech'));
     expect(_nextOn(tester), isTrue);
-    await _tap(tester, find.text('Finish'));
-
-    expect(find.byType(YourAvatarScreen), findsOneWidget);
-    expect(find.text('Meet your avatar'), findsOneWidget);
-    await _tap(tester, find.text('Looks good, continue'));
+    await _land(tester, find.text('Finish'));
 
     expect(find.byType(DoneScreen), findsOneWidget);
     expect(find.text('Nice one, Adaeze'), findsOneWidget);
@@ -156,8 +174,49 @@ void main() {
       'finance_fintech',
     ]);
 
-    await _tap(tester, find.text('Go to Discover'));
+    await _land(tester, find.text('Go to Discover'));
     expect(find.byType(NotificationsAskScreen), findsOneWidget);
+  });
+
+  testWidgets('with no brief open to everyone, the last step skips Done for '
+      'the notifications ask', (tester) async {
+    final (prefs, _) = await _launch(tester, repository: _NothingOpen());
+    await _tap(tester, find.text('Start'));
+    for (var i = 0; i < 3; i++) {
+      await _tap(tester, find.text('Skip for now'));
+    }
+    expect(find.byType(WhatYouLikeScreen), findsOneWidget);
+    await _tap(tester, find.text('Skip for now'));
+
+    expect(find.byType(DoneScreen), findsNothing);
+    expect(find.byType(NotificationsAskScreen), findsOneWidget);
+    expect(prefs.getBool('session.onboardingDone'), isTrue);
+    await _tap(tester, find.bySemanticsLabel('Back'));
+    expect(find.byType(HomeScreen), findsOneWidget);
+  });
+
+  testWidgets('only a student names a university', (tester) async {
+    await _launch(tester);
+    await _tap(tester, find.text('Start'));
+    await _tap(tester, find.text('Employed'));
+    await _tap(tester, find.text('Skip for now'));
+    await _tap(tester, find.text('Skip for now'));
+    expect(find.byType(WhereYouStudiedScreen), findsOneWidget);
+    await _tap(tester, find.text('Select…'));
+    await _tap(tester, find.text('HND / BSc'));
+    await _tap(tester, find.text('Use this'));
+    expect(find.text('HND / BSc'), findsOneWidget);
+    expect(find.text('Search universities'), findsNothing);
+    expect(_nextOn(tester), isTrue);
+
+    await _tap(tester, find.bySemanticsLabel('Back'));
+    await _tap(tester, find.bySemanticsLabel('Back'));
+    expect(find.byType(AboutYouScreen), findsOneWidget);
+    await _tap(tester, find.text('Student'));
+    await _tap(tester, find.text('Skip for now'));
+    await _tap(tester, find.text('Skip for now'));
+    expect(find.byType(WhereYouStudiedScreen), findsOneWidget);
+    expect(find.text('Search universities'), findsOneWidget);
   });
 
   testWidgets('a tap on the step puts the phone keypad away, so Continue '
@@ -271,12 +330,8 @@ void main() {
     await _tap(tester, find.bySemanticsLabel('Back'));
     expect(find.byType(WhereYouStudiedScreen), findsOneWidget);
     await _tap(tester, find.text('Skip for now'));
-    await _tap(tester, find.text('Skip for now'));
-    expect(find.byType(YourAvatarScreen), findsOneWidget);
-    await _tap(tester, find.bySemanticsLabel('Back'));
     expect(find.byType(WhatYouLikeScreen), findsOneWidget);
-    await _tap(tester, find.text('Skip for now'));
-    await _tap(tester, find.text('Looks good, continue'));
+    await _land(tester, find.text('Skip for now'));
     expect(find.byType(DoneScreen), findsOneWidget);
   });
 

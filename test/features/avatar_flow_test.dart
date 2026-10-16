@@ -10,13 +10,11 @@ import 'package:iqly_mobile/data/photo_service.dart';
 import 'package:iqly_mobile/features/avatar/avatar_editor_screen.dart';
 import 'package:iqly_mobile/features/avatar/avatar_photo_screen.dart';
 import 'package:iqly_mobile/features/avatar/avatar_state.dart';
-import 'package:iqly_mobile/features/onboarding/your_avatar_screen.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/achievement_card.dart';
 import 'package:iqly_mobile/ui/avatar.dart';
 import 'package:iqly_mobile/ui/avatar_choice.dart';
 import 'package:iqly_mobile/ui/avatar_sheet.dart';
-import 'package:iqly_mobile/ui/top_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../golden/golden.dart' show loadAppFonts;
@@ -228,35 +226,6 @@ void main() {
     await _tap(tester, find.text('Choose another'));
     expect(find.byType(AvatarPhotoScreen), findsNothing);
     expect(find.text('Choose your avatar'), findsOneWidget);
-  });
-
-  testWidgets('onboarding Your avatar: Make it mine edits and comes back '
-      'with the new look', (tester) async {
-    await pumpMore(
-      tester,
-      Routes.onboardingYourAvatar,
-      prefs: signedInPrefs(onboardingDone: false, firstTipSeen: false),
-    );
-    expect(find.byType(YourAvatarScreen), findsOneWidget);
-    expect(
-      find.text(
-        'We made one to start. Make it look like you now, or later from More.',
-      ),
-      findsOneWidget,
-    );
-    await _tap(tester, find.text('Make it mine'));
-    expect(find.byType(AvatarEditorScreen), findsOneWidget);
-    await _tap(tester, find.bySemanticsLabel('Glasses'));
-    await _tap(tester, find.bySemanticsLabel('Shades'));
-    await _tap(tester, find.text('Save avatar'));
-    expect(find.byType(YourAvatarScreen), findsOneWidget);
-    expect(
-      _shown(tester),
-      IqPersonAvatar(
-        IqAvatarPresets.person1.copyWith(glasses: IqAvatarGlassesStyle.shades),
-      ),
-    );
-    expect(find.byType(IqTopBar), findsOneWidget);
   });
 
   test('a new account starts as one of the six people; sign out forgets '

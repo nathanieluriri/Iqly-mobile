@@ -14,7 +14,6 @@ import 'package:iqly_mobile/features/onboarding/done_screen.dart';
 import 'package:iqly_mobile/features/onboarding/onboarding_sheets.dart';
 import 'package:iqly_mobile/features/onboarding/what_you_like_screen.dart';
 import 'package:iqly_mobile/features/onboarding/where_you_live_screen.dart';
-import 'package:iqly_mobile/features/onboarding/your_avatar_screen.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/theme/theme.dart';
 import 'package:iqly_mobile/ui/button.dart';
@@ -455,8 +454,8 @@ void main() {
 
   group('What you like (spec 6.16)', () {
     testWidgets('the off Finish shakes "Pick 2 or 3" with no haptic; '
-        'chips select; Finish commits to Your avatar, which lands the '
-        'onboarding with success', (tester) async {
+        'chips select; Finish lands the onboarding with success, which '
+        'takes over the press haptic', (tester) async {
       final haptics = recordHaptics(tester);
       await _open(
         tester,
@@ -488,13 +487,8 @@ void main() {
       await tester.tap(_primary);
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
-      expect(find.byType(YourAvatarScreen), findsOneWidget);
-      expect(haptics, [_select, _select, _commit]);
-      await tester.tap(find.text('Looks good, continue'));
-      await tester.pump();
-      await tester.pump(const Duration(seconds: 1));
       expect(find.byType(DoneScreen), findsOneWidget);
-      expect(haptics, [_select, _select, _commit, _success]);
+      expect(haptics, [_select, _select, _success]);
     });
 
     testWidgets('a 4th pick is refused: the chip shakes and flashes red, the '
@@ -655,7 +649,7 @@ void main() {
 
   group('moments', () {
     testWidgets('Done: title at +120, Start here at +200, the first card at '
-        '+240; the Cheer figure is clipped to the 171 pt hero', (tester) async {
+        '+240; the Cheer figure is clipped to the 128 pt hero', (tester) async {
       await _open(
         tester,
         Routes.onboardingDone,
@@ -672,7 +666,7 @@ void main() {
       expect(_opacity(tester, card), 0);
       await tester.pump(_ms * 100);
       expect(_opacity(tester, card), closeTo(_eo(60 / 260), 0.02));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 2));
       for (final finder in [title, start]) {
         expect(_opacity(tester, finder), 1);
       }
@@ -680,7 +674,36 @@ void main() {
         of: find.byType(IqFigure),
         matching: find.byType(ClipRect),
       );
-      expect(tester.getRect(hero.first), const Rect.fromLTWH(16, 78, 358, 171));
+      expect(tester.getRect(hero.first), const Rect.fromLTWH(16, 78, 358, 128));
+    });
+
+    testWidgets('Done: the confetti falls past the Cheer figure, each piece '
+        'at its own pace, and starts where Figma draws it', (tester) async {
+      await _open(
+        tester,
+        Routes.onboardingDone,
+        draft: {..._aboutYou, 'lastStep': 'whatYouLike'},
+      );
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 200)),
+      );
+      await tester.pump();
+      Matrix4 at(int i) => tester
+          .widget<Transform>(
+            find.descendant(
+              of: find.byKey(ValueKey('confetti-$i')),
+              matching: find.byType(Transform),
+            ),
+          )
+          .transform;
+      expect(find.byKey(const ValueKey('confetti-0')), findsOneWidget);
+      final start = [for (var i = 0; i < 12; i++) at(i).getTranslation().y];
+      await tester.pump(const Duration(seconds: 1));
+      final later = [for (var i = 0; i < 12; i++) at(i).getTranslation().y];
+      for (var i = 0; i < 12; i++) {
+        expect(later[i], greaterThan(start[i]));
+      }
+      expect(later.toSet().length, greaterThan(1));
     });
 
     testWidgets('reduced motion: Done fades in together over 150', (
