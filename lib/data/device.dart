@@ -1,16 +1,18 @@
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Platform capabilities the screens ask for. The demo resolves without
 /// touching the OS; the real one wraps the plugins named on each method.
 abstract class DeviceService {
-  /// permission_handler or firebase_messaging.
+  /// The phone's own prompt (Android 13+ and iOS); true when iQLY may
+  /// notify afterwards.
   Future<bool> requestNotificationPermission();
 
-  /// Whether the phone lets iQLY notify (permission_handler).
+  /// Whether the phone lets iQLY notify.
   Future<bool> notificationsAllowed();
 
-  /// The phone's notification settings for iQLY (app_settings).
+  /// The phone's notification settings for iQLY.
   Future<void> openNotificationSettings();
 
   /// android_intent_plus (main/APP_EMAIL) and url_launcher (message: on iOS);
@@ -50,27 +52,69 @@ class DemoDeviceService implements DeviceService {
   }
 }
 
-/// The phone itself: links open in the browser or the app that owns them.
-/// The other capabilities still stand in until their plugins land.
+/// The phone itself: links open in the browser or the app that owns them,
+/// and notification permission is the OS's own, through
+/// flutter_local_notifications. The email app still stands in.
 class PlatformDeviceService implements DeviceService {
-  PlatformDeviceService([DeviceService? rest])
-    : _rest = rest ?? DemoDeviceService();
+  PlatformDeviceService({
+    FlutterLocalNotificationsPlugin? notifications,
+    DeviceService? rest,
+  }) : _notifications = notifications ?? FlutterLocalNotificationsPlugin(),
+       _rest = rest ?? DemoDeviceService();
 
+  final FlutterLocalNotificationsPlugin _notifications;
   final DeviceService _rest;
+
+  AndroidFlutterLocalNotificationsPlugin? get _android => _notifications
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >();
+
+  IOSFlutterLocalNotificationsPlugin? get _ios => _notifications
+      .resolvePlatformSpecificImplementation<
+        IOSFlutterLocalNotificationsPlugin
+      >();
 
   @override
   Future<void> openUrl(Uri url) =>
       launchUrl(url, mode: LaunchMode.externalApplication);
 
   @override
-  Future<bool> requestNotificationPermission() =>
-      _rest.requestNotificationPermission();
+  Future<bool> requestNotificationPermission() async {
+    final android = _android;
+    if (android != null) {
+      return await android.requestNotificationsPermission() ?? false;
+    }
+    final ios = _ios;
+    if (ios != null) {
+      return await ios.requestPermissions(
+            alert: true,
+            badge: true,
+            sound: true,
+          ) ??
+          false;
+    }
+    return true;
+  }
 
   @override
-  Future<bool> notificationsAllowed() => _rest.notificationsAllowed();
+  Future<bool> notificationsAllowed() async {
+    final android = _android;
+    if (android != null) return await android.areNotificationsEnabled() ?? true;
+    final ios = _ios;
+    if (ios != null) return (await ios.checkPermissions())?.isEnabled ?? true;
+    return true;
+  }
 
   @override
-  Future<void> openNotificationSettings() => _rest.openNotificationSettings();
+  Future<void> openNotificationSettings() async {
+    final android = _android;
+    if (android != null) {
+      await android.openAppNotificationSettings();
+      return;
+    }
+    await _ios?.openAppNotificationSettings();
+  }
 
   @override
   Future<void> openEmailApp() => _rest.openEmailApp();

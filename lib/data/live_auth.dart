@@ -144,7 +144,7 @@ class LiveAuthService implements AuthService {
       'password': password,
     });
     if (!res.ok) return _failure(res);
-    return AuthResult.success(newAccount: await _onboardingDue());
+    return _signedIn(res);
   });
 
   @override
@@ -172,7 +172,7 @@ class LiveAuthService implements AuthService {
       },
     });
     if (!res.ok) return _failure(res);
-    return AuthResult.success(newAccount: await _onboardingDue());
+    return _signedIn(res);
   });
 
   @override
@@ -203,7 +203,7 @@ class LiveAuthService implements AuthService {
       'otp': code,
     });
     if (!res.ok) return _failure(res);
-    return AuthResult.success(newAccount: await _onboardingDue());
+    return _signedIn(res);
   });
 
   @override
@@ -215,6 +215,28 @@ class LiveAuthService implements AuthService {
     }
     await api.tokens.clear();
     await social.signOut();
+  }
+
+  @override
+  Future<String?> accountName() async {
+    try {
+      final res = await api.get('$_auth/get-session');
+      return res.ok ? _nameIn(res.body) : null;
+    } on ApiUnreachable {
+      return null;
+    }
+  }
+
+  Future<AuthResult> _signedIn(ApiResponse res) async => AuthResult.success(
+    newAccount: await _onboardingDue(),
+    name: _nameIn(res.body) ?? await accountName(),
+  );
+
+  /// Better Auth answers sign-ins and sessions with the account as `user`.
+  static String? _nameIn(Map<String, dynamic> body) {
+    final user = body['user'];
+    final name = user is Map ? user['name'] : null;
+    return name is String && name.trim().isNotEmpty ? name.trim() : null;
   }
 
   /// A new account has no contributor profile yet, or one with onboarding

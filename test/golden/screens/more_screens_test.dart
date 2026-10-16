@@ -281,6 +281,11 @@ void main() {
       await moreGolden(tester, 'notification_preferences_off');
     });
 
+    testWidgets('1336:28442 Try notifications', (tester) async {
+      await pumpMore(tester, Routes.tryNotifications);
+      await moreGolden(tester, 'try_notifications');
+    }, variant: ios);
+
     testWidgets('194:9964 Delete account', (tester) async {
       await pumpMore(tester, Routes.deleteAccount);
       await moreGolden(tester, 'delete_account');

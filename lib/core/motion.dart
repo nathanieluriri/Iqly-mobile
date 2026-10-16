@@ -369,6 +369,9 @@ abstract final class IqScale {
   /// The breathing sticker's peak.
   static const double stickerBreath = 1.04;
 
+  /// The page an Android back swipe uncovers, until the finger lets go.
+  static const double backPreview = 0.9;
+
   /// Chat bubble and TipCard on arrival, BrandBubble press.
   static const double soft = 0.96;
 

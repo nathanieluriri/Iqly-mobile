@@ -34,11 +34,17 @@ enum AuthFailure {
 }
 
 class AuthResult {
-  const AuthResult.success({this.newAccount = false}) : failure = null;
-  const AuthResult.failure(AuthFailure this.failure) : newAccount = false;
+  const AuthResult.success({this.newAccount = false, this.name})
+    : failure = null;
+  const AuthResult.failure(AuthFailure this.failure)
+    : newAccount = false,
+      name = null;
 
   /// No account holds this email or Apple or Google identity yet.
   final bool newAccount;
+
+  /// The account's full name as the API holds it, when the answer said.
+  final String? name;
   final AuthFailure? failure;
 
   bool get ok => failure == null;
@@ -74,6 +80,9 @@ abstract class AuthService {
   /// Confirms [email] with [code] and signs in. [AuthResult.newAccount] is
   /// set while onboarding is still to do.
   Future<AuthResult> verifyEmail({required String email, required String code});
+
+  /// The signed-in account's full name, or null with no session or answer.
+  Future<String?> accountName();
 
   Future<void> signOut();
 }
@@ -173,7 +182,7 @@ class DemoAuthService implements AuthService {
       _
           when address == DemoData.user.email &&
               password == DemoAuthService.password =>
-        const AuthResult.success(),
+        AuthResult.success(name: DemoData.user.name),
       _ => const AuthResult.failure(AuthFailure.wrongCredentials),
     };
   }
@@ -186,7 +195,10 @@ class DemoAuthService implements AuthService {
     await _wait();
     final failure = socialFailure;
     if (failure != null) return AuthResult.failure(failure);
-    return AuthResult.success(newAccount: !socialAccountExists);
+    return AuthResult.success(
+      newAccount: !socialAccountExists,
+      name: DemoData.user.name,
+    );
   }
 
   @override
@@ -216,14 +228,18 @@ class DemoAuthService implements AuthService {
   }) async {
     await _wait();
     return switch (code) {
-      DemoAuthService.code => AuthResult.success(
-        newAccount: !_known.contains(_normal(email)),
-      ),
+      DemoAuthService.code =>
+        _known.contains(_normal(email))
+            ? AuthResult.success(name: DemoData.user.name)
+            : const AuthResult.success(newAccount: true),
       expiredCode => const AuthResult.failure(AuthFailure.codeExpired),
       lockedCode => const AuthResult.failure(AuthFailure.tooManyAttempts),
       _ => const AuthResult.failure(AuthFailure.wrongCode),
     };
   }
+
+  @override
+  Future<String?> accountName() async => DemoData.user.name;
 
   @override
   Future<void> signOut() async {}

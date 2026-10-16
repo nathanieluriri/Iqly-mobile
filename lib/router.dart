@@ -46,6 +46,7 @@ abstract final class Routes {
   static const onboardingAboutYou = '/onboarding/about-you';
   static const onboardingWhereYouLive = '/onboarding/where-you-live';
   static const onboardingWhereYouStudied = '/onboarding/where-you-studied';
+  static const onboardingYourWork = '/onboarding/your-work';
   static const onboardingAddUniversity = '/onboarding/add-university';
   static const onboardingWhatYouLike = '/onboarding/what-you-like';
   static const onboardingResume = '/onboarding/resume';
@@ -76,6 +77,7 @@ abstract final class Routes {
   static const restoreAccount = '/restore-account';
   static const phoneCode = '/profile/details/phone/code';
   static const moreSavedBriefs = '/saved-briefs';
+  static const tryNotifications = '/try-notifications';
   static const referrals = '/referrals';
   static const inviteCode = '/referrals/code';
   static const referralHistory = '/referrals/history';

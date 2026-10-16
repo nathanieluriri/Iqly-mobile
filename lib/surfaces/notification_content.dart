@@ -58,6 +58,7 @@ class SurfaceNotification {
     this.progressMax = 0,
     this.ongoing = false,
     this.actions = const [],
+    this.countdownTo,
   });
 
   /// Stable per thing reported ("payout:w3"); an update replaces the shown
@@ -76,6 +77,10 @@ class SurfaceNotification {
   final int progressMax;
   final bool ongoing;
   final List<SurfaceAction> actions;
+
+  /// The close a reminder counts down to: Android shows the time left
+  /// ticking, and lets the notification go when it is reached.
+  final DateTime? countdownTo;
 
   int get id => stableId(key);
   String get group => 'net.iqly.${channel.id}';
@@ -174,6 +179,7 @@ SurfaceNotification? draftNotification(
     body: SurfaceCopy.draftLeft(leftLong(left)),
     route: DeepLinks.notification(notificationId),
     thumb: brandOfBrief(brief).slug,
+    countdownTo: brief.deadline,
   );
 }
 

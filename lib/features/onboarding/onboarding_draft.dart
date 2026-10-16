@@ -3,11 +3,14 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/session.dart';
+import '../../data/auth.dart';
 import '../../data/models.dart';
 import '../../data/onboarding_service.dart';
 import '../../data/reference_data.dart';
 import '../../data/repository.dart';
 import '../../router.dart';
+import '../../ui/step_mark.dart';
+import 'onboarding_flow.dart';
 
 /// [city] as it is spelled in [state]'s list, or null when the list does not
 /// have it (a custom city). Spacing, hyphens, apostrophes and the listed
@@ -40,18 +43,32 @@ bool isAdult(DateTime? born, [DateTime? today]) {
   return !birthday.isAfter(DateTime(now.year, now.month, now.day));
 }
 
-/// The screens of first run, in order. [label] is what Resume shows after
-/// "Next:".
+/// The screens of first run; OnboardingFlow says their order. [label] is
+/// what Resume shows after "Next:", [mark] the step mark's part.
 enum OnboardingStep {
-  aboutYou('About you', Routes.onboardingAboutYou),
-  whereYouLive('Where you live', Routes.onboardingWhereYouLive),
-  whereYouStudied('Where you studied', Routes.onboardingWhereYouStudied),
-  whatYouLike('What you’re into', Routes.onboardingWhatYouLike);
+  aboutYou('About you', Routes.onboardingAboutYou, IqStepMarkStep.oneOfThree),
+  whereYouStudied(
+    'Where you study',
+    Routes.onboardingWhereYouStudied,
+    IqStepMarkStep.twoOfThree,
+  ),
+  yourWork('Your work', Routes.onboardingYourWork, IqStepMarkStep.twoOfThree),
+  whereYouLive(
+    'Where you live',
+    Routes.onboardingWhereYouLive,
+    IqStepMarkStep.twoOfThree,
+  ),
+  whatYouLike(
+    'What you’re into',
+    Routes.onboardingWhatYouLike,
+    IqStepMarkStep.threeOfThree,
+  );
 
-  const OnboardingStep(this.label, this.route);
+  const OnboardingStep(this.label, this.route, this.mark);
 
   final String label;
   final String route;
+  final IqStepMarkStep mark;
 }
 
 class OnboardingDraft {
@@ -72,29 +89,11 @@ class OnboardingDraft {
 
   bool get started => lastStep != null;
 
-  bool get aboutYouDone =>
-      profile.occupation != null && isAdult(profile.dateOfBirth);
-  bool get whereYouAreDone =>
-      profile.state != null &&
-      profile.city.trim().isNotEmpty &&
-      profile.education != null;
-  bool get whatYouLikeDone => interestsComplete(profile);
+  /// The step mark's parts with something left to answer.
+  int get stepsLeft => OnboardingFlow.current.partsLeft(profile);
 
-  int get stepsLeft => [
-    aboutYouDone,
-    whereYouAreDone,
-    whatYouLikeDone,
-  ].where((done) => !done).length;
-
-  OnboardingStep? get firstIncomplete {
-    if (!aboutYouDone) return OnboardingStep.aboutYou;
-    if (profile.state == null || profile.city.trim().isEmpty) {
-      return OnboardingStep.whereYouLive;
-    }
-    if (profile.education == null) return OnboardingStep.whereYouStudied;
-    if (!whatYouLikeDone) return OnboardingStep.whatYouLike;
-    return null;
-  }
+  OnboardingStep? get firstIncomplete =>
+      OnboardingFlow.current.firstUnanswered(profile);
 
   static const minInterests = 2;
   static const maxInterests = 3;
@@ -130,6 +129,8 @@ class OnboardingDraft {
     'otherInterest': profile.otherInterest,
     'dateOfBirth': profile.dateOfBirth?.toIso8601String(),
     'phone': profile.phone,
+    'sector': profile.sector,
+    'otherSector': profile.otherSector,
     'lastStep': lastStep?.name,
     'deferred': deferred,
   };
@@ -146,6 +147,8 @@ class OnboardingDraft {
       otherInterest: json['otherInterest'] as String? ?? '',
       dateOfBirth: DateTime.tryParse(json['dateOfBirth'] as String? ?? ''),
       phone: json['phone'] as String? ?? '',
+      sector: json['sector'] as String?,
+      otherSector: json['otherSector'] as String? ?? '',
     ),
     lastStep: OnboardingStep.values
         .where((s) => s.name == json['lastStep'])
@@ -172,9 +175,17 @@ class OnboardingDraftNotifier extends Notifier<OnboardingDraft> {
 
   OnboardingProfile get _p => state.profile;
 
-  /// Anything but Student drops any university picked before.
-  void setOccupation(String value) =>
-      _save(state.copyWith(profile: _p.withOccupation(value)));
+  /// Drops the answers the new path never asks: a student's sector, or
+  /// anyone else's education and university.
+  void setOccupation(String value) => _save(
+    state.copyWith(
+      profile: OnboardingFlow.current.tidy(_p.withOccupation(value)),
+    ),
+  );
+
+  void setSector(String value) => _save(_profile(sector: value));
+
+  void setOtherSector(String value) => _save(_profile(otherSector: value));
 
   /// A new state keeps the city only if that state's list has it.
   void setState(String value) {
@@ -241,17 +252,21 @@ class OnboardingDraftNotifier extends Notifier<OnboardingDraft> {
     String? otherInterest,
     DateTime? dateOfBirth,
     String? phone,
+    String? sector,
+    String? otherSector,
   }) => this.state.copyWith(
-    profile: OnboardingProfile(
-      occupation: occupation ?? _p.occupation,
-      state: state ?? _p.state,
-      city: city ?? _p.city,
-      education: education ?? _p.education,
-      university: university ?? _p.university,
-      interests: interests ?? _p.interests,
-      otherInterest: otherInterest ?? _p.otherInterest,
-      dateOfBirth: dateOfBirth ?? _p.dateOfBirth,
-      phone: phone ?? _p.phone,
+    profile: _p.copyWith(
+      occupation: occupation,
+      state: state,
+      city: city,
+      education: education,
+      university: university,
+      interests: interests,
+      otherInterest: otherInterest,
+      dateOfBirth: dateOfBirth,
+      phone: phone,
+      sector: sector,
+      otherSector: otherSector,
     ),
   );
 
@@ -279,10 +294,25 @@ final onboardingUserProvider = FutureProvider<User>(
   (ref) => ref.watch(repositoryProvider).user(),
 );
 
-/// The first name Welcome and Done greet: the one typed at sign-up on this
-/// device, else the account's.
+/// The signed-in account's name: kept on this device since sign-in, else
+/// asked of the API once (an account signed in before names were kept).
+final accountNameProvider = Provider<String?>((ref) {
+  final kept = ref.watch(sessionProvider.select((s) => s.name));
+  if (kept != null) return kept;
+  if (!ref.watch(sessionProvider.select((s) => s.signedIn))) return null;
+  return ref.watch(_askedNameProvider).value;
+});
+
+final _askedNameProvider = FutureProvider<String?>((ref) async {
+  final name = await ref.read(authServiceProvider).accountName();
+  if (name != null) await ref.read(sessionProvider.notifier).setName(name);
+  return name;
+});
+
+/// The first name Welcome, Resume and Done greet (owner, 16 Oct: never the
+/// sample account's): the account's own, or no name at all.
 final greetingNameProvider = Provider<String?>(
   (ref) =>
       ref.watch(sessionProvider.select((s) => s.firstName)) ??
-      ref.watch(onboardingUserProvider).value?.firstName,
+      ref.watch(accountNameProvider)?.split(' ').first,
 );

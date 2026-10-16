@@ -63,14 +63,18 @@ bool isEmail(String value) => _email.hasMatch(value.trim());
 const minPasswordLength = 8;
 
 /// A returning account has done onboarding and seen the first tip on
-/// another install, so it lands on Discover without either.
-Future<void> completeSignIn(WidgetRef ref, {required bool newAccount}) async {
+/// another install, so it lands on Discover without either. The name typed
+/// at sign-up wins; any other sign-in keeps the account's [name].
+Future<void> completeSignIn(
+  WidgetRef ref, {
+  required bool newAccount,
+  String? name,
+}) async {
   final session = ref.read(sessionProvider.notifier);
-  final typedName = ref.read(entryDraftProvider).firstName.trim();
+  final draft = ref.read(entryDraftProvider);
+  final typed = '${draft.firstName.trim()} ${draft.lastName.trim()}'.trim();
   await session.setSignedIn(true);
-  await session.setFirstName(
-    newAccount && typedName.isNotEmpty ? typedName : null,
-  );
+  await session.setName(newAccount && typed.isNotEmpty ? typed : name);
   if (newAccount) {
     await ref.read(avatarProvider.notifier).startNewcomer();
   } else {

@@ -12,6 +12,7 @@ import 'package:iqly_mobile/features/onboarding/welcome_screen.dart';
 import 'package:iqly_mobile/features/onboarding/what_you_like_screen.dart';
 import 'package:iqly_mobile/features/onboarding/where_you_live_screen.dart';
 import 'package:iqly_mobile/features/onboarding/where_you_studied_screen.dart';
+import 'package:iqly_mobile/features/onboarding/your_work_screen.dart';
 
 import '../golden.dart';
 import 'app_harness.dart';
@@ -79,6 +80,39 @@ void main() {
       tester,
       'onboarding_where_you_studied',
       onboardingFrame(prefs, const WhereYouStudiedScreen()),
+    );
+  });
+
+  testWidgets('1334:28297 Step 2 Your work', (tester) async {
+    final prefs = await onboardingPrefs(
+      draft: {
+        ...sampleAboutYou,
+        'occupation': 'employed',
+        'sector': 'finance',
+        'lastStep': 'yourWork',
+      },
+    );
+    await expectGolden(
+      tester,
+      'onboarding_your_work',
+      onboardingFrame(prefs, const YourWorkScreen()),
+    );
+  });
+
+  testWidgets('1334:28422 Step 2 Your work, Other', (tester) async {
+    final prefs = await onboardingPrefs(
+      draft: {
+        ...sampleAboutYou,
+        'occupation': 'entrepreneur',
+        'sector': 'other',
+        'otherSector': 'Event planning',
+        'lastStep': 'yourWork',
+      },
+    );
+    await expectGolden(
+      tester,
+      'onboarding_your_work_other',
+      onboardingFrame(prefs, const YourWorkScreen()),
     );
   });
 

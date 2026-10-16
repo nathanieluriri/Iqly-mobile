@@ -1,24 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../data/reference_data.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/field.dart';
-import '../../ui/step_mark.dart';
 import 'onboarding_draft.dart';
 import 'onboarding_layout.dart';
 import 'onboarding_sheets.dart';
 
-/// B11 · Step 2 · Where you studied (223:10826): education (the option
+/// B11 · Step 2 · Where you study (223:10826): education (the option
 /// sheet, 480:20164), then the university search (188:8340), whose "Add my
 /// university" opens Add your university (480:20477). Only students name a
 /// university, and SSCE / WAEC has none, so for anyone else the field folds
-/// away (1284:90545).
+/// away (1284:90545). On the occupation path only students come here, so it
+/// asks in the present tense (owner, 16 Oct).
 ///
-/// "Use this" in the university search moves on to What you like, as Figma
+/// "Use this" in the university search moves on to the next step, as Figma
 /// wires it (188:8380 to 188:8390), but only once the sheet has dropped and
 /// the university has landed on this step (spec 6.15). Reduced motion: the
 /// value lands and the step moves on at once.
@@ -43,7 +44,7 @@ class _WhereYouStudiedScreenState extends ConsumerState<WhereYouStudiedScreen>
     super.dispose();
   }
 
-  void _next() => goToStep(context, ref, OnboardingStep.whatYouLike);
+  void _next() => goToNextStep(context, ref, OnboardingStep.whereYouStudied);
 
   Future<void> _pickEducation(String? current) async {
     final picked = await showOnboardingSheet<String>(
@@ -94,9 +95,12 @@ class _WhereYouStudiedScreenState extends ConsumerState<WhereYouStudiedScreen>
     final university = profile.university;
 
     return OnboardingStepScaffold(
-      step: IqStepMarkStep.twoOfThree,
-      title: 'Where did you study?',
-      onBack: () => leaveStep(context, Routes.onboardingWhereYouLive),
+      step: OnboardingStep.whereYouStudied.mark,
+      title: Flags.onboardingByOccupation
+          ? 'Where do you study?'
+          : 'Where did you study?',
+      onBack: () =>
+          leaveToPrevious(context, ref, OnboardingStep.whereYouStudied),
       onSkip: _next,
       onNext: _next,
       nextEnabled: education != null,

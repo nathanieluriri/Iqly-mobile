@@ -13,6 +13,7 @@ import '../../data/repository.dart';
 import '../avatar/avatar_state.dart';
 import '../discover/discover_state.dart';
 import '../onboarding/onboarding_draft.dart';
+import '../onboarding/onboarding_flow.dart';
 import '../onboarding/what_you_like_screen.dart';
 import '../submit/submit_state.dart';
 
@@ -23,7 +24,7 @@ final profileAnswersProvider = Provider<OnboardingProfile>((ref) {
   final draft = ref.watch(onboardingDraftProvider).profile;
   final user = ref.watch(onboardingUserProvider).value;
   final ownPlace = draft.state != null;
-  return draft.copyWith(
+  final merged = draft.copyWith(
     occupation: draft.occupation ?? user?.occupation,
     state: draft.state ?? user?.state,
     city: ownPlace || draft.city.trim().isNotEmpty
@@ -39,6 +40,7 @@ final profileAnswersProvider = Provider<OnboardingProfile>((ref) {
         : null,
     interests: ref.watch(feedInterestsProvider),
   );
+  return OnboardingFlow.current.tidy(merged);
 });
 
 /// Phone, date of birth, gender and state of origin, kept on the device once
@@ -139,6 +141,6 @@ Future<void> forgetAccount(WidgetRef ref) async {
   await ref.read(avatarProvider.notifier).forget();
   await session.setFirstTipSeen(false);
   await session.setOnboardingDone(false);
-  await session.setFirstName(null);
+  await session.setName(null);
   await session.setSignedIn(false);
 }
