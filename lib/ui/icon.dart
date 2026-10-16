@@ -82,7 +82,10 @@ enum IqIcons {
   shirt,
   background,
   pencil,
-  camera;
+  camera,
+  smartphone,
+  devices,
+  laptop;
 
   /// Figma names the file in kebab case (Exp/Icon/eye-off).
   String get asset =>
