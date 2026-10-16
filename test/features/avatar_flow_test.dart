@@ -18,7 +18,6 @@ import 'package:iqly_mobile/ui/avatar_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../golden/golden.dart' show loadAppFonts;
-import '../golden/screens/app_harness.dart' show signedInPrefs;
 import '../golden/screens/more_harness.dart';
 
 String _path(WidgetTester tester) =>
