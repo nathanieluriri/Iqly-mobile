@@ -23,3 +23,5 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter build ios --debug --no-codesign
+      - name: The widget extension is in the app
+        run: test -d build/ios/iphoneos/Runner.app/PlugIns/IqlySurfaces.appex
