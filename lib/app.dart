@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/edge_haptics.dart';
+import 'core/patches.dart';
 import 'core/updates.dart';
+import 'features/splash/patch_dialog.dart';
 import 'router.dart';
 import 'theme/theme.dart';
 
@@ -20,8 +24,12 @@ class _IqlyAppState extends ConsumerState<IqlyApp> {
   void initState() {
     super.initState();
     _lifecycle = AppLifecycleListener(
-      onResume: () => ref.read(updatesProvider.notifier).resumed(),
+      onResume: () {
+        ref.read(updatesProvider.notifier).resumed();
+        ref.read(patchesProvider.notifier).resumed();
+      },
     );
+    unawaited(ref.read(patchesProvider.notifier).check());
   }
 
   @override
@@ -32,14 +40,18 @@ class _IqlyAppState extends ConsumerState<IqlyApp> {
 
   @override
   Widget build(BuildContext context) {
+    final router = ref.watch(routerProvider);
     return MaterialApp.router(
       title: 'iQLY',
       theme: buildTheme(),
-      routerConfig: ref.watch(routerProvider),
+      routerConfig: router,
       debugShowCheckedModeBanner: false,
       // Paper under every route, so no transition ever fades to black.
-      builder: (context, child) => EdgeHaptics(
-        child: ColoredBox(color: IqColors.bg, child: child),
+      builder: (context, child) => PatchPresenter(
+        router: router,
+        child: EdgeHaptics(
+          child: ColoredBox(color: IqColors.bg, child: child),
+        ),
       ),
     );
   }
