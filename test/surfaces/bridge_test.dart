@@ -51,7 +51,7 @@ void main() {
 
   test('the method channel name matches both native halves', () {
     final kotlin = File(
-      'android/app/src/main/kotlin/net/iqly/iqly_mobile/SurfacesChannel.kt',
+      'android/app/src/main/kotlin/net/iqly/app/SurfacesChannel.kt',
     ).readAsStringSync();
     final swift = File('ios/RunnerSurfaces/SurfacesChannel.swift')
         .readAsStringSync();

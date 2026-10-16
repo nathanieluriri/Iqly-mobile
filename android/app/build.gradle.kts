@@ -1,11 +1,25 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// The iQLY upload key signs every build (debug and release), so Google sign-in
+// sees one SHA-1 everywhere. It comes from android/key.properties locally or
+// from IQLY_KEYSTORE_* variables in CI; without either, builds fall back to
+// the machine's own debug key.
+val keyProperties = Properties().apply {
+    val file = rootProject.file("key.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+fun signingValue(property: String, env: String): String? =
+    keyProperties.getProperty(property) ?: System.getenv(env)
+val keystorePath = signingValue("storeFile", "IQLY_KEYSTORE_PATH")
+
 android {
-    namespace = "net.iqly.iqly_mobile"
+    namespace = "net.iqly.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -17,8 +31,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "net.iqly.iqly_mobile"
+        applicationId = "net.iqly.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -31,11 +44,24 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (keystorePath != null) {
+            create("iqly") {
+                storeFile = file(keystorePath)
+                storePassword = signingValue("storePassword", "IQLY_KEYSTORE_PASSWORD")
+                keyAlias = signingValue("keyAlias", "IQLY_KEY_ALIAS") ?: "upload"
+                keyPassword = signingValue("keyPassword", "IQLY_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
+        val signing = signingConfigs.findByName("iqly") ?: signingConfigs.getByName("debug")
+        debug {
+            signingConfig = signing
+        }
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signing
         }
     }
 }

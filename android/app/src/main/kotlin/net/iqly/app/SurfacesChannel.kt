@@ -1,4 +1,4 @@
-package net.iqly.iqly_mobile
+package net.iqly.app
 
 import android.content.Context
 import android.content.Intent
