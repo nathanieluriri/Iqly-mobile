@@ -422,9 +422,8 @@ void main() {
     expect(find.text('Question 1 needs an answer'), findsOneWidget);
   });
 
-  testWidgets('B3: leaving with words written asks first (481:21364)', (
-    tester,
-  ) async {
+  testWidgets('B3: leaving with words written keeps the draft and never '
+      'asks (owner, 16 Oct)', (tester) async {
     final repository = withDraft(
       title: SubmitCopy.title,
       answer: SubmitCopy.answer,
@@ -438,25 +437,18 @@ void main() {
     await _tap(tester, find.text('Start your submission'));
 
     await _tap(tester, find.bySemanticsLabel('Back'));
-    expect(find.text('Leave without sending?'), findsOneWidget);
-    expect(
-      find.text(
-        'Your draft stays saved on this phone. Come back any time before the '
-        'brief closes.',
-      ),
-      findsOneWidget,
-    );
-    await _tap(tester, find.text('Keep writing'));
     expect(find.byType(IqConfirmSheet), findsNothing);
-    expect(find.byType(SubmitScreen), findsOneWidget);
-
-    await tester.binding.handlePopRoute();
-    await tester.pumpAndSettle();
-    expect(find.text('Leave without sending?'), findsOneWidget);
-    await _tap(tester, find.text('Discard draft'));
     expect(find.byType(SubmitScreen), findsNothing);
     expect(find.byType(BriefDetailScreen), findsOneWidget);
-    expect(_drafts(repository), isEmpty);
+    expect(_drafts(repository), isNotEmpty);
+
+    await _tap(tester, find.text('Start your submission'));
+    expect(find.text(SubmitCopy.title), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byType(IqConfirmSheet), findsNothing);
+    expect(find.byType(BriefDetailScreen), findsOneWidget);
+    expect(_drafts(repository), isNotEmpty);
   });
 
   testWidgets('B3: an empty draft leaves without asking', (tester) async {

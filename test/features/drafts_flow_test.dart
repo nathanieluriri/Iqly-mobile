@@ -51,11 +51,6 @@ void main() {
     expect(draftMeta(items[0], now), 'Unibooks · Step 2 of 3 · 2 hours ago');
     expect(draftMeta(items[1], now), 'Sunline · Step 1 of 3 · yesterday');
     expect(
-      draftActionsBody(items[0], now),
-      'Unibooks · Step 2 of 3 · edited 2 hours ago. Pick up where you '
-      'stopped, or discard it.',
-    );
-    expect(
       draftsEntryDescription(items, now),
       'Unibooks and Sunline · last edited 2 hours ago',
     );
@@ -96,9 +91,8 @@ void main() {
     expect(find.byType(MySubmissionsScreen), findsOneWidget);
   });
 
-  testWidgets('tap a draft, Continue writing resumes it; back to Drafts', (
-    tester,
-  ) async {
+  testWidgets('tap a draft and it opens where it stopped; Back keeps it and '
+      'returns to Drafts, with no sheet either way', (tester) async {
     await pumpApp(
       tester,
       Routes.submissions,
@@ -107,43 +101,41 @@ void main() {
     );
     await _tap(tester, find.text('Drafts · 2'));
     await _tap(tester, find.text('Charge up, stay connected'));
-    expect(find.byType(IqConfirmSheet), findsOneWidget);
-    expect(
-      find.text(
-        'Sunline · Step 1 of 3 · edited yesterday. Pick up where you '
-        'stopped, or discard it.',
-      ),
-      findsOneWidget,
-    );
-    await _tap(tester, find.text('Continue writing'));
+    expect(find.byType(IqConfirmSheet), findsNothing);
     expect(find.byType(SubmitScreen), findsOneWidget);
     expect(find.text('No light? We dey'), findsOneWidget);
     expect(find.text('4 more characters to go'), findsOneWidget);
 
     await _tap(tester, find.bySemanticsLabel('Back'));
-    await _tap(tester, find.text('Keep writing'));
+    expect(find.byType(IqConfirmSheet), findsNothing);
+    expect(find.byType(DraftsScreen), findsOneWidget);
+    expect(find.text('2 drafts'), findsOneWidget);
+
+    await _tap(tester, find.text('Charge up, stay connected'));
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
-    await _tap(tester, find.text('Discard draft'));
+    expect(find.byType(IqConfirmSheet), findsNothing);
     expect(find.byType(DraftsScreen), findsOneWidget);
-    expect(find.text('1 draft'), findsOneWidget);
+    expect(find.text('2 drafts'), findsOneWidget);
   });
 
-  testWidgets('Discard draft asks, then the row goes', (tester) async {
+  testWidgets('one draft picked: Discard 1 draft asks, then the row goes', (
+    tester,
+  ) async {
     final repository = _sample();
     await pumpApp(tester, Routes.drafts, repository: repository);
-    await _tap(tester, find.text('No light? We dey'));
-    await _tap(tester, find.text('Discard draft'));
+    await tester.longPress(find.text('No light? We dey'));
+    await tester.pumpAndSettle();
+    await _tap(tester, find.text('Discard 1 draft'));
     expect(find.text('Discard this draft?'), findsOneWidget);
     expect(
       find.text('It only lives on this phone. This cannot be undone.'),
       findsOneWidget,
     );
     await _tap(tester, find.text('Keep draft'));
-    expect(find.text('2 drafts'), findsOneWidget);
+    expect(find.text('1 selected'), findsOneWidget);
 
-    await _tap(tester, find.text('No light? We dey'));
-    await _tap(tester, find.text('Discard draft'));
+    await _tap(tester, find.text('Discard 1 draft'));
     await _tap(tester, _text('Discard'));
     expect(find.text('1 draft'), findsOneWidget);
     expect(find.text('No light? We dey'), findsNothing);

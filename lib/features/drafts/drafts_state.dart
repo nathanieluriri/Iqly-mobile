@@ -75,12 +75,6 @@ String draftMeta(DraftItem item, DateTime now) =>
     '${item.business} · ${stepOf(item.draft)} · '
     '${editedAgo(item.draft.editedAt, now)}';
 
-/// The draft actions sheet's line (499:26919).
-String draftActionsBody(DraftItem item, DateTime now) =>
-    '${item.business} · ${stepOf(item.draft)} · edited '
-    '${editedAgo(item.draft.editedAt, now)}. '
-    'Pick up where you stopped, or discard it.';
-
 /// "Drafts · 2" and "Unibooks and Sunline · last edited 2 hours ago" on the
 /// My submissions entry row (35:24).
 String draftsEntryLabel(int count) => 'Drafts · $count';

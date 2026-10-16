@@ -268,7 +268,7 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
       !state.uploading &&
       firstUnanswered(form, state.draft) == null;
 
-  /// "Discard draft" on the leave sheet.
+  /// Drops the draft once its answer is sent.
   Future<void> discard() =>
       ref.read(draftsProvider.notifier).discard([briefId]);
 

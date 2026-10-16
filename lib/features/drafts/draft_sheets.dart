@@ -41,17 +41,6 @@ Future<bool?> showDraftSheet(
   );
 }
 
-/// 481:21364, on Back from step 1 with something written.
-Future<bool?> showLeaveSheet(BuildContext context) => showDraftSheet(
-  context,
-  title: 'Leave without sending?',
-  body:
-      'Your draft stays saved on this phone. Come back any time before the '
-      'brief closes.',
-  confirmLabel: 'Keep writing',
-  cancelLabel: 'Discard draft',
-);
-
 /// 499:27019.
 Future<bool?> showDiscardOneSheet(BuildContext context) => showDraftSheet(
   context,

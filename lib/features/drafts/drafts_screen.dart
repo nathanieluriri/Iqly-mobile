@@ -21,10 +21,11 @@ import 'draft_sheets.dart';
 import 'drafts_state.dart';
 
 /// B4 · My submissions · Drafts (481:23202), a sub page: the drafts on this
-/// phone as Exp/DraftRow. Tap opens the draft actions (499:26919); long
-/// press, or the Select link, starts selecting (499:27119) with Select all
-/// or Deselect all and Discard N behind a confirm (499:27256). Back while
-/// selecting leaves selecting; otherwise it returns to the opener.
+/// phone as Exp/DraftRow. Tap opens the draft where it stopped (owner,
+/// 16 Oct: no actions sheet first); long press, or the Select link, starts
+/// selecting (499:27119) with Select all or Deselect all and Discard N
+/// behind a confirm (499:27256). Back while selecting leaves selecting;
+/// otherwise it returns to the opener.
 class DraftsScreen extends ConsumerStatefulWidget {
   const DraftsScreen({super.key});
 
@@ -71,25 +72,8 @@ class _DraftsScreenState extends ConsumerState<DraftsScreen> {
     if (!_selected.remove(id)) _selected.add(id);
   });
 
-  Future<void> _open(DraftItem item) async {
-    final now = ref.read(clockProvider)();
-    final draft = item.draft;
-    final keepWriting = await showDraftSheet(
-      context,
-      title: draft.title.isEmpty ? item.brief?.title ?? '' : draft.title,
-      body: draftActionsBody(item, now),
-      confirmLabel: 'Continue writing',
-      cancelLabel: 'Discard draft',
-    );
-    if (!mounted || keepWriting == null) return;
-    if (keepWriting) {
-      context.push(Routes.submitTo(draft.briefId));
-      return;
-    }
-    final discard = await showDiscardOneSheet(context);
-    if (!mounted || discard != true) return;
-    await ref.read(draftsProvider.notifier).discard([draft.briefId]);
-  }
+  void _open(DraftItem item) =>
+      context.push(Routes.submitTo(item.draft.briefId));
 
   Future<void> _discardSelected() async {
     final count = _selected.length;

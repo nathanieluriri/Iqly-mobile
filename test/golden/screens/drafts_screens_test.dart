@@ -47,21 +47,14 @@ void main() {
     await _golden(tester, 'drafts');
   });
 
-  testWidgets('draft actions (499:26919)', (tester) async {
-    await _golden(
-      tester,
-      'drafts_actions',
-      act: (tester) => _tap(tester, 'No light? We dey'),
-    );
-  });
-
   testWidgets('discard? (499:27019)', (tester) async {
     await _golden(
       tester,
       'drafts_discard_one',
       act: (tester) async {
-        await _tap(tester, 'No light? We dey');
-        await _tap(tester, 'Discard draft');
+        await tester.longPress(find.text('No light? We dey'));
+        await tester.pumpAndSettle();
+        await _tap(tester, 'Discard 1 draft');
       },
     );
   });
