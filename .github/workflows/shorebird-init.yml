@@ -17,6 +17,13 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      # shorebird init reads the Android flavors through gradlew, which only
+      # a Flutter build generates.
+      - run: flutter build apk --config-only
       - uses: shorebirdtech/setup-shorebird@v1
         with:
           cache: true
