@@ -21,10 +21,12 @@ void main() {
   LiveAppVersionService serviceAnswering(
     int status,
     Object body,
-    List<http.Request> requests,
-  ) => LiveAppVersionService(
+    List<http.Request> requests, {
+    int play = 200,
+  }) => LiveAppVersionService(
     baseUrl: 'https://staging.api.iqly.net',
     client: MockClient((request) async {
+      if (request.url.host == 'play.google.com') return http.Response('', play);
       requests.add(request);
       return http.Response(jsonEncode(body), status);
     }),
@@ -54,8 +56,24 @@ void main() {
     expect(release.latest, '0.2.0+4');
     expect(
       release.updateUrl,
-      Uri.parse('https://staging.api.iqly.net/mobile/download/android'),
+      Uri.parse('https://play.google.com/store/apps/details?id=net.iqly.app'),
     );
+  });
+
+  test('nobody is asked while Play does not list the app', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    final release = await serviceAnswering(
+      200,
+      {
+        'success': true,
+        'data': {'status': 'update_required', 'minimum': '0.2.0'},
+      },
+      [],
+      play: 404,
+    ).check();
+    expect(release.status, UpdateStatus.ok);
+    expect(release.updateUrl, isNull);
   });
 
   test('names iOS the way the API does', () {
