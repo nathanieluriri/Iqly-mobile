@@ -272,7 +272,7 @@ void main() {
     expect(find.byType(IqBanner), findsOneWidget);
     expect(haptics, [
       'HapticFeedbackType.lightImpact',
-      'HapticFeedbackType.mediumImpact',
+      'HapticFeedbackType.heavyImpact',
     ]);
   });
 

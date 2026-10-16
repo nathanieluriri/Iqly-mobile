@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -161,16 +162,21 @@ void main() {
   });
 
   group('EdgeHaptics', () {
-    Widget list() => EdgeHaptics(
+    String edge() =>
+        defaultTargetPlatform == TargetPlatform.android ? _heavy : _medium;
+
+    Widget list({Axis axis = Axis.vertical}) => EdgeHaptics(
       child: ListView(
+        scrollDirection: axis,
         children: [
-          for (var i = 0; i < 30; i++) SizedBox(height: 60, child: Text('$i')),
+          for (var i = 0; i < 30; i++)
+            SizedBox(height: 60, width: 60, child: Text('$i')),
         ],
       ),
     );
 
-    testWidgets('a drag into the end plays one stop; a coast into it and a '
-        'pull at the top stay quiet', (tester) async {
+    testWidgets('a drag past either end plays one stop; a coast into the end '
+        'stays quiet', (tester) async {
       final haptics = _haptics(tester);
       await _pump(tester, list());
       final position = tester
@@ -178,16 +184,16 @@ void main() {
           .position;
       await tester.drag(find.byType(ListView), const Offset(0, 200));
       await tester.pumpAndSettle();
-      expect(haptics, isEmpty);
+      expect(haptics, [edge()]);
 
       await tester.fling(find.byType(ListView), const Offset(0, -300), 8000);
       await tester.pumpAndSettle();
       expect(position.pixels, position.maxScrollExtent);
-      expect(haptics, isEmpty);
+      expect(haptics, [edge()]);
 
       await tester.drag(find.byType(ListView), const Offset(0, -200));
       await tester.pumpAndSettle();
-      expect(haptics, [_medium]);
+      expect(haptics, [edge(), edge()]);
     });
 
     testWidgets(
@@ -204,13 +210,33 @@ void main() {
         }
         await finger.up();
         await tester.pumpAndSettle();
-        expect(haptics, [_medium]);
+        expect(haptics, [edge()]);
       },
       variant: const TargetPlatformVariant({
         TargetPlatform.android,
         TargetPlatform.iOS,
       }),
     );
+
+    testWidgets('the start of a list that pulls to refresh is left to the '
+        'pull; its far end and its carousels still stop', (tester) async {
+      final haptics = _haptics(tester);
+      await _pump(tester, PullsToRefresh(child: list()));
+      await tester.drag(find.byType(ListView), const Offset(0, 200));
+      await tester.pumpAndSettle();
+      expect(haptics, isEmpty);
+
+      await tester.fling(find.byType(ListView), const Offset(0, -300), 8000);
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView), const Offset(0, -200));
+      await tester.pumpAndSettle();
+      expect(haptics, [edge()]);
+
+      await _pump(tester, PullsToRefresh(child: list(axis: Axis.horizontal)));
+      await tester.drag(find.byType(ListView), const Offset(200, 0));
+      await tester.pumpAndSettle();
+      expect(haptics, [edge(), edge()]);
+    });
 
     testWidgets('a list too short to scroll stays quiet', (tester) async {
       final haptics = _haptics(tester);

@@ -23,7 +23,7 @@ import 'entry_harness.dart' show recordHaptics;
 
 const _light = 'HapticFeedbackType.lightImpact';
 const _success = 'HapticFeedbackType.successNotification';
-const _commit = 'HapticFeedbackType.mediumImpact';
+const _commit = 'HapticFeedbackType.heavyImpact';
 
 /// Pumps [ms] of frames 10 ms apart, as a device draws them, calling [each]
 /// after every frame with the time since the first.

@@ -30,10 +30,10 @@ import 'entry_harness.dart';
 
 const _ms = Duration(milliseconds: 1);
 const _light = 'HapticFeedbackType.lightImpact';
-const _select = 'HapticFeedbackType.selectionClick';
+const _select = 'HapticFeedbackType.lightImpact';
 const _success = 'HapticFeedbackType.successNotification';
-const _commit = 'HapticFeedbackType.mediumImpact';
-const _error = 'HapticFeedbackType.mediumImpact';
+const _commit = 'HapticFeedbackType.heavyImpact';
+const _error = 'HapticFeedbackType.heavyImpact';
 const _keyboard = 336.0;
 
 double _eo(double t) => IqCurves.easeOut.transform(t);

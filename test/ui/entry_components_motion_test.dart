@@ -239,7 +239,7 @@ void main() {
       await _pump(tester, fab(IqNextFabState.enabled));
       await tester.tap(find.byType(IqNextFab));
       await tester.pumpAndSettle();
-      expect(haptics, ['HapticFeedbackType.mediumImpact']);
+      expect(haptics, ['HapticFeedbackType.heavyImpact']);
     });
   });
 
@@ -598,7 +598,7 @@ void main() {
       );
       await tester.tap(find.byType(IqSettingRow));
       await tester.pumpAndSettle();
-      expect(haptics, ['HapticFeedbackType.selectionClick']);
+      expect(haptics, ['HapticFeedbackType.lightImpact']);
     });
   });
 

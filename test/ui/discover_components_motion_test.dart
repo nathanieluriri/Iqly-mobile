@@ -112,7 +112,7 @@ void main() {
       expect(_shown(tester, marker(), vertical: true), closeTo(_eo(0.5), 0.01));
       await tester.pumpAndSettle();
       expect(_shown(tester, marker(), vertical: true), 1);
-      expect(haptics, ['HapticFeedbackType.selectionClick']);
+      expect(haptics, ['HapticFeedbackType.lightImpact']);
     });
 
     testWidgets('unsaving fades the marker out, 150 ms reading ease-in', (
@@ -476,7 +476,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Wallet'));
       await tester.pumpAndSettle();
-      expect(haptics, ['HapticFeedbackType.selectionClick']);
+      expect(haptics, ['HapticFeedbackType.lightImpact']);
     });
   });
 

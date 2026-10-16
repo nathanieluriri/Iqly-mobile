@@ -36,8 +36,8 @@ import 'entry_harness.dart' show recordHaptics;
 
 const _light = 'HapticFeedbackType.lightImpact';
 const _success = 'HapticFeedbackType.successNotification';
-const _commit = 'HapticFeedbackType.mediumImpact';
-const _error = 'HapticFeedbackType.mediumImpact';
+const _commit = 'HapticFeedbackType.heavyImpact';
+const _error = 'HapticFeedbackType.heavyImpact';
 
 /// Taps [finder], scrolling the screen's list to it first when it waits in
 /// the list's cache area, where finders count it offstage.
