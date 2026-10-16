@@ -83,6 +83,10 @@ abstract final class IqDurations {
   /// Arrive and settle.
   static const enter = Duration(milliseconds: 260);
 
+  /// The Segmented pill sliding to the picked option, and the lens under it
+  /// sliding with it.
+  static const lensSlide = Duration(milliseconds: 260);
+
   /// Every sheet rises in 300 and drops in 200 (owner rule).
   static const sheetRise = Duration(milliseconds: 300);
 

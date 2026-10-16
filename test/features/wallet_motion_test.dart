@@ -23,6 +23,7 @@ import 'package:iqly_mobile/ui/timeline_row.dart';
 import 'package:iqly_mobile/ui/wallet_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:iqly_mobile/data/activations_service.dart';
+import 'package:iqly_mobile/ui/segmented.dart';
 
 import '../golden/screens/app_harness.dart';
 import '../golden/screens/wallet_harness.dart';
@@ -151,15 +152,18 @@ void main() {
       );
     });
 
-    testWidgets('Activity tabs crossfade the list 200 under still chrome', (
-      tester,
-    ) async {
+    testWidgets('Activity tabs slide the list toward the picked tab, 260, '
+        'under still chrome', (tester) async {
       await _pumpApp(tester, activityPath());
+      final rest = tester.getTopLeft(find.text('Pending')).dx;
+      final control = tester.getTopLeft(find.byType(IqSegmented));
       await tester.tap(find.text('Rewards'));
       await tester.pump();
-      await tester.pump(IqDurations.swap ~/ 2);
+      await tester.pump(IqDurations.lensSlide ~/ 2);
       expect(find.text('Pending'), findsOneWidget);
-      await tester.pump(IqDurations.swap ~/ 2 + _ms);
+      expect(tester.getTopLeft(find.text('Pending')).dx, lessThan(rest));
+      expect(tester.getTopLeft(find.byType(IqSegmented)), control);
+      await tester.pump(IqDurations.lensSlide ~/ 2 + _ms);
       await tester.pump();
       expect(find.text('Pending'), findsNothing);
       expect(find.byType(ActivityScreen), findsOneWidget);

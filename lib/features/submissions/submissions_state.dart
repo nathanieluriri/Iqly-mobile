@@ -73,8 +73,6 @@ class MySubmissions {
   List<SubmissionItem> of(SubmissionsTab tab) =>
       items.where((i) => SubmissionsTab.of(i.status) == tab).toList();
 
-  int count(SubmissionsTab tab) => of(tab).length;
-
   /// What the wins paid, in kobo.
   int get wonKobo =>
       of(SubmissionsTab.winners).fold(0, (sum, i) => sum + (i.awardKobo ?? 0));

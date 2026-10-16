@@ -1286,6 +1286,76 @@ class _InFlight extends StatelessWidget {
   Widget build(BuildContext context) => child;
 }
 
+/// The lens under a Segmented (owner, 16 Oct): when [index] changes, the
+/// new lens slides in from the side of the option picked as the old one
+/// slides out the other way, both fading, over the pill's 260 ms. A change
+/// of [contentKey] alone (a filter) only crossfades. Reduced motion: a 150
+/// crossfade.
+class LensSlide extends StatefulWidget {
+  const LensSlide({
+    super.key,
+    required this.index,
+    this.contentKey,
+    required this.child,
+  });
+
+  final int index;
+  final Object? contentKey;
+  final Widget child;
+
+  /// How far a lens travels as it slides.
+  static const double travel = IqTravel.screen;
+
+  @override
+  State<LensSlide> createState() => _LensSlideState();
+}
+
+class _LensSlideState extends State<LensSlide> {
+  double _direction = 0;
+
+  @override
+  void didUpdateWidget(LensSlide old) {
+    super.didUpdateWidget(old);
+    if (old.index != widget.index) {
+      _direction = widget.index > old.index ? 1 : -1;
+    } else if (old.contentKey != widget.contentKey) {
+      _direction = 0;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final key = ValueKey((widget.index, widget.contentKey));
+    final reduced = MediaQuery.disableAnimationsOf(context);
+    final direction = reduced ? 0.0 : _direction;
+    return AnimatedSwitcher(
+      duration: motion(context, IqDurations.lensSlide, fade: true),
+      switchInCurve: IqCurves.easeOut,
+      switchOutCurve: IqCurves.easeOut,
+      layoutBuilder: (current, previous) => Stack(
+        alignment: Alignment.topCenter,
+        children: [...previous, ?current],
+      ),
+      transitionBuilder: (child, animation) {
+        final from =
+            (child.key == key ? direction : -direction) * LensSlide.travel;
+        return FadeTransition(
+          opacity: animation,
+          child: AnimatedBuilder(
+            animation: animation,
+            builder: (context, child) => Transform.translate(
+              offset: Offset(from * (1 - animation.value), 0),
+              child: child,
+            ),
+            child: child,
+          ),
+        );
+      },
+      child: KeyedSubtree(key: key, child: widget.child),
+    );
+  }
+}
+
 /// The lens switch (spec 3.7): [cross] lays what the [child] last drew
 /// below a line (the lens chips' bottom edge) over whatever comes next and
 /// fades it out over 200 ms, so the new content reads as fading in,

@@ -38,9 +38,11 @@ import 'submissions_state.dart';
 /// with loading (165:8524), empty (165:8608) and failed to load (165:8700).
 /// The shell draws the dock.
 ///
-/// A lens switch keeps the chrome still and crossfades what is under the
-/// Segmented, 200 ms. The skeleton shows on the first visit only; the list
-/// is kept, so a later visit shows it at once.
+/// A lens switch keeps the chrome still: the Segmented's pill slides to the
+/// lens and the lens slides in from that side as the last one leaves
+/// (LensSlide, 260 ms). The lenses carry no counts (owner, 16 Oct). The
+/// skeleton shows on the first visit only; the list is kept, so a later
+/// visit shows it at once.
 class MySubmissionsScreen extends ConsumerStatefulWidget {
   const MySubmissionsScreen({super.key});
 
@@ -137,8 +139,8 @@ class _MySubmissionsScreenState extends ConsumerState<MySubmissionsScreen> {
   }
 }
 
-/// The Segmented over the lens it picks. A pick crosses what sits under
-/// the control into the new lens.
+/// The Segmented over the lens it picks. A pick slides the lens under the
+/// control over to the new one.
 class _Lenses extends ConsumerWidget {
   const _Lenses({super.key, required this.data, required this.controller});
 
@@ -159,26 +161,31 @@ class _Lenses extends ConsumerWidget {
         AppShell.contentInset(context),
       ),
       children: [
-        Builder(
-          builder: (line) => SubmissionsSegmented(
-            data: data,
-            selected: tab,
-            onChanged: (next) {
-              if (next == tab) return;
-              LensCrossfade.cross(context, line: line);
-              ref.read(submissionsTabProvider.notifier).select(next);
-            },
-          ),
+        SubmissionsSegmented(
+          selected: tab,
+          onChanged: (next) {
+            if (next == tab) return;
+            ref.read(submissionsTabProvider.notifier).select(next);
+          },
         ),
         if (drafts) ...[
           const SizedBox(height: IqSpace.s3),
           const DraftsEntry(),
         ],
-        for (final child in switch (tab) {
-          SubmissionsTab.underReview => _underReview(context, now),
-          SubmissionsTab.winners => _winners(context, now),
-          SubmissionsTab.notSelected => _notSelected(context, ref, now),
-        }) ...[const SizedBox(height: IqSpace.s3), child],
+        LensSlide(
+          key: const ValueKey('lens'),
+          index: tab.index,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final child in switch (tab) {
+                SubmissionsTab.underReview => _underReview(context, now),
+                SubmissionsTab.winners => _winners(context, now),
+                SubmissionsTab.notSelected => _notSelected(context, ref, now),
+              }) ...[const SizedBox(height: IqSpace.s3), child],
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -266,31 +273,25 @@ class _Lenses extends ConsumerWidget {
   }
 }
 
-/// The Segmented with each lens's count; the counts wait for the load.
+/// The Segmented over the three lenses, by name only (owner, 16 Oct: no
+/// counts).
 class SubmissionsSegmented extends StatelessWidget {
   const SubmissionsSegmented({
     super.key,
-    this.data,
     this.selected = SubmissionsTab.underReview,
     this.onChanged,
   });
 
-  final MySubmissions? data;
   final SubmissionsTab selected;
   final ValueChanged<SubmissionsTab>? onChanged;
-
-  String _label(SubmissionsTab tab) {
-    final data = this.data;
-    return data == null ? tab.label : '${tab.label} · ${data.count(tab)}';
-  }
 
   @override
   Widget build(BuildContext context) {
     final onChanged = this.onChanged;
     return IqSegmented(
-      option1: _label(SubmissionsTab.underReview),
-      option2: _label(SubmissionsTab.winners),
-      option3: _label(SubmissionsTab.notSelected),
+      option1: SubmissionsTab.underReview.label,
+      option2: SubmissionsTab.winners.label,
+      option3: SubmissionsTab.notSelected.label,
       selected: IqSegmentedSelected.values[selected.index],
       onChanged: onChanged == null
           ? null
