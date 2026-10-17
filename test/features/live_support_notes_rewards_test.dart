@@ -30,7 +30,9 @@ import 'package:iqly_mobile/features/wallet/wallet_routes.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/avatar.dart';
 import 'package:iqly_mobile/ui/list_row.dart';
+import 'package:iqly_mobile/ui/recording_player.dart';
 import 'package:iqly_mobile/ui/top_bar.dart';
+import 'package:video_player/video_player.dart';
 
 import '../data/live/live_data_fixtures.dart';
 import '../support/live_launch.dart';
@@ -60,9 +62,13 @@ Backend _with(Set<LiveFeature> more) => Backend.of({...firstFeatures, ...more});
 
 class _Files implements SupportFiles {
   HelpAttachment? next;
+  final sources = <SupportSource>[];
 
   @override
-  Future<HelpAttachment?> pickAttachment() async => next;
+  Future<HelpAttachment?> pickAttachment(SupportSource source) async {
+    sources.add(source);
+    return next;
+  }
 
   @override
   Future<HelpAttachment?> pickScreenshot() async => next;
@@ -164,6 +170,18 @@ Map<String, Object?> _row(Map<String, Object?> thread) {
       'at': last['at'],
     },
   };
+}
+
+class _FakeRecording extends VideoPlayerController {
+  _FakeRecording(super.url) : super.networkUrl();
+
+  @override
+  Future<void> initialize() async {
+    value = value.copyWith(
+      isInitialized: true,
+      duration: const Duration(seconds: 20),
+    );
+  }
 }
 
 IqListRow _listRow(WidgetTester tester, String label) => tester.widget(
@@ -404,10 +422,15 @@ void main() {
       await tester.enterText(find.byType(EditableText), 'It says checking.');
       await tester.tap(find.text('Choose a video'));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('Choose from your photos'));
+      await tester.pumpAndSettle();
       expect(find.text('That recording is over 60 seconds'), findsOneWidget);
 
       await tester.tap(find.text('Choose another'));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('Choose from your photos'));
+      await tester.pumpAndSettle();
+      expect(files.sources, [SupportSource.photos, SupportSource.photos]);
       expect(
         find.text('Upload failed. Check your connection and retry.'),
         findsOneWidget,
@@ -589,6 +612,245 @@ void main() {
         );
       });
     }
+  });
+
+  group('support sends and files', () {
+    testWidgets('a report sent again after a lost answer uploads its '
+        'screenshot once and carries the same key', (tester) async {
+      final files = _Files()..next = _file('payout.png');
+      var opens = 0;
+      final api = _api()
+        ..data('GET', '/support/unread', {'unread': 0})
+        ..data('POST', '/support/uploads', _attachment({'id': 'up_4'}))
+        ..on('POST', '/support/tickets', (request) {
+          if (++opens == 1) throw http.ClientException('lost', request.url);
+          return ok(_thread(id: 't_4', reference: 'IQ-HELP-2045'));
+        });
+      await _launch(
+        tester,
+        api,
+        Routes.reportIssue,
+        mode: _with({LiveFeature.support}),
+        files: files,
+      );
+      await tester.enterText(find.byType(EditableText), 'A payout is missing.');
+      await tester.tap(find.text('Add a screenshot'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Send report'));
+      await tester.pumpAndSettle();
+      expect(find.text('Not sent. Check your connection.'), findsOneWidget);
+      await tester.tap(find.text('Send report'));
+      await tester.pumpAndSettle();
+      expect(api.to('/support/uploads', method: 'POST'), hasLength(1));
+      final sends = api.to('/support/tickets', method: 'POST');
+      expect(sends, hasLength(2));
+      expect(
+        sends.first.headers['idempotency-key'],
+        sends.last.headers['idempotency-key'],
+      );
+      expect(sends.first.body, sends.last.body);
+      expect(find.textContaining('Ticket IQ-HELP-2045.'), findsOneWidget);
+    });
+
+    testWidgets('a reply carries a key kept across a lost answer and a new '
+        'one after it lands; a reply from support while the thread is open '
+        'is marked read', (tester) async {
+      var replies = 0;
+      var thread = _thread(unread: false);
+      final api = _api()
+        ..data('GET', '/support/unread', {'unread': 0})
+        ..on('GET', '/support/tickets/t_1', (_) => ok(thread))
+        ..data('POST', '/support/tickets/t_1/read', {'unread': 0})
+        ..on('POST', '/support/tickets/t_1/messages', (request) {
+          if (++replies == 1) throw http.ClientException('lost', request.url);
+          return ok(_thread(status: 'open', unread: false));
+        });
+      final c = await _launch(
+        tester,
+        api,
+        helpThreadPath('t_1'),
+        mode: _with({LiveFeature.support}),
+      );
+      expect(api.to('/support/tickets/t_1/read'), hasLength(1));
+
+      await tester.enterText(find.byType(EditableText), 'Any news?');
+      await tester.tap(find.text('Send reply'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Send reply'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(EditableText), 'Thanks.');
+      await tester.tap(find.text('Send reply'));
+      await tester.pumpAndSettle();
+      final keys = [
+        for (final r in api.to('/support/tickets/t_1/messages'))
+          r.headers['idempotency-key'],
+      ];
+      expect(keys, hasLength(3));
+      expect(keys[0], isNotNull);
+      expect(keys[1], keys[0], reason: 'the lost reply may have landed');
+      expect(keys[2], isNot(keys[0]));
+
+      thread = _thread(
+        messages: [
+          ...(_thread()['messages']! as List),
+          {
+            'id': 'm_3',
+            'author': 'support',
+            'body': 'It has landed now.',
+            'at': '2026-10-17T09:30:00.000Z',
+            'attachments': <Object>[],
+          },
+        ],
+      );
+      c.read(helpTicketsProvider.notifier).refreshOpen();
+      await tester.pumpAndSettle();
+      expect(find.text('It has landed now.'), findsOneWidget);
+      expect(api.to('/support/tickets/t_1/read'), hasLength(2));
+    });
+
+    testWidgets('a thread the API does not have says it is gone', (
+      tester,
+    ) async {
+      final api = _api()
+        ..data('GET', '/support/unread', {'unread': 0})
+        ..on(
+          'GET',
+          '/support/tickets/t_8',
+          (_) => refused(404, 'SUPPORT_TICKET_NOT_FOUND'),
+        );
+      await _launch(
+        tester,
+        api,
+        helpThreadPath('t_8'),
+        mode: _with({LiveFeature.support}),
+      );
+      expect(find.text('This conversation is gone'), findsOneWidget);
+      expect(find.text('Try again'), findsNothing);
+    });
+
+    testWidgets('a voice note comes from the voice notes; a refused one and '
+        'a picture over its size say their own limits', (tester) async {
+      final files = _Files()
+        ..next = _file('memo.m4a', kind: HelpAttachmentKind.audio);
+      final api = _api()
+        ..data('GET', '/support/unread', {'unread': 0})
+        ..on('POST', '/support/uploads', (_) => refused(413, 'AUDIO_TOO_LONG'));
+      await _launch(
+        tester,
+        api,
+        Routes.help,
+        mode: _with({LiveFeature.support}),
+        files: files,
+      );
+      await tester.tap(find.text('Choose a video'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Choose a voice note'));
+      await tester.pumpAndSettle();
+      expect(files.sources, [SupportSource.voiceNote]);
+      expect(find.text('That voice note is over 5 minutes'), findsOneWidget);
+      expect(
+        find.textContaining('Voice notes go up to 5 minutes'),
+        findsOneWidget,
+      );
+
+      files.next = HelpAttachment(
+        name: 'photo.jpg',
+        bytes: 11 * 1024 * 1024,
+        kind: HelpAttachmentKind.image,
+        read: () async => _png,
+      );
+      await tester.tap(find.text('Choose another'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Choose from your photos'));
+      await tester.pumpAndSettle();
+      expect(find.text('That picture is over 10 MB'), findsOneWidget);
+      expect(
+        api.to('/support/uploads', method: 'POST'),
+        hasLength(1),
+        reason: 'a picture over its size never goes up',
+      );
+    });
+
+    test('voice notes, 3GP audio and HEIC photos type as the API takes '
+        'them', () {
+      expect(supportTypeOf('memo.opus', audio: true)!.mime, 'audio/ogg');
+      expect(supportTypeOf('memo.aac')!.kind, HelpAttachmentKind.audio);
+      final recorded = supportTypeOf('memo.3gp', audio: true)!;
+      expect(recorded.kind, HelpAttachmentKind.audio);
+      expect(recorded.mime, 'audio/3gpp');
+      expect(supportTypeOf('clip.3gp')!.kind, HelpAttachmentKind.video);
+      final heic = supportTypeOf('IMG_0001.HEIC')!;
+      expect(heic.kind, HelpAttachmentKind.image);
+      expect(heic.mime, 'image/heic');
+    });
+
+    testWidgets('a picture and a recording in a thread open with the '
+        'session token', (tester) async {
+      final opened = <(Uri, Map<String, String>)>[];
+      Recordings.openWith = (source, headers) {
+        opened.add((source, headers));
+        return _FakeRecording(source);
+      };
+      addTearDown(
+        () =>
+            Recordings.openWith = (source, headers) =>
+                VideoPlayerController.networkUrl(source, httpHeaders: headers),
+      );
+      final api = _api()
+        ..data('GET', '/support/unread', {'unread': 0})
+        ..data(
+          'GET',
+          '/support/tickets/t_1',
+          _thread(
+            unread: false,
+            messages: [
+              {
+                'id': 'm_1',
+                'author': 'you',
+                'body': 'Here is what I see.',
+                'at': '2026-10-17T07:00:00.000Z',
+                'attachments': [
+                  _attachment(),
+                  _attachment({
+                    'id': 'up_2',
+                    'kind': 'audio',
+                    'name': 'memo.m4a',
+                    'mime': 'audio/mp4',
+                    'lengthSeconds': 20,
+                    'url': 'https://elsewhere.test/support/attachments/up_2',
+                  }),
+                ],
+              },
+            ],
+          ),
+        )
+        ..data('POST', '/support/tickets/t_1/read', {'unread': 0});
+      await _launch(
+        tester,
+        api,
+        helpThreadPath('t_1'),
+        mode: _with({LiveFeature.support}),
+      );
+      await tester.tap(find.text('Attached activity.png · 1 KB'));
+      await tester.pumpAndSettle();
+      final image = tester.widget<Image>(find.byType(Image)).image;
+      expect(image, isA<NetworkImage>());
+      expect(
+        (image as NetworkImage).url,
+        'https://api.test/support/attachments/up_1',
+      );
+      expect(image.headers!['authorization'], 'Bearer session.signed');
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Attached memo.m4a · 0:20 · 1 KB'));
+      await tester.pumpAndSettle();
+      expect(
+        opened.single.$1.toString(),
+        'https://api.test/support/attachments/up_2',
+      );
+      expect(opened.single.$2['authorization'], 'Bearer session.signed');
+    });
   });
 
   group('business note', () {

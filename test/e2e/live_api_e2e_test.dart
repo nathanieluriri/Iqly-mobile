@@ -31,6 +31,7 @@ import 'package:iqly_mobile/data/live/live_wallet_service.dart';
 import 'package:iqly_mobile/data/live_auth.dart';
 import 'package:iqly_mobile/data/local/local_providers.dart';
 import 'package:iqly_mobile/data/local/memory_local_store.dart';
+import 'package:iqly_mobile/data/local/local_rows.dart';
 import 'package:iqly_mobile/data/local/outbox.dart';
 import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/notifications_data.dart';
@@ -775,9 +776,10 @@ void main() {
       });
 
       /// Another seeded person on their own session, as their phone would be.
-      Future<ApiClient> signedIn(String email) async {
+      Future<ApiClient> signedIn(String email, {http.Client? via}) async {
         final other = ApiClient(
           tokens: MemoryTokenStore(),
+          client: via,
           baseUrl: base!,
           appVersion: '0.5.0+5',
           platform: 'android',
@@ -878,7 +880,11 @@ void main() {
           reason: 'the retry carried the lost send\'s key',
         );
 
-        final again = await help.reply(opened.id, 'It shows ₦0.00.');
+        final again = await help.reply(
+          opened.id,
+          'It shows ₦0.00.',
+          idempotencyKey: LocalRows.newId(),
+        );
         expect(again.status, HelpTicketStatus.open);
         expect(again.messages, hasLength(2));
 
@@ -1022,6 +1028,114 @@ void main() {
           }
         }
         expect(throttled?.failure, HelpFailure.tooManyTries);
+      });
+
+      test('support files: a report sent again after a lost answer opens '
+          'one thread with one upload; a voice note and a video open threads '
+          'their owner alone can read', () async {
+        if (!on(LiveFeature.support)) return;
+        final losing = _LosingClient(http.Client());
+        final chidi = await signedIn('chidi@example.com', via: losing);
+        final help = LiveHelpService(
+          linkOf(chidi),
+          files: DeviceSupportFiles(),
+        );
+
+        final shot = file('payout.png', _png);
+        final key = LocalRows.newId();
+        losing.loseNextAnswer('POST', '/support/tickets');
+        await expectLater(
+          help.report(
+            topic: 'Payments',
+            details: 'A payout is missing here.',
+            screenshot: shot,
+            idempotencyKey: key,
+          ),
+          refusedFor(HelpFailure.offline),
+        );
+        final sent = await help.report(
+          topic: 'Payments',
+          details: 'A payout is missing here.',
+          screenshot: shot,
+          idempotencyKey: key,
+        );
+        final payments = (await help.conversations())
+            .where((t) => t.subject == 'Payments')
+            .toList();
+        expect(payments.map((t) => t.reference), [sent]);
+        final reported = await help.watch(payments.single.id).single;
+        expect(reported.messages.single.attachments, hasLength(1));
+
+        final m4a = [
+          0,
+          0,
+          0,
+          0x18,
+          ...'ftypM4A '.codeUnits,
+          ...List.filled(512, 0),
+        ];
+        final mp4 = [
+          0,
+          0,
+          0,
+          0x18,
+          ...'ftypmp42'.codeUnits,
+          ...List.filled(512, 0),
+        ];
+        final note =
+            (await help
+                    .upload(
+                      file(
+                        'voice.m4a',
+                        m4a,
+                        length: const Duration(seconds: 20),
+                      ),
+                    )
+                    .last)
+                .file;
+        expect(note.kind, HelpAttachmentKind.audio);
+        final voice = await help.send(
+          HelpRequest(
+            subject: 'Chat with iQLY support',
+            message: 'A voice note.',
+            attachment: note,
+            idempotencyKey: LocalRows.newId(),
+          ),
+        );
+        final heard = voice.messages.single.attachment!;
+        expect(heard.kind, HelpAttachmentKind.audio);
+        expect(heard.length, const Duration(seconds: 20));
+        expect(heard.lengthLabel, '0:20');
+
+        final clip =
+            (await help
+                    .upload(
+                      file(
+                        'clip.mp4',
+                        mp4,
+                        length: const Duration(seconds: 30),
+                      ),
+                    )
+                    .last)
+                .file;
+        final video = await help.send(
+          HelpRequest(
+            subject: 'Chat with iQLY support',
+            message: 'A recording.',
+            attachment: clip,
+            idempotencyKey: LocalRows.newId(),
+          ),
+        );
+        final seen = video.messages.single.attachment!;
+        expect(seen.kind, HelpAttachmentKind.video);
+        final mine = await chidi.download(seen.url.toString());
+        expect(mine.ok, isTrue);
+        expect(mine.bytes, mp4);
+        expect(
+          (await api.download(seen.url.toString())).status,
+          404,
+          reason: 'another person cannot read it',
+        );
       });
 
       test('the business note on the entry and its result', () async {

@@ -8,6 +8,7 @@ import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../data/help_data.dart';
 import '../../data/help_service.dart';
+import '../../data/local/local_rows.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
@@ -109,6 +110,9 @@ class _NewConversationScreenState extends ConsumerState<NewConversationScreen> {
   bool _failed = false;
   HelpFailure? _failure;
 
+  /// The open's Idempotency-Key, kept until the API answers it for sure.
+  String _key = LocalRows.newId();
+
   @override
   void initState() {
     super.initState();
@@ -133,7 +137,11 @@ class _NewConversationScreenState extends ConsumerState<NewConversationScreen> {
       ticket = await ref
           .read(helpTicketsProvider.notifier)
           .open(
-            HelpRequest(subject: NewConversationScreen.subject, message: body),
+            HelpRequest(
+              subject: NewConversationScreen.subject,
+              message: body,
+              idempotencyKey: _key,
+            ),
           );
     } catch (error) {
       if (!mounted) return;
@@ -142,6 +150,9 @@ class _NewConversationScreenState extends ConsumerState<NewConversationScreen> {
         _sending = false;
         _failed = true;
         _failure = failure;
+        if (failure != null && failure != HelpFailure.offline) {
+          _key = LocalRows.newId();
+        }
       });
       await errorHaptic();
       if (failure == HelpFailure.closing && Flags.deleteAccount && mounted) {

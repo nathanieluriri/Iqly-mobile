@@ -7,20 +7,25 @@ import 'package:intl/intl.dart';
 import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
+import '../../core/transitions.dart';
 import '../../data/activations_data.dart';
 import '../../data/help_data.dart';
 import '../../data/help_service.dart';
+import '../../data/support_files.dart' show SupportSource;
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/button.dart';
 import '../../ui/confirm_sheet.dart';
 import '../../ui/field.dart';
+import '../../ui/icon.dart';
+import '../../ui/list_row.dart';
 import '../../ui/proof_tile.dart';
 import '../../ui/top_bar.dart';
 import '../../ui/video_preview.dart';
 import '../activations/activations_state.dart';
 import '../activations/activations_widgets.dart';
 import '../discover/discover_routes.dart';
+import '../more/more_widgets.dart' show RowGroup;
 import '../settings/restore_account_screen.dart';
 import 'help_routes.dart';
 import 'help_state.dart';
@@ -82,6 +87,19 @@ class _HelpRequestScreenState extends ConsumerState<HelpRequestScreen> {
       helpThreadPath(ticket.id),
       extra: HelpThreadEntry.sent,
     );
+  }
+
+  /// A preview picks the frame's recording; on the API the person picks a
+  /// picture or a recording from their photos, or a voice note.
+  Future<void> _add(Activation? activation) async {
+    final notifier = ref.read(helpDraftProvider.notifier);
+    if (!ref.read(supportLiveProvider)) {
+      notifier.addRecording(about: activation?.business);
+      return;
+    }
+    final source = await _chooseSource(context);
+    if (source == null || !mounted) return;
+    notifier.addRecording(about: activation?.business, source: source);
   }
 
   Future<void> _remove() async {
@@ -172,9 +190,7 @@ class _HelpRequestScreenState extends ConsumerState<HelpRequestScreen> {
                         const SizedBox(height: IqSpace.s4),
                         _Recording(
                           draft: draft,
-                          onAdd: () => ref
-                              .read(helpDraftProvider.notifier)
-                              .addRecording(about: activation?.business),
+                          onAdd: () => _add(activation),
                           onRemove: _remove,
                           onRetry: ref
                               .read(helpDraftProvider.notifier)
@@ -274,17 +290,12 @@ class _Recording extends StatelessWidget {
         onRemove: onRemove,
       );
     } else if (refused != null) {
-      // The API's limits in the tile's own words: its error copy for a
-      // recording over a minute, its limits line for any other refusal.
+      final words = helpRefusalWords(refused, draft.refusedKind);
       shown = IqProofTile(
         key: _tile,
         state: IqProofTileState.error,
-        title: refused == HelpFailure.tooLong
-            ? null
-            : 'Add your screen recording',
-        hint: refused == HelpFailure.tooLong
-            ? null
-            : 'The step and the result, up to 60 s. MP4 or MOV, up to 50 MB.',
+        title: words.title,
+        hint: words.title == null ? null : words.hint,
         onTap: onAdd,
       );
     } else {
@@ -363,4 +374,48 @@ class _SendFailed extends StatelessWidget {
           : const SizedBox(key: ValueKey(false), width: double.infinity),
     );
   }
+}
+
+/// Photos or a voice note for a help request. No frame draws the choice,
+/// so it is the app's own sheet of two rows, as Use a photo's is.
+Future<SupportSource?> _chooseSource(BuildContext context) {
+  return showIqSheet<SupportSource>(
+    context,
+    scrim: IqScrim.picker,
+    (context) => Material(
+      type: MaterialType.transparency,
+      child: Container(
+        decoration: const BoxDecoration(
+          color: IqColors.bg,
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(IqConfirmSheet.radius),
+          ),
+        ),
+        padding: EdgeInsets.fromLTRB(
+          IqSpace.s4,
+          IqSpace.s6,
+          IqSpace.s4,
+          IqSpace.s4 + MediaQuery.viewPaddingOf(context).bottom,
+        ),
+        child: RowGroup(
+          outlined: true,
+          children: [
+            IqListRow(
+              label: 'Choose from your photos',
+              showDescription: false,
+              icon: IqIcons.background,
+              onTap: () => Navigator.of(context).pop(SupportSource.photos),
+            ),
+            IqListRow(
+              label: 'Choose a voice note',
+              showDescription: false,
+              icon: IqIcons.headset,
+              divider: false,
+              onTap: () => Navigator.of(context).pop(SupportSource.voiceNote),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }

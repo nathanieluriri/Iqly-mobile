@@ -250,13 +250,29 @@ class ApiClient {
     }
   }
 
+  /// [url] on this client's API: only its path and query are kept, so a
+  /// link that carries the session token never leaves for another host.
+  Uri authorized(String url) {
+    final given = Uri.parse(url);
+    final path = given.hasQuery ? '${given.path}?${given.query}' : given.path;
+    return Uri.parse('$baseUrl$path');
+  }
+
+  /// The headers a player or an image sends to read a signed-in file.
+  Future<Map<String, String>> fileHeaders() async {
+    final token = await tokens.read();
+    return {
+      'x-iqly-client': 'mobile',
+      'x-platform': platform,
+      if (token != null) 'authorization': 'Bearer $token',
+    };
+  }
+
   /// The file the API serves at [url], read with the session token. Only
   /// the path and query of [url] are kept, so the token never goes to any
   /// host but the API's.
   Future<ApiBytes> download(String url) async {
-    final given = Uri.parse(url);
-    final path = given.hasQuery ? '${given.path}?${given.query}' : given.path;
-    final request = http.Request('GET', Uri.parse('$baseUrl$path'));
+    final request = http.Request('GET', authorized(url));
     final token = await tokens.read();
     request.headers.addAll({
       'x-iqly-client': 'mobile',

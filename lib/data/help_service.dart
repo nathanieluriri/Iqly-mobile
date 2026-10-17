@@ -67,7 +67,10 @@ abstract class HelpService {
   /// progress until it is done. Ends with nothing when the person cancels
   /// the picker. [about] names the business the request is about; the demo
   /// names its file after it.
-  Stream<HelpUpload> addRecording({String? about});
+  Stream<HelpUpload> addRecording({
+    String? about,
+    SupportSource source = SupportSource.photos,
+  });
 
   /// Uploads [file] again, after an upload that did not go.
   Stream<HelpUpload> upload(HelpAttachment file);
@@ -84,8 +87,13 @@ abstract class HelpService {
   /// [ticketId] now and as support answers it: typing, then the reply.
   Stream<HelpTicket> watch(String ticketId);
 
-  /// Adds the person's [body] to [ticketId].
-  Future<HelpTicket> reply(String ticketId, String body);
+  /// Adds the person's [body] to [ticketId]. [idempotencyKey] stays the
+  /// same for a reply sent again after its answer was lost.
+  Future<HelpTicket> reply(
+    String ticketId,
+    String body, {
+    String? idempotencyKey,
+  });
 
   /// The person marks [ticketId] as resolved.
   Future<HelpTicket> resolve(String ticketId);
@@ -97,10 +105,12 @@ abstract class HelpService {
   Future<void> markRead(String ticketId);
 
   /// Sends a report (B21 · Report an issue) and returns its ticket number.
+  /// The same [screenshot] goes up once however often the report is sent.
   Future<String> report({
     required String topic,
     required String details,
     HelpAttachment? screenshot,
+    String? idempotencyKey,
   });
 }
 
@@ -153,8 +163,10 @@ class DemoHelpService implements HelpService {
   HelpTicket _save(HelpTicket ticket) => _tickets[ticket.id] = ticket;
 
   @override
-  Stream<HelpUpload> addRecording({String? about}) =>
-      upload(DemoHelp.recordingFor(about));
+  Stream<HelpUpload> addRecording({
+    String? about,
+    SupportSource source = SupportSource.photos,
+  }) => upload(DemoHelp.recordingFor(about));
 
   @override
   Stream<HelpUpload> upload(HelpAttachment file) async* {
@@ -239,7 +251,11 @@ class DemoHelpService implements HelpService {
   }
 
   @override
-  Future<HelpTicket> reply(String ticketId, String body) async {
+  Future<HelpTicket> reply(
+    String ticketId,
+    String body, {
+    String? idempotencyKey,
+  }) async {
     await _wait(delay);
     final ticket = _ticket(ticketId);
     return _save(
@@ -270,6 +286,7 @@ class DemoHelpService implements HelpService {
     required String topic,
     required String details,
     HelpAttachment? screenshot,
+    String? idempotencyKey,
   }) async {
     await _wait(delay);
     reports.add((topic: topic, details: details, screenshot: screenshot?.name));

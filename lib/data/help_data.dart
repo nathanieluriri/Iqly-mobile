@@ -160,11 +160,16 @@ class HelpRequest {
     this.attachment,
     this.activation,
     this.topic,
+    this.idempotencyKey,
   });
 
   final String subject;
   final String message;
   final HelpAttachment? attachment;
+
+  /// The key the screen keeps for this request until the API has answered
+  /// it for sure, so a send whose answer was lost opens one thread.
+  final String? idempotencyKey;
 
   /// A report's topic as the API names it (`the_app`); a report's subject
   /// is the topic as Report an issue lists it.

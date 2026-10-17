@@ -29,6 +29,7 @@ HelpFailure helpFailureOf(int status, String? code) => switch (code) {
   'SUPPORT_TICKET_NOT_FOUND' ||
   'ACTIVATION_NOT_FOUND' => HelpFailure.gone,
   _ when status == 429 => HelpFailure.tooManyTries,
+  _ when status == 404 => HelpFailure.gone,
   _ when status == 413 => HelpFailure.tooLarge,
   _ when status == 415 => HelpFailure.fileType,
   _ when status == 408 || status >= 500 => HelpFailure.offline,
@@ -133,8 +134,13 @@ class LiveHelpService implements HelpService {
   /// How often an open thread asks again for support's reply.
   static const pollEvery = Duration(seconds: 30);
 
-  /// By request: the key of an open still waiting for a sure answer.
+  /// By request: the key of an open still waiting for a sure answer, for
+  /// a request whose screen keeps none.
   final _keys = <String, String>{};
+
+  /// What each picked file went up as, so sending again never uploads it
+  /// twice.
+  final _uploaded = Expando<HelpAttachment>();
 
   Future<ApiResponse> _call(Future<ApiResponse> request) async {
     final ApiResponse res;
@@ -159,10 +165,26 @@ class LiveHelpService implements HelpService {
       '/support/tickets/${Uri.encodeComponent(ticketId)}';
 
   @override
-  Stream<HelpUpload> addRecording({String? about}) async* {
-    final picked = await files.pickAttachment();
+  Stream<HelpUpload> addRecording({
+    String? about,
+    SupportSource source = SupportSource.photos,
+  }) async* {
+    final picked = await files.pickAttachment(source);
     if (picked == null) return;
     yield* upload(picked);
+  }
+
+  /// Over what the API takes of its kind: refused before a byte goes up.
+  static HelpFailure? _overLimit(HelpAttachment file) {
+    if (file.bytes > SupportLimits.bytes(file.kind)) {
+      return HelpFailure.tooLarge;
+    }
+    final most = SupportLimits.length(file.kind);
+    final length = file.length;
+    if (most != null && length != null && length > most) {
+      return HelpFailure.tooLong;
+    }
+    return null;
   }
 
   /// Progress follows the bytes sent, held short of done until the API
@@ -171,6 +193,12 @@ class LiveHelpService implements HelpService {
   Stream<HelpUpload> upload(HelpAttachment file) {
     final steps = StreamController<HelpUpload>();
     Future<void> run() async {
+      if (_uploaded[file] case final done?) {
+        steps.add(HelpUpload(done, 1));
+        return;
+      }
+      steps.add(HelpUpload(file, 0));
+      if (_overLimit(file) case final failure?) throw HelpRefused(failure);
       final read = file.read;
       if (read == null) throw const HelpRefused(HelpFailure.unknown);
       final bytes = await read();
@@ -201,19 +229,16 @@ class LiveHelpService implements HelpService {
       );
       final answer = helpAttachmentFromJson(res.data);
       if (answer == null) throw const HelpRefused(HelpFailure.unknown);
-      steps.add(
-        HelpUpload(
-          file.uploaded(
-            id: answer.id!,
-            name: answer.name.isEmpty ? null : answer.name,
-            bytes: answer.bytes == 0 ? null : answer.bytes,
-            length: answer.length,
-            kind: answer.kind,
-            mime: answer.mime,
-          ),
-          1,
-        ),
+      final done = file.uploaded(
+        id: answer.id!,
+        name: answer.name.isEmpty ? null : answer.name,
+        bytes: answer.bytes == 0 ? null : answer.bytes,
+        length: answer.length,
+        kind: answer.kind,
+        mime: answer.mime,
       );
+      _uploaded[file] = done;
+      steps.add(HelpUpload(done, 1));
     }
 
     run().then(
@@ -257,7 +282,8 @@ class LiveHelpService implements HelpService {
       request.activation?.id,
       ...uploadIds,
     ].join('\u0000');
-    final key = _keys[fingerprint] ??= LocalRows.newId();
+    final key =
+        request.idempotencyKey ?? (_keys[fingerprint] ??= LocalRows.newId());
     try {
       final res = await _call(
         _api.send('POST', '/support/tickets', body: body, idempotencyKey: key),
@@ -277,9 +303,23 @@ class LiveHelpService implements HelpService {
     yield _ticket(res);
   }
 
+  /// [idempotencyKey] rides along so the API answers a reply sent again
+  /// after its answer was lost with the first (an API without the key
+  /// support ignores it).
   @override
-  Future<HelpTicket> reply(String ticketId, String body) async => _ticket(
-    await _call(_api.post('${_path(ticketId)}/messages', {'message': body})),
+  Future<HelpTicket> reply(
+    String ticketId,
+    String body, {
+    String? idempotencyKey,
+  }) async => _ticket(
+    await _call(
+      _api.send(
+        'POST',
+        '${_path(ticketId)}/messages',
+        body: {'message': body},
+        idempotencyKey: idempotencyKey,
+      ),
+    ),
   );
 
   @override
@@ -318,12 +358,14 @@ class LiveHelpService implements HelpService {
   Future<int> unread() async =>
       apiInt((await _call(_api.get('/support/unread'))).data['unread']) ?? 0;
 
-  /// The screenshot goes up first, then the report opens with it.
+  /// The screenshot goes up first (once, however often the report is
+  /// sent), then the report opens with it.
   @override
   Future<String> report({
     required String topic,
     required String details,
     HelpAttachment? screenshot,
+    String? idempotencyKey,
   }) async {
     var attachment = screenshot;
     if (attachment != null && attachment.id == null) {
@@ -335,6 +377,7 @@ class LiveHelpService implements HelpService {
         message: details,
         topic: helpTopics[topic] ?? 'something_else',
         attachment: attachment,
+        idempotencyKey: idempotencyKey,
       ),
     );
     return ticket.reference ?? '';
@@ -350,7 +393,10 @@ class PausedHelpService implements HelpService {
       Future.error(const FeaturePaused(LiveFeature.support));
 
   @override
-  Stream<HelpUpload> addRecording({String? about}) => const Stream.empty();
+  Stream<HelpUpload> addRecording({
+    String? about,
+    SupportSource source = SupportSource.photos,
+  }) => const Stream.empty();
 
   @override
   Stream<HelpUpload> upload(HelpAttachment file) =>
@@ -369,7 +415,11 @@ class PausedHelpService implements HelpService {
   Stream<HelpTicket> watch(String ticketId) => const Stream.empty();
 
   @override
-  Future<HelpTicket> reply(String ticketId, String body) => _paused();
+  Future<HelpTicket> reply(
+    String ticketId,
+    String body, {
+    String? idempotencyKey,
+  }) => _paused();
 
   @override
   Future<HelpTicket> resolve(String ticketId) => _paused();
@@ -385,5 +435,6 @@ class PausedHelpService implements HelpService {
     required String topic,
     required String details,
     HelpAttachment? screenshot,
+    String? idempotencyKey,
   }) => _paused();
 }

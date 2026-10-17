@@ -13,15 +13,20 @@ import '../../data/help_data.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/button.dart';
+import '../../ui/empty_state.dart';
+import '../../ui/illustration.dart';
+import '../../ui/pressable.dart';
 import '../../ui/chat_bubble.dart';
 import '../../ui/field.dart';
 import '../../ui/ticket_tag.dart';
 import '../../ui/toast.dart';
 import '../../ui/top_bar.dart';
 import '../../data/help_service.dart';
+import '../../data/local/local_rows.dart';
 import '../../data/live/live_help_service.dart' show LiveHelpService;
 import '../more/more_widgets.dart';
 import '../settings/restore_account_screen.dart';
+import 'help_attachment_screen.dart';
 import 'help_routes.dart';
 import 'help_state.dart';
 import 'help_widgets.dart';
@@ -69,6 +74,9 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
   bool _holding = false;
   bool _resolving = false;
   bool _replying = false;
+
+  /// The reply's Idempotency-Key, kept until the API answers it for sure.
+  String _replyKey = LocalRows.newId();
   Timer? _hold;
   Timer? _leave;
 
@@ -161,9 +169,16 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
     if (body.isEmpty || _replying) return;
     setState(() => _replying = true);
     try {
-      await ref.read(helpTicketsProvider.notifier).reply(widget.id, body);
+      await ref
+          .read(helpTicketsProvider.notifier)
+          .reply(widget.id, body, idempotencyKey: _replyKey);
       _reply.clear();
+      _replyKey = LocalRows.newId();
     } catch (error) {
+      // Only a reply the API may have taken keeps its key for the retry.
+      if (error is HelpRefused && error.failure != HelpFailure.offline) {
+        _replyKey = LocalRows.newId();
+      }
       errorHaptic();
       if (mounted) setState(() => _replying = false);
       await _refused(error);
@@ -188,11 +203,9 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
     final ticket = ref.watch(
       helpTicketsProvider.select((tickets) => tickets[widget.id]),
     );
-    final failed =
-        ticket == null &&
-        ref.watch(
-          helpLoadFailedProvider.select((ids) => ids.contains(widget.id)),
-        );
+    final failure = ticket == null
+        ? ref.watch(helpLoadFailedProvider.select((ids) => ids[widget.id]))
+        : null;
     if (ticket != null) _note(ticket);
     final shownMessages = _shownMessages ?? 0;
     final thread = ticket == null
@@ -220,7 +233,17 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
                 ),
                 Expanded(
                   child: thread == null
-                      ? failed
+                      ? failure == true
+                            ? const IqEmptyFill(
+                                child: IqEmptyState(
+                                  figure: IqFigures.sender,
+                                  title: 'This conversation is gone',
+                                  body:
+                                      'It is no longer in your inbox. Start a '
+                                      'new one from Support.',
+                                ),
+                              )
+                            : failure == false
                             ? Padding(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: IqSpace.s4,
@@ -357,14 +380,26 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
         ),
       );
       for (final attachment in message.attachments) {
+        final words =
+            'Attached ${[attachment.name, ?attachment.lengthLabel, attachment.sizeLabel].join(' · ')}';
+        final text = Text(
+          words,
+          style: IqText.small.copyWith(
+            color: attachment.url == null ? IqColors.fg3 : IqColors.brand,
+          ),
+        );
         final line = Align(
           alignment: message.author == HelpAuthor.you
               ? Alignment.centerRight
               : Alignment.centerLeft,
-          child: Text(
-            'Attached ${[attachment.name, ?attachment.lengthLabel, attachment.sizeLabel].join(' · ')}',
-            style: IqText.small.copyWith(color: IqColors.fg3),
-          ),
+          child: attachment.url == null
+              ? text
+              : IqPressable(
+                  semanticLabel: words,
+                  onTap: () => openHelpAttachment(context, attachment),
+                  builder: (context, pressed) =>
+                      PressDim(pressed: pressed, child: text),
+                ),
         );
         parts.add(
           arriving

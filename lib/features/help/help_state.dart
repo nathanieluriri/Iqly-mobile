@@ -6,7 +6,9 @@ import '../../core/session.dart';
 import '../../data/activations_data.dart';
 import '../../data/help_data.dart';
 import '../../data/help_service.dart';
+import '../../data/local/local_rows.dart';
 import '../../data/models.dart';
+import '../../data/support_files.dart' show SupportSource;
 import '../wallet/wallet_state.dart';
 
 /// The title of a thread about [activation] ("Kudi Box activation" in the
@@ -26,6 +28,41 @@ String helpFailureText(
   _ => 'Couldn’t send.',
 };
 
+/// A file the API refused, in words from the limits of its kind (contract
+/// 12.1): a recording over a minute keeps the ProofTile's own copy.
+({String? title, String hint}) helpRefusalWords(
+  HelpFailure failure,
+  HelpAttachmentKind? kind,
+) => switch (kind ?? HelpAttachmentKind.video) {
+  HelpAttachmentKind.image => (
+    title: failure == HelpFailure.tooLarge
+        ? 'That picture is over 10 MB'
+        : 'That picture can’t be sent',
+    hint: 'Pictures go up to 10 MB: JPG, PNG, WebP or GIF.',
+  ),
+  HelpAttachmentKind.audio => (
+    title: switch (failure) {
+      HelpFailure.tooLong => 'That voice note is over 5 minutes',
+      HelpFailure.tooLarge => 'That voice note is over 10 MB',
+      _ => 'That voice note can’t be sent',
+    },
+    hint:
+        'Voice notes go up to 5 minutes and 10 MB: M4A, AAC, MP3, OGG, WAV '
+        'or AMR.',
+  ),
+  HelpAttachmentKind.video => switch (failure) {
+    HelpFailure.tooLong => (title: null, hint: ''),
+    HelpFailure.tooLarge => (
+      title: 'That recording is over 50 MB',
+      hint: 'Videos go up to 60 s and 50 MB: MP4, MOV, WebM or 3GP.',
+    ),
+    _ => (
+      title: 'That video can’t be sent',
+      hint: 'Videos go up to 60 s and 50 MB: MP4, MOV, WebM or 3GP.',
+    ),
+  },
+};
+
 /// What the person is writing to support: the message, the optional
 /// recording (or the one going up, or the one whose upload did not go) and
 /// how sending went.
@@ -36,9 +73,11 @@ class HelpDraft {
     this.upload,
     this.unsent,
     this.refused,
+    this.refusedKind,
     this.sending = false,
     this.failed = false,
     this.failure,
+    this.key,
   });
 
   final String message;
@@ -50,8 +89,14 @@ class HelpDraft {
   /// A recording whose upload got no answer, to upload again.
   final HelpAttachment? unsent;
 
-  /// Why the API refused the file picked last (its size, length or type).
+  /// Why the API refused the file picked last (its size, length or type),
+  /// and what kind of file it was.
   final HelpFailure? refused;
+  final HelpAttachmentKind? refusedKind;
+
+  /// The Idempotency-Key the send carries, kept until the API answers it
+  /// for sure.
+  final String? key;
   final bool sending;
   final bool failed;
 
@@ -67,18 +112,22 @@ class HelpDraft {
     HelpUpload? Function()? upload,
     HelpAttachment? Function()? unsent,
     HelpFailure? Function()? refused,
+    HelpAttachmentKind? Function()? refusedKind,
     bool? sending,
     bool? failed,
     HelpFailure? Function()? failure,
+    String? key,
   }) => HelpDraft(
     message: message ?? this.message,
     recording: recording == null ? this.recording : recording(),
     upload: upload == null ? this.upload : upload(),
     unsent: unsent == null ? this.unsent : unsent(),
     refused: refused == null ? this.refused : refused(),
+    refusedKind: refusedKind == null ? this.refusedKind : refusedKind(),
     sending: sending ?? this.sending,
     failed: failed ?? this.failed,
     failure: failure == null ? this.failure : failure(),
+    key: key ?? this.key,
   );
 }
 
@@ -89,7 +138,7 @@ class HelpDraftNotifier extends Notifier<HelpDraft> {
   @override
   HelpDraft build() {
     ref.onDispose(() => _upload?.cancel());
-    return const HelpDraft();
+    return HelpDraft(key: LocalRows.newId());
   }
 
   void write(String message) => state = state.copyWith(
@@ -100,9 +149,14 @@ class HelpDraftNotifier extends Notifier<HelpDraft> {
 
   /// Picks a recording of [about]'s app and uploads it
   /// (HelpService.addRecording).
-  void addRecording({String? about}) {
+  void addRecording({
+    String? about,
+    SupportSource source = SupportSource.photos,
+  }) {
     if (state.upload != null) return;
-    _follow(ref.read(helpServiceProvider).addRecording(about: about));
+    _follow(
+      ref.read(helpServiceProvider).addRecording(about: about, source: source),
+    );
   }
 
   /// Uploads again the recording whose upload got no answer.
@@ -114,7 +168,11 @@ class HelpDraftNotifier extends Notifier<HelpDraft> {
 
   void _follow(Stream<HelpUpload> steps) {
     _upload?.cancel();
-    state = state.copyWith(unsent: () => null, refused: () => null);
+    state = state.copyWith(
+      unsent: () => null,
+      refused: () => null,
+      refusedKind: () => null,
+    );
     HelpAttachment? going;
     _upload = steps.listen(
       (step) {
@@ -131,6 +189,7 @@ class HelpDraftNotifier extends Notifier<HelpDraft> {
         state = state.copyWith(
           upload: () => null,
           refused: () => refused,
+          refusedKind: () => file?.kind,
           unsent: () => refused == null ? file : null,
         );
       },
@@ -167,6 +226,7 @@ class HelpDraftNotifier extends Notifier<HelpDraft> {
               message: draft.message.trim(),
               attachment: draft.recording,
               activation: activation,
+              idempotencyKey: draft.key,
             ),
           );
       state = state.copyWith(sending: false);
@@ -182,6 +242,9 @@ class HelpDraftNotifier extends Notifier<HelpDraft> {
         failed: true,
         failure: () => failure,
         recording: upload ? () => null : null,
+        key: failure == HelpFailure.offline || failure == null
+            ? null
+            : LocalRows.newId(),
       );
       return null;
     }
@@ -199,7 +262,9 @@ final helpDraftProvider =
 /// once its account is no longer signed in goes nowhere.
 class HelpTicketsNotifier extends Notifier<Map<String, HelpTicket>> {
   final _watching = <String, StreamSubscription<HelpTicket>>{};
-  final _open = <String>{};
+
+  /// The threads on screen, and whether each has been marked read since.
+  final _open = <String, bool>{};
 
   @override
   Map<String, HelpTicket> build() {
@@ -225,7 +290,8 @@ class HelpTicketsNotifier extends Notifier<Map<String, HelpTicket>> {
 
   /// Keeps [id] up to date with what support does. A watch that ends (the
   /// API's answers each end with the thread as it is) can be asked again;
-  /// one that fails says so in [helpLoadFailedProvider].
+  /// one that fails says so in [helpLoadFailedProvider], as gone when the
+  /// API has no such thread.
   void follow(String id) {
     if (_watching.containsKey(id)) return;
     final failed = ref.read(helpLoadFailedProvider.notifier);
@@ -237,21 +303,24 @@ class HelpTicketsNotifier extends Notifier<Map<String, HelpTicket>> {
             failed.cleared(id);
             _put(ticket);
           },
-          onError: (Object _) {
+          onError: (Object error) {
             _watching.remove(id)?.cancel();
-            if (!state.containsKey(id)) failed.failed(id);
+            final gone =
+                error is HelpRefused && error.failure == HelpFailure.gone;
+            if (gone || !state.containsKey(id)) failed.failed(id, gone: gone);
           },
           onDone: () => _watching.remove(id),
         );
   }
 
-  /// A thread on screen, asked again when a push lands.
-  void opened(String id) => _open.add(id);
+  /// A thread on screen, asked again when a push lands. Once the screen has
+  /// marked it read, a reply that lands while it is open is marked read too.
+  void opened(String id) => _open[id] = false;
 
   void closed(String id) => _open.remove(id);
 
   void refreshOpen() {
-    for (final id in _open) {
+    for (final id in _open.keys) {
       follow(id);
     }
   }
@@ -259,6 +328,7 @@ class HelpTicketsNotifier extends Notifier<Map<String, HelpTicket>> {
   /// The person opened [id]: on the API the badge counts it at once.
   Future<void> markRead(String id) async {
     final scope = ref.read(accountScopeProvider);
+    if (_open.containsKey(id)) _open[id] = true;
     await ref.read(helpServiceProvider).markRead(id);
     if (!scope.open || !ref.read(supportLiveProvider)) return;
     final ticket = state[id];
@@ -266,8 +336,12 @@ class HelpTicketsNotifier extends Notifier<Map<String, HelpTicket>> {
     ref.invalidate(supportUnreadProvider);
   }
 
-  Future<void> reply(String id, String body) =>
-      _putting(ref.read(helpServiceProvider).reply(id, body));
+  Future<void> reply(String id, String body, {String? idempotencyKey}) =>
+      _putting(
+        ref
+            .read(helpServiceProvider)
+            .reply(id, body, idempotencyKey: idempotencyKey),
+      );
 
   Future<void> resolve(String id) =>
       _putting(ref.read(helpServiceProvider).resolve(id));
@@ -279,9 +353,21 @@ class HelpTicketsNotifier extends Notifier<Map<String, HelpTicket>> {
   }
 
   void _put(HelpTicket ticket) {
+    final before = state[ticket.id];
     state = {...state, ticket.id: ticket};
     if (ticket.credit case final credit?) _credit(credit);
+    // Support wrote again while the thread is open and already read.
+    if (ticket.unread &&
+        before != null &&
+        _open[ticket.id] == true &&
+        _replies(ticket) > _replies(before) &&
+        ref.read(supportLiveProvider)) {
+      markRead(ticket.id).catchError((Object _) {});
+    }
   }
+
+  static int _replies(HelpTicket ticket) =>
+      ticket.messages.where((m) => m.author == HelpAuthor.support).length;
 
   Future<void> _credit(LedgerEntry award) async {
     final scope = ref.read(accountScopeProvider);
@@ -294,24 +380,25 @@ class HelpTicketsNotifier extends Notifier<Map<String, HelpTicket>> {
   }
 }
 
-/// The threads whose first read got no answer, so the thread can offer Try
-/// again rather than stay blank.
-class HelpLoadFailedNotifier extends Notifier<Set<String>> {
+/// The threads whose read did not answer them, each true when the API has
+/// no such thread (gone) and false when it gave no answer, so the thread
+/// says it is gone or offers Try again rather than stay blank.
+class HelpLoadFailedNotifier extends Notifier<Map<String, bool>> {
   @override
-  Set<String> build() {
+  Map<String, bool> build() {
     ref.watch(accountProvider);
     return const {};
   }
 
-  void failed(String id) => state = {...state, id};
+  void failed(String id, {bool gone = false}) => state = {...state, id: gone};
 
   void cleared(String id) {
-    if (state.contains(id)) state = {...state}..remove(id);
+    if (state.containsKey(id)) state = {...state}..remove(id);
   }
 }
 
 final helpLoadFailedProvider =
-    NotifierProvider<HelpLoadFailedNotifier, Set<String>>(
+    NotifierProvider<HelpLoadFailedNotifier, Map<String, bool>>(
       HelpLoadFailedNotifier.new,
     );
 

@@ -6,6 +6,7 @@ import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../data/help_data.dart';
 import '../../data/help_service.dart';
+import '../../data/local/local_rows.dart';
 import '../../data/support_files.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -39,6 +40,11 @@ class _ReportIssueScreenState extends ConsumerState<ReportIssueScreen> {
   bool _sending = false;
   bool _failed = false;
   HelpFailure? _failure;
+  HelpAttachmentKind? _refused;
+
+  /// The report's Idempotency-Key, kept until the API answers it for sure;
+  /// the screenshot goes up once whatever the retries.
+  String _key = LocalRows.newId();
 
   @override
   void initState() {
@@ -71,15 +77,27 @@ class _ReportIssueScreenState extends ConsumerState<ReportIssueScreen> {
             topic: _topic,
             details: _details.text.trim(),
             screenshot: _screenshot,
+            idempotencyKey: _key,
           );
     } on Exception catch (error) {
       if (!mounted) return;
       final failure = error is HelpRefused ? error.failure : null;
+      final upload =
+          error is HelpRefused &&
+          (error.refusesFile ||
+              error.code == 'SUPPORT_UPLOAD_NOT_FOUND' ||
+              error.code == 'SUPPORT_UPLOAD_IN_USE');
       setState(() {
         _sending = false;
         _failed = true;
         _failure = failure;
-        if (error is HelpRefused && error.refusesFile) _screenshot = null;
+        _refused = error is HelpRefused && error.refusesFile
+            ? HelpAttachmentKind.image
+            : null;
+        if (upload) _screenshot = null;
+        if (failure != null && failure != HelpFailure.offline) {
+          _key = LocalRows.newId();
+        }
       });
       await errorHaptic();
       if (failure == HelpFailure.closing && Flags.deleteAccount && mounted) {
@@ -101,10 +119,16 @@ class _ReportIssueScreenState extends ConsumerState<ReportIssueScreen> {
         children: [
           IqBanner(
             kind: IqBannerKind.error,
-            title: helpFailureText(
-              _failure,
-              offline: 'Not sent. Check your connection.',
-            ),
+            title: switch ((_failure, _refused)) {
+              (final failure?, final kind?) => () {
+                final words = helpRefusalWords(failure, kind);
+                return '${words.title}. ${words.hint}';
+              }(),
+              (final failure, _) => helpFailureText(
+                failure,
+                offline: 'Not sent. Check your connection.',
+              ),
+            },
             showAction: false,
             visible: _failed,
             margin: const EdgeInsets.only(bottom: IqSpace.s3),
