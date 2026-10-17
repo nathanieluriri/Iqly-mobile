@@ -65,6 +65,15 @@ final accountSyncProvider = Provider<void>((ref) {
   }, fireImmediately: true);
 });
 
+/// Keeps the account's writes running for the app's life. They are
+/// listened to rather than read, so the mode the splash settles after
+/// launch (a first live launch starts as preview) rebuilds them.
+void startAccountSync(ProviderContainer container) {
+  container
+    ..listen(accountSyncProvider, (_, _) {})
+    ..listen(outboxOnResumeProvider, (_, _) {});
+}
+
 /// The outbox tries again whenever the app comes back to the foreground,
 /// and sends what waits out a backoff as soon as the API answers again
 /// after the network was gone.

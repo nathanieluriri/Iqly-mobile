@@ -123,9 +123,7 @@ Future<LocalStore> _openStore() async {
 /// checked (Restore while it is closing, first run on the first live
 /// launch).
 void _startAccount(ProviderContainer container) {
-  container
-    ..read(accountSyncProvider)
-    ..read(outboxOnResumeProvider);
+  startAccountSync(container);
   unawaited(
     checkAccountAtLaunch(container.read, container.read(routerProvider)),
   );

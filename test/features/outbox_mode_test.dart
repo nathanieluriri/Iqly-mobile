@@ -15,6 +15,15 @@ import '../support/live_api.dart';
 
 final _now = DateTime(2026, 10, 17, 10);
 
+class _Health implements HealthService {
+  _Health(this.report);
+
+  final HealthReport report;
+
+  @override
+  Future<HealthReport> check() async => report;
+}
+
 /// Ada's writes from an earlier live launch, queued while offline: a
 /// profile edit and a read mark.
 Future<MemoryLocalStore> _queued() async {
@@ -48,6 +57,7 @@ Future<ProviderContainer> _launch(
   LocalStore store,
   BackendNotifier Function() backend, {
   Map<String, Object> prefs = const {},
+  HealthService? health,
 }) async {
   SharedPreferences.setMockInitialValues({
     'session.signedIn': true,
@@ -63,10 +73,11 @@ Future<ProviderContainer> _launch(
       localStoreProvider.overrideWithValue(store),
       apiClientProvider.overrideWithValue(api.client),
       backendProvider.overrideWith(backend),
+      if (health != null) healthServiceProvider.overrideWithValue(health),
     ],
   );
   addTearDown(c.dispose);
-  c.read(accountSyncProvider);
+  startAccountSync(c);
   await pumpEventQueue();
   await c.read(outboxProvider).kick();
   return c;
@@ -83,6 +94,8 @@ Future<Map<String, OutboxStatus>> _left(LocalStore store) async => {
 /// runs, and only once the splash has fixed its mode. The rest wait, kept
 /// and not failed, for a launch that runs them.
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('a preview launch sends nothing and keeps every write', () async {
     final api = _api();
     final store = await _queued();
@@ -116,6 +129,36 @@ void main() {
     expect(_sent(api), [
       'POST /notifications/read',
       'PATCH /profiles/contributors/me',
+    ]);
+    expect(await _left(store), isEmpty);
+  });
+
+  test('a first live launch, which starts as preview, sends once the splash '
+      'has checked health and fixed the mode', () async {
+    final api = _api();
+    final store = await _queued();
+    final c = await _launch(
+      api,
+      store,
+      () => LiveBackendNotifier(forgetPreview: (_) async {}),
+      health: _Health(
+        HealthReport(
+          ready: true,
+          contract: Backend.contract,
+          features: LiveFeature.values.toSet(),
+        ),
+      ),
+    );
+    expect(c.read(backendProvider).isPreview, isTrue);
+    expect(_sent(api), isEmpty);
+
+    await c.read(backendProvider.notifier).check();
+    await c.read(backendProvider.notifier).lock();
+    await pumpEventQueue();
+    await c.read(outboxProvider).kick();
+    expect(_sent(api), [
+      'PATCH /profiles/contributors/me',
+      'POST /notifications/read',
     ]);
     expect(await _left(store), isEmpty);
   });

@@ -85,7 +85,7 @@ void main() {
             authServiceProvider.overrideWithValue(LiveAuthService(api: api)),
           ],
         );
-        container.read(accountSyncProvider);
+        startAccountSync(container);
         outbox = container.read(outboxProvider);
       });
 
