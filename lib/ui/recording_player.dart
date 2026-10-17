@@ -15,7 +15,10 @@ import 'tilt.dart';
 typedef RecordingOpener = VideoPlayerController Function(Uri source);
 
 VideoPlayerController openRecording(Uri source) => switch (source.scheme) {
-  'http' || 'https' => VideoPlayerController.networkUrl(source),
+  'http' || 'https' => VideoPlayerController.networkUrl(
+    source,
+    httpHeaders: Recordings.headersFor(source),
+  ),
   'content' => VideoPlayerController.contentUri(source),
   _ => VideoPlayerController.file(File(source.toFilePath())),
 };
@@ -26,6 +29,17 @@ VideoPlayerController openRecording(Uri source) => switch (source.scheme) {
 /// pause or sound icons, so those two use Material's rounded glyphs.
 abstract final class Recordings {
   static RecordingOpener open = openRecording;
+
+  /// The API's address and the session's token: a proof recording on the
+  /// API plays only for the person who sent it (contract 11.2).
+  static ({String base, String token})? signedIn;
+
+  static Map<String, String> headersFor(Uri source) {
+    final signed = signedIn;
+    return signed != null && source.toString().startsWith(signed.base)
+        ? {'authorization': 'Bearer ${signed.token}'}
+        : const {};
+  }
 
   static final _posters = <Uri, _Poster>{};
 

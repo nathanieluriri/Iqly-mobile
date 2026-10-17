@@ -22,7 +22,9 @@ enum MyActivationsTab { active, done }
 /// B8 · My activations (485:38281): your activations under Active and Done
 /// chips (#16). Active holds the ones under way, closing soonest first, the
 /// first as a Feature card; Done holds the paid ones and those that closed
-/// before you finished, latest first. A chip switch keeps the chrome still
+/// before you finished, latest first. A proof still waiting at the close
+/// can still be decided, so it stays Active (contract 11.2: Active is every
+/// run not credited or expired). A chip switch keeps the chrome still
 /// and crossfades the list over 200 ms (#28); a cut under reduced motion
 /// keeps the 150 crossfade.
 class MyActivationsScreen extends ConsumerStatefulWidget {
@@ -38,6 +40,12 @@ class MyActivationsScreen extends ConsumerStatefulWidget {
 class _MyActivationsScreenState extends ConsumerState<MyActivationsScreen> {
   late var _tab = widget.tab;
 
+  @override
+  void initState() {
+    super.initState();
+    ref.read(activationsProvider.notifier).refreshQuietly().ignore();
+  }
+
   void _pick(MyActivationsTab tab) {
     if (tab == _tab) return;
     setState(() => _tab = tab);
@@ -47,13 +55,17 @@ class _MyActivationsScreenState extends ConsumerState<MyActivationsScreen> {
   Widget build(BuildContext context) {
     final now = ref.watch(clockProvider)();
     final all = ref.watch(activationsProvider).value ?? const <Activation>[];
+    bool ended(Activation a) => switch (a.phaseAt(now)) {
+      ActivationPhase.credited || ActivationPhase.expired => true,
+      _ => false,
+    };
     final active = [
       for (final a in all)
-        if (a.inFlight && !a.closedAt(now)) a,
+        if (a.started && !ended(a)) a,
     ]..sort((a, b) => a.closesAt.compareTo(b.closesAt));
     final done = [
       for (final a in all)
-        if (a.credited || (a.inFlight && a.closedAt(now))) a,
+        if (a.started && ended(a)) a,
     ]..sort((a, b) => _doneAt(b).compareTo(_doneAt(a)));
     final shown = _tab == MyActivationsTab.active ? active : done;
 

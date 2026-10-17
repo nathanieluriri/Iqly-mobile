@@ -13,7 +13,7 @@ String pollsOf(String businessId) => '${Routes.polls}/$businessId';
 String pollPageOf(String businessId) => '${Routes.polls}/$businessId/full';
 
 /// The Quick polls page as a Discover tile opens it: with [businessId] its
-/// sheet rises over the page.
+/// sheet rises over the page. A poll's id opens its business's sheet too.
 String quickPollsFor(String businessId) => Uri(
   path: Routes.polls,
   queryParameters: {'business': businessId},

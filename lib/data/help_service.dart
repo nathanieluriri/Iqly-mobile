@@ -1,10 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/backend.dart';
 import '../core/money.dart';
 import '../core/session.dart';
 import 'activations_data.dart';
 import 'demo_data.dart';
 import 'help_data.dart';
+import 'live/live_repository.dart' show liveModeProvider;
 import 'models.dart';
 
 /// One step of a recording upload: the picked [file] and how far it is.
@@ -228,4 +230,11 @@ class DemoHelpService implements HelpService {
 final helpServiceProvider = Provider<HelpService>((ref) {
   ref.watch(accountProvider);
   return DemoHelpService();
+});
+
+/// Whether the ways to reach support show this launch: always in the
+/// preview, and in a live launch only while the API runs support.
+final supportShownProvider = Provider<bool>((ref) {
+  final mode = ref.watch(liveModeProvider);
+  return mode.isPreview || mode.isLive(LiveFeature.support);
 });

@@ -323,7 +323,7 @@ void main() {
     addTearDown(container.dispose);
     final notifier = container.read(pollsProvider.notifier);
     await container.read(pollsProvider.future);
-    expect(await notifier.vote('p3', 0), isTrue);
+    expect(await notifier.vote('p3', 0), VoteOutcome.counted);
     final unibooks = container
         .read(pollsProvider)
         .value!

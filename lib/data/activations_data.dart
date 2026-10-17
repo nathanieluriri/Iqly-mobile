@@ -1,7 +1,8 @@
 /// Activations: short tasks a business pays for, verified by the business
 /// (B8) or, when a step goes unconfirmed, by a recording the contributor
-/// sends (B9). A design proposal behind Flags.activations: demo.ts has no
-/// rows for it, so the demo values below come from the Figma frames.
+/// sends (B9), behind Flags.activations. demo.ts has no rows for them, so
+/// the demo values below come from the Figma frames; a live launch reads
+/// the API's (contract 11.2).
 library;
 
 /// The activation rules (business rules, not motion).
@@ -110,6 +111,7 @@ class ActivationProgress {
     this.confirmedAt = const [],
     this.proof,
     this.paidAt,
+    this.ledgerId,
   });
 
   final DateTime startedAt;
@@ -122,6 +124,9 @@ class ActivationProgress {
   /// When the reward reached the wallet; the activation is done.
   final DateTime? paidAt;
 
+  /// The wallet credit that paid it, as the API names it.
+  final String? ledgerId;
+
   ActivationProgress copyWith({
     List<DateTime>? confirmedAt,
     ActivationProof? proof,
@@ -131,6 +136,7 @@ class ActivationProgress {
     confirmedAt: confirmedAt ?? this.confirmedAt,
     proof: proof ?? this.proof,
     paidAt: paidAt ?? this.paidAt,
+    ledgerId: ledgerId,
   );
 }
 
@@ -175,11 +181,24 @@ class Activation {
     required this.steps,
     required this.link,
     this.progress,
+    this.live = false,
+    this.logoUrl,
+    this.imageUrl,
+    this.paused = false,
   });
 
   final String id;
   final String business;
   final String title;
+
+  /// From the API: its art is [logoUrl] and [imageUrl], never a sample
+  /// business's, and the anonymous mark when it has none.
+  final bool live;
+  final String? logoUrl;
+  final String? imageUrl;
+
+  /// The business has stopped new starts for now; runs under way go on.
+  final bool paused;
 
   /// "about 10 min".
   final int minutes;
@@ -207,6 +226,11 @@ class Activation {
   bool get full => spotsLeft <= 0;
 
   bool closedAt(DateTime now) => !closesAt.isAfter(now);
+
+  /// Whether a recording can still go as proof: started, not paid, and
+  /// open. A proof turned down after the close cannot be recorded again,
+  /// as the run ended with the activation.
+  bool canProveAt(DateTime now) => started && !credited && !closedAt(now);
 
   /// The step the business is confirming, once one step is confirmed and
   /// until the last is, while no accepted proof stands in for it.
@@ -263,6 +287,10 @@ class Activation {
     steps: steps,
     link: link,
     progress: progress,
+    live: live,
+    logoUrl: logoUrl,
+    imageUrl: imageUrl,
+    paused: paused,
   );
 }
 

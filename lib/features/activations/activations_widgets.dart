@@ -9,7 +9,6 @@ import '../../ui/cover_with_logo.dart';
 import '../../ui/illustration.dart';
 import '../../ui/meta.dart';
 import '../../ui/recording_player.dart';
-import '../../ui/sample_logo.dart';
 import '../../ui/skeleton.dart';
 import 'activation_format.dart';
 
@@ -238,13 +237,12 @@ class ActivationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final a = activation;
-    final art = businessArt(a.business);
     return IqBriefCard(
       kind: feature ? IqBriefCardKind.feature : IqBriefCardKind.row,
       brand: a.business,
       title: a.title,
-      cover: activationCover(a.business),
-      logo: IqSampleLogo(art),
+      cover: activationCoverArt(a),
+      logo: activationLogoArt(a),
       meta: [
         IqMeta(kind: IqMetaKind.reward, label: rewardChip(a)),
         if (feature) IqMeta(kind: IqMetaKind.time, label: minutesText(a)),

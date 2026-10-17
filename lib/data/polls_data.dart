@@ -1,9 +1,10 @@
 import 'demo_data.dart';
 
-/// One poll a business runs (Exp/PollCard). Polls are a design proposal
-/// behind Flags.polls: the API does not serve them yet, so every figure is
-/// illustrative. [votes] counts each choice, the person's own vote included
-/// once [chosen] is set.
+/// One poll a business runs (Exp/PollCard), behind Flags.polls: the
+/// preview's illustrative figures, or the API's (contract 11.1). [votes]
+/// counts each choice, the person's own vote included once [chosen] is set;
+/// the API sends no counts until the person has voted or the poll has
+/// closed, so they read as zeros until then.
 class Poll {
   const Poll({
     required this.id,
@@ -12,6 +13,7 @@ class Poll {
     required this.votes,
     required this.closesAt,
     this.chosen,
+    this.closed = false,
   });
 
   final String id;
@@ -21,11 +23,14 @@ class Poll {
   final DateTime closesAt;
   final int? chosen;
 
+  /// The API says it has closed, whatever this phone's clock says.
+  final bool closed;
+
   bool get voted => chosen != null;
 
   int get total => votes.fold(0, (sum, count) => sum + count);
 
-  bool closedAt(DateTime now) => !closesAt.isAfter(now);
+  bool closedAt(DateTime now) => closed || !closesAt.isAfter(now);
 
   /// Whole percentages of [total] that add up to 100: each share rounds
   /// down, then the points left go to the largest remainders, so a card
@@ -59,6 +64,7 @@ class Poll {
     ],
     closesAt: closesAt,
     chosen: choice,
+    closed: closed,
   );
 }
 
@@ -102,7 +108,31 @@ class PollBusiness {
   PollBusiness withPoll(Poll poll) => PollBusiness(
     id: id,
     name: name,
-    polls: [for (final p in polls) p.id == poll.id ? poll : p],
+    polls: polls.any((p) => p.id == poll.id)
+        ? [for (final p in polls) p.id == poll.id ? poll : p]
+        : [...polls, poll],
+    logo: logo,
+    cover: cover,
+    banner: banner,
+  );
+
+  /// This business with [poll] alone, as one poll's detail names it.
+  PollBusiness only(Poll poll) => PollBusiness(
+    id: id,
+    name: name,
+    polls: [poll],
+    logo: logo,
+    cover: cover,
+    banner: banner,
+  );
+
+  PollBusiness withoutPoll(String pollId) => PollBusiness(
+    id: id,
+    name: name,
+    polls: [
+      for (final p in polls)
+        if (p.id != pollId) p,
+    ],
     logo: logo,
     cover: cover,
     banner: banner,

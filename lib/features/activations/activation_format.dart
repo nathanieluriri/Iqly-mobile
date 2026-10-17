@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/deadline.dart';
@@ -5,6 +6,8 @@ import '../../core/money.dart';
 import '../../core/relative_time.dart';
 import '../../data/activations_data.dart';
 import '../../ui/sample_cover.dart';
+import '../../ui/sample_logo.dart';
+import '../discover/business_art.dart' as art;
 
 /// The time left on a deadline chip: "5h 40m" under six hours, then whole
 /// hours ("18h", "36h") and from two days whole days ("2 days"), each
@@ -114,6 +117,18 @@ IqSampleCover activationCover(String business) =>
       ),
       final art => IqSampleCover(art),
     };
+
+/// The activation's logo: the API's, or the anonymous mark without one; in
+/// the preview the sample business's.
+Widget activationLogoArt(Activation activation, {double size = 120}) =>
+    activation.live
+    ? art.businessLogo(activation.logoUrl, size: size)
+    : IqSampleLogo(businessArt(activation.business), size: size);
+
+/// The activation's photo, as [activationLogoArt] finds its logo.
+Widget activationCoverArt(Activation activation) => activation.live
+    ? art.businessCover(activation.imageUrl)
+    : activationCover(activation.business);
 
 /// The Sample/Logo of [business], for the demo businesses.
 IqSampleLogoBrand businessArt(String business) =>

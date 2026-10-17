@@ -55,9 +55,10 @@ const _activationArt = {
   'Unibooks': ('unibooks', 'unibooks'),
 };
 
-/// The activation's business logo. Activations carry no art yet, so the
-/// sample businesses' logos stand in by name.
+/// The activation's business logo: the API's, or in the preview the
+/// sample business's by name.
 String? activationLogo(Activation activation) {
+  if (activation.live) return activation.logoUrl;
   final art = _activationArt[activation.business];
   return art == null ? null : DemoData.logoOf(art.$1);
 }
@@ -65,6 +66,7 @@ String? activationLogo(Activation activation) {
 /// The activation's photo. The Orchid Foods recipes activation shows the
 /// grocery shot, as Figma's Activations card does (31:24).
 String? activationCover(Activation activation) {
+  if (activation.live) return activation.imageUrl;
   final art = _activationArt[activation.business];
   return art == null ? null : DemoData.coverOf(art.$2);
 }

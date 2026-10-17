@@ -16,12 +16,14 @@ abstract final class DeepLinks {
   static const submitPattern = '/briefs/:id/submit';
   static const withdrawalPattern = '/wallet/withdrawals/:id';
   static const notificationPattern = '/notifications/:id';
+  static const activationPattern = '/activations/:id';
 
   static String poll(String businessId) => '/polls/$businessId';
   static String brief(String briefId) => '/briefs/$briefId';
   static String submit(String briefId) => '/briefs/$briefId/submit';
   static String withdrawal(String id) => '/wallet/withdrawals/$id';
   static String notification(String id) => '/notifications/$id';
+  static String activation(String id) => '/activations/$id';
 
   static const patterns = [
     home,
@@ -32,6 +34,7 @@ abstract final class DeepLinks {
     submitPattern,
     withdrawalPattern,
     notificationPattern,
+    activationPattern,
   ];
 
   static Uri uri(String route) => Uri(scheme: scheme, host: host, path: route);

@@ -6,35 +6,44 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/deadline.dart';
+import '../../core/flags.dart';
 import '../../core/money.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../data/activations_data.dart';
+import '../../data/api_client.dart';
+import '../../data/help_service.dart' show supportShownProvider;
 import '../../data/device.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/brief_hero.dart';
 import '../../ui/button.dart';
+import '../../ui/empty_state.dart';
 import '../../ui/illustration.dart';
 import '../../ui/meta.dart';
 import '../../ui/pressable.dart';
 import '../../ui/progress_thread.dart';
-import '../../ui/sample_logo.dart';
 import '../../ui/section_title.dart';
 import '../../ui/step_row.dart';
 import '../../ui/timeline_row.dart';
 import '../../ui/top_bar.dart';
 import '../../ui/video_preview.dart';
 import '../help/help_routes.dart';
+import '../profile/profile_routes.dart';
+import '../profile/your_details_screen.dart' show DetailField;
+import '../settings/restore_account_screen.dart' show showClosingAccount;
 import 'activation_format.dart';
 import 'activations_routes.dart';
 import 'activations_state.dart';
 import 'activations_widgets.dart';
 
 enum _Layout { offer, steps, proof, credited }
+
+/// Why Start cannot go, as a refused Start said it.
+enum _Unstartable { paused, ended, refused }
 
 _Layout _layoutOf(ActivationPhase phase) => switch (phase) {
   ActivationPhase.offer || ActivationPhase.expired => _Layout.offer,
@@ -75,8 +84,35 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
   Timer? _window;
   DateTime? _windowFor;
   bool _starting = false;
-  bool _startFailed = false;
+  String? _startFailed;
+
+  /// What a refused Start said for good, should reading the activation
+  /// again not say it: Start stays off rather than refused on every tap.
+  _Unstartable? _unstartable;
   bool _paidHere = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  /// Why the activation could not be shown, once asking has settled.
+  ActivationMissing? _missing;
+
+  /// Reads the activation behind what shows; one opened from a link or a
+  /// notification that the list did not hold lands, or says why not.
+  Future<void> _load() async {
+    final missing = await ref
+        .read(activationsProvider.notifier)
+        .load(widget.id);
+    if (mounted) setState(() => _missing = missing);
+  }
+
+  void _loadAgain() {
+    setState(() => _missing = null);
+    _load();
+  }
 
   @override
   void dispose() {
@@ -86,6 +122,12 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
   }
 
   void _onChange(Activation? before, Activation? after) {
+    if (after != null &&
+        !identical(before, after) &&
+        !after.paused &&
+        _unstartable == _Unstartable.paused) {
+      setState(() => _unstartable = null);
+    }
     if (before == null || after == null) return;
     final now = ref.read(clockProvider)();
     if (after.phaseAt(now) == ActivationPhase.credited &&
@@ -126,20 +168,56 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
     );
   }
 
+  /// No answer, a throttle or a fault keeps Try again. A refusal says
+  /// "Couldn't start." and reads the activation again, so a full, paused or
+  /// ended one shows as it is and Start stays off; under 18 opens Date of
+  /// birth and a closing account goes to Restore, as a send does.
   Future<void> _start() async {
     if (_starting) return;
     setState(() {
       _starting = true;
-      _startFailed = false;
+      _startFailed = null;
     });
+    final notifier = ref.read(activationsProvider.notifier);
+    const retry = "Couldn't start. Check your connection.";
     try {
-      await ref.read(activationsProvider.notifier).start(widget.id);
+      await notifier.start(widget.id);
+    } on ApiRefused catch (refusal) {
+      if (!mounted) return;
+      errorHaptic();
+      if (unanswered(refusal)) {
+        setState(() {
+          _starting = false;
+          _startFailed = retry;
+        });
+        return;
+      }
+      final closing = refusal.code == 'ACCOUNT_CLOSING' && Flags.deleteAccount;
+      final paused = refusal.code == 'ACTIVATION_PAUSED';
+      setState(() {
+        _starting = false;
+        _startFailed = closing || paused ? null : "Couldn't start.";
+        _unstartable = switch (refusal.code) {
+          'ACTIVATION_PAUSED' => _Unstartable.paused,
+          'ACTIVATION_CLOSED' || 'ACTIVATION_NOT_FOUND' => _Unstartable.ended,
+          'ACTIVATION_FULL' ||
+          'ACTIVATION_OWN_BUSINESS' => _Unstartable.refused,
+          _ => _unstartable,
+        };
+      });
+      if (closing) return showClosingAccount(context, ref);
+      if (refusal.code == 'UNDER_AGE') {
+        await context.open<void>(editDetailPath(DetailField.dateOfBirth));
+        return;
+      }
+      await notifier.refreshOneQuietly(widget.id);
+      return;
     } on Object {
       if (!mounted) return;
       errorHaptic();
       setState(() {
         _starting = false;
-        _startFailed = true;
+        _startFailed = retry;
       });
       return;
     }
@@ -175,7 +253,34 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
     final _Layout? layout;
     if (activation == null) {
       layout = null;
-      page = _Page(title: 'Activation', onBack: _back, body: const SizedBox());
+      page = _Page(
+        title: 'Activation',
+        onBack: _back,
+        body: switch (_missing) {
+          ActivationMissing.gone => IqEmptyFill(
+            child: IqEmptyState(
+              figure: IqFigures.shrug,
+              title: 'This activation has ended',
+              action: 'Find another activation',
+              onAction: () =>
+                  context.go(Routes.activations, extra: NavDirection.back),
+            ),
+          ),
+          ActivationMissing.unreachable => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: IqBanner(
+                kind: IqBannerKind.error,
+                title: "Couldn't load. Check your connection.",
+                action: 'Try again',
+                onAction: _loadAgain,
+              ),
+            ),
+          ),
+          null => const SizedBox(),
+        },
+      );
     } else {
       final phase = activation.phaseAt(now);
       _watchWindow(activation, now);
@@ -185,7 +290,8 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
           activation: activation,
           now: now,
           starting: _starting,
-          failed: _startFailed,
+          failure: _startFailed,
+          unstartable: _unstartable,
           onStart: _start,
           onBack: _back,
         ),
@@ -201,6 +307,8 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
         ),
         _Layout.proof => _ProofPage(
           activation: activation,
+          now: now,
+          support: ref.watch(supportShownProvider),
           onBack: _back,
           onRefresh: _refresh,
           onRecordAgain: _recordAgain,
@@ -264,11 +372,12 @@ class _Page extends StatelessWidget {
 
 const _padding = EdgeInsets.fromLTRB(IqSpace.s4, 0, IqSpace.s4, IqSpace.s6);
 
-/// The business beside its name and "Activation".
+/// The business beside its name and "Activation". A name from the API can
+/// run long, so it gives way with an ellipsis.
 class _BrandRow extends StatelessWidget {
-  const _BrandRow({required this.business, this.logo = true});
+  const _BrandRow({required this.activation, this.logo = true});
 
-  final String business;
+  final Activation activation;
   final bool logo;
 
   @override
@@ -277,12 +386,16 @@ class _BrandRow extends StatelessWidget {
       child: Row(
         children: [
           if (logo) ...[
-            ClipOval(child: IqSampleLogo(businessArt(business), size: 36)),
+            ClipOval(child: activationLogoArt(activation, size: 36)),
             const SizedBox(width: 10),
           ],
-          Text(
-            business,
-            style: IqText.smallStrong.copyWith(color: IqColors.fg),
+          Flexible(
+            child: Text(
+              activation.business,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: IqText.smallStrong.copyWith(color: IqColors.fg),
+            ),
           ),
           const SizedBox(width: 10),
           Text('Activation', style: IqText.small.copyWith(color: IqColors.fg3)),
@@ -307,23 +420,27 @@ class _OfferPage extends StatelessWidget {
     required this.activation,
     required this.now,
     required this.starting,
-    required this.failed,
+    required this.failure,
     required this.onStart,
     required this.onBack,
+    this.unstartable,
   });
 
   final Activation activation;
   final DateTime now;
   final bool starting;
-  final bool failed;
+
+  /// The banner over the offer when Start did not go through.
+  final String? failure;
   final VoidCallback onStart;
   final VoidCallback onBack;
+  final _Unstartable? unstartable;
 
   @override
   Widget build(BuildContext context) {
     final a = activation;
-    final ended = a.closedAt(now);
-    final art = businessArt(a.business);
+    final ended = a.closedAt(now) || unstartable == _Unstartable.ended;
+    final paused = !ended && (a.paused || unstartable == _Unstartable.paused);
     return _Page(
       title: 'Activation',
       onBack: onBack,
@@ -333,8 +450,8 @@ class _OfferPage extends StatelessWidget {
         children: [
           _Hero(
             child: IqBriefHero(
-              cover: activationCover(a.business),
-              logo: IqSampleLogo(art),
+              cover: activationCoverArt(a),
+              logo: activationLogoArt(a),
               showDots: false,
             ),
           ),
@@ -350,13 +467,14 @@ class _OfferPage extends StatelessWidget {
               children: _gapped([
                 Padding(
                   padding: const EdgeInsets.only(left: 66),
-                  child: _BrandRow(business: a.business, logo: false),
+                  child: _BrandRow(activation: a, logo: false),
                 ),
-                if (failed)
+                if (failure case final title?)
                   IqBanner(
                     kind: IqBannerKind.error,
-                    title: "Couldn't start. Check your connection.",
+                    title: title,
                     action: 'Try again',
+                    showAction: title.endsWith('connection.'),
                     onAction: onStart,
                   ),
                 Text(
@@ -397,11 +515,16 @@ class _OfferPage extends StatelessWidget {
       ),
       actions: [
         IqButton(
-          label: ended ? 'This activation has ended' : 'Start activation',
+          label: ended
+              ? 'This activation has ended'
+              : paused
+              ? 'This activation is paused'
+              : 'Start activation',
           showIcon: false,
           width: double.infinity,
           loading: starting,
-          disabled: ended || a.full,
+          disabled:
+              ended || paused || a.full || unstartable == _Unstartable.refused,
           onTap: onStart,
         ),
       ],
@@ -462,7 +585,7 @@ class _Header extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          above ?? _BrandRow(business: activation.business),
+          above ?? _BrandRow(activation: activation),
           const SizedBox(height: IqSpace.s2),
           Text(
             activation.title,
@@ -614,12 +737,19 @@ class _StepsPage extends StatelessWidget {
 class _ProofPage extends StatelessWidget {
   const _ProofPage({
     required this.activation,
+    required this.now,
+    required this.support,
     required this.onBack,
     required this.onRefresh,
     required this.onRecordAgain,
   });
 
   final Activation activation;
+  final DateTime now;
+
+  /// Whether this launch has support to ask: "Not credited yet?" and Ask
+  /// for help show only then.
+  final bool support;
   final VoidCallback onBack;
   final VoidCallback onRefresh;
   final VoidCallback onRecordAgain;
@@ -631,9 +761,19 @@ class _ProofPage extends StatelessWidget {
     final video = proof.video;
     final refused = proof.notAccepted;
     final label = IqText.bodyStrong.copyWith(color: IqColors.fg3);
+    final ended = refused != null && !a.canProveAt(now);
     return _Page(
       title: 'Your proof',
       onBack: onBack,
+      actions: [
+        if (ended)
+          const IqButton(
+            label: 'This activation has ended',
+            showIcon: false,
+            width: double.infinity,
+            disabled: true,
+          ),
+      ],
       body: ListView(
         padding: _padding,
         children: _gapped([
@@ -642,6 +782,7 @@ class _ProofPage extends StatelessWidget {
               kind: IqBannerKind.error,
               title: 'Proof not accepted. $refused',
               action: 'Record again',
+              showAction: !ended,
               onAction: onRecordAgain,
             ),
           _Header(
@@ -680,25 +821,26 @@ class _ProofPage extends StatelessWidget {
             ],
           ),
           Text('Your proof', style: label),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Not credited yet?', style: label),
-              const SizedBox(height: IqSpace.s2),
-              Text(
-                'Support usually replies within an hour on weekdays, within '
-                'a day at weekends.',
-                style: IqText.small.copyWith(color: IqColors.fg2),
-              ),
-              const SizedBox(height: IqSpace.s2),
-              IqButton(
-                label: 'Ask for help',
-                showIcon: false,
-                width: double.infinity,
-                onTap: () => context.open(helpPath(about: a.id)),
-              ),
-            ],
-          ),
+          if (support)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Not credited yet?', style: label),
+                const SizedBox(height: IqSpace.s2),
+                Text(
+                  'Support usually replies within an hour on weekdays, within '
+                  'a day at weekends.',
+                  style: IqText.small.copyWith(color: IqColors.fg2),
+                ),
+                const SizedBox(height: IqSpace.s2),
+                IqButton(
+                  label: 'Ask for help',
+                  showIcon: false,
+                  width: double.infinity,
+                  onTap: () => context.open(helpPath(about: a.id)),
+                ),
+              ],
+            ),
           IqVideoPreview(
             name: video.name,
             duration: video.length == null ? '' : videoLength(video.length!),

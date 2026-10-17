@@ -2,9 +2,12 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/backend.dart';
 import '../../core/session.dart';
 import '../../data/activations_data.dart';
 import '../../data/activations_service.dart';
+import '../../data/api_client.dart';
+import '../../data/live/live_repository.dart' show liveModeProvider;
 import '../../data/media_service.dart';
 import '../../data/models.dart';
 import '../wallet/wallet_state.dart';
@@ -16,8 +19,8 @@ import '../wallet/wallet_state.dart';
 /// once whoever pays it. The wallet foots: DemoData's ledger (₦15,000.00 available, ₦65,000.00 earned,
 /// designer answer 6) plus the reward (₦1,500 makes ₦16,500.00 and
 /// ₦66,500.00; the B8 · Reward · credited frame still reads the older
-/// ₦14,000.00). The live API credits the ledger itself and a wallet reload
-/// brings the same row.
+/// ₦14,000.00). The live API credits the ledger itself, so a live payment
+/// reads the wallet again instead.
 class ActivationsNotifier extends AsyncNotifier<List<Activation>> {
   @override
   Future<List<Activation>> build() async {
@@ -30,6 +33,73 @@ class ActivationsNotifier extends AsyncNotifier<List<Activation>> {
   ActivationsService get _service => ref.read(activationsServiceProvider);
 
   void retry() => ref.invalidateSelf();
+
+  /// Reads the list again behind what shows (a live screen opening, a push,
+  /// a return to Discover); a failure keeps it. The preview's list is the
+  /// session's own and never reads again.
+  Future<void> refreshQuietly() async {
+    if (!state.hasValue || !ref.read(_liveProvider)) return;
+    final scope = ref.read(accountScopeProvider);
+    final List<Activation> fresh;
+    try {
+      fresh = await _service.activations();
+    } on Object {
+      return;
+    }
+    if (!ref.mounted || !scope.open) return;
+    final before = {
+      for (final a in state.value ?? const <Activation>[]) a.id: a,
+    };
+    final listed = {for (final a in fresh) a.id};
+    state = AsyncData([
+      ...fresh,
+      for (final id in _brought)
+        if (!listed.contains(id)) ?before[id],
+    ]);
+    if (fresh.any((a) => a.credited && !(before[a.id]?.credited ?? true))) {
+      _readWallet();
+    }
+  }
+
+  /// Reads [id] again behind what shows, quietly, in a live launch, once
+  /// the list is in: a screen opened from a link brings its activation into
+  /// the list this way.
+  Future<void> refreshOneQuietly(String id) async {
+    if (!ref.read(_liveProvider)) return;
+    try {
+      await future;
+      await refresh(id);
+    } on Object {
+      return;
+    }
+  }
+
+  /// Brings [id] in for a screen opened from a link or a notification:
+  /// null once it is in the list, else why it is not. A list that failed
+  /// is read again first, so the activation has somewhere to land.
+  Future<ActivationMissing?> load(String id) async {
+    bool held() => state.value?.any((a) => a.id == id) ?? false;
+    try {
+      if (state.hasError) ref.invalidateSelf();
+      await future;
+    } on Object {
+      return ActivationMissing.unreachable;
+    }
+    if (!ref.read(_liveProvider)) {
+      return held() ? null : ActivationMissing.gone;
+    }
+    try {
+      await refresh(id);
+    } on ApiRefused catch (refusal) {
+      if (held()) return null;
+      return refusal.status == 404 && !unanswered(refusal)
+          ? ActivationMissing.gone
+          : ActivationMissing.unreachable;
+    } on Object {
+      return held() ? null : ActivationMissing.unreachable;
+    }
+    return held() ? null : ActivationMissing.unreachable;
+  }
 
   Future<void> start(String id) => _landing(_service.start(id));
 
@@ -60,19 +130,35 @@ class ActivationsNotifier extends AsyncNotifier<List<Activation>> {
     if (scope.open) _land(activation);
   }
 
+  /// Opened from a link and not in the list (a paused one, say): kept
+  /// through a fresh list, so its screen never empties.
+  final _brought = <String>{};
+
   void _land(Activation activation) {
     final list = state.value;
     if (!ref.mounted || list == null) return;
     final before = list.where((a) => a.id == activation.id).firstOrNull;
+    if (before == null) _brought.add(activation.id);
     state = AsyncData([
       for (final a in list) a.id == activation.id ? activation : a,
+      if (before == null) activation,
     ]);
     if (activation.credited && !(before?.credited ?? false)) {
       _credit(activation);
     }
   }
 
+  void _readWallet() {
+    if (ref.exists(walletProvider)) {
+      ref.read(walletProvider.notifier).refreshQuietly().ignore();
+    }
+  }
+
   Future<void> _credit(Activation activation) async {
+    if (activation.live) {
+      _readWallet();
+      return;
+    }
     final scope = ref.read(accountScopeProvider);
     try {
       await ref.read(walletProvider.future);
@@ -95,6 +181,10 @@ class ActivationsNotifier extends AsyncNotifier<List<Activation>> {
   }
 }
 
+final _liveProvider = Provider<bool>(
+  (ref) => ref.watch(liveModeProvider).isLive(LiveFeature.activations),
+);
+
 /// No automatic retry: the failed state offers "Try again".
 final activationsProvider =
     AsyncNotifierProvider<ActivationsNotifier, List<Activation>>(
@@ -116,11 +206,67 @@ enum ProofStage {
   none,
 
   /// The pick runs over [ActivationRules.proofLength] or
-  /// [ActivationRules.proofBytes]: refused before it uploads.
+  /// [ActivationRules.proofBytes]: refused before it uploads, or by the
+  /// API as it lands.
   refused,
   uploading,
   ready,
   failed,
+}
+
+/// The API's codes for a run that can take no proof any more: the
+/// activation closed or went, the run ended or was paid, or never started.
+/// Sending again can only be refused again.
+bool activationRunEnded(String? code) => switch (code) {
+  'ACTIVATION_CLOSED' ||
+  'ACTIVATION_NOT_FOUND' ||
+  'ACTIVATION_NOT_STARTED' ||
+  'ACTIVATION_COMPLETION_PAID' ||
+  'ACTIVATION_COMPLETION_EXPIRED' => true,
+  _ => false,
+};
+
+/// Why an activation opened on its own could not be shown.
+enum ActivationMissing {
+  /// The API has none by that id (404): asking again cannot help.
+  gone,
+
+  /// No answer, or no list to put it in: Try again can.
+  unreachable,
+}
+
+/// Why a recording was refused.
+enum ProofRefusal {
+  length,
+  size,
+
+  /// Not a video the API takes (415 FILE_TYPE_NOT_ALLOWED): no frame words
+  /// it, so the polaroid's Failed and Retry say it alone.
+  kind,
+
+  /// The run can take no proof any more ([activationRunEnded]).
+  ended,
+
+  /// The run was paid meanwhile: the activation reads again as credited.
+  paid,
+
+  /// The account is closing, so it takes no uploads.
+  closing;
+
+  static ProofRefusal of(ProofVideo video) =>
+      video.tooLong ? ProofRefusal.length : ProofRefusal.size;
+
+  /// What the API's refusal of an upload means, null for one that sending
+  /// again can fix (a throttle, a fault on the API's side).
+  static ProofRefusal? fromCode(String? code) => switch (code) {
+    'VIDEO_TOO_LONG' => ProofRefusal.length,
+    'FILE_TOO_LARGE' => ProofRefusal.size,
+    'FILE_TYPE_NOT_ALLOWED' => ProofRefusal.kind,
+    'ACCOUNT_CLOSING' => ProofRefusal.closing,
+    'ACTIVATION_COMPLETION_PAID' => ProofRefusal.paid,
+    _ when activationRunEnded(code) => ProofRefusal.ended,
+    _ => null,
+  };
 }
 
 /// The proof being put together on B9 · Upload proof, kept while you step
@@ -133,6 +279,7 @@ class ProofDraft {
     this.uploadId,
     this.phone = '',
     this.note = '',
+    this.refusal,
   });
 
   final ProofStage stage;
@@ -141,6 +288,9 @@ class ProofDraft {
   final String? uploadId;
   final String phone;
   final String note;
+
+  /// Set while [stage] is [ProofStage.refused].
+  final ProofRefusal? refusal;
 
   /// A recording sits in the slot.
   bool get hasVideo => stage != ProofStage.none;
@@ -152,14 +302,19 @@ class ProofDraft {
     String? Function()? uploadId,
     String? phone,
     String? note,
-  }) => ProofDraft(
-    stage: stage ?? this.stage,
-    video: video ?? this.video,
-    progress: progress ?? this.progress,
-    uploadId: uploadId == null ? this.uploadId : uploadId(),
-    phone: phone ?? this.phone,
-    note: note ?? this.note,
-  );
+    ProofRefusal? refusal,
+  }) {
+    final next = stage ?? this.stage;
+    return ProofDraft(
+      stage: next,
+      video: video ?? this.video,
+      progress: progress ?? this.progress,
+      uploadId: uploadId == null ? this.uploadId : uploadId(),
+      phone: phone ?? this.phone,
+      note: note ?? this.note,
+      refusal: next == ProofStage.refused ? refusal ?? this.refusal : null,
+    );
+  }
 }
 
 class ProofDraftNotifier extends Notifier<ProofDraft> {
@@ -188,6 +343,7 @@ class ProofDraftNotifier extends Notifier<ProofDraft> {
         stage: ProofStage.refused,
         video: video,
         uploadId: () => null,
+        refusal: ProofRefusal.of(video),
       );
       return;
     }
@@ -216,8 +372,21 @@ class ProofDraftNotifier extends Notifier<ProofDraft> {
             progress: upload.progress,
             uploadId: () => upload.id,
           ),
-          onError: (Object _) =>
-              state = state.copyWith(stage: ProofStage.failed),
+          onError: (Object error) {
+            final refusal = error is ApiRefused
+                ? ProofRefusal.fromCode(error.code)
+                : null;
+            state = state.copyWith(
+              stage: refusal == null ? ProofStage.failed : ProofStage.refused,
+              refusal: refusal,
+            );
+            if (refusal == ProofRefusal.ended || refusal == ProofRefusal.paid) {
+              ref
+                  .read(activationsProvider.notifier)
+                  .refreshOneQuietly(id)
+                  .ignore();
+            }
+          },
         );
   }
 
@@ -226,7 +395,7 @@ class ProofDraftNotifier extends Notifier<ProofDraft> {
     _upload?.cancel();
     final uploadId = state.uploadId;
     if (uploadId != null) {
-      ref.read(activationsServiceProvider).discard(uploadId);
+      ref.read(activationsServiceProvider).discard(id, uploadId).ignore();
     }
     state = ProofDraft(phone: state.phone, note: state.note);
   }
@@ -234,6 +403,13 @@ class ProofDraftNotifier extends Notifier<ProofDraft> {
   void setPhone(String phone) => state = state.copyWith(phone: phone);
 
   void setNote(String note) => state = state.copyWith(note: note);
+
+  /// The API no longer has the upload (404 ACTIVATION_UPLOAD_NOT_FOUND):
+  /// the recording has to go up again, which Retry does.
+  void lost() {
+    _upload?.cancel();
+    state = state.copyWith(stage: ProofStage.failed, uploadId: () => null);
+  }
 
   /// The proof went: nothing left to keep.
   void clear() {
