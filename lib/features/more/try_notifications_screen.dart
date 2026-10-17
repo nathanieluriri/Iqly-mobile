@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
+import '../../core/backend.dart';
 import '../../data/device.dart';
 import '../../surfaces/notification_sounds.dart';
 import '../../surfaces/surface_samples.dart';
@@ -21,7 +23,9 @@ import 'more_widgets.dart';
 /// Refresh the widgets republishes the home screen widgets from the sample
 /// data. When the phone does not let iQLY notify, the banner from 484:23502
 /// comes first. The Remind me row and the Sounds group are not in Figma:
-/// they try the timed close reminder and the candidate iQLY sounds.
+/// they try the timed close reminder and the candidate iQLY sounds. The
+/// last row, not in Figma either, says what this launch runs on and when
+/// the API last answered its health check.
 class TryNotificationsScreen extends ConsumerWidget {
   const TryNotificationsScreen({super.key});
 
@@ -35,10 +39,20 @@ class TryNotificationsScreen extends ConsumerWidget {
   static const refreshed = 'Widgets refreshed';
   static const noWidgets = 'This build has no widgets yet';
 
+  /// "profile, briefs. Health checked 17 Oct, 09:41."
+  static String backendLine(Backend backend, DateTime? checkedAt) => [
+    if (!backend.isPreview) '${backend.names.join(', ')}.',
+    checkedAt == null
+        ? 'Health not checked yet.'
+        : 'Health checked ${DateFormat('d MMM, HH:mm').format(checkedAt)}.',
+  ].join(' ');
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final trial = ref.watch(notificationTrialProvider);
     final allowed = ref.watch(notificationsAllowedProvider).value ?? true;
+    final backend = ref.watch(backendProvider);
+    final checkedAt = ref.watch(backendProvider.notifier).checkedAt;
 
     void land(Future<void> Function(NotificationTrial) post) {
       if (trial == null) return;
@@ -143,6 +157,19 @@ class TryNotificationsScreen extends ConsumerWidget {
                 description: 'Closing soon and Polls, from the sample data',
                 divider: false,
                 onTap: widgets,
+              ),
+            ],
+          ),
+          const SizedBox(height: IqSpace.s3),
+          RowGroup(
+            children: [
+              IqListRow(
+                icon: IqIcons.info,
+                label: backend.isPreview ? 'Preview' : 'Live',
+                description: backendLine(backend, checkedAt),
+                descriptionMaxLines: 3,
+                showChevron: false,
+                divider: false,
               ),
             ],
           ),

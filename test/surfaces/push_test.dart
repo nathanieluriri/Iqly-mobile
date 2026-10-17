@@ -122,6 +122,17 @@ void main() {
     expect(devices.calls, ['register s1 android', 'unregister s1']);
   });
 
+  test('a session the API ended sends nothing, and the next sign-in '
+      'registers the phone again', () async {
+    sdk.id = 's1';
+    final p = push();
+    await p.start();
+    p.sessionLost();
+    expect(devices.calls, ['register s1 android']);
+    await p.sync();
+    expect(devices.calls, ['register s1 android', 'register s1 android']);
+  });
+
   test('a tap opens the route the push carries; arrivals refresh', () async {
     final p = push();
     await p.start();

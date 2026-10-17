@@ -1,5 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 import 'package:shared_preferences/shared_preferences.dart';
+
+/// `read` of a widget's ref, a provider's ref or the container, for code
+/// any of them runs.
+typedef Reader = T Function<T>(ProviderListenable<T> provider);
 
 final sharedPreferencesProvider = Provider<SharedPreferences>(
   (ref) =>

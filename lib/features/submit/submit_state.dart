@@ -328,8 +328,7 @@ final submitOpeningProvider = FutureProvider.autoDispose
 
 /// Sign out and account deletion clear the autosaves earlier builds kept
 /// under the `submit.draft.` keys.
-Future<void> forgetSubmitDrafts(SharedPreferences prefs) async {
-  for (final key in prefs.getKeys().toList()) {
-    if (key.startsWith('submit.draft.')) await prefs.remove(key);
-  }
-}
+Future<void> forgetSubmitDrafts(SharedPreferences prefs) => Future.wait([
+  for (final key in prefs.getKeys())
+    if (key.startsWith('submit.draft.')) prefs.remove(key),
+]);

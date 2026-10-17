@@ -1,16 +1,22 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
 import 'api_config.dart';
 import 'token_store.dart';
 
 class ApiResponse {
-  const ApiResponse(this.status, this.body);
+  const ApiResponse(this.status, this.body, {this.headers = const {}});
 
   final int status;
   final Map<String, dynamic> body;
+
+  /// Lower-case names, as the http package hands them over.
+  final Map<String, String> headers;
 
   bool get ok => status >= 200 && status < 300;
 
@@ -18,17 +24,59 @@ class ApiResponse {
   String? get code {
     final error = body['error'];
     if (error is Map && error['code'] is String) return error['code'] as String;
-    return body['code'] as String?;
+    final code = body['code'];
+    return code is String ? code : null;
+  }
+
+  /// Better Auth's `message`, or the API's `error.message`.
+  String? get message {
+    final error = body['error'];
+    if (error is Map && error['message'] is String) {
+      return error['message'] as String;
+    }
+    final message = body['message'];
+    return message is String ? message : null;
   }
 
   /// The API's `{ success, data }` payload.
-  Map<String, dynamic> get data =>
-      (body['data'] as Map?)?.cast<String, dynamic>() ?? const {};
+  Map<String, dynamic> get data {
+    final data = body['data'];
+    return data is Map ? data.cast<String, dynamic>() : const {};
+  }
+
+  /// The payload when it is a list rather than an object.
+  List<Object?> get list {
+    final data = body['data'];
+    return data is List ? data : const [];
+  }
+
+  /// How long a 429 asks to wait, in whole seconds.
+  Duration? get retryAfter {
+    final seconds = int.tryParse(headers['retry-after']?.trim() ?? '');
+    return seconds == null || seconds < 0 ? null : Duration(seconds: seconds);
+  }
 }
 
 /// No answer from the API: no connection, or it timed out.
 class ApiUnreachable implements Exception {
   const ApiUnreachable();
+}
+
+/// A file part of a multipart request.
+class ApiFile {
+  const ApiFile({
+    required this.field,
+    required this.filename,
+    required this.bytes,
+    required this.contentType,
+  });
+
+  final String field;
+  final String filename;
+  final List<int> bytes;
+
+  /// A media type, `image/jpeg` or `application/pdf`.
+  final String contentType;
 }
 
 /// Talks JSON to the iQLY API with the session token the API last handed
@@ -40,40 +88,146 @@ class ApiClient {
     http.Client? client,
     this.baseUrl = ApiConfig.baseUrl,
     this.timeout = const Duration(seconds: 20),
-  }) : _client = client ?? http.Client();
+    this.appVersion,
+    String? platform,
+  }) : platform = platform ?? platformName,
+       _client = client ?? http.Client();
 
   final TokenStore tokens;
   final String baseUrl;
   final Duration timeout;
-  final http.Client _client;
 
-  Future<ApiResponse> get(String path) => _send('GET', path, null);
+  /// This build as `version+build` (0.3.1+4), sent as `x-app-version`.
+  final String? appVersion;
+
+  /// Sent as `x-platform`.
+  final String platform;
+  final http.Client _client;
+  final _unauthorized = StreamController<void>.broadcast();
+
+  /// `android`, `ios`, or Flutter's name for any other OS.
+  static String get platformName => switch (defaultTargetPlatform) {
+    TargetPlatform.iOS => 'ios',
+    final other => other.name,
+  };
+
+  /// Fires when the API answers 401 to the session token this phone still
+  /// holds: the session has ended on the server. Better Auth's own routes
+  /// answer 401 for a wrong password too, so they never fire it.
+  Stream<void> get unauthorized => _unauthorized.stream;
+
+  Future<ApiResponse> get(String path) => send('GET', path);
 
   Future<ApiResponse> post(String path, [Map<String, Object?>? body]) =>
-      _send('POST', path, body ?? const {});
+      send('POST', path, body: body ?? const {});
 
-  Future<ApiResponse> _send(
+  Future<ApiResponse> put(String path, [Map<String, Object?>? body]) =>
+      send('PUT', path, body: body ?? const {});
+
+  Future<ApiResponse> patch(String path, [Map<String, Object?>? body]) =>
+      send('PATCH', path, body: body ?? const {});
+
+  Future<ApiResponse> delete(String path, [Map<String, Object?>? body]) =>
+      send('DELETE', path, body: body);
+
+  /// [body] goes as JSON when given. [idempotencyKey] lets the API answer a
+  /// repeat of the same write with the row the first one made.
+  Future<ApiResponse> send(
     String method,
-    String path,
-    Map<String, Object?>? body,
-  ) async {
-    final request = http.Request(method, Uri.parse('$baseUrl$path'))
-      ..headers.addAll({
-        'accept': 'application/json',
-        'x-iqly-client': 'mobile',
-        'x-app': 'web',
-      });
-    final token = await tokens.read();
-    if (token != null) request.headers['authorization'] = 'Bearer $token';
+    String path, {
+    Object? body,
+    String? idempotencyKey,
+  }) async {
+    final request = http.Request(method, Uri.parse('$baseUrl$path'));
     if (body != null) {
       request.headers['content-type'] = 'application/json';
       request.body = jsonEncode(body);
     }
+    return _dispatch(request, path, idempotencyKey: idempotencyKey);
+  }
+
+  /// Posts [fields] and [files] as multipart/form-data. [onProgress] goes
+  /// from 0 to 1 as the connection takes the body. [timeout] counts from
+  /// the last bytes sent, so a slow upload that keeps moving is never cut
+  /// off.
+  Future<ApiResponse> multipart(
+    String path, {
+    required Map<String, String> fields,
+    List<ApiFile> files = const [],
+    void Function(double progress)? onProgress,
+    String? idempotencyKey,
+  }) async {
+    final stalled = Completer<void>();
+    Timer? idle;
+    void moving() {
+      idle?.cancel();
+      idle = Timer(timeout, () {
+        if (!stalled.isCompleted) stalled.complete();
+      });
+    }
+
+    final request =
+        _Upload(
+            Uri.parse('$baseUrl$path'),
+            abortTrigger: stalled.future,
+            onSent: (sent, total) {
+              moving();
+              onProgress?.call(total == 0 ? 1.0 : sent / total);
+            },
+          )
+          ..fields.addAll(fields)
+          ..files.addAll([
+            for (final file in files)
+              http.MultipartFile(
+                file.field,
+                _pieces(file.bytes),
+                file.bytes.length,
+                filename: file.filename,
+                contentType: http.MediaType.parse(file.contentType),
+              ),
+          ]);
+    onProgress?.call(0);
+    moving();
+    try {
+      return await _dispatch(
+        request,
+        path,
+        idempotencyKey: idempotencyKey,
+        stalled: stalled.future,
+      );
+    } finally {
+      idle?.cancel();
+    }
+  }
+
+  Future<ApiResponse> _dispatch(
+    http.BaseRequest request,
+    String path, {
+    String? idempotencyKey,
+    Future<void>? stalled,
+  }) async {
+    request.headers.addAll({
+      'accept': 'application/json',
+      'x-iqly-client': 'mobile',
+      'x-app': 'web',
+      'x-app-version': ?appVersion,
+      'x-platform': platform,
+      'idempotency-key': ?idempotencyKey,
+    });
+    final token = await tokens.read();
+    if (token != null) request.headers['authorization'] = 'Bearer $token';
     final http.Response response;
     try {
-      response = await http.Response.fromStream(
-        await _client.send(request).timeout(timeout),
-      ).timeout(timeout);
+      final sending = _client.send(request);
+      final streamed = stalled == null
+          ? await sending.timeout(timeout)
+          : await Future.any([
+              sending,
+              stalled.then<http.StreamedResponse>(
+                (_) => throw TimeoutException('Upload stalled', timeout),
+              ),
+            ]);
+      response = await http.Response.fromStream(streamed).timeout(timeout);
     } on TimeoutException {
       throw const ApiUnreachable();
     } on http.ClientException {
@@ -83,7 +237,27 @@ class ApiClient {
     // header, never the raw one in a sign-in body.
     final issued = response.headers['set-auth-token'];
     if (issued != null && issued.isNotEmpty) await tokens.write(issued);
-    return ApiResponse(response.statusCode, _decode(response.body));
+    if (response.statusCode == 401 &&
+        token != null &&
+        !path.startsWith('/auth/') &&
+        await tokens.read() == token) {
+      _unauthorized.add(null);
+    }
+    return ApiResponse(
+      response.statusCode,
+      _decode(response.body),
+      headers: response.headers,
+    );
+  }
+
+  /// A file read out in small pieces, so progress follows the connection
+  /// rather than leaping to the end with one write.
+  static Stream<List<int>> _pieces(List<int> bytes) async* {
+    const piece = 64 * 1024;
+    final data = bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
+    for (var start = 0; start < data.length; start += piece) {
+      yield Uint8List.sublistView(data, start, min(start + piece, data.length));
+    }
   }
 
   static Map<String, dynamic> _decode(String text) {
@@ -96,3 +270,31 @@ class ApiClient {
     }
   }
 }
+
+/// A multipart body that reports how much of it the connection has read.
+class _Upload extends http.MultipartRequest with http.Abortable {
+  _Upload(Uri url, {required this.onSent, this.abortTrigger})
+    : super('POST', url);
+
+  final void Function(int sent, int total) onSent;
+
+  @override
+  final Future<void>? abortTrigger;
+
+  @override
+  http.ByteStream finalize() {
+    final body = super.finalize();
+    final total = contentLength;
+    var sent = 0;
+    return http.ByteStream(
+      body.map((chunk) {
+        sent += chunk.length;
+        onSent(sent, total);
+        return chunk;
+      }),
+    );
+  }
+}
+
+/// The client every live service shares, null in the preview build.
+final apiClientProvider = Provider<ApiClient?>((ref) => null);

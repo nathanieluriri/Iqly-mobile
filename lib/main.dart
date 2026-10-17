@@ -6,6 +6,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
+import 'core/backend.dart';
 import 'core/session.dart';
 import 'data/api_client.dart';
 import 'data/api_config.dart';
@@ -19,6 +20,7 @@ import 'data/repository.dart';
 import 'data/token_store.dart';
 import 'features/discover/discover_state.dart';
 import 'features/more/more_state.dart';
+import 'features/profile/profile_state.dart';
 import 'features/settings/settings_state.dart';
 import 'router.dart';
 import 'surfaces/push.dart';
@@ -26,8 +28,12 @@ import 'surfaces/surfaces.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final version = LiveAppVersionService.installedVersion().then<String?>(
+    (installed) => installed,
+    onError: (Object _) => null,
+  );
   final prefs = await SharedPreferences.getInstance();
-  final api = ApiClient(tokens: SecureTokenStore());
+  final api = ApiClient(tokens: SecureTokenStore(), appVersion: await version);
   late final ProviderContainer container;
   container = ProviderContainer(
     overrides: [
@@ -48,6 +54,11 @@ Future<void> main() async {
         );
       }),
       if (ApiConfig.liveAuth) ...[
+        apiClientProvider.overrideWithValue(api),
+        healthServiceProvider.overrideWithValue(LiveHealthService(api)),
+        backendProvider.overrideWith(
+          () => LiveBackendNotifier(forgetPreview: forgetPreviewRecords),
+        ),
         authServiceProvider.overrideWithValue(LiveAuthService(api: api)),
         appVersionServiceProvider.overrideWithValue(LiveAppVersionService()),
         pushProvider.overrideWith(
@@ -78,6 +89,7 @@ Future<void> main() async {
       ),
     ],
   );
+  container.read(sessionGuardProvider);
   runApp(
     UncontrolledProviderScope(container: container, child: const IqlyApp()),
   );

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/session.dart';
+import '../../data/api_client.dart';
 import '../../data/auth.dart';
 import '../../data/models.dart';
 import '../../data/onboarding_service.dart';
@@ -16,7 +17,9 @@ import '../onboarding/onboarding_draft.dart';
 import '../onboarding/onboarding_flow.dart';
 import '../onboarding/what_you_like_screen.dart';
 import '../submit/submit_state.dart';
+import '../../router.dart';
 import '../../surfaces/push.dart';
+import '../../surfaces/surfaces.dart';
 
 /// The first-run answers Your details shows and edits: the onboarding draft,
 /// with the account's own values where first run left a gap (skipped, or a
@@ -47,17 +50,17 @@ final profileAnswersProvider = Provider<OnboardingProfile>((ref) {
 /// Phone, date of birth, gender and state of origin, kept on the device once
 /// loaded so edits survive a restart before they reach the account.
 class AccountDetailsNotifier extends AsyncNotifier<AccountDetails> {
-  static const _key = 'profile.details';
+  static const key = 'profile.details';
 
   @override
   Future<AccountDetails> build() async {
     final prefs = ref.watch(sharedPreferencesProvider);
-    final raw = prefs.getString(_key);
+    final raw = prefs.getString(key);
     if (raw != null) {
       try {
         return AccountDetails.fromJson(jsonDecode(raw) as Map<String, Object?>);
       } on FormatException {
-        await prefs.remove(_key);
+        await prefs.remove(key);
       }
     }
     return ref.read(profileServiceProvider).accountDetails();
@@ -65,11 +68,11 @@ class AccountDetailsNotifier extends AsyncNotifier<AccountDetails> {
 
   void edit(AccountDetails next) {
     state = AsyncData(next);
-    ref.read(sharedPreferencesProvider).setString(_key, jsonEncode(next));
+    ref.read(sharedPreferencesProvider).setString(key, jsonEncode(next));
   }
 
   Future<void> clear() async {
-    await ref.read(sharedPreferencesProvider).remove(_key);
+    await ref.read(sharedPreferencesProvider).remove(key);
     ref.invalidateSelf();
   }
 }
@@ -134,15 +137,68 @@ String interestsLine(List<String> values) => [
 /// Forgets the account on this device: the session flags, the first-run
 /// answers and the cached details. Sign out and account deletion end here.
 Future<void> forgetAccount(WidgetRef ref) async {
-  final session = ref.read(sessionProvider.notifier);
   await ref.read(pushProvider)?.signingOut();
   await ref.read(authServiceProvider).signOut();
-  ref.read(onboardingDraftProvider.notifier).clear();
-  await forgetSubmitDrafts(ref.read(sharedPreferencesProvider));
-  await ref.read(accountDetailsProvider.notifier).clear();
-  await ref.read(avatarProvider.notifier).forget();
+  await forgetSession(ref.read);
+}
+
+/// The device's part of [forgetAccount], all there is to do once the API
+/// has ended the session itself.
+Future<void> forgetSession(Reader read) async {
+  final session = read(sessionProvider.notifier);
+  read(onboardingDraftProvider.notifier).clear();
+  await forgetSubmitDrafts(read(sharedPreferencesProvider));
+  await read(accountDetailsProvider.notifier).clear();
+  await read(avatarProvider.notifier).forget();
   await session.setFirstTipSeen(false);
   await session.setOnboardingDone(false);
   await session.setName(null);
   await session.setSignedIn(false);
+}
+
+/// Signs the device out when the API answers 401 to the session token. The
+/// API has ended the session, so the device forgets the account the way
+/// sign out does without calling it again, and the landing takes over; on
+/// the splash, the hand-off finds the session signed out by itself.
+final sessionGuardProvider = Provider<void>((ref) {
+  final api = ref.watch(apiClientProvider);
+  if (api == null) return;
+  Future<void>? running;
+  Future<void> lose() async {
+    await api.tokens.clear();
+    if (!ref.read(sessionProvider).signedIn) return;
+    ref.read(pushProvider)?.sessionLost();
+    await forgetSession(ref.read);
+    final router = ref.read(routerProvider);
+    final path = router.routerDelegate.currentConfiguration.uri.path;
+    if (path.isNotEmpty && path != Routes.splash) router.go(Routes.landing);
+  }
+
+  final lost = api.unauthorized.listen((_) {
+    running ??= lose().whenComplete(() => running = null);
+  });
+  ref.onDispose(lost.cancel);
+});
+
+/// What a preview launch leaves on the device that the API knows nothing
+/// of: saved briefs, close reminders and the notifications scheduled for
+/// them, the cached details and submit autosaves. The first launch to run
+/// anything live clears them; the session, the token and the first-run
+/// answers stay.
+Future<void> forgetPreviewRecords(Ref ref) async {
+  final prefs = ref.read(sharedPreferencesProvider);
+  // Every key leaves memory before the first await, so the splash need not
+  // wait for the disk before the next screen reads them.
+  final removed = [
+    prefs.remove(SavedBriefsNotifier.key),
+    prefs.remove(CloseRemindersNotifier.key),
+    prefs.remove(AccountDetailsNotifier.key),
+    forgetSubmitDrafts(prefs),
+  ];
+  ref
+    ..invalidate(savedBriefsProvider)
+    ..invalidate(closeRemindersProvider)
+    ..invalidate(accountDetailsProvider);
+  await Future.wait(removed);
+  await ref.read(surfacesProvider)?.syncCloseReminders(const []);
 }

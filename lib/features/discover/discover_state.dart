@@ -364,13 +364,13 @@ List<Brief> _sorted(Iterable<Brief> briefs, int Function(Brief, Brief) by) {
 /// list and brief detail still open offline. Seeds from the account on
 /// first run.
 class SavedBriefsNotifier extends AsyncNotifier<List<Brief>> {
-  static const _key = 'discover.savedBriefs';
+  static const key = 'discover.savedBriefs';
 
   /// The device's copy is there from the first frame, so a bookmark never
   /// animates into the state it already had.
   @override
   FutureOr<List<Brief>> build() {
-    final raw = ref.watch(sharedPreferencesProvider).getString(_key);
+    final raw = ref.watch(sharedPreferencesProvider).getString(key);
     if (raw != null) {
       return [
         for (final item in jsonDecode(raw) as List<Object?>)
@@ -401,7 +401,7 @@ class SavedBriefsNotifier extends AsyncNotifier<List<Brief>> {
 
   Future<void> _persist(List<Brief> briefs) => ref
       .read(sharedPreferencesProvider)
-      .setString(_key, jsonEncode([for (final b in briefs) b.toJson()]));
+      .setString(key, jsonEncode([for (final b in briefs) b.toJson()]));
 }
 
 final savedBriefsProvider =
@@ -411,20 +411,20 @@ final savedBriefsProvider =
 
 /// Briefs with a close reminder (an hour before close).
 class CloseRemindersNotifier extends AsyncNotifier<Set<String>> {
-  static const _key = 'discover.closeReminders';
+  static const key = 'discover.closeReminders';
 
   /// The device's copy is there from the first frame, so "Remind me" opens
   /// in its state instead of switching into it.
   @override
   FutureOr<Set<String>> build() {
-    final stored = ref.watch(sharedPreferencesProvider).getStringList(_key);
+    final stored = ref.watch(sharedPreferencesProvider).getStringList(key);
     if (stored != null) return stored.toSet();
     return _seed();
   }
 
   Future<Set<String>> _seed() async {
     final ids = await ref.watch(repositoryProvider).closeReminderIds();
-    await ref.read(sharedPreferencesProvider).setStringList(_key, ids);
+    await ref.read(sharedPreferencesProvider).setStringList(key, ids);
     return ids.toSet();
   }
 
@@ -432,7 +432,7 @@ class CloseRemindersNotifier extends AsyncNotifier<Set<String>> {
     final next = {...?state.value};
     on ? next.add(id) : next.remove(id);
     state = AsyncData(next);
-    await ref.read(sharedPreferencesProvider).setStringList(_key, [...next]);
+    await ref.read(sharedPreferencesProvider).setStringList(key, [...next]);
     await ref.read(repositoryProvider).setCloseReminder(id, on);
     await syncSurfaces();
   }
