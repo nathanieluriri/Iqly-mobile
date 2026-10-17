@@ -9,10 +9,14 @@ import '../../core/relative_time.dart';
 import '../../core/session.dart';
 import '../../data/models.dart';
 import '../../data/notifications_data.dart';
+import '../../data/help_service.dart' show supportShownProvider;
 import '../../data/notifications_service.dart';
+import '../../data/referrals_service.dart' show referralsShownProvider;
 import '../../data/repository.dart';
 import '../../router.dart';
 import '../../ui/notification.dart';
+import '../help/help_routes.dart' show helpThreadPath;
+import '../help/help_state.dart';
 import '../submissions/submissions_routes.dart';
 import '../submissions/submissions_state.dart';
 import '../wallet/wallet_routes.dart';
@@ -66,10 +70,15 @@ final notificationsProvider =
       retry: (_, _) => null,
     );
 
-/// A push landed with iQLY open: the bell, the feed and My submissions read
-/// again behind what they show, whichever of them this run has loaded.
+/// A push landed with iQLY open: the bell, the feed, My submissions, the
+/// support badge and any open help thread read again behind what they
+/// show, whichever of them this run has loaded.
 void readAgainOnPush(Ref ref) {
   ref.invalidate(unreadNotificationsProvider);
+  ref.invalidate(supportUnreadProvider);
+  if (ref.exists(helpTicketsProvider)) {
+    ref.read(helpTicketsProvider.notifier).refreshOpen();
+  }
   if (ref.exists(notificationsProvider)) {
     ref.read(notificationsProvider.notifier).refreshQuietly().ignore();
   }
@@ -180,6 +189,8 @@ final notificationFeedProvider = FutureProvider.autoDispose<NotificationFeed>(
       withdrawals = wallet.withdrawals;
     }
     final now = ref.watch(clockProvider)();
+    final support = ref.watch(supportShownProvider);
+    final referrals = ref.watch(referralsShownProvider);
     final items = [
       for (final note in notes)
         ?wordNotification(
@@ -188,6 +199,8 @@ final notificationFeedProvider = FutureProvider.autoDispose<NotificationFeed>(
           awards: {for (final l in ledger) l.id: l},
           withdrawals: {for (final w in withdrawals) w.id: w},
           now: now,
+          support: support,
+          referrals: referrals,
         ),
     ];
     bool today(NotificationItem item) => DateUtils.isSameDay(item.note.at, now);
@@ -210,13 +223,17 @@ String _clock(DateTime at) => DateFormat('h:mm a').format(at).toLowerCase();
 /// The words of one row and its sub page, or null when what a demo row
 /// points at is gone. A row from the API is worded from what it embeds;
 /// the API's own title and body stand in where the app has no design or
-/// the row lacks what the design needs.
+/// the row lacks what the design needs. A support reply opens its thread
+/// and a referral reward Referral history, as their pushes do, while the
+/// launch shows them ([support], [referrals]).
 NotificationItem? wordNotification(
   AppNotification note, {
   required Map<String, Brief> briefs,
   required Map<String, LedgerEntry> awards,
   required Map<String, Withdrawal> withdrawals,
   required DateTime now,
+  bool support = true,
+  bool referrals = true,
 }) {
   final when = timeAgoShort(note.at, now).replaceFirst(' ago', '');
   NotificationItem item(
@@ -240,7 +257,12 @@ NotificationItem? wordNotification(
   final facts = note.facts;
   NotificationItem? said() => facts == null
       ? null
-      : item(_kindOf(note), facts.title, facts.body, link: _linkOf(note));
+      : item(
+          _kindOf(note),
+          facts.title,
+          facts.body,
+          link: _linkOf(note, support: support),
+        );
 
   switch (note.event) {
     case NotificationEvent.closing:
@@ -308,6 +330,15 @@ NotificationItem? wordNotification(
                 button: 'See the result',
                 link: NotificationLink.push(resultPath(submission)),
               ),
+      );
+    case NotificationEvent.rewardCredited when facts != null:
+      return item(
+        IqNotificationKind.payout,
+        facts.title,
+        facts.body,
+        link: referrals
+            ? const NotificationLink.push(Routes.referralHistory)
+            : const NotificationLink.tab(Routes.wallet),
       );
     case NotificationEvent.rewardCredited:
       final reward = awards[note.entryId];
@@ -412,9 +443,14 @@ IqNotificationKind _kindOf(AppNotification note) => switch (note.event) {
         : IqNotificationKind.deadline,
 };
 
-/// Where a row in the API's words leads, as its push does: the brief it is
-/// about, else the withdrawal, else nowhere but read.
-NotificationLink? _linkOf(AppNotification note) {
+/// Where a row in the API's words leads, as its push does: the help thread
+/// support answered, the brief it is about, else the withdrawal, else
+/// nowhere but read.
+NotificationLink? _linkOf(AppNotification note, {required bool support}) {
+  final ticket = note.facts?.ticketId;
+  if (ticket != null) {
+    return support ? NotificationLink.push(helpThreadPath(ticket)) : null;
+  }
   final brief = note.briefId;
   if (brief != null) return NotificationLink.push(Routes.brief(brief));
   final withdrawal =

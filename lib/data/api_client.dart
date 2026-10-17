@@ -58,6 +58,17 @@ class ApiResponse {
   }
 }
 
+/// A file the API served, as bytes.
+class ApiBytes {
+  const ApiBytes(this.status, this.bytes, {this.contentType});
+
+  final int status;
+  final Uint8List bytes;
+  final String? contentType;
+
+  bool get ok => status >= 200 && status < 300;
+}
+
 /// No answer from the API: no connection, a timeout, or the connection
 /// failing on the way.
 class ApiUnreachable implements Exception {
@@ -193,6 +204,7 @@ class ApiClient {
     List<ApiFile> files = const [],
     void Function(double progress)? onProgress,
     String? idempotencyKey,
+    String method = 'POST',
   }) async {
     final stalled = Completer<void>();
     Timer? idle;
@@ -205,6 +217,7 @@ class ApiClient {
 
     final request =
         _Upload(
+            method,
             Uri.parse('$baseUrl$path'),
             abortTrigger: stalled.future,
             onSent: (sent, total) {
@@ -235,6 +248,40 @@ class ApiClient {
     } finally {
       idle?.cancel();
     }
+  }
+
+  /// The file the API serves at [url], read with the session token. Only
+  /// the path and query of [url] are kept, so the token never goes to any
+  /// host but the API's.
+  Future<ApiBytes> download(String url) async {
+    final given = Uri.parse(url);
+    final path = given.hasQuery ? '${given.path}?${given.query}' : given.path;
+    final request = http.Request('GET', Uri.parse('$baseUrl$path'));
+    final token = await tokens.read();
+    request.headers.addAll({
+      'x-iqly-client': 'mobile',
+      'x-app': 'web',
+      'x-app-version': ?appVersion,
+      'x-platform': platform,
+      if (token != null) 'authorization': 'Bearer $token',
+    });
+    final http.Response response;
+    try {
+      response = await http.Response.fromStream(
+        await _client.send(request).timeout(timeout),
+      ).timeout(timeout);
+    } on TimeoutException {
+      throw const ApiUnreachable();
+    } on http.ClientException catch (error) {
+      throw ApiUnreachable(nothingSent: _beforeSending(error));
+    } on IOException catch (error) {
+      throw ApiUnreachable(nothingSent: _beforeSending(error));
+    }
+    return ApiBytes(
+      response.statusCode,
+      response.bodyBytes,
+      contentType: response.headers['content-type'],
+    );
   }
 
   Future<ApiResponse> _dispatch(
@@ -330,8 +377,7 @@ class ApiClient {
 
 /// A multipart body that reports how much of it the connection has read.
 class _Upload extends http.MultipartRequest with http.Abortable {
-  _Upload(Uri url, {required this.onSent, this.abortTrigger})
-    : super('POST', url);
+  _Upload(super.method, super.url, {required this.onSent, this.abortTrigger});
 
   final void Function(int sent, int total) onSent;
 

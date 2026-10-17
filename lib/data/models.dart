@@ -1,3 +1,5 @@
+import 'outcomes_data.dart' show BusinessNote;
+
 enum Tier {
   standard('Standard'),
   advanced('Advanced');
@@ -164,6 +166,7 @@ class Submission {
     required this.createdAt,
     this.brief,
     this.award,
+    this.note,
   });
 
   final String id;
@@ -172,6 +175,10 @@ class Submission {
   final String body;
   final SubmissionStatus status;
   final DateTime createdAt;
+
+  /// The business's note to the author (contract 12.2), as the API embeds
+  /// it once the results are out. Null in the demo.
+  final BusinessNote? note;
 
   /// The brief as the API embeds it in the entry (only the fields a card
   /// shows), so an entry on a brief that has left the live feed still
@@ -209,10 +216,14 @@ class LedgerEntry {
     this.note,
     this.referred,
     this.reversal = false,
+    this.from,
   });
 
   final String id;
   final LedgerType type;
+
+  /// What the API says the credit pays for (`source`), when it says.
+  final RewardSource? from;
 
   /// Money a reversed payout brought back: an award on the ledger, but
   /// never earnings.
@@ -238,11 +249,13 @@ class LedgerEntry {
   /// a referral ("Kudi Box", "Ngozi E.").
   String? get rewardFrom => business ?? referred;
 
-  RewardSource get source => submissionId != null
-      ? RewardSource.submission
-      : business != null || id.startsWith('activation-')
-      ? RewardSource.activation
-      : RewardSource.referral;
+  RewardSource get source =>
+      from ??
+      (submissionId != null
+          ? RewardSource.submission
+          : business != null || id.startsWith('activation-')
+          ? RewardSource.activation
+          : RewardSource.referral);
 
   /// Signed: awards are positive, withdrawals negative.
   final int amountKobo;

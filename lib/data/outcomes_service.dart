@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/backend.dart';
+import '../core/flags.dart';
 import 'live/live_account.dart';
 import 'live/live_outcomes_service.dart';
 import 'live/live_repository.dart';
@@ -34,6 +35,14 @@ class PausedOutcomesService implements OutcomesService {
   Future<Outcome?> outcome(String submissionId) =>
       Future.error(const FeaturePaused(LiveFeature.submissions));
 }
+
+/// Whether the business's note shows (Flags.businessNote): on the preview's
+/// samples, and in a live launch only while the API runs it.
+final businessNoteShownProvider = Provider<bool>((ref) {
+  final mode = ref.watch(liveModeProvider);
+  return Flags.businessNote &&
+      (mode.isPreview || mode.isLive(LiveFeature.businessNote));
+});
 
 /// The demo outcomes in a preview launch; in a live one the API, or a
 /// refusal while submissions are paused.

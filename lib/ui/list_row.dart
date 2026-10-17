@@ -4,6 +4,7 @@ import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 import 'pressable.dart';
+import 'top_bar.dart' show IqCountBadge;
 
 /// Figma Tone=Default is [standard]; Danger is for destructive rows only
 /// (Sign out, Remove bank).
@@ -31,6 +32,7 @@ class IqListRow extends StatelessWidget {
     this.icon,
     this.tone = IqListRowTone.standard,
     this.descriptionMaxLines = 2,
+    this.count = 0,
     this.onTap,
   });
 
@@ -47,6 +49,10 @@ class IqListRow extends StatelessWidget {
   /// Not a Figma prop: Result · Not selected truncates its Your submission
   /// row to one line (designer doc rev 57).
   final int descriptionMaxLines;
+
+  /// Not a Figma prop: what waits behind the row (support replies not yet
+  /// read), in the bell's count pill before the chevron; none at zero.
+  final int count;
   final VoidCallback? onTap;
 
   @override
@@ -110,6 +116,10 @@ class IqListRow extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (count > 0) ...[
+                    const SizedBox(width: IqSpace.s2),
+                    IqCountBadge(count: '$count'),
+                  ],
                   if (!danger && showChevron) ...[
                     const SizedBox(width: 14),
                     const IqIcon(

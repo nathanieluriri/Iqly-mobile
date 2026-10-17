@@ -4,10 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../data/activations_data.dart';
 import '../../data/help_data.dart';
+import '../../data/help_service.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/button.dart';
@@ -19,6 +21,7 @@ import '../../ui/video_preview.dart';
 import '../activations/activations_state.dart';
 import '../activations/activations_widgets.dart';
 import '../discover/discover_routes.dart';
+import '../settings/restore_account_screen.dart';
 import 'help_routes.dart';
 import 'help_state.dart';
 
@@ -68,6 +71,10 @@ class _HelpRequestScreenState extends ConsumerState<HelpRequestScreen> {
     if (ticket == null) {
       setState(() => _shakes++);
       errorHaptic();
+      if (ref.read(helpDraftProvider).failure == HelpFailure.closing &&
+          Flags.deleteAccount) {
+        await showClosingAccount(context, ref);
+      }
       return;
     }
     IqHaptics.success.play();
@@ -124,7 +131,10 @@ class _HelpRequestScreenState extends ConsumerState<HelpRequestScreen> {
                       children: [
                         Shake(
                           trigger: _shakes,
-                          child: _SendFailed(shown: draft.failed),
+                          child: _SendFailed(
+                            shown: draft.failed,
+                            title: helpFailureText(draft.failure),
+                          ),
                         ),
                         Text(
                           DemoHelp.replyLine,
@@ -166,6 +176,9 @@ class _HelpRequestScreenState extends ConsumerState<HelpRequestScreen> {
                               .read(helpDraftProvider.notifier)
                               .addRecording(about: activation?.business),
                           onRemove: _remove,
+                          onRetry: ref
+                              .read(helpDraftProvider.notifier)
+                              .retryUpload,
                         ),
                       ],
                     ),
@@ -213,11 +226,13 @@ class _Recording extends StatelessWidget {
     required this.draft,
     required this.onAdd,
     required this.onRemove,
+    required this.onRetry,
   });
 
   final HelpDraft draft;
   final VoidCallback onAdd;
   final VoidCallback onRemove;
+  final VoidCallback onRetry;
 
   static const _tile = ValueKey('tile');
   static const _preview = ValueKey('preview');
@@ -226,8 +241,18 @@ class _Recording extends StatelessWidget {
   Widget build(BuildContext context) {
     final upload = draft.upload;
     final recording = draft.recording;
+    final unsent = draft.unsent;
+    final refused = draft.refused;
     final Widget shown;
-    if (upload != null) {
+    if (unsent != null && upload == null) {
+      shown = IqVideoPreview(
+        key: _preview,
+        state: IqVideoPreviewState.failed,
+        name: unsent.name,
+        onRetry: onRetry,
+        onRemove: onRemove,
+      );
+    } else if (upload != null) {
       shown = IqVideoPreview(
         key: _preview,
         state: IqVideoPreviewState.uploading,
@@ -241,12 +266,26 @@ class _Recording extends StatelessWidget {
       shown = IqVideoPreview(
         key: _preview,
         name: recording.name,
-        duration: recording.lengthLabel,
+        duration: recording.lengthLabel ?? '',
         meta: '${recording.sizeLabel} · uploaded, ready to send',
         thumbnail: recording.source == null
             ? null
             : ProofFrame(source: recording.source),
         onRemove: onRemove,
+      );
+    } else if (refused != null) {
+      // The API's limits in the tile's own words: its error copy for a
+      // recording over a minute, its limits line for any other refusal.
+      shown = IqProofTile(
+        key: _tile,
+        state: IqProofTileState.error,
+        title: refused == HelpFailure.tooLong
+            ? null
+            : 'Add your screen recording',
+        hint: refused == HelpFailure.tooLong
+            ? null
+            : 'The step and the result, up to 60 s. MP4 or MOV, up to 50 MB.',
+        onTap: onAdd,
       );
     } else {
       shown = IqProofTile(key: _tile, onTap: onAdd);
@@ -291,9 +330,10 @@ class _Recording extends StatelessWidget {
 /// opens its slot as it slides down (240 ms) and closes it (180 ms) once
 /// the person edits or sends again. Reduced motion: it fades in place.
 class _SendFailed extends StatelessWidget {
-  const _SendFailed({required this.shown});
+  const _SendFailed({required this.shown, required this.title});
 
   final bool shown;
+  final String title;
 
   @override
   Widget build(BuildContext context) {
@@ -311,12 +351,12 @@ class _SendFailed extends StatelessWidget {
               child: FadeTransition(opacity: animation, child: child),
             ),
       child: shown
-          ? const Padding(
-              key: ValueKey(true),
-              padding: EdgeInsets.only(bottom: IqSpace.s3),
+          ? Padding(
+              key: const ValueKey(true),
+              padding: const EdgeInsets.only(bottom: IqSpace.s3),
               child: IqBanner(
                 kind: IqBannerKind.error,
-                title: 'Couldn’t send. Check your connection.',
+                title: title,
                 showAction: false,
               ),
             )

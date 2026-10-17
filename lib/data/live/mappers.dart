@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import '../../core/money.dart';
 import '../models.dart';
+import '../outcomes_data.dart' show BusinessNote;
 import '../submit_data.dart';
 
 // Contract 1's answers as the app's models. Each mapper reads only what it
@@ -201,6 +202,20 @@ Submission? submissionFromJson(Object? json) {
     createdAt: _time(j['createdAt']) ?? _unknownTime,
     brief: embeddedBriefFromJson(j['brief']),
     award: awardFromJson(j['award']),
+    note: businessNoteFromJson(j['note']),
+  );
+}
+
+/// The business's note (contract 12.2): `{business, body, sentAt}`.
+BusinessNote? businessNoteFromJson(Object? json) {
+  final j = _map(json);
+  final body = _text(j?['body']);
+  final at = _time(j?['sentAt']);
+  if (j == null || body == null || at == null) return null;
+  return BusinessNote(
+    business: _text(j['business']) ?? 'The business',
+    body: body,
+    sentAt: at,
   );
 }
 
@@ -247,6 +262,12 @@ LedgerEntry? ledgerEntryFromJson(Object? json) {
     note: _text(j['note']),
     referred: _text(j['referredName']),
     reversal: j['type'] == 'reversal',
+    from: switch (j['source']) {
+      'submission' => RewardSource.submission,
+      'activation' => RewardSource.activation,
+      'referral' => RewardSource.referral,
+      _ => null,
+    },
   );
 }
 

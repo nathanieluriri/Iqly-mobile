@@ -17,11 +17,18 @@ abstract final class DeepLinks {
   static const withdrawalPattern = '/wallet/withdrawals/:id';
   static const notificationPattern = '/notifications/:id';
 
+  /// What the section 12 pushes open: a help thread support answered, and
+  /// Referrals or Referral history for a referral reward.
+  static const helpThreadPattern = '/help/:id';
+  static const referrals = '/referrals';
+  static const referralHistory = '/referrals/history';
+
   static String poll(String businessId) => '/polls/$businessId';
   static String brief(String briefId) => '/briefs/$briefId';
   static String submit(String briefId) => '/briefs/$briefId/submit';
   static String withdrawal(String id) => '/wallet/withdrawals/$id';
   static String notification(String id) => '/notifications/$id';
+  static String helpThread(String ticketId) => '/help/$ticketId';
 
   static const patterns = [
     home,
@@ -32,6 +39,9 @@ abstract final class DeepLinks {
     submitPattern,
     withdrawalPattern,
     notificationPattern,
+    helpThreadPattern,
+    referrals,
+    referralHistory,
   ];
 
   static Uri uri(String route) => Uri(scheme: scheme, host: host, path: route);

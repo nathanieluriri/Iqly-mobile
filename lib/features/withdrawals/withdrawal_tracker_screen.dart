@@ -6,6 +6,7 @@ import '../../core/deadline.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
+import '../../data/help_service.dart' show supportShownProvider;
 import '../../data/models.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -16,7 +17,8 @@ import 'withdrawal_widgets.dart';
 
 /// B14 · Withdrawal · tracker (194:9752) and arrived (485:39669): the
 /// amount, the receipt with its Pending or Arrived tag, and the steps.
-/// "Get help with this withdrawal" opens Help.
+/// "Get help with this withdrawal" opens Help, while the launch has
+/// support to ask.
 ///
 /// Motion (spec 7.9): the receipt arrives and draws its tear line; a step
 /// that completes while the page is open inks in place.
@@ -65,27 +67,28 @@ class WithdrawalTrackerScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    IqSpace.s4,
-                    IqSpace.s3,
-                    IqSpace.s4,
-                    IqSpace.s3,
-                  ),
-                  child: SizedBox(
-                    height: 44,
-                    child: OverflowBox(
-                      maxHeight: IqButton.defaultHeight,
-                      child: IqButton(
-                        label: 'Get help with this withdrawal',
-                        kind: IqButtonKind.ghost,
-                        showIcon: false,
-                        width: double.infinity,
-                        onTap: () => context.open(Routes.help),
+                if (ref.watch(supportShownProvider))
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      IqSpace.s4,
+                      IqSpace.s3,
+                      IqSpace.s4,
+                      IqSpace.s3,
+                    ),
+                    child: SizedBox(
+                      height: 44,
+                      child: OverflowBox(
+                        maxHeight: IqButton.defaultHeight,
+                        child: IqButton(
+                          label: 'Get help with this withdrawal',
+                          kind: IqButtonKind.ghost,
+                          showIcon: false,
+                          width: double.infinity,
+                          onTap: () => context.open(Routes.help),
+                        ),
                       ),
                     ),
                   ),
-                ),
               ],
             ),
           ),

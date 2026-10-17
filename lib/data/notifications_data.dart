@@ -55,6 +55,7 @@ class NotificationFacts {
     required this.body,
     this.amountKobo,
     this.submissionId,
+    this.ticketId,
     this.brief,
     this.withdrawal,
   });
@@ -64,6 +65,9 @@ class NotificationFacts {
   final String body;
   final int? amountKobo;
   final String? submissionId;
+
+  /// The help thread support answered (`support` rows).
+  final String? ticketId;
   final NotificationBrief? brief;
 
   /// As embedded: the amount, status, bank, last 4 digits and reference.

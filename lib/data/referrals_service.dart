@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/deadline.dart';
+import '../core/money.dart';
 import '../core/session.dart';
 import '../core/backend.dart';
 import 'api_client.dart';
@@ -11,15 +12,82 @@ import 'share_service.dart';
 
 enum InviteStatus { won, joined, invited }
 
+enum ReferralRewardStatus { pending, paid, capped, notEligible }
+
+/// One referral reward as the API decided it (contract 12.3): what it pays
+/// or would pay, and when and on which ledger row it was paid.
+class ReferralReward {
+  const ReferralReward({
+    required this.status,
+    required this.amountKobo,
+    this.at,
+    this.ledgerId,
+  });
+
+  final ReferralRewardStatus status;
+
+  /// What it pays or would pay; 0 where the API names no amount (a reward
+  /// capped or not owed).
+  final int amountKobo;
+  final DateTime? at;
+  final String? ledgerId;
+
+  bool get paid => status == ReferralRewardStatus.paid;
+}
+
+/// What referrals pay (contract 12.3): the inviter's and the invited
+/// friend's amounts, and what the person has been paid so far.
+class ReferralTerms {
+  const ReferralTerms({
+    required this.amountKobo,
+    required this.inviteeAmountKobo,
+    this.earnedKobo,
+  });
+
+  /// The preview's ₦500 each way.
+  static const demo = ReferralTerms(
+    amountKobo: 50000,
+    inviteeAmountKobo: 50000,
+  );
+
+  /// To the person who invited, for a friend's first win.
+  final int amountKobo;
+
+  /// To the friend, for their own first win.
+  final int inviteeAmountKobo;
+
+  /// Every referral reward paid to the person, their own included; null
+  /// where the wallet's ledger counts it (the preview).
+  final int? earnedKobo;
+
+  /// "₦500" for inviting, while that half pays.
+  String? get inviterReward => amountKobo > 0 ? rewardPool(amountKobo) : null;
+
+  /// "₦500" for the friend's own first win, while that half pays.
+  String? get inviteeReward =>
+      inviteeAmountKobo > 0 ? rewardPool(inviteeAmountKobo) : null;
+
+  /// Both halves pay, so "you both get" holds.
+  bool get both => amountKobo > 0 && inviteeAmountKobo > 0;
+}
+
 /// A friend the person invited, and how far they got.
 class Invite {
-  const Invite({required this.name, required this.status, this.at});
+  const Invite({
+    required this.name,
+    required this.status,
+    this.at,
+    this.reward,
+  });
 
   final String name;
   final InviteStatus status;
 
   /// When they joined (joined) or were invited (invited).
   final DateTime? at;
+
+  /// The person's reward for this friend, once the API decides one.
+  final ReferralReward? reward;
 }
 
 /// The person's own code and who used it. [invitedBy] is the friend whose
@@ -31,6 +99,8 @@ class Referrals {
     required this.memberSince,
     this.invitedBy,
     this.applyUntil,
+    this.invitedByReward,
+    this.terms,
   });
 
   final String code;
@@ -40,6 +110,12 @@ class Referrals {
 
   /// The last moment a friend's code can be added, when the API says.
   final DateTime? applyUntil;
+
+  /// The person's own reward for joining with [invitedBy]'s code.
+  final ReferralReward? invitedByReward;
+
+  /// What referrals pay, while the API pays them.
+  final ReferralTerms? terms;
 
   int get won => invites.where((i) => i.status == InviteStatus.won).length;
 
@@ -52,6 +128,8 @@ class Referrals {
     memberSince: memberSince,
     invitedBy: name,
     applyUntil: applyUntil,
+    invitedByReward: invitedByReward,
+    terms: terms,
   );
 }
 
@@ -107,9 +185,12 @@ abstract class ReferralsService {
   /// How long Copy reads Copied.
   static const copiedFor = Duration(seconds: 2);
 
-  static String message(String code, {bool rewards = true}) => rewards
+  /// [reward] is what the friend gets for their first win ("₦500"), or
+  /// null while referrals pay nothing.
+  static String message(String code, {required String? reward}) =>
+      reward != null
       ? 'Join me on iQLY. Businesses pay for good ideas. Use my code $code and '
-            'we both get ₦500 when you win your first brief. ${link(code)}'
+            'we both get $reward when you win your first brief. ${link(code)}'
       : 'Join me on iQLY. Businesses pay for good ideas. Use my code $code '
             'when you sign up. ${link(code)}';
 }
@@ -187,8 +268,8 @@ int referralEarnedKobo(List<LedgerEntry> ledger) => ledger
     .where((l) => l.earned && l.source == RewardSource.referral)
     .fold(0, (sum, l) => sum + l.amountKobo);
 
-/// Referrals on the iQLY API (contract 10.4). No money moves for a referral
-/// yet, so nothing here names a reward. Sharing stays with [sharing].
+/// Referrals on the iQLY API (contract 10.4), with their rewards while the
+/// API pays them (12.3). Sharing stays with [sharing].
 class LiveReferralsService implements ReferralsService {
   LiveReferralsService(this.link, {required this.sharing});
 
@@ -273,14 +354,24 @@ Future<String?> lookUpInviter(ApiClient api, String code) async {
   return apiText(res.data['inviter']);
 }
 
-/// `GET /me/referrals`. A status the app does not know reads as joined.
+/// `GET /me/referrals`. A status the app does not know reads as joined;
+/// a reward the app cannot read reads as none.
 Referrals referralsFromJson(Map<String, dynamic> json) {
   final invites = json['invites'];
+  final rewards = json['rewards'];
   return Referrals(
     code: apiText(json['code']) ?? '',
     memberSince: apiTime(json['memberSince']) ?? DateTime.now(),
     invitedBy: apiText(json['invitedBy']),
     applyUntil: apiTime(json['applyUntil']),
+    invitedByReward: referralRewardFromJson(json['invitedByReward']),
+    terms: rewards is Map && rewards['enabled'] == true
+        ? ReferralTerms(
+            amountKobo: apiInt(rewards['amountKobo']) ?? 0,
+            inviteeAmountKobo: apiInt(rewards['inviteeAmountKobo']) ?? 0,
+            earnedKobo: apiInt(rewards['earnedKobo']),
+          )
+        : null,
     invites: [
       if (invites is List)
         for (final invite in invites)
@@ -293,8 +384,27 @@ Referrals referralsFromJson(Map<String, dynamic> json) {
                 _ => InviteStatus.joined,
               },
               at: apiTime(invite['at']),
+              reward: referralRewardFromJson(invite['reward']),
             ),
     ],
+  );
+}
+
+ReferralReward? referralRewardFromJson(Object? json) {
+  if (json is! Map) return null;
+  final status = switch (json['status']) {
+    'pending' => ReferralRewardStatus.pending,
+    'paid' => ReferralRewardStatus.paid,
+    'capped' => ReferralRewardStatus.capped,
+    'not_eligible' => ReferralRewardStatus.notEligible,
+    _ => null,
+  };
+  if (status == null) return null;
+  return ReferralReward(
+    status: status,
+    amountKobo: apiInt(json['amountKobo']) ?? 0,
+    at: apiTime(json['at']),
+    ledgerId: apiText(json['ledgerId']),
   );
 }
 
@@ -304,12 +414,6 @@ final referralsShownProvider = Provider<bool>((ref) {
   final mode = ref.watch(liveModeProvider);
   return mode.isPreview || mode.isLive(LiveFeature.referrals);
 });
-
-/// Whether referral money shows: only the preview's samples promise and pay
-/// ₦500; the API has no referral rewards yet.
-final referralRewardsProvider = Provider<bool>(
-  (ref) => ref.watch(liveModeProvider).isPreview,
-);
 
 /// The demo in a preview launch, the API while referrals run live; a live
 /// launch without them refuses, so no sample code shows as the person's.

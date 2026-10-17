@@ -1,11 +1,23 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:iqly_mobile/core/backend.dart';
 import 'package:iqly_mobile/core/session.dart';
+import 'package:iqly_mobile/data/activations_data.dart';
+import 'package:iqly_mobile/data/avatar_service.dart';
+import 'package:iqly_mobile/data/help_data.dart';
+import 'package:iqly_mobile/data/help_service.dart';
+import 'package:iqly_mobile/data/live/live_help_service.dart';
+import 'package:iqly_mobile/data/live/mappers.dart';
+import 'package:iqly_mobile/data/referrals_service.dart';
+import 'package:iqly_mobile/data/support_files.dart';
+import 'package:iqly_mobile/features/help/help_routes.dart';
+import 'package:iqly_mobile/features/referrals/referrals_state.dart';
+import 'package:iqly_mobile/ui/avatar.dart';
 import 'package:iqly_mobile/data/api_client.dart';
 import 'package:iqly_mobile/data/auth.dart';
 import 'package:iqly_mobile/data/live/live_account.dart';
@@ -44,6 +56,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// testWidgets: the widget binding would stub out real HTTP.
 void main() {
   final base = Platform.environment['IQLY_E2E_API'];
+  // The features the server was started without (MOBILE_FEATURES_OFF), so
+  // the walk checks the app pauses them; IQLY_E2E_OFF names them the same
+  // way.
+  final off = {
+    for (final name in (Platform.environment['IQLY_E2E_OFF'] ?? '').split(','))
+      ?LiveFeature.values.asNameMap()[name.trim()],
+  };
+  bool on(LiveFeature feature) => !off.contains(feature);
 
   group(
     'The live app on the API',
@@ -110,16 +130,14 @@ void main() {
 
       test('health turns every feature live for contract 1', () async {
         final report = await LiveHealthService(api).check();
+        final running = LiveFeature.values.toSet().difference(off);
         expect(report.ready, isTrue);
         expect(report.contract, Backend.contract);
-        expect(report.features, LiveFeature.values.toSet());
-        expect(Backend.from(report).live, LiveFeature.values.toSet());
+        expect(report.features, running);
+        expect(Backend.from(report).live, running);
 
         await container.read(backendProvider.notifier).check();
-        expect(
-          container.read(backendProvider).live,
-          LiveFeature.values.toSet(),
-        );
+        expect(container.read(backendProvider).live, running);
         // As the splash does at its hand-off: the outbox runs from here.
         await container.read(backendProvider.notifier).lock();
       });
@@ -503,7 +521,11 @@ void main() {
           );
           expect(payTo.accountNumber, '4321');
           expect(payTo.label, 'Guaranty Trust Bank ••4321');
-          expect((await repo.savedBanks()).single.accountNumber, '4321');
+          // Ada's Access Bank ••6789 is saved too (contract 10.2).
+          expect(
+            (await repo.savedBanks()).map((b) => b.accountNumber),
+            contains('4321'),
+          );
 
           client.loseNextAnswer('POST', '/wallet/withdrawals');
           final lost = await wallet.withdraw(
@@ -752,6 +774,396 @@ void main() {
         expect(back[NotificationTopic.polls], isFalse);
       });
 
+      /// Another seeded person on their own session, as their phone would be.
+      Future<ApiClient> signedIn(String email) async {
+        final other = ApiClient(
+          tokens: MemoryTokenStore(),
+          baseUrl: base!,
+          appVersion: '0.5.0+5',
+          platform: 'android',
+        );
+        final result = await LiveAuthService(api: other)
+            .signIn(email: email, password: seed.password);
+        expect(result.ok, isTrue, reason: '$email: ${result.failure}');
+        return other;
+      }
+
+      AccountLink linkOf(ApiClient other) {
+        final kept = MemoryLocalStore();
+        return AccountLink(
+          api: other,
+          store: kept,
+          outbox: Outbox(kept),
+          userId: () => null,
+        );
+      }
+
+      HelpAttachment file(String name, List<int> bytes, {Duration? length}) =>
+          HelpAttachment(
+            name: name,
+            bytes: bytes.length,
+            kind: supportTypeOf(name)!.kind,
+            mime: supportTypeOf(name)!.mime,
+            length: length,
+            read: () async => bytes,
+          );
+
+      Matcher refusedFor(HelpFailure failure) => throwsA(
+        isA<HelpRefused>().having((r) => r.failure, 'failure', failure),
+      );
+
+      late HelpTicket opened;
+
+      test('support: the inbox, a thread and its files, an open whose answer '
+          'was lost, a reply, support\'s answer and its feed row, read, '
+          'resolved and a report', () async {
+        final help = container.read(helpServiceProvider);
+        expect(container.read(supportShownProvider), on(LiveFeature.support));
+        if (!on(LiveFeature.support)) {
+          expect(help, isA<PausedHelpService>());
+          expect(await help.conversations(), isEmpty);
+          expect(await help.unread(), 0);
+          return;
+        }
+        expect(help, isA<LiveHelpService>());
+        final inbox = await help.conversations();
+        expect(inbox.map((t) => t.reference), ['IQ-HELP-2042', 'IQ-HELP-2041']);
+        final [report, chat] = inbox;
+        expect(report.status, HelpTicketStatus.open);
+        expect(report.subject, 'The app');
+        expect(chat.status, HelpTicketStatus.replied);
+        expect(chat.unread, isTrue);
+        expect(chat.messages.single.author, HelpAuthor.support);
+        expect(await help.unread(), 1);
+
+        final thread = await help.watch(chat.id).single;
+        expect(thread.subject, 'Withdrawal to Access Bank');
+        expect(thread.messages.map((m) => m.author), [
+          HelpAuthor.you,
+          HelpAuthor.support,
+        ]);
+        final picture =
+            (await help.watch(report.id).single).messages.single.attachment!;
+        expect(picture.kind, HelpAttachmentKind.image);
+        expect(picture.name, 'activity.png');
+        final served = await api.download(picture.url.toString());
+        expect(served.ok, isTrue);
+        expect(served.bytes, isNotEmpty);
+
+        await help.markRead(chat.id);
+        expect(await help.unread(), 0);
+
+        final steps = await help.upload(file('screen.png', _png)).toList();
+        expect(steps.last.done, isTrue);
+        final uploaded = steps.last.file;
+        expect(uploaded.id, isNotNull);
+        expect(uploaded.kind, HelpAttachmentKind.image);
+
+        final request = HelpRequest(
+          subject: 'Chat with iQLY support',
+          message: 'My balance looks wrong.',
+          attachment: uploaded,
+        );
+        client.loseNextAnswer('POST', '/support/tickets');
+        await expectLater(help.send(request), refusedFor(HelpFailure.offline));
+        opened = await help.send(request);
+        expect(opened.reference, matches(RegExp(r'^IQ-HELP-\d+$')));
+        expect(opened.status, HelpTicketStatus.open);
+        expect(opened.messages.single.attachment!.id, uploaded.id);
+        expect(
+          (await help.conversations()).where(
+            (t) => t.subject == 'Chat with iQLY support',
+          ),
+          hasLength(1),
+          reason: 'the retry carried the lost send\'s key',
+        );
+
+        final again = await help.reply(opened.id, 'It shows ₦0.00.');
+        expect(again.status, HelpTicketStatus.open);
+        expect(again.messages, hasLength(2));
+
+        final staff = await signedIn('support@example.com');
+        final answer = await staff.post(
+          '/admin/support/tickets/${opened.id}/reply',
+          {'message': 'Thanks, Ada. We are looking at it now.'},
+        );
+        expect(answer.ok, isTrue, reason: '${answer.status} ${answer.code}');
+        final answered = await help.watch(opened.id).single;
+        expect(answered.status, HelpTicketStatus.replied);
+        expect(answered.unread, isTrue);
+        expect(answered.messages.last.author, HelpAuthor.support);
+        expect(await help.unread(), 1);
+
+        final feed = await container
+            .read(notificationsServiceProvider)
+            .notifications();
+        final row = feed.firstWhere((n) => n.facts?.type == 'support');
+        expect(row.facts!.ticketId, opened.id);
+        expect(row.facts!.title, 'iQLY support replied');
+        final words = wordNotification(
+          row,
+          briefs: const {},
+          awards: const {},
+          withdrawals: const {},
+          now: DateTime.now(),
+        )!;
+        expect(words.link!.location, helpThreadPath(opened.id));
+
+        expect(
+          (await help.resolve(opened.id)).status,
+          HelpTicketStatus.resolved,
+        );
+        expect(
+          (await help.resolve(opened.id)).status,
+          HelpTicketStatus.resolved,
+          reason: 'resolving again changes nothing',
+        );
+
+        final sent = await help.report(
+          topic: 'Payments',
+          details: 'A payout is missing from Activity.',
+          screenshot: file('payout.png', _png),
+        );
+        expect(sent, matches(RegExp(r'^IQ-HELP-\d+$')));
+        final filed = (await help.conversations()).firstWhere(
+          (t) => t.reference == sent,
+        );
+        expect(filed.subject, 'Payments');
+        final filedThread = await help.watch(filed.id).single;
+        expect(filedThread.messages.single.attachment!.name, 'payout.png');
+      });
+
+      test('support refusals reach the app as its own words', () async {
+        if (!on(LiveFeature.support)) return;
+        final bob = await signedIn('bob@example.com');
+        final help = LiveHelpService(linkOf(bob), files: DeviceSupportFiles());
+        final mp4 = [
+          0,
+          0,
+          0,
+          0x18,
+          ...'ftypmp42'.codeUnits,
+          ...List.filled(64, 0),
+        ];
+        final m4a = [
+          0,
+          0,
+          0,
+          0x18,
+          ...'ftypM4A '.codeUnits,
+          ...List.filled(64, 0),
+        ];
+
+        await expectLater(
+          help.upload(file('zeros.mp4', List.filled(4096, 0))).last,
+          refusedFor(HelpFailure.fileType),
+        );
+        await expectLater(
+          help
+              .upload(
+                file('long.mp4', mp4, length: const Duration(seconds: 61)),
+              )
+              .last,
+          refusedFor(HelpFailure.tooLong),
+        );
+        await expectLater(
+          help
+              .upload(file('note.m4a', m4a, length: const Duration(minutes: 6)))
+              .last,
+          refusedFor(HelpFailure.tooLong),
+        );
+        await expectLater(
+          help
+              .upload(file('big.png', [..._png, ...List.filled(10500000, 0)]))
+              .last,
+          refusedFor(HelpFailure.tooLarge),
+        );
+
+        final dropped = (await help.upload(file('drop.png', _png)).last).file;
+        await help.discard(dropped);
+        await expectLater(
+          help.send(
+            HelpRequest(
+              subject: 'Chat with iQLY support',
+              message: 'With a file I took back.',
+              attachment: dropped,
+            ),
+          ),
+          refusedFor(HelpFailure.gone),
+        );
+        await expectLater(
+          help.send(
+            HelpRequest(
+              subject: 'Nowhere activation',
+              message: 'About an activation that is not there.',
+              activation: Activation(
+                id: '00000000-0000-4000-8000-000000000000',
+                business: 'Nowhere',
+                title: 'Nothing',
+                minutes: 1,
+                rewardKobo: 0,
+                closesAt: DateTime.now(),
+                spotsLeft: 0,
+                spotsTotal: 0,
+                steps: const [],
+                link: Uri.parse('https://iqly.net'),
+              ),
+            ),
+          ),
+          refusedFor(HelpFailure.gone),
+        );
+
+        HelpRefused? throttled;
+        for (var i = 0; i < 12 && throttled == null; i++) {
+          try {
+            await help.upload(file('again.png', _png)).last;
+          } on HelpRefused catch (refused) {
+            throttled = refused;
+          }
+        }
+        expect(throttled?.failure, HelpFailure.tooManyTries);
+      });
+
+      test('the business note on the entry and its result', () async {
+        expect(
+          container.read(businessNoteShownProvider),
+          on(LiveFeature.businessNote),
+        );
+        final won = (await repository().submissions()).singleWhere(
+          (s) => s.id == seed.wonId,
+        );
+        expect(won.note!.business, 'Sunline Foods');
+        expect(won.note!.body, startsWith('The bus stop detail sold it.'));
+        final others = (await repository().submissions()).where(
+          (s) => s.id != seed.wonId,
+        );
+        expect(others.every((s) => s.note == null), isTrue);
+        final result = await container
+            .read(outcomesServiceProvider)
+            .outcome(seed.wonId);
+        expect(result!.note!.body, won.note!.body);
+        expect(result.note!.sentAt, isNotNull);
+      });
+
+      test('referral rewards: the amounts, each reward and the person\'s own, '
+          'the ledger rows and the feed rows', () async {
+        await container.read(referralsProvider.future);
+        final terms = container.read(referralTermsProvider);
+        if (!on(LiveFeature.referralRewards)) {
+          expect(terms, isNull);
+          return;
+        }
+        expect(terms!.amountKobo, 50000);
+        expect(terms.inviteeAmountKobo, 50000);
+        expect(terms.inviterReward, '₦500');
+        expect(terms.earnedKobo, 0);
+
+        final mine = container.read(referralsServiceProvider);
+        final applied = await mine.applyCode(seed.referralCode);
+        expect(applied.outcome, InviteCodeOutcome.applied);
+        final joined = await mine.referrals();
+        expect(joined.invitedBy, 'Chidi E.');
+        expect(
+          joined.invitedByReward!.status,
+          ReferralRewardStatus.notEligible,
+          reason: 'Ada won before she added the code',
+        );
+
+        final chidi = await signedIn('chidi@example.com');
+        final inviter = await LiveReferralsService(
+          linkOf(chidi),
+          sharing: DemoReferralsService(),
+        ).referrals();
+        expect(inviter.invites.map((i) => i.name), ['Ada O.', 'Bob A.']);
+        final adaInvite = inviter.invites.first;
+        expect(adaInvite.status, InviteStatus.won);
+        expect(adaInvite.reward!.status, ReferralRewardStatus.notEligible);
+        final bobInvite = inviter.invites.last;
+        expect(bobInvite.name, 'Bob A.');
+        expect(bobInvite.status, InviteStatus.won);
+        expect(bobInvite.reward!.status, ReferralRewardStatus.paid);
+        expect(bobInvite.reward!.amountKobo, 50000);
+        expect(inviter.terms!.earnedKobo, 50000);
+        final chidiFeed = await LiveNotificationsService(linkOf(chidi))
+            .notifications();
+        final reward = chidiFeed.singleWhere(
+          (n) => n.facts?.type == 'referral_reward',
+        );
+        expect(reward.event, NotificationEvent.rewardCredited);
+        expect(reward.entryId, bobInvite.reward!.ledgerId);
+        final rewardWords = wordNotification(
+          reward,
+          briefs: const {},
+          awards: const {},
+          withdrawals: const {},
+          now: DateTime.now(),
+        )!;
+        expect(rewardWords.title, '₦500.00 added to your wallet');
+        expect(rewardWords.detail, startsWith('Bob A. won a first brief'));
+        expect(rewardWords.link!.location, Routes.referralHistory);
+
+        final bob = await signedIn('bob@example.com');
+        final invited = await LiveReferralsService(
+          linkOf(bob),
+          sharing: DemoReferralsService(),
+        ).referrals();
+        expect(invited.invitedBy, 'Chidi E.');
+        expect(invited.invitedByReward!.status, ReferralRewardStatus.paid);
+        expect(invited.invitedByReward!.amountKobo, 50000);
+        final rows = (await bob.get('/wallet/transactions?limit=100')).data;
+        final own = [
+          for (final item in rows['items'] as List) ?ledgerEntryFromJson(item),
+        ].singleWhere((l) => l.id == invited.invitedByReward!.ledgerId);
+        expect(own.source, RewardSource.referral);
+        expect(own.amountKobo, 50000);
+        expect(own.note, 'First win with Chidi E.\'s invite code');
+        expect(own.referred, 'Chidi E.');
+      });
+
+      test(
+        'avatar photo: up, replaced, read with the token, deleted',
+        () async {
+          final avatars = container.read(liveAvatarServiceProvider)!;
+          expect(avatars.photos, on(LiveFeature.avatarPhoto));
+          if (!on(LiveFeature.avatarPhoto)) return;
+
+          final first = (await avatars.uploadPhoto(_png))!;
+          expect(first.photoShown, isTrue);
+          expect(first.photoUrl, contains('/me/avatar/photo?v='));
+          expect(first.spec, IqPhotoAvatar(_png));
+          expect(await avatars.photo(first.photoUrl!), _png);
+
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+          final second = (await avatars.uploadPhoto(_otherPng))!;
+          expect(second.photoUrl, isNot(first.photoUrl));
+          expect(await avatars.photo(second.photoUrl!), _otherPng);
+          expect((await account().me()).avatar!['photoUrl'], second.photoUrl);
+
+          final gone = (await avatars.deletePhoto())!;
+          expect(gone.photoUrl, isNull);
+          expect(gone.photoShown, isFalse);
+          expect(gone.spec, isA<IqPersonAvatar>());
+          expect(await avatars.photo(second.photoUrl!), isNull);
+
+          final chidi = LiveAvatarService(
+            linkOf(await signedIn('chidi@example.com')),
+            photos: true,
+          );
+          Matcher refused(String code) =>
+              throwsA(isA<ApiRefused>().having((r) => r.code, 'code', code));
+          await expectLater(
+            chidi.uploadPhoto(Uint8List.fromList(utf8.encode('<html></html>'))),
+            refused('FILE_TYPE_NOT_ALLOWED'),
+          );
+          await expectLater(
+            chidi.uploadPhoto(
+              Uint8List.fromList([..._png, ...List.filled(2100000, 0)]),
+            ),
+            refused('FILE_TOO_LARGE'),
+          );
+        },
+      );
+
       test('close waits for an empty wallet; restore reopens', () async {
         final profile = container.read(profileServiceProvider);
         final wallet = container.read(walletServiceProvider);
@@ -789,6 +1201,13 @@ void main() {
           closing.closesAt!.difference(DateTime.now()).inHours,
           inInclusiveRange(30 * 24 - 1, 30 * 24),
         );
+
+        if (on(LiveFeature.support)) {
+          await expectLater(
+            container.read(helpServiceProvider).resolve(opened.id),
+            refusedFor(HelpFailure.closing),
+          );
+        }
 
         // A write while closing holds the queue until the account is back.
         await profile.setNotificationPreference(NotificationTopic.polls, true);
@@ -839,6 +1258,11 @@ final _png = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mP49eYSAAWcArlITY1UAAAAAElFTkSuQmCC',
 );
 
+/// A 2×2 PNG, another photo.
+final _otherPng = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP4n8YARAwQCgArFgWVjjyH6QAAAABJRU5ErkJggg==',
+);
+
 /// What POST /__local/seed answers: who and what the walk works with.
 class _Seed {
   _Seed(Map<String, dynamic> json)
@@ -849,7 +1273,8 @@ class _Seed {
       hiddenBriefId = _at(json, ['briefs', 'hidden', 'id']),
       closedBriefId = _at(json, ['briefs', 'closed', 'id']),
       wonId = _at(json, ['submissions', 'won']),
-      withdrawalId = _at(json, ['withdrawal', 'id']);
+      withdrawalId = _at(json, ['withdrawal', 'id']),
+      referralCode = json['referralCode'] as String;
 
   final String password;
   final String contributorId;
@@ -861,6 +1286,9 @@ class _Seed {
 
   /// Paid out to Access Bank ••6789 before the walk.
   final String withdrawalId;
+
+  /// Chidi's invite code, which Bob added before his first win.
+  final String referralCode;
 
   static String _at(Map<String, dynamic> json, List<String> path) {
     Object? value = json;
