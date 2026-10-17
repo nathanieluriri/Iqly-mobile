@@ -464,7 +464,7 @@ enum IqHaptics {
   /// Rows, cards, links, icon buttons, back: any tap without a heavier job.
   tap,
 
-  /// Chips, switches, option rows, bookmarks, dock tabs, poll picks.
+  /// Chips, switches, option rows, bookmarks, poll picks.
   select,
 
   /// One notch of a wheel or stepper, with the system click.
@@ -486,7 +486,16 @@ enum IqHaptics {
   success,
 
   /// The user's action failed.
-  error;
+  error,
+
+  /// Switching tabs in the bottom dock: two heavy impacts 60 ms apart, which
+  /// reads as one longer, firmer stop.
+  tab;
+
+  /// The person's Haptics preference ([hapticsProvider]): off, nothing plays.
+  static bool enabled = true;
+
+  static const Duration tabFollow = Duration(milliseconds: 60);
 
   static Object? _press;
 
@@ -514,7 +523,9 @@ enum IqHaptics {
       _android ? HapticFeedback.heavyImpact() : HapticFeedback.mediumImpact();
 
   /// Plays it; an error is the iOS error pattern, a medium impact elsewhere.
+  /// Every haptic in the app goes through here.
   Future<void> play() {
+    if (!enabled) return Future.value();
     switch (this) {
       case tap:
         return _atFrameEnd(HapticFeedback.lightImpact);
@@ -539,6 +550,12 @@ enum IqHaptics {
         return defaultTargetPlatform == TargetPlatform.iOS
             ? HapticFeedback.errorNotification()
             : _medium();
+      case tab:
+        _press = null;
+        Timer(tabFollow, () {
+          if (enabled) HapticFeedback.heavyImpact();
+        });
+        return HapticFeedback.heavyImpact();
     }
   }
 }

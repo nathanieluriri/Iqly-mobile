@@ -124,7 +124,7 @@ class _Tab extends StatelessWidget {
           ? cell
           : IqPressable(
               onTap: onTap,
-              haptic: IqHaptics.select,
+              haptic: IqHaptics.tab,
               builder: (context, pressed) => cell,
             ),
     );

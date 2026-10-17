@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/core/edge_haptics.dart';
 import 'package:iqly_mobile/core/motion.dart';
 import 'package:iqly_mobile/core/transitions.dart';
 import 'package:iqly_mobile/data/activations_data.dart';
@@ -47,6 +48,7 @@ Future<ProviderContainer> pumpApp(
   bool reducedMotion = true,
   bool settle = true,
   ActivationsService? activations,
+  TransitionBuilder? builder,
 }) => harness.pumpApp(
   tester,
   location,
@@ -54,6 +56,7 @@ Future<ProviderContainer> pumpApp(
   prefs: prefs,
   reducedMotion: reducedMotion,
   settle: settle,
+  builder: builder,
   overrides: [
     pollsServiceProvider.overrideWithValue(instantPolls()),
     if (activations != null)
@@ -412,6 +415,40 @@ void main() {
     await tester.pumpAndSettle();
     expect(_top(tester, _chips), listTop);
     expect(haptics, ['HapticFeedbackType.lightImpact']);
+  });
+
+  testWidgets('a drag up the feed stops at the top once; pulling on to arm '
+      'the refresh in the same gesture adds no second buzz', (tester) async {
+    final haptics = recordHaptics(tester);
+    final repository = _Controlled();
+    await pumpApp(
+      tester,
+      Routes.home,
+      repository: repository,
+      reducedMotion: false,
+      builder: (context, child) => EdgeHaptics(child: child!),
+    );
+    _feed(tester).jumpTo(200);
+    await tester.pump();
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(HomeScreen)),
+    );
+    for (var i = 0; i < 20 && -_feed(tester).pixels < 90; i++) {
+      await gesture.moveBy(const Offset(0, 40));
+      await tester.pump();
+    }
+    expect(
+      tester.widget<IqPullIndicator>(find.byType(IqPullIndicator)).armed,
+      isTrue,
+    );
+    expect(haptics, ['HapticFeedbackType.heavyImpact']);
+
+    await gesture.up();
+    await tester.pump();
+    repository.refreshing!.complete(repository.data.briefs);
+    await tester.pumpAndSettle();
+    expect(haptics, ['HapticFeedbackType.heavyImpact']);
   });
 
   testWidgets('a pull let go before 64 does not refresh', (tester) async {

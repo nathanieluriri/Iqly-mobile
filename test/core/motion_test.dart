@@ -171,6 +171,7 @@ void main() {
         'heavy holds and destructive starts', (tester) async {
       final played = record(tester);
       for (final haptic in IqHaptics.values) {
+        if (haptic == IqHaptics.tab) continue;
         await haptic.play();
         await tester.pump(Duration.zero);
       }
@@ -191,6 +192,7 @@ void main() {
         'KEYBOARD_TAP, which many play as nothing', (tester) async {
       final played = record(tester);
       for (final haptic in IqHaptics.values) {
+        if (haptic == IqHaptics.tab) continue;
         await haptic.play();
         await tester.pump(Duration.zero);
       }
@@ -205,6 +207,35 @@ void main() {
         'HapticFeedbackType.successNotification',
         'HapticFeedbackType.heavyImpact',
       ]);
+    });
+
+    testWidgets('a dock tab plays two heavy impacts 60 ms apart', (
+      tester,
+    ) async {
+      final played = record(tester);
+      IqHaptics.tab.play();
+      expect(played, ['HapticFeedbackType.heavyImpact']);
+      await tester.pump(IqHaptics.tabFollow - const Duration(milliseconds: 1));
+      expect(played, ['HapticFeedbackType.heavyImpact']);
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(played, [
+        'HapticFeedbackType.heavyImpact',
+        'HapticFeedbackType.heavyImpact',
+      ]);
+    });
+
+    testWidgets('with Haptics off nothing plays, the tab follow-up neither', (
+      tester,
+    ) async {
+      final played = record(tester);
+      addTearDown(() => IqHaptics.enabled = true);
+      IqHaptics.tab.play();
+      IqHaptics.enabled = false;
+      for (final haptic in IqHaptics.values) {
+        await haptic.play();
+      }
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(played, ['HapticFeedbackType.heavyImpact']);
     });
 
     testWidgets('a wheel tick also plays the system click', (tester) async {

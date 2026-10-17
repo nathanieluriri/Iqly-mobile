@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
 import 'core/backend.dart';
+import 'core/haptics.dart';
 import 'core/session.dart';
 import 'data/api_client.dart';
 import 'data/api_config.dart';
@@ -29,6 +30,7 @@ import 'features/settings/settings_state.dart';
 import 'router.dart';
 import 'surfaces/push.dart';
 import 'surfaces/surfaces.dart';
+import 'ui/svg_precache.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -97,11 +99,15 @@ Future<void> main() async {
     ],
   );
   container.read(sessionGuardProvider);
+  container.read(hapticsProvider);
   if (ApiConfig.liveAuth) _startAccount(container);
   runApp(
     UncontrolledProviderScope(container: container, child: const IqlyApp()),
   );
   unawaited(_startSurfaces(container));
+  WidgetsBinding.instance.addPostFrameCallback(
+    (_) => unawaited(precacheSvgs()),
+  );
 }
 
 /// The phone's local store: SQLite on Android and iOS, memory elsewhere or
