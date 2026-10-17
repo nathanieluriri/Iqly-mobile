@@ -107,6 +107,7 @@ void main() {
           LiveFeature.avatar,
           LiveFeature.leaderboard,
           LiveFeature.referrals,
+          LiveFeature.support,
           LiveFeature.polls,
         }),
       );
@@ -241,6 +242,7 @@ void main() {
         'avatar',
         'bankAccounts',
         'referrals',
+        'support',
         'polls',
         'activations',
       ]);
@@ -268,6 +270,10 @@ void main() {
       });
       expect(LiveFeature.polls.closure, {
         LiveFeature.polls,
+        LiveFeature.profile,
+      });
+      expect(LiveFeature.support.closure, {
+        LiveFeature.support,
         LiveFeature.profile,
       });
       expect(LiveFeature.activations.closure, {
@@ -469,6 +475,7 @@ void main() {
         'avatar',
         'leaderboard',
         'referrals',
+        'support',
         'polls',
       ]);
       expect(backend.checkedAt, now);
@@ -482,6 +489,7 @@ void main() {
         'avatar',
         'leaderboard',
         'referrals',
+        'support',
         'polls',
       ]);
     });

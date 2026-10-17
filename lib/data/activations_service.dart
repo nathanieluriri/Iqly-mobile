@@ -554,6 +554,7 @@ Activation? activationFromJson(Object? json, {required DateTime now}) {
     live: true,
     logoUrl: apiText(json['logoUrl']),
     imageUrl: apiText(json['imageUrl']),
+    paused: json['status'] == 'paused',
   );
 }
 

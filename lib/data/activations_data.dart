@@ -184,6 +184,7 @@ class Activation {
     this.live = false,
     this.logoUrl,
     this.imageUrl,
+    this.paused = false,
   });
 
   final String id;
@@ -195,6 +196,9 @@ class Activation {
   final bool live;
   final String? logoUrl;
   final String? imageUrl;
+
+  /// The business has stopped new starts for now; runs under way go on.
+  final bool paused;
 
   /// "about 10 min".
   final int minutes;
@@ -222,6 +226,11 @@ class Activation {
   bool get full => spotsLeft <= 0;
 
   bool closedAt(DateTime now) => !closesAt.isAfter(now);
+
+  /// Whether a recording can still go as proof: started, not paid, and
+  /// open. A proof turned down after the close cannot be recorded again,
+  /// as the run ended with the activation.
+  bool canProveAt(DateTime now) => started && !credited && !closedAt(now);
 
   /// The step the business is confirming, once one step is confirmed and
   /// until the last is, while no accepted proof stands in for it.
@@ -281,6 +290,7 @@ class Activation {
     live: live,
     logoUrl: logoUrl,
     imageUrl: imageUrl,
+    paused: paused,
   );
 }
 

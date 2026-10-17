@@ -401,7 +401,17 @@ void main() {
         );
         expect(ProofRefusal.fromCode('VIDEO_TOO_LONG'), ProofRefusal.length);
         expect(ProofRefusal.fromCode('FILE_TOO_LARGE'), ProofRefusal.size);
-        expect(ProofRefusal.fromCode('ACTIVATION_CLOSED'), isNull);
+        for (final code in [
+          'ACTIVATION_CLOSED',
+          'ACTIVATION_NOT_STARTED',
+          'ACTIVATION_COMPLETION_PAID',
+          'ACTIVATION_COMPLETION_EXPIRED',
+          'ACTIVATION_NOT_FOUND',
+        ]) {
+          expect(ProofRefusal.fromCode(code), ProofRefusal.ended, reason: code);
+        }
+        expect(ProofRefusal.fromCode('ACCOUNT_CLOSING'), ProofRefusal.closing);
+        expect(ProofRefusal.fromCode('RATE_LIMITED'), isNull);
         expect(videoMediaType('a.MP4'), 'video/mp4');
         expect(videoMediaType('a.webm'), 'video/webm');
         expect(videoMediaType('a.3gp'), 'video/3gpp');

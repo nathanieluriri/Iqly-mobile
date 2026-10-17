@@ -187,6 +187,18 @@ enum ProofStage {
   failed,
 }
 
+/// The API's codes for a run that can take no proof any more: the
+/// activation closed or went, the run ended or was paid, or never started.
+/// Sending again can only be refused again.
+bool activationRunEnded(String? code) => switch (code) {
+  'ACTIVATION_CLOSED' ||
+  'ACTIVATION_NOT_FOUND' ||
+  'ACTIVATION_NOT_STARTED' ||
+  'ACTIVATION_COMPLETION_PAID' ||
+  'ACTIVATION_COMPLETION_EXPIRED' => true,
+  _ => false,
+};
+
 /// Why a recording was refused.
 enum ProofRefusal {
   length,
@@ -194,17 +206,25 @@ enum ProofRefusal {
 
   /// Not a video the API takes (415 FILE_TYPE_NOT_ALLOWED): no frame words
   /// it, so the polaroid's Failed and Retry say it alone.
-  kind;
+  kind,
+
+  /// The run can take no proof any more ([activationRunEnded]).
+  ended,
+
+  /// The account is closing, so it takes no uploads.
+  closing;
 
   static ProofRefusal of(ProofVideo video) =>
       video.tooLong ? ProofRefusal.length : ProofRefusal.size;
 
   /// What the API's refusal of an upload means, null for one that sending
-  /// again can fix.
+  /// again can fix (a throttle, a fault on the API's side).
   static ProofRefusal? fromCode(String? code) => switch (code) {
     'VIDEO_TOO_LONG' => ProofRefusal.length,
     'FILE_TOO_LARGE' => ProofRefusal.size,
     'FILE_TYPE_NOT_ALLOWED' => ProofRefusal.kind,
+    'ACCOUNT_CLOSING' => ProofRefusal.closing,
+    _ when activationRunEnded(code) => ProofRefusal.ended,
     _ => null,
   };
 }
@@ -320,7 +340,7 @@ class ProofDraftNotifier extends Notifier<ProofDraft> {
               stage: refusal == null ? ProofStage.failed : ProofStage.refused,
               refusal: refusal,
             );
-            if (error is ApiRefused && refusal == null) {
+            if (refusal == ProofRefusal.ended) {
               ref
                   .read(activationsProvider.notifier)
                   .refreshOneQuietly(id)

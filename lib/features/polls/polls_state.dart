@@ -10,7 +10,8 @@ import '../../surfaces/surfaces.dart' show republishSurfaces;
 enum VoteOutcome {
   counted,
 
-  /// No answer from the API, or the demo failing as if offline.
+  /// No answer from the API, a throttle (429) or a fault on its side, or
+  /// the demo failing as if offline: picking again can send it.
   offline,
 
   /// The API turned it down: voted before, closed, gone, or not a choice
@@ -50,6 +51,7 @@ class PollsNotifier extends AsyncNotifier<List<PollBusiness>> {
     try {
       poll = await ref.read(pollsServiceProvider).vote(pollId, choice);
     } on ApiRefused catch (refusal) {
+      if (unanswered(refusal)) return VoteOutcome.offline;
       if (refusal.code == 'ACCOUNT_CLOSING') return VoteOutcome.closing;
       await bring(pollId);
       return VoteOutcome.refused;

@@ -14,6 +14,7 @@ import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../data/activations_data.dart';
 import '../../data/api_client.dart';
+import '../../data/help_service.dart' show supportShownProvider;
 import '../../data/device.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -39,6 +40,9 @@ import 'activations_state.dart';
 import 'activations_widgets.dart';
 
 enum _Layout { offer, steps, proof, credited }
+
+/// Why Start cannot go, as a refused Start said it.
+enum _Unstartable { paused, ended, refused }
 
 _Layout _layoutOf(ActivationPhase phase) => switch (phase) {
   ActivationPhase.offer || ActivationPhase.expired => _Layout.offer,
@@ -80,6 +84,10 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
   DateTime? _windowFor;
   bool _starting = false;
   String? _startFailed;
+
+  /// What a refused Start said for good, should reading the activation
+  /// again not say it: Start stays off rather than refused on every tap.
+  _Unstartable? _unstartable;
   bool _paidHere = false;
 
   @override
@@ -139,10 +147,10 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
     );
   }
 
-  /// No connection keeps Try again. A refusal says "Couldn't start." and
-  /// reads the activation again, so a full or ended one shows as it is;
-  /// under 18 opens Date of birth and a closing account goes to Restore,
-  /// as a send does.
+  /// No answer, a throttle or a fault keeps Try again. A refusal says
+  /// "Couldn't start." and reads the activation again, so a full, paused or
+  /// ended one shows as it is and Start stays off; under 18 opens Date of
+  /// birth and a closing account goes to Restore, as a send does.
   Future<void> _start() async {
     if (_starting) return;
     setState(() {
@@ -150,15 +158,31 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
       _startFailed = null;
     });
     final notifier = ref.read(activationsProvider.notifier);
+    const retry = "Couldn't start. Check your connection.";
     try {
       await notifier.start(widget.id);
     } on ApiRefused catch (refusal) {
       if (!mounted) return;
       errorHaptic();
+      if (unanswered(refusal)) {
+        setState(() {
+          _starting = false;
+          _startFailed = retry;
+        });
+        return;
+      }
       final closing = refusal.code == 'ACCOUNT_CLOSING' && Flags.deleteAccount;
+      final paused = refusal.code == 'ACTIVATION_PAUSED';
       setState(() {
         _starting = false;
-        _startFailed = closing ? null : "Couldn't start.";
+        _startFailed = closing || paused ? null : "Couldn't start.";
+        _unstartable = switch (refusal.code) {
+          'ACTIVATION_PAUSED' => _Unstartable.paused,
+          'ACTIVATION_CLOSED' || 'ACTIVATION_NOT_FOUND' => _Unstartable.ended,
+          'ACTIVATION_FULL' ||
+          'ACTIVATION_OWN_BUSINESS' => _Unstartable.refused,
+          _ => _unstartable,
+        };
       });
       if (closing) return showClosingAccount(context, ref);
       if (refusal.code == 'UNDER_AGE') {
@@ -172,7 +196,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
       errorHaptic();
       setState(() {
         _starting = false;
-        _startFailed = "Couldn't start. Check your connection.";
+        _startFailed = retry;
       });
       return;
     }
@@ -219,6 +243,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
           now: now,
           starting: _starting,
           failure: _startFailed,
+          unstartable: _unstartable,
           onStart: _start,
           onBack: _back,
         ),
@@ -234,6 +259,8 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
         ),
         _Layout.proof => _ProofPage(
           activation: activation,
+          now: now,
+          support: ref.watch(supportShownProvider),
           onBack: _back,
           onRefresh: _refresh,
           onRecordAgain: _recordAgain,
@@ -348,6 +375,7 @@ class _OfferPage extends StatelessWidget {
     required this.failure,
     required this.onStart,
     required this.onBack,
+    this.unstartable,
   });
 
   final Activation activation;
@@ -358,11 +386,13 @@ class _OfferPage extends StatelessWidget {
   final String? failure;
   final VoidCallback onStart;
   final VoidCallback onBack;
+  final _Unstartable? unstartable;
 
   @override
   Widget build(BuildContext context) {
     final a = activation;
-    final ended = a.closedAt(now);
+    final ended = a.closedAt(now) || unstartable == _Unstartable.ended;
+    final paused = !ended && (a.paused || unstartable == _Unstartable.paused);
     return _Page(
       title: 'Activation',
       onBack: onBack,
@@ -437,11 +467,16 @@ class _OfferPage extends StatelessWidget {
       ),
       actions: [
         IqButton(
-          label: ended ? 'This activation has ended' : 'Start activation',
+          label: ended
+              ? 'This activation has ended'
+              : paused
+              ? 'This activation is paused'
+              : 'Start activation',
           showIcon: false,
           width: double.infinity,
           loading: starting,
-          disabled: ended || a.full,
+          disabled:
+              ended || paused || a.full || unstartable == _Unstartable.refused,
           onTap: onStart,
         ),
       ],
@@ -654,12 +689,19 @@ class _StepsPage extends StatelessWidget {
 class _ProofPage extends StatelessWidget {
   const _ProofPage({
     required this.activation,
+    required this.now,
+    required this.support,
     required this.onBack,
     required this.onRefresh,
     required this.onRecordAgain,
   });
 
   final Activation activation;
+  final DateTime now;
+
+  /// Whether this launch has support to ask: "Not credited yet?" and Ask
+  /// for help show only then.
+  final bool support;
   final VoidCallback onBack;
   final VoidCallback onRefresh;
   final VoidCallback onRecordAgain;
@@ -671,9 +713,19 @@ class _ProofPage extends StatelessWidget {
     final video = proof.video;
     final refused = proof.notAccepted;
     final label = IqText.bodyStrong.copyWith(color: IqColors.fg3);
+    final ended = refused != null && !a.canProveAt(now);
     return _Page(
       title: 'Your proof',
       onBack: onBack,
+      actions: [
+        if (ended)
+          const IqButton(
+            label: 'This activation has ended',
+            showIcon: false,
+            width: double.infinity,
+            disabled: true,
+          ),
+      ],
       body: ListView(
         padding: _padding,
         children: _gapped([
@@ -682,6 +734,7 @@ class _ProofPage extends StatelessWidget {
               kind: IqBannerKind.error,
               title: 'Proof not accepted. $refused',
               action: 'Record again',
+              showAction: !ended,
               onAction: onRecordAgain,
             ),
           _Header(
@@ -720,25 +773,26 @@ class _ProofPage extends StatelessWidget {
             ],
           ),
           Text('Your proof', style: label),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Not credited yet?', style: label),
-              const SizedBox(height: IqSpace.s2),
-              Text(
-                'Support usually replies within an hour on weekdays, within '
-                'a day at weekends.',
-                style: IqText.small.copyWith(color: IqColors.fg2),
-              ),
-              const SizedBox(height: IqSpace.s2),
-              IqButton(
-                label: 'Ask for help',
-                showIcon: false,
-                width: double.infinity,
-                onTap: () => context.open(helpPath(about: a.id)),
-              ),
-            ],
-          ),
+          if (support)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Not credited yet?', style: label),
+                const SizedBox(height: IqSpace.s2),
+                Text(
+                  'Support usually replies within an hour on weekdays, within '
+                  'a day at weekends.',
+                  style: IqText.small.copyWith(color: IqColors.fg2),
+                ),
+                const SizedBox(height: IqSpace.s2),
+                IqButton(
+                  label: 'Ask for help',
+                  showIcon: false,
+                  width: double.infinity,
+                  onTap: () => context.open(helpPath(about: a.id)),
+                ),
+              ],
+            ),
           IqVideoPreview(
             name: video.name,
             duration: video.length == null ? '' : videoLength(video.length!),

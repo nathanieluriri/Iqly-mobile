@@ -10,6 +10,7 @@ import 'package:iqly_mobile/data/activations_data.dart';
 import 'package:iqly_mobile/data/activations_service.dart';
 import 'package:iqly_mobile/data/api_client.dart';
 import 'package:iqly_mobile/data/auth.dart';
+import 'package:iqly_mobile/data/help_service.dart' show supportShownProvider;
 import 'package:iqly_mobile/data/live/live_account.dart';
 import 'package:iqly_mobile/data/live/live_notifications_service.dart';
 import 'package:iqly_mobile/data/live/live_onboarding_service.dart';
@@ -122,16 +123,21 @@ void main() {
 
       test('health turns every feature live for contract 1', () async {
         final report = await LiveHealthService(api).check();
+        // Support is not in this API's health yet; the app keeps it off.
+        final running = {
+          ...LiveFeature.values.where(
+            (f) =>
+                f != LiveFeature.support ||
+                report.features.contains(LiveFeature.support),
+          ),
+        };
         expect(report.ready, isTrue);
         expect(report.contract, Backend.contract);
-        expect(report.features, LiveFeature.values.toSet());
-        expect(Backend.from(report).live, LiveFeature.values.toSet());
+        expect(report.features, running);
+        expect(Backend.from(report).live, running);
 
         await container.read(backendProvider.notifier).check();
-        expect(
-          container.read(backendProvider).live,
-          LiveFeature.values.toSet(),
-        );
+        expect(container.read(backendProvider).live, running);
         // As the splash does at its hand-off: the outbox runs from here.
         await container.read(backendProvider.notifier).lock();
       });
@@ -865,6 +871,11 @@ void main() {
         expect(mode.isLive(LiveFeature.activations), isTrue);
         expect(container.read(pollsShownProvider), isTrue);
         expect(container.read(activationsShownProvider), isTrue);
+        expect(
+          container.read(supportShownProvider),
+          mode.isLive(LiveFeature.support),
+          reason: 'Ask for help on a proof shows only with support',
+        );
         for (final path in [
           Routes.polls,
           pollsOf('org_sunline'),
@@ -1065,6 +1076,9 @@ void main() {
           service.start(seed.paused),
           refusedWith('ACTIVATION_PAUSED'),
         );
+        final paused = await service.refresh(seed.paused);
+        expect(paused.paused, isTrue);
+        expect(paused.phaseAt(DateTime.now()), ActivationPhase.offer);
         await expectLater(
           service.start('00000000-0000-4000-8000-000000000000'),
           refusedWith('ACTIVATION_NOT_FOUND'),
@@ -1265,11 +1279,81 @@ void main() {
         },
       );
 
-      test('uploads past the limit wait; early proof is not due', () async {
+      test(
+        'a proof turned down after the close: nothing to record or send',
+        () async {
+          // Bob's proof for the order was turned down (the seed); then the
+          // business closes it.
+          final bob = LiveActivationsService(
+            AccountLink(
+              api: await signedIn(seed.otherEmail),
+              store: MemoryLocalStore(),
+              outbox: Outbox(MemoryLocalStore()),
+              userId: () => null,
+            ),
+          );
+          final before = await bob.refresh(seed.order);
+          expect(before.phaseAt(DateTime.now()), ActivationPhase.notAccepted);
+          expect(before.canProveAt(DateTime.now()), isTrue);
+          final kept = await bob
+              .upload(
+                seed.order,
+                recording('bob.mp4', List<int>.filled(512, 5)),
+              )
+              .last;
+          await asOwner('POST', '/activations/owner/${seed.order}/close');
+
+          final after = await bob.refresh(seed.order);
+          final now = DateTime.now();
+          expect(after.phaseAt(now), ActivationPhase.notAccepted);
+          expect(after.closedAt(now), isTrue);
+          expect(after.canProveAt(now), isFalse, reason: 'no Record again');
+          Matcher ended() => throwsA(
+            isA<ApiRefused>()
+                .having((r) => activationRunEnded(r.code), 'ended', isTrue)
+                .having((r) => unanswered(r), 'retryable', isFalse),
+          );
+          await expectLater(
+            bob.upload(seed.order, recording('late.mp4', [9, 9, 9])).last,
+            ended(),
+          );
+          expect(
+            ProofRefusal.fromCode('ACTIVATION_CLOSED'),
+            ProofRefusal.ended,
+          );
+          await expectLater(
+            bob.sendProof(
+              seed.order,
+              step: 1,
+              uploadId: kept.id!,
+              video: recording('bob.mp4', [5]),
+            ),
+            ended(),
+          );
+        },
+      );
+
+      test('throttles offer Try again; early proof is not due', () async {
         final service = container.read(activationsServiceProvider);
         final video = recording('early.mp4', List<int>.filled(2048, 3));
-        // Uploads count against the submit limit (10 a minute), which the
-        // walk has used up: Retry can send one once the minute is out.
+        // Votes and starts are limited to 30 a minute each: past it, a vote
+        // and a Start read as no answer, which Try again can send.
+        final polls = container.read(pollsProvider.notifier);
+        var vote = VoteOutcome.counted;
+        for (var i = 0; i < 40 && vote == VoteOutcome.counted; i++) {
+          vote = await polls.vote(seed.kioskPoll, 1);
+        }
+        expect(vote, VoteOutcome.offline);
+        ApiRefused? held;
+        for (var i = 0; i < 40 && held == null; i++) {
+          try {
+            await service.start(seed.recipes);
+          } on ApiRefused catch (refusal) {
+            held = refusal;
+          }
+        }
+        expect(held?.code, 'RATE_LIMITED');
+        expect(unanswered(held!), isTrue);
         ApiRefused? throttled;
         for (var i = 0; i < 11 && throttled == null; i++) {
           try {
@@ -1281,7 +1365,7 @@ void main() {
         }
         expect(throttled?.status, 429);
         expect(ProofRefusal.fromCode(throttled!.code), isNull);
-        final held = await api.multipart(
+        final busy = await api.multipart(
           '/activations/${seed.recipes}/proof/uploads',
           fields: const {},
           files: [
@@ -1293,9 +1377,9 @@ void main() {
             ),
           ],
         );
-        expect(held.code, 'RATE_LIMITED');
+        expect(busy.code, 'RATE_LIMITED');
         await Future<void>.delayed(
-          (held.retryAfter ?? const Duration(minutes: 1)) +
+          (busy.retryAfter ?? const Duration(minutes: 1)) +
               const Duration(seconds: 1),
         );
 

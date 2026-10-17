@@ -449,7 +449,110 @@ void main() {
       );
     });
 
-    testWidgets('proof the API turns down: "Couldn\'t send." and a re-read', (
+    group('a sent proof the API turns down', () {
+      /// The proof page of a run past its window, a recording up, and Send
+      /// proof answered with [answer].
+      Future<_Api> send(
+        WidgetTester tester,
+        http.Response Function() answer, {
+        Map<String, Object?>? reread,
+      }) async {
+        final stuck = _json.activationJson(
+          progress: _json.runJson(
+            confirmedAt: [_json.at(const Duration(hours: 24, minutes: 20))],
+          ),
+        );
+        var sent = false;
+        final api = _Api({
+          'GET /activations': (_) => _ok({
+            'items': [stuck],
+          }),
+          'GET /activations/a_1': (_) => _ok(sent ? reread ?? stuck : stuck),
+          'POST /activations/a_1/proof': (_) {
+            sent = true;
+            return answer();
+          },
+        });
+        await pumpLiveLaunch(
+          tester,
+          proofPath('a_1'),
+          api: api.client,
+          mode: _on,
+          overrides: [
+            activationsServiceProvider.overrideWith(
+              (ref) => _Uploads(ref.watch(accountLinkProvider)!),
+            ),
+          ],
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(ProofScreen), findsOneWidget);
+        await _tap(tester, find.text('Choose a video'));
+        await _tap(tester, _button('Send proof'));
+        expect(api.to('POST /activations/a_1/proof'), hasLength(1));
+        return api;
+      }
+
+      testWidgets('one already waiting: back to where the activation stands', (
+        tester,
+      ) async {
+        final api = await send(
+          tester,
+          () => _no(409, 'ACTIVATION_PROOF_PENDING'),
+          reread: _json.activationJson(
+            progress: _json.runJson(
+              confirmedAt: [_json.at(const Duration(days: 1))],
+              proof: _json.proofJson(),
+            ),
+          ),
+        );
+        expect(api.to('GET /activations/a_1').length, greaterThan(1));
+        expect(find.byType(ProofScreen), findsNothing);
+        expect(find.byType(ActivationScreen), findsOneWidget);
+        expect(find.text('Your proof'), findsWidgets);
+      });
+
+      testWidgets('a field it will not take: "Couldn\'t send.", no Try again', (
+        tester,
+      ) async {
+        await send(tester, () => _no(400, 'VALIDATION_ERROR'));
+        expect(find.byType(ProofScreen), findsOneWidget);
+        expect(find.text("Couldn't send."), findsOneWidget);
+        expect(find.text('Try again'), findsNothing);
+      });
+
+      testWidgets('a throttle offers Try again', (tester) async {
+        await send(tester, () => _no(429, 'RATE_LIMITED'));
+        expect(
+          find.text("Couldn't send. Check your connection."),
+          findsOneWidget,
+        );
+        expect(find.text('Try again'), findsOneWidget);
+      });
+
+      testWidgets('closed meanwhile: ended, nothing left to send', (
+        tester,
+      ) async {
+        final api = await send(
+          tester,
+          () => _no(409, 'ACTIVATION_CLOSED'),
+          reread: _json.activationJson(
+            status: 'closed',
+            progress: _json.runJson(
+              status: 'expired',
+              confirmedAt: [_json.at(const Duration(hours: 24, minutes: 20))],
+              expiredAt: _json.at(const Duration(minutes: 1)),
+            ),
+          ),
+        );
+        expect(api.to('GET /activations/a_1').length, greaterThan(1));
+        expect(_button('This activation has ended'), findsOneWidget);
+        expect(_button('Send proof'), findsNothing);
+        expect(find.text('Choose a video'), findsNothing);
+        expect(find.textContaining("Couldn't send"), findsNothing);
+      });
+    });
+
+    testWidgets('an upload refused as closed ends the page; no Retry loop', (
       tester,
     ) async {
       final stuck = _json.activationJson(
@@ -462,8 +565,6 @@ void main() {
           'items': [stuck],
         }),
         'GET /activations/a_1': (_) => _ok(stuck),
-        'POST /activations/a_1/proof': (_) =>
-            _no(409, 'ACTIVATION_PROOF_PENDING'),
       });
       await pumpLiveLaunch(
         tester,
@@ -472,18 +573,254 @@ void main() {
         mode: _on,
         overrides: [
           activationsServiceProvider.overrideWith(
-            (ref) => _Uploads(ref.watch(accountLinkProvider)!),
+            (ref) => _Uploads(
+              ref.watch(accountLinkProvider)!,
+              refusal: const ApiRefused(409, 'ACTIVATION_CLOSED'),
+            ),
           ),
         ],
       );
       await tester.pumpAndSettle();
-      expect(find.byType(ProofScreen), findsOneWidget);
-      await _tap(tester, find.text('Choose a video'));
       final reads = api.to('GET /activations/a_1').length;
-      await _tap(tester, _button('Send proof'));
-      expect(api.to('POST /activations/a_1/proof'), hasLength(1));
-      expect(find.text("Couldn't send."), findsOneWidget);
+      await _tap(tester, find.text('Choose a video'));
       expect(api.to('GET /activations/a_1').length, reads + 1);
+      expect(_button('This activation has ended'), findsOneWidget);
+      expect(_button('Send proof'), findsNothing);
+      expect(find.text('Retry'), findsNothing);
+    });
+
+    testWidgets('an upload refused as closing goes to Restore', (tester) async {
+      final stuck = _json.activationJson(
+        progress: _json.runJson(
+          confirmedAt: [_json.at(const Duration(hours: 24, minutes: 20))],
+        ),
+      );
+      final api = _Api({
+        'GET /activations': (_) => _ok({
+          'items': [stuck],
+        }),
+        'GET /activations/a_1': (_) => _ok(stuck),
+      });
+      final (_, router) = await pumpLiveLaunch(
+        tester,
+        proofPath('a_1'),
+        api: api.client,
+        mode: _on,
+        overrides: [
+          activationsServiceProvider.overrideWith(
+            (ref) => _Uploads(
+              ref.watch(accountLinkProvider)!,
+              refusal: const ApiRefused(403, 'ACCOUNT_CLOSING'),
+            ),
+          ),
+        ],
+      );
+      await tester.pumpAndSettle();
+      await _tap(tester, find.text('Choose a video'));
+      expect(_at(router), Routes.restoreAccount);
+    });
+
+    testWidgets('a proof turned down after the close offers no Record again', (
+      tester,
+    ) async {
+      final ended = _json.activationJson(
+        status: 'closed',
+        progress: _json.runJson(
+          status: 'expired',
+          confirmedAt: [_json.at(const Duration(days: 1))],
+          expiredAt: _json.at(const Duration(hours: 1)),
+          proof: _json.proofJson(status: 'rejected', reason: 'Too short.'),
+        ),
+      );
+      final api = _Api({
+        'GET /activations': (_) => _ok({
+          'items': [ended],
+        }),
+        'GET /activations/a_1': (_) => _ok(ended),
+      });
+      await pumpLiveLaunch(
+        tester,
+        activationPath('a_1'),
+        api: api.client,
+        mode: _on,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Proof not accepted. Too short.'), findsOneWidget);
+      expect(find.text('Record again'), findsNothing);
+      expect(_button('This activation has ended'), findsOneWidget);
+    });
+
+    testWidgets('a proof turned down while open still offers Record again', (
+      tester,
+    ) async {
+      final open = _json.activationJson(
+        progress: _json.runJson(
+          confirmedAt: [_json.at(const Duration(days: 1))],
+          proof: _json.proofJson(status: 'rejected', reason: 'Too short.'),
+        ),
+      );
+      final api = _Api({
+        'GET /activations': (_) => _ok({
+          'items': [open],
+        }),
+        'GET /activations/a_1': (_) => _ok(open),
+      });
+      await pumpLiveLaunch(
+        tester,
+        activationPath('a_1'),
+        api: api.client,
+        mode: _on,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Record again'), findsOneWidget);
+      expect(_button('This activation has ended'), findsNothing);
+    });
+
+    for (final support in [false, true]) {
+      testWidgets('Ask for help on a proof '
+          '${support ? 'shows with support live' : 'hides without support'}', (
+        tester,
+      ) async {
+        final checking = _json.activationJson(
+          progress: _json.runJson(
+            confirmedAt: [_json.at(const Duration(days: 1))],
+            proof: _json.proofJson(),
+          ),
+        );
+        final api = _Api({
+          'GET /activations': (_) => _ok({
+            'items': [checking],
+          }),
+          'GET /activations/a_1': (_) => _ok(checking),
+        });
+        await pumpLiveLaunch(
+          tester,
+          activationPath('a_1'),
+          api: api.client,
+          mode: support ? Backend.of({..._on.live, LiveFeature.support}) : _on,
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Checking with Harbour Telecom'), findsWidgets);
+        expect(
+          find.text('Ask for help'),
+          support ? findsOneWidget : findsNothing,
+        );
+        expect(
+          find.text('Not credited yet?'),
+          support ? findsOneWidget : findsNothing,
+        );
+      });
+    }
+
+    testWidgets('a paused activation: the line says so and Start is off', (
+      tester,
+    ) async {
+      final api = _Api({
+        'GET /activations/a_1': (_) =>
+            _ok(_json.activationJson(status: 'paused')),
+      });
+      await pumpLiveLaunch(
+        tester,
+        activationPath('a_1'),
+        api: api.client,
+        mode: _on,
+      );
+      await tester.pumpAndSettle();
+      expect(_button('This activation is paused'), findsOneWidget);
+      expect(
+        tester.widget<IqButton>(_button('This activation is paused')).disabled,
+        isTrue,
+      );
+      expect(_button('Start activation'), findsNothing);
+    });
+
+    testWidgets('Start refused as paused shows the paused state', (
+      tester,
+    ) async {
+      final api = _Api({
+        'POST /activations/a_1/start': (_) => _no(409, 'ACTIVATION_PAUSED'),
+      });
+      await pumpLiveLaunch(
+        tester,
+        activationPath('a_1'),
+        api: api.client,
+        mode: _on,
+      );
+      await tester.pumpAndSettle();
+      await _tap(tester, _button('Start activation'));
+      expect(_button('This activation is paused'), findsOneWidget);
+      expect(
+        tester.widget<IqButton>(_button('This activation is paused')).disabled,
+        isTrue,
+      );
+      expect(find.textContaining("Couldn't start"), findsNothing);
+    });
+
+    testWidgets('Start throttled offers Try again', (tester) async {
+      final api = _Api({
+        'POST /activations/a_1/start': (_) => _no(429, 'RATE_LIMITED'),
+      });
+      await pumpLiveLaunch(
+        tester,
+        activationPath('a_1'),
+        api: api.client,
+        mode: _on,
+      );
+      await tester.pumpAndSettle();
+      await _tap(tester, _button('Start activation'));
+      expect(
+        find.text("Couldn't start. Check your connection."),
+        findsOneWidget,
+      );
+      expect(find.text('Try again'), findsOneWidget);
+      expect(
+        tester.widget<IqButton>(_button('Start activation')).disabled,
+        isFalse,
+      );
+    });
+
+    testWidgets('Start refused as ended: Start goes off for good', (
+      tester,
+    ) async {
+      final api = _Api({
+        'POST /activations/a_1/start': (_) => _no(409, 'ACTIVATION_CLOSED'),
+        'GET /activations/a_1': (_) => _no(503, 'UNAVAILABLE'),
+      });
+      await pumpLiveLaunch(
+        tester,
+        activationPath('a_1'),
+        api: api.client,
+        mode: _on,
+      );
+      await tester.pumpAndSettle();
+      await _tap(tester, _button('Start activation'));
+      expect(find.text("Couldn't start."), findsOneWidget);
+      expect(_button('This activation has ended'), findsOneWidget);
+      expect(
+        tester.widget<IqButton>(_button('This activation has ended')).disabled,
+        isTrue,
+      );
+    });
+
+    testWidgets('a throttled vote keeps the connection banner, no re-read', (
+      tester,
+    ) async {
+      final api = _Api({
+        'POST /polls/p_1/vote': (_) => _no(429, 'RATE_LIMITED'),
+      });
+      await pumpLiveLaunch(
+        tester,
+        pollsOf('org_sunline'),
+        api: api.client,
+        mode: _on,
+      );
+      await tester.pumpAndSettle();
+      await _tap(tester, find.text('Zobo and ginger'));
+      expect(
+        find.text('Couldn’t send. Check your connection.'),
+        findsOneWidget,
+      );
+      expect(api.to('GET /polls/p_1'), isEmpty);
     });
 
     testWidgets('a recording the API will not take is refused, not retried', (
