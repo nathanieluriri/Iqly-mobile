@@ -79,8 +79,9 @@ class _YourNameScreenState extends ConsumerState<YourNameScreen> {
             Align(
               alignment: Alignment.centerLeft,
               child: IqHighlight(
-                text:
-                    'Invited by ${invite.inviterName} · code ${invite.code} added',
+                text: invite.inviterName.isEmpty
+                    ? 'Code ${invite.code} added'
+                    : 'Invited by ${invite.inviterName} · code ${invite.code} added',
                 tone: IqHighlightTone.lilac,
                 style: IqText.bodyStrong,
               ),

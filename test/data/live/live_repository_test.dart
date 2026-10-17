@@ -348,15 +348,15 @@ Future<void> main() async {
       expect(api.to('/challenges/browse'), isEmpty);
     });
 
-    test('points and activations stay preview; the bell and the user are '
-        'never the demo\'s', () async {
+    test('activations stay preview; points and the board without the '
+        'leaderboard, the bell and the user are never the demo\'s', () async {
       final repo = repository(name: 'Ada Obi');
-      expect(await repo.points(), DemoData.points);
-      expect(await repo.activationsSummary(), same(DemoData.activations));
-      expect(
-        (await repo.pointsLeaderboard()).month,
-        (await demo.pointsLeaderboard()).month,
+      await expectLater(repo.points(), paused(LiveFeature.leaderboard));
+      await expectLater(
+        repo.pointsLeaderboard(),
+        paused(LiveFeature.leaderboard),
       );
+      expect(await repo.activationsSummary(), same(DemoData.activations));
       expect(await repo.unreadNotifications(), 0);
       final user = await repo.user();
       expect(user.name, 'Ada Obi');

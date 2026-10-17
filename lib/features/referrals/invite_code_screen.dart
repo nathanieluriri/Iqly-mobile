@@ -23,6 +23,25 @@ class InviteCodeScreen extends ConsumerStatefulWidget {
     InviteCodeOutcome.expired:
         'This code has expired. Codes work for 30 days after sign-up.',
     InviteCodeOutcome.ownCode: 'That’s your own code. Share it instead.',
+    InviteCodeOutcome.alreadyApplied:
+        'You’ve already added a friend’s code. Only one can be added.',
+    InviteCodeOutcome.circular:
+        'This friend joined with your code, so you can’t add theirs.',
+    InviteCodeOutcome.tooManyTries:
+        'Too many tries. Wait a minute, then try again.',
+    InviteCodeOutcome.closing:
+        'Your account is closing, so a code can’t be added.',
+    InviteCodeOutcome.offline:
+        'You’re offline. Check your connection and try again.',
+    InviteCodeOutcome.unknown: 'Couldn’t add the code. Try again.',
+  };
+
+  /// Outcomes that say nothing about the code itself, so the same code can
+  /// be applied again at once.
+  static const retryable = {
+    InviteCodeOutcome.tooManyTries,
+    InviteCodeOutcome.offline,
+    InviteCodeOutcome.unknown,
   };
 
   @override
@@ -41,6 +60,8 @@ class _InviteCodeScreenState extends ConsumerState<InviteCodeScreen> {
   @override
   void initState() {
     super.initState();
+    final unapplied = ref.read(unappliedInviteProvider);
+    if (unapplied != null) _code.text = unapplied.code;
     _code.addListener(_typing);
   }
 
@@ -71,6 +92,7 @@ class _InviteCodeScreenState extends ConsumerState<InviteCodeScreen> {
       _tried = _typed;
     });
     if (result.outcome == InviteCodeOutcome.applied) {
+      await ref.read(unappliedInviteProvider.notifier).clear();
       await IqHaptics.success.play();
     } else {
       await errorHaptic();
@@ -84,6 +106,9 @@ class _InviteCodeScreenState extends ConsumerState<InviteCodeScreen> {
     final error = result == null || applied || _typed != _tried
         ? null
         : InviteCodeScreen.errors[result.outcome];
+    final retry =
+        result != null && InviteCodeScreen.retryable.contains(result.outcome);
+    final rewards = ref.watch(referralRewardsProvider);
     final inviter = applied ? result?.inviter : _inviter;
     return SubPage(
       title: 'Invite code',
@@ -105,13 +130,18 @@ class _InviteCodeScreenState extends ConsumerState<InviteCodeScreen> {
             onSubmitted: (_) => _typed.isEmpty ? null : _apply(),
           ),
           const SizedBox(height: IqSpace.s2),
-          Text(
-            applied
-                ? 'You’re in. You both get ₦500 when you win your first brief.'
-                : 'Add a code before your first brief. You both get ₦500 when '
-                      'you win one.',
-            style: IqText.small.copyWith(color: IqColors.fg2),
-          ),
+          Text(switch ((applied, rewards)) {
+            (true, true) =>
+              'You’re in. You both get ₦500 when you win your first brief.',
+            (false, true) =>
+              'Add a code before your first brief. You both get ₦500 when '
+                  'you win one.',
+            (true, false) =>
+              'You’re in. Your friend’s code is on your account.',
+            (false, false) =>
+              'Add the code of the friend who invited you. Codes work for '
+                  '30 days after sign-up.',
+          }, style: IqText.small.copyWith(color: IqColors.fg2)),
         ],
       ),
       actions: [
@@ -126,7 +156,7 @@ class _InviteCodeScreenState extends ConsumerState<InviteCodeScreen> {
                 label: 'Apply code',
                 showIcon: false,
                 width: double.infinity,
-                disabled: _typed.isEmpty || error != null,
+                disabled: _typed.isEmpty || (error != null && !retry),
                 loading: _applying,
                 onTap: _apply,
               ),

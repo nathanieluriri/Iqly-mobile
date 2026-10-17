@@ -47,7 +47,10 @@ void main() {
       await pumpMore(
         tester,
         Routes.more,
-        overrides: [pointsAndReferralsProvider.overrideWithValue(false)],
+        overrides: [
+          leaderboardShownProvider.overrideWithValue(false),
+          referralsShownProvider.overrideWithValue(false),
+        ],
       );
       await moreGolden(tester, 'more_live');
     }, variant: ios);
@@ -114,7 +117,10 @@ void main() {
       await pumpMore(
         tester,
         Routes.profile,
-        overrides: [pointsAndReferralsProvider.overrideWithValue(false)],
+        overrides: [
+          leaderboardShownProvider.overrideWithValue(false),
+          referralsShownProvider.overrideWithValue(false),
+        ],
       );
       await moreGolden(tester, 'your_profile_live');
     });

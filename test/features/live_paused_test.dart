@@ -33,7 +33,7 @@ import '../support/live_launch.dart';
 /// A live launch whose health switched [off] off, and every feature that
 /// needs it with it.
 Backend _without(Set<LiveFeature> off) =>
-    Backend.of(LiveFeature.values.where((f) => !off.contains(f)));
+    Backend.of(firstFeatures.where((f) => !off.contains(f)));
 
 /// One person's API as contract 6 and 3 answer: ₦20,000.00 to withdraw
 /// (or [withdrawable]), Access Bank ••6789 on file, one real withdrawal.

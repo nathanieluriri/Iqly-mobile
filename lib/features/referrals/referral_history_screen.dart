@@ -17,14 +17,16 @@ import 'referrals_state.dart';
 
 /// B20 · Referral history (430:19239) and empty (430:19331): invited,
 /// joined and the referral rewards earned (the wallet's ledger rows), then
-/// one row per friend.
+/// one row per friend. Live referrals pay nothing yet, so the third figure
+/// counts the friends who won instead.
 class ReferralHistoryScreen extends ConsumerWidget {
   const ReferralHistoryScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final referrals = ref.watch(referralsProvider).value;
-    final earned = ref.watch(referralEarnedProvider).value ?? 0;
+    final rewards = ref.watch(referralRewardsProvider);
+    final earned = rewards ? ref.watch(referralEarnedProvider).value ?? 0 : 0;
     final now = ref.watch(clockProvider)();
     final invites = referrals?.invites ?? const <Invite>[];
     return SubPage(
@@ -46,14 +48,16 @@ class ReferralHistoryScreen extends ConsumerWidget {
                   stats: [
                     ('${invites.length}', 'Invited'),
                     ('${referrals.joined}', 'Joined'),
-                    (naira(earned), 'Earned'),
+                    rewards
+                        ? (naira(earned), 'Earned')
+                        : ('${referrals.won}', 'Won'),
                   ],
                 ),
                 const SizedBox(height: IqSpace.s2),
                 for (final (i, invite) in invites.indexed)
                   IqListRow(
                     label: invite.name,
-                    description: _line(invite, now),
+                    description: _line(invite, now, rewards: rewards),
                     icon: switch (invite.status) {
                       InviteStatus.won => IqIcons.success,
                       InviteStatus.joined => IqIcons.clock,
@@ -76,8 +80,13 @@ class ReferralHistoryScreen extends ConsumerWidget {
     );
   }
 
-  static String _line(Invite invite, DateTime now) => switch (invite.status) {
-    InviteStatus.won => 'Won a first brief · ₦500 paid to you',
+  static String _line(
+    Invite invite,
+    DateTime now, {
+    required bool rewards,
+  }) => switch (invite.status) {
+    InviteStatus.won =>
+      rewards ? 'Won a first brief · ₦500 paid to you' : 'Won a first brief',
     InviteStatus.joined => 'Joined ${_ago(invite.at ?? now, now)} · no win yet',
     InviteStatus.invited => 'Invited · has not joined',
   };

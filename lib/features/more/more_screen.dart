@@ -3,12 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/backend.dart';
 import '../../core/flags.dart';
 import '../../core/money.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../data/cache_service.dart';
+import '../../data/live/live_repository.dart' show liveModeProvider;
+import '../../data/referrals_service.dart';
 import '../../data/repository.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -28,6 +31,7 @@ import '../onboarding/onboarding_draft.dart';
 import '../profile/profile_state.dart';
 import '../profile/leaving.dart';
 import '../referrals/referrals_screen.dart';
+import '../wallet/wallet_routes.dart' show bankAccountPath;
 import 'more_state.dart';
 import 'more_widgets.dart';
 
@@ -42,10 +46,11 @@ import 'more_widgets.dart';
 /// Figma over its prop: the Delete account row is Danger with the kit's
 /// close glyph, as the frame draws it (its Icon prop says profile).
 ///
-/// A live launch has no iQL points or referrals yet
-/// ([pointsAndReferralsProvider]): the card shows the name alone, and the
-/// invite card and the Leaderboard row go (no frame draws More without
-/// them). Its Clear cache names what the phone keeps for the person, in KB
+/// A live launch shows iQL points and the Leaderboard row only while the
+/// leaderboard runs live ([leaderboardShownProvider]) and the invite card
+/// only while referrals do ([referralsShownProvider]); without them the
+/// card shows the name alone (no frame draws More without them). Live, the
+/// Bank account row opens the saved accounts while the API keeps several. Its Clear cache names what the phone keeps for the person, in KB
 /// under a megabyte; the frame's 42 MB is the preview's.
 class MoreScreen extends ConsumerStatefulWidget {
   const MoreScreen({super.key});
@@ -86,7 +91,8 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
   Widget build(BuildContext context) {
     final unread = ref.watch(unreadNotificationsProvider).value ?? 0;
     final pass = ref.watch(contributorPassProvider).value;
-    final extras = ref.watch(pointsAndReferralsProvider);
+    final points = ref.watch(leaderboardShownProvider);
+    final referrals = ref.watch(referralsShownProvider);
     final code = pass?.code;
     final cache = ref.watch(cacheProvider);
     final ios = defaultTargetPlatform == TargetPlatform.iOS;
@@ -94,10 +100,12 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
     final avatar = ref.watch(avatarProvider.select((a) => a.spec));
     final children = <Widget>[
       SizedBox(
-        height: _PassSkeleton.heightFor(pointsAndReferrals: extras),
+        height: _PassSkeleton.heightFor(
+          referrals: pass == null ? referrals : code != null,
+        ),
         child: LoadingGate(
           loading: pass == null,
-          skeleton: _PassSkeleton(pointsAndReferrals: extras),
+          skeleton: _PassSkeleton(points: points, referrals: referrals),
           child: pass == null
               ? const SizedBox.shrink()
               : Column(
@@ -123,6 +131,9 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
                         onTap: () => context.open(Routes.referrals),
                         label: 'Referrals',
                         child: IqReferralCard(
+                          title: ref.watch(referralRewardsProvider)
+                              ? 'Invite friends, earn ₦500'
+                              : 'Invite friends to iQLY',
                           code: code,
                           onCopy: () => copyInviteCode(context, code),
                         ),
@@ -155,7 +166,7 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
               icon: IqIcons.heart,
               onTap: () => context.open(Routes.moreSavedBriefs),
             ),
-          if (extras)
+          if (points)
             IqListRow(
               label: 'Leaderboard',
               showDescription: false,
@@ -167,7 +178,11 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
             showDescription: false,
             icon: IqIcons.bank,
             divider: false,
-            onTap: () => context.open(Routes.selectBank),
+            onTap: () => context.open(
+              ref.watch(liveModeProvider).isLive(LiveFeature.bankAccounts)
+                  ? bankAccountPath
+                  : Routes.selectBank,
+            ),
           ),
         ],
       ),
@@ -284,15 +299,17 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
 /// The summary and invite cards while the pass loads on the tab's first
 /// visit (spec 2.6): their two cards as tint blocks with the bars of the
 /// avatar, the name, the points and the code, pulsing on the screen's beat.
-/// Without [pointsAndReferrals], the summary card with the name alone.
+/// Without [points] the summary card has the name alone, and without
+/// [referrals] the invite card goes.
 class _PassSkeleton extends StatelessWidget {
-  const _PassSkeleton({required this.pointsAndReferrals});
+  const _PassSkeleton({required this.points, required this.referrals});
 
-  final bool pointsAndReferrals;
+  final bool points;
+  final bool referrals;
 
-  static double heightFor({required bool pointsAndReferrals}) =>
+  static double heightFor({required bool referrals}) =>
       IqAchievementCard.size.height +
-      (pointsAndReferrals ? IqSpace.s3 + IqReferralCard.size.height : 0);
+      (referrals ? IqSpace.s3 + IqReferralCard.size.height : 0);
 
   @override
   Widget build(BuildContext context) {
@@ -341,9 +358,9 @@ class _PassSkeleton extends StatelessWidget {
           children: [
             card(IqAchievementCard.size, IqColors.tint, bar(opacity, 60, 60), [
               bar(opacity, 140, 14),
-              if (pointsAndReferrals) bar(opacity, 96, 12),
+              if (points) bar(opacity, 96, 12),
             ]),
-            if (pointsAndReferrals) ...[
+            if (referrals) ...[
               const SizedBox(height: IqSpace.s3),
               card(
                 IqReferralCard.size,
