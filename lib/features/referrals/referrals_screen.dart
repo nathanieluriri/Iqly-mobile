@@ -36,7 +36,8 @@ Future<void> copyInviteCode(BuildContext context, String code) async {
 ///
 /// Enter an invite code shows only until the first win or 7 days after
 /// sign-up (designer answer 41). The frame shows it for the sample account,
-/// which has two wins: see the lane report.
+/// which has two wins: see the lane report. Live referrals have no reward
+/// yet (contract 10.4), so the page and the message promise none.
 class ReferralsScreen extends ConsumerStatefulWidget {
   const ReferralsScreen({super.key});
 
@@ -77,6 +78,7 @@ class _ReferralsScreenState extends ConsumerState<ReferralsScreen> {
     final referrals = ref.watch(referralsProvider).value;
     final codeOpen = ref.watch(inviteCodeOpenProvider).value ?? false;
     final code = referrals?.code ?? '';
+    final rewards = ref.watch(referralRewardsProvider);
     return SubPage(
       title: 'Referrals',
       actionsPadding: const EdgeInsets.fromLTRB(
@@ -96,7 +98,7 @@ class _ReferralsScreenState extends ConsumerState<ReferralsScreen> {
           const Center(child: IqFigure(IqFigures.gift, width: 190)),
           const SizedBox(height: 14),
           Text(
-            'Invite friends and earn',
+            rewards ? 'Invite friends and earn' : 'Invite friends',
             textAlign: TextAlign.center,
             style: IqText.headline.copyWith(color: IqColors.fg),
           ),
@@ -104,8 +106,10 @@ class _ReferralsScreenState extends ConsumerState<ReferralsScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
             child: Text(
-              'You both get ₦500 when a friend you invite wins their first '
-              'brief.',
+              rewards
+                  ? 'You both get ₦500 when a friend you invite wins their '
+                        'first brief.'
+                  : 'Share your code. Friends add it when they join iQLY.',
               textAlign: TextAlign.center,
               style: IqText.body.copyWith(color: IqColors.fg2),
             ),
@@ -212,7 +216,10 @@ class _InviteSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final service = ref.read(referralsServiceProvider);
-    final message = ReferralsService.message(code);
+    final message = ReferralsService.message(
+      code,
+      rewards: ref.watch(referralRewardsProvider),
+    );
     void close() => Navigator.of(context).pop();
     Future<void> share(ShareApp? app) async {
       await service.shareInvite(message, app: app);

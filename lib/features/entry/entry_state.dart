@@ -1,10 +1,17 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/backend.dart';
 
 import '../../core/flags.dart';
 import '../../core/session.dart';
 import '../../data/auth.dart';
 import '../../data/invite.dart';
 import '../../data/live/live_account.dart';
+import '../../data/live/live_repository.dart' show liveModeProvider;
+import '../../data/referrals_service.dart' show referralsServiceProvider;
 import '../../router.dart';
 import '../avatar/avatar_state.dart';
 import '../onboarding/onboarding_draft.dart';
@@ -102,6 +109,10 @@ Future<SignInLanding> completeSignIn(
     await session.setOnboardingDone(true);
     await session.setFirstTipSeen(true);
   }
+  final invite = ref.read(pendingInviteProvider);
+  if (newAccount && invite != null && _appliesInvites(ref)) {
+    unawaited(_applyInvite(ref, invite.code));
+  }
   ref.read(entryDraftProvider.notifier).clear();
   ref.read(pendingInviteProvider.notifier).clear();
   final me = await _signedInAccount(ref);
@@ -122,6 +133,21 @@ Future<SignInLanding> completeSignIn(
     route = Routes.onboarding;
   }
   return (route: route, extra: null);
+}
+
+/// Only the API keeps a friend's code; the preview's sign-up takes it as
+/// it always has.
+bool _appliesInvites(WidgetRef ref) =>
+    ref.read(liveModeProvider).isLive(LiveFeature.referrals);
+
+/// The code an invite link brought, added to the new account. The person
+/// can still add it on Referrals if this does not land.
+Future<void> _applyInvite(WidgetRef ref, String code) async {
+  try {
+    await ref.read(referralsServiceProvider).applyCode(code);
+  } on Object catch (error) {
+    debugPrint('Invite code not added: $error');
+  }
 }
 
 Future<Me?> _signedInAccount(WidgetRef ref) async {

@@ -10,6 +10,7 @@ import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/gift_button.dart';
 
 import '../golden/screens/more_harness.dart';
+import '../data/live/live_data_fixtures.dart' show firstFeatures;
 import '../support/live_launch.dart';
 
 ApiClient _api() => ApiClient(
@@ -30,7 +31,7 @@ ApiClient _api() => ApiClient(
 
 void main() {
   for (final (name, mode) in [
-    ('every feature live', Backend.of(LiveFeature.values)),
+    ('without the leaderboard and referrals', Backend.of(firstFeatures)),
     ('the profile paused', Backend.of(const {LiveFeature.briefs})),
   ]) {
     group('a live launch, $name', () {

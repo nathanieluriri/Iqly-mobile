@@ -1,5 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/backend.dart';
+import 'api_client.dart';
+import 'live/live_repository.dart' show liveModeProvider;
+import 'referrals_service.dart' show lookUpInviter;
+
 /// A friend's invite: the code and the name sign up shows as "Invited by
 /// Chidi A." (answer 22).
 class Invite {
@@ -25,6 +30,34 @@ class DemoInviteService implements InviteService {
       code.trim().toUpperCase() == sample.code ? sample : null;
 }
 
-final inviteServiceProvider = Provider<InviteService>(
-  (ref) => const DemoInviteService(),
-);
+/// `GET /referrals/codes/:code`, public, so it works before sign-up.
+class LiveInviteService implements InviteService {
+  const LiveInviteService(this.api);
+
+  final ApiClient api;
+
+  @override
+  Future<Invite?> lookUp(String code) async {
+    final typed = code.trim().toUpperCase();
+    final inviter = await lookUpInviter(api, typed);
+    return inviter == null ? null : Invite(code: typed, inviterName: inviter);
+  }
+}
+
+/// A live launch without referrals knows no invite, so the sample's never
+/// shows.
+class NoInviteService implements InviteService {
+  const NoInviteService();
+
+  @override
+  Future<Invite?> lookUp(String code) async => null;
+}
+
+final inviteServiceProvider = Provider<InviteService>((ref) {
+  final mode = ref.watch(liveModeProvider);
+  final api = ref.watch(apiClientProvider);
+  if (mode.isPreview || api == null) return const DemoInviteService();
+  return mode.isLive(LiveFeature.referrals)
+      ? LiveInviteService(api)
+      : const NoInviteService();
+});

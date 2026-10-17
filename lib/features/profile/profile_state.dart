@@ -89,7 +89,11 @@ class AccountDetailsNotifier extends AsyncNotifier<AccountDetails> {
   }
 
   void edit(AccountDetails next) {
+    final gender = state.value?.gender;
     state = AsyncData(next);
+    if (next.gender != gender) {
+      unawaited(ref.read(avatarProvider.notifier).genderKnown(next.gender));
+    }
     ref.read(sharedPreferencesProvider).setString(key, jsonEncode(next));
   }
 

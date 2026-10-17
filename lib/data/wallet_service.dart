@@ -101,6 +101,9 @@ abstract class WalletService {
   /// Makes [account] the default payout account. A withdrawal already on
   /// its way still goes where it was sent.
   Future<void> setDefault(SavedBank account);
+
+  /// Removes [account] and answers the accounts left, the default first.
+  Future<List<SavedBank>> removeAccount(SavedBank account);
 }
 
 /// As on the web demo, an account number ending in 0 cannot be verified;
@@ -130,6 +133,7 @@ class DemoWalletService implements WalletService {
   final pins = <String>[];
   final added = <SavedBank>[];
   final defaults = <SavedBank>[];
+  final removed = <SavedBank>[];
   int _next = 4;
 
   Future<void> _wait(Duration duration) => duration == Duration.zero
@@ -233,6 +237,16 @@ class DemoWalletService implements WalletService {
     await _wait(delay);
     defaults.add(account);
   }
+
+  @override
+  Future<List<SavedBank>> removeAccount(SavedBank account) async {
+    await _wait(delay);
+    removed.add(account);
+    return [
+      for (final a in added)
+        if (a.key != account.key) a,
+    ];
+  }
 }
 
 /// A wallet a live launch pauses: every call refuses before any step of
@@ -269,6 +283,10 @@ class PausedWalletService implements WalletService {
   @override
   Future<void> setDefault(SavedBank account) =>
       Future.error(const FeaturePaused(LiveFeature.wallet));
+
+  @override
+  Future<List<SavedBank>> removeAccount(SavedBank account) =>
+      Future.error(const FeaturePaused(LiveFeature.wallet));
 }
 
 /// The demo in a preview launch. In a live one the API runs the wallet,
@@ -284,6 +302,7 @@ final walletServiceProvider = Provider<WalletService>((ref) {
   return LiveWalletService(
     api,
     withdrawals: mode.isLive(LiveFeature.withdrawals),
+    bankAccounts: mode.isLive(LiveFeature.bankAccounts),
     scope: scope,
   );
 });

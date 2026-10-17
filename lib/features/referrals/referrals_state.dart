@@ -43,5 +43,7 @@ final inviteCodeOpenProvider = FutureProvider<bool>((ref) async {
   final submissions = await ref.watch(repositoryProvider).submissions();
   final won = submissions.any((s) => s.status == SubmissionStatus.winner);
   final now = ref.watch(clockProvider)();
+  final until = referrals.applyUntil;
+  if (until != null && !now.isBefore(until)) return false;
   return !won && now.difference(referrals.memberSince).inDays < 7;
 });

@@ -23,6 +23,10 @@ import 'wallet_state.dart';
 /// Exp/Field help for an account the bank could not match.
 const verifyHelp = 'Could not verify account. Check the number and bank.';
 
+/// A sixth saved account (409 BANK_ACCOUNT_LIMIT).
+const accountLimitHelp =
+    'You can keep up to 5 bank accounts. Remove one to add another.';
+
 /// B5 · Add bank · account number (483:22323) and name verified
 /// (483:22389). Check the name asks the bank for the name on the ten
 /// digits; once verified, Save account saves it and pops true. A save the
@@ -118,7 +122,11 @@ class _AddBankScreenState extends ConsumerState<AddBankScreen> {
     } on Exception catch (error) {
       if (!mounted) return;
       setState(() => _busy = false);
-      _number.fail(error is ApiUnreachable ? EntryCopy.offline : verifyHelp);
+      _number.fail(switch (error) {
+        ApiUnreachable() => EntryCopy.offline,
+        ApiRefused(code: 'BANK_ACCOUNT_LIMIT') => accountLimitHelp,
+        _ => verifyHelp,
+      });
       return;
     }
     if (!mounted || !scope.open) return;

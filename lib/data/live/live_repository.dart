@@ -55,11 +55,13 @@ abstract final class LiveCacheKeys {
   static const bankAccount = '/wallet/bank-account';
   static const wallet = '/wallet';
   static const banks = '/banks';
+  static const bankAccounts = '/wallet/bank-accounts';
+  static const leaderboard = '/leaderboard';
 }
 
 /// Reads the iQLY API for each feature this launch runs live. A feature the
 /// launch pauses fails with [FeaturePaused]; [demo] answers only what has no
-/// API yet (iQL points, the points board, activations). Every answer is
+/// API yet (activations). Every answer is
 /// kept in the local store under the signed-in person's id and served from
 /// there when the API does not answer ([orKept]), so the screens open on
 /// their last copy.
@@ -257,10 +259,19 @@ class LiveRepository implements IqlyRepository {
   @override
   Future<SavedBank?> savedBank() async => (await savedBanks()).firstOrNull;
 
-  /// The API keeps one payout account, so this is it or nothing.
+  /// The saved accounts, the default first, while the API keeps several
+  /// (contract 10.2); else its one payout account or nothing.
   @override
   Future<List<SavedBank>> savedBanks({bool allowCache = true}) async {
     _requireLive(LiveFeature.wallet);
+    if (mode.isLive(LiveFeature.bankAccounts)) {
+      final accounts = await _read(
+        LiveCacheKeys.bankAccounts,
+        () async => _payload(await api.get('/wallet/bank-accounts')),
+        allowCache: allowCache,
+      );
+      return savedBanksFromJson(accounts);
+    }
     final account = await _read(
       LiveCacheKeys.bankAccount,
       () async => _payload(await api.get('/wallet/bank-account')),
@@ -332,11 +343,27 @@ class LiveRepository implements IqlyRepository {
   @override
   Future<int> unreadNotifications() async => 0;
 
+  /// This month's points, from the board.
   @override
-  Future<int> points() => demo.points();
+  Future<int> points() async {
+    final board = await pointsLeaderboard();
+    return board.yourPoints ?? board.you?.points ?? 0;
+  }
 
+  /// This month's board (contract 10.3); without the leaderboard live it
+  /// fails rather than answer the preview's.
   @override
-  Future<PointsBoard> pointsLeaderboard() => demo.pointsLeaderboard();
+  Future<PointsBoard> pointsLeaderboard() async {
+    _requireLive(LiveFeature.leaderboard);
+    final json = await _read(
+      LiveCacheKeys.leaderboard,
+      () async => _payload(await api.get('/leaderboard')),
+    );
+    return pointsBoardFromJson(
+      json is Map ? json.cast<String, dynamic>() : const {},
+      _clock(),
+    );
+  }
 
   @override
   Future<ActivationsSummary> activationsSummary() => demo.activationsSummary();

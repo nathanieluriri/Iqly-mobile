@@ -86,6 +86,14 @@ enum AccountWrite {
     'prefs',
     AccountKeys.preferences,
   ),
+  avatar(
+    LiveFeature.avatar,
+    'profile.avatar',
+    'PUT',
+    '/me/avatar',
+    'avatar',
+    AccountKeys.avatar,
+  ),
   seen(
     LiveFeature.notifications,
     'notifications.seen',
@@ -124,6 +132,9 @@ abstract final class AccountKeys {
   static const profile = 'profile';
   static const preferences = 'preferences';
   static const notifications = 'notifications';
+  static const avatar = 'avatar';
+  static const referrals = 'referrals';
+  static const bankAccounts = 'bankAccounts';
 
   static String outcome(String submissionId) => 'outcomes/$submissionId';
 }

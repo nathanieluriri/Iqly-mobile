@@ -8,6 +8,8 @@ import '../models.dart';
 import '../wallet_service.dart';
 import 'mappers.dart';
 
+typedef _Attempt = ({int amountKobo, String key, String? bankAccountId});
+
 /// Bank checks, the payout account and withdrawals on the iQLY API
 /// (contract 6). Every call goes online and none is queued. Withdrawals run
 /// here only while that feature is live too; paused, they refuse before
@@ -16,6 +18,7 @@ class LiveWalletService implements WalletService {
   LiveWalletService(
     this.api, {
     this.withdrawals = true,
+    this.bankAccounts = false,
     this.pollEvery = const Duration(seconds: 5),
     AccountScope? scope,
   }) : scope = scope ?? AccountScope.always();
@@ -30,13 +33,16 @@ class LiveWalletService implements WalletService {
   /// Whether withdrawals run on the API.
   final bool withdrawals;
 
+  /// Whether the API keeps several accounts (contract 10.2) rather than one.
+  final bool bankAccounts;
+
   /// How often a withdrawal on hold is asked after while it is watched.
   final Duration pollEvery;
 
   /// The withdrawal whose answer never came: the API may hold it, so the
   /// next request sends it again, with its own key and amount, before
   /// anything new goes.
-  ({int amountKobo, String key})? _unsettled;
+  _Attempt? _unsettled;
 
   @override
   Future<VerifyResult> verifyAccount({
@@ -64,15 +70,20 @@ class LiveWalletService implements WalletService {
     );
   }
 
-  /// The API keeps one payout account: saving replaces it. Throws
-  /// [ApiUnreachable] offline and [ApiRefused] when the API says no.
+  /// With several accounts the new one joins them, the default only when
+  /// it is the first; with one, saving replaces it. Throws
+  /// [ApiUnreachable] offline and [ApiRefused] when the API says no
+  /// (BANK_ACCOUNT_LIMIT at the sixth).
   @override
   Future<SavedBank> addAccount(SavedBank account) async {
+    final body = {
+      'bankCode': account.bankCode,
+      'accountNumber': account.accountNumber,
+    };
     final res = await scope.guard(
-      api.put('/wallet/bank-account', {
-        'bankCode': account.bankCode,
-        'accountNumber': account.accountNumber,
-      }),
+      bankAccounts
+          ? api.post('/wallet/bank-accounts', body)
+          : api.put('/wallet/bank-account', body),
     );
     if (!res.ok) throw ApiRefused(res.status, res.code);
     final saved = savedBankFromJson(res.body['data']);
@@ -82,9 +93,32 @@ class LiveWalletService implements WalletService {
 
   /// With one account it is always the default.
   @override
-  Future<void> setDefault(SavedBank account) async {}
+  Future<void> setDefault(SavedBank account) async {
+    final id = account.id;
+    if (!bankAccounts || id == null) return;
+    final res = await scope.guard(
+      api.post('/wallet/bank-accounts/${Uri.encodeComponent(id)}/default'),
+    );
+    if (!res.ok) throw ApiRefused(res.status, res.code);
+  }
 
-  /// The API pays the saved account, so only the amount goes. An unsettled
+  /// The accounts left. BANK_ACCOUNT_IN_USE while a withdrawal to it is on
+  /// its way.
+  @override
+  Future<List<SavedBank>> removeAccount(SavedBank account) async {
+    final id = account.id;
+    if (!bankAccounts || id == null) {
+      throw const FeaturePaused(LiveFeature.bankAccounts);
+    }
+    final res = await scope.guard(
+      api.send('DELETE', '/wallet/bank-accounts/${Uri.encodeComponent(id)}'),
+    );
+    if (!res.ok) throw ApiRefused(res.status, res.code);
+    return savedBanksFromJson(res.body['data']);
+  }
+
+  /// With several saved accounts [account] goes by its id; with one the
+  /// API pays it, so only the amount goes. An unsettled
   /// request goes again first, whatever is asked now: the withdrawal it
   /// made is the answer, and only a definite refusal lets the new one go,
   /// under a new key. No date of birth, under 18 and a closing account keep
@@ -107,7 +141,11 @@ class LiveWalletService implements WalletService {
         return WithdrawResult.requested(landed, earlier: true);
       }
     }
-    final attempt = (amountKobo: amountKobo, key: LocalRows.newId());
+    final attempt = (
+      amountKobo: amountKobo,
+      key: LocalRows.newId(),
+      bankAccountId: bankAccounts ? account.id : null,
+    );
     _unsettled = attempt;
     final result = await _request(attempt, resent: false);
     if (!result.unsettled) _unsettled = null;
@@ -115,7 +153,7 @@ class LiveWalletService implements WalletService {
   }
 
   Future<WithdrawResult> _request(
-    ({int amountKobo, String key}) attempt, {
+    _Attempt attempt, {
     required bool resent,
   }) async {
     final ApiResponse res;
@@ -123,7 +161,10 @@ class LiveWalletService implements WalletService {
       res = await api.send(
         'POST',
         '/wallet/withdrawals',
-        body: {'amount': attempt.amountKobo},
+        body: {
+          'amount': attempt.amountKobo,
+          'bankAccountId': ?attempt.bankAccountId,
+        },
         idempotencyKey: attempt.key,
       );
     } on ApiUnreachable catch (error) {

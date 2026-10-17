@@ -172,7 +172,7 @@ void main() {
       () => LiveBackendNotifier(forgetPreview: (_) async {}),
       prefs: {
         LiveBackendNotifier.decidedKey: [
-          for (final feature in LiveFeature.values) feature.name,
+          for (final feature in firstFeatures) feature.name,
         ],
       },
     );

@@ -346,12 +346,24 @@ class SavedBank {
     required this.bankName,
     required this.accountName,
     required this.accountNumber,
+    this.id,
+    this.isDefault = false,
   });
 
   final String bankCode;
   final String bankName;
   final String accountName;
   final String accountNumber;
+
+  /// The API's id for a saved account (contract 10.2); null in the demo
+  /// and for the single account of older contracts.
+  final String? id;
+
+  /// Whether the API marks it the default.
+  final bool isDefault;
+
+  /// Tells saved accounts apart: two banks can share the last four digits.
+  String get key => id ?? '$bankCode:$accountNumber';
 
   String get maskedNumber =>
       '••${accountNumber.substring(accountNumber.length - 4)}';

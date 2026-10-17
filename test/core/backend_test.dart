@@ -104,6 +104,9 @@ void main() {
           LiveFeature.submit,
           LiveFeature.submissions,
           LiveFeature.notifications,
+          LiveFeature.avatar,
+          LiveFeature.leaderboard,
+          LiveFeature.referrals,
         }),
       );
     });
@@ -212,6 +215,7 @@ void main() {
           LiveFeature.briefs,
           LiveFeature.submissions,
           LiveFeature.notifications,
+          LiveFeature.leaderboard,
         }),
       );
     });
@@ -233,7 +237,60 @@ void main() {
         'withdrawals',
         'notifications',
         'account',
+        'avatar',
+        'bankAccounts',
+        'referrals',
       ]);
+    });
+
+    test('avatar and referrals need the profile, saved accounts the '
+        'wallet and the leaderboard submissions', () {
+      expect(LiveFeature.avatar.closure, {
+        LiveFeature.avatar,
+        LiveFeature.profile,
+      });
+      expect(LiveFeature.referrals.closure, {
+        LiveFeature.referrals,
+        LiveFeature.profile,
+      });
+      expect(LiveFeature.bankAccounts.closure, {
+        LiveFeature.bankAccounts,
+        LiveFeature.wallet,
+        LiveFeature.profile,
+      });
+      expect(LiveFeature.leaderboard.closure, {
+        LiveFeature.leaderboard,
+        LiveFeature.submissions,
+        LiveFeature.briefs,
+      });
+      final backend = _decide(_health(off: {LiveFeature.wallet}));
+      expect(backend.isLive(LiveFeature.bankAccounts), isFalse);
+      expect(backend.isLive(LiveFeature.avatar), isTrue);
+    });
+
+    test('an older API without the four new features runs the rest', () {
+      final body = _health();
+      final features =
+          ((body['data'] as Map)['mobile'] as Map)['features'] as Map;
+      for (final name in [
+        'avatar',
+        'bankAccounts',
+        'leaderboard',
+        'referrals',
+      ]) {
+        features.remove(name);
+      }
+      final backend = _decide(body);
+      expect(backend.isLive(LiveFeature.wallet), isTrue);
+      for (final f in [
+        LiveFeature.avatar,
+        LiveFeature.bankAccounts,
+        LiveFeature.leaderboard,
+        LiveFeature.referrals,
+      ]) {
+        expect(backend.isLive(f), isFalse, reason: f.name);
+        expect(backend.isPaused(f), isTrue, reason: f.name);
+      }
     });
 
     test('a feature on its own without what it needs stays preview', () {
@@ -395,6 +452,9 @@ void main() {
         'submit',
         'submissions',
         'notifications',
+        'avatar',
+        'leaderboard',
+        'referrals',
       ]);
       expect(backend.checkedAt, now);
       await backend.lock();
@@ -404,6 +464,9 @@ void main() {
         'submit',
         'submissions',
         'notifications',
+        'avatar',
+        'leaderboard',
+        'referrals',
       ]);
     });
 

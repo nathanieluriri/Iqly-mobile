@@ -5,7 +5,7 @@ import '../../core/flags.dart';
 import '../../core/haptics.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
-import '../../data/repository.dart';
+import '../../data/referrals_service.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/avatar.dart';
@@ -29,9 +29,9 @@ import '../referrals/referrals_screen.dart';
 /// which asks on the Sign out? sheet first. No email and no wins. Under it,
 /// the Haptics switch, kept on this phone only (not in Figma).
 ///
-/// A live launch has no referrals yet ([pointsAndReferralsProvider]): the
-/// invite code line and Invite friends go, and the name sits alone under
-/// the avatar (no frame draws it).
+/// A live launch without referrals ([referralsShownProvider]): the invite
+/// code line and Invite friends go, and the name sits alone under the
+/// avatar (no frame draws it). Live referrals promise no money.
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
@@ -40,7 +40,7 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pass = ref.watch(contributorPassProvider).value;
-    final referrals = ref.watch(pointsAndReferralsProvider);
+    final referrals = ref.watch(referralsShownProvider);
     final code = pass?.code;
     final avatar = ref.watch(avatarProvider.select((a) => a.spec));
     return SubPage(
@@ -149,7 +149,9 @@ class ProfileScreen extends ConsumerWidget {
               if (referrals)
                 IqListRow(
                   label: 'Invite friends',
-                  description: '₦500 when a friend wins a brief',
+                  description: ref.watch(referralRewardsProvider)
+                      ? '₦500 when a friend wins a brief'
+                      : 'Share your invite code',
                   icon: IqIcons.gift,
                   onTap: () => context.open(Routes.referrals),
                 ),

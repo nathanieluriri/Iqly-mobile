@@ -20,7 +20,7 @@ import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/theme/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../data/live/live_data_fixtures.dart' show FixedBackend;
+import '../data/live/live_data_fixtures.dart' show FixedBackend, firstFeatures;
 import 'live_app.dart' show NoSocial;
 
 final launchNow = DateTime(2026, 10, 17, 10);
@@ -75,7 +75,7 @@ Future<(ProviderContainer, GoRouter)> pumpLiveLaunch(
         store ?? MemoryLocalStore(clock: () => launchNow),
       ),
       backendProvider.overrideWith(
-        () => FixedBackend(mode ?? Backend.of(LiveFeature.values)),
+        () => FixedBackend(mode ?? Backend.of(firstFeatures)),
       ),
       authServiceProvider.overrideWithValue(
         LiveAuthService(api: api, social: NoSocial()),
