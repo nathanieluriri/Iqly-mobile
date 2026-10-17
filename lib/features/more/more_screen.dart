@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/flags.dart';
 import '../../core/money.dart';
@@ -27,6 +26,7 @@ import '../avatar/choose_avatar.dart';
 import '../discover/app_shell.dart';
 import '../onboarding/onboarding_draft.dart';
 import '../profile/profile_state.dart';
+import '../profile/leaving.dart';
 import '../referrals/referrals_screen.dart';
 import 'more_state.dart';
 import 'more_widgets.dart';
@@ -134,14 +134,14 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
       ),
       RowGroup(
         children: [
-          if (Flags.polls)
+          if (ref.watch(pollsShownProvider))
             IqListRow(
               label: 'Quick polls',
               showDescription: false,
               icon: IqIcons.polls,
               onTap: () => context.open(Routes.polls),
             ),
-          if (Flags.activations)
+          if (ref.watch(activationsShownProvider))
             IqListRow(
               label: 'Activations',
               showDescription: false,
@@ -390,8 +390,9 @@ class _CardPress extends StatelessWidget {
   }
 }
 
-/// Sign out? (484:23036): the person confirms, the device forgets the
-/// account and the landing takes over.
+/// Sign out? (484:23036): the person confirms, the filling mark covers the
+/// screen as the sheet goes down while the device forgets the account, and
+/// the landing takes over.
 Future<void> confirmSignOut(BuildContext context, WidgetRef ref) async {
   final out = await showIqConfirmSheet(
     Navigator.of(context, rootNavigator: true).context,
@@ -403,6 +404,10 @@ Future<void> confirmSignOut(BuildContext context, WidgetRef ref) async {
     cancelLabel: 'Stay signed in',
   );
   if (!out || !context.mounted) return;
-  await forgetAccount(ref);
-  if (context.mounted) context.go(Routes.landing);
+  await leaveUnderLoader(
+    context,
+    label: 'Signing out',
+    work: () => forgetAccount(ref),
+    to: Routes.landing,
+  );
 }

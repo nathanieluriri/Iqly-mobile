@@ -270,6 +270,10 @@ void main() {
       overrides: walletOverrides(wallet: wallet),
     );
     await _tap(tester, find.text('Bank account'));
+    expect(find.text('Set as default'), findsNothing);
+    expect(find.text('Adaeze Okafor · Default'), findsOneWidget);
+    expect(find.textContaining('Name verified'), findsNothing);
+    await _tap(tester, find.text('Guaranty Trust Bank ••4410'));
     expect(
       find.text(
         'Your pending ₦10,000.00 still goes to Access Bank ••6789. We ask '
@@ -277,6 +281,8 @@ void main() {
       ),
       findsOneWidget,
     );
+    await _tap(tester, find.text('Access Bank ••6789'));
+    expect(find.text('Set as default'), findsNothing);
     await _tap(tester, find.text('Guaranty Trust Bank ••4410'));
     await _tap(tester, find.text('Set as default'));
     expect(find.byType(PinSheet), findsOneWidget);
@@ -309,7 +315,8 @@ void main() {
     expect(find.text(verifyHelp), findsOneWidget);
     await _type(tester, 'Account number', '1234567891');
     await _tap(tester, find.text('Check the name'));
-    expect(find.text('ADAEZE OKAFOR · Name verified'), findsOneWidget);
+    expect(find.text('ADAEZE OKAFOR'), findsOneWidget);
+    expect(find.textContaining('Name verified'), findsNothing);
     expect(find.text('Kuda Bank · 10 digits'), findsOneWidget);
     await _tap(tester, find.text('Save account'));
     expect(find.byType(AddBankScreen), findsNothing);

@@ -95,7 +95,7 @@ class WidgetSnapshot {
               first.businessName ?? brandOfBrief(first).label,
               leftShort(timeLeft(first.deadline, now)!),
             ),
-      pollsRoute: DeepLinks.polls,
+      pollsRoute: showPolls ? DeepLinks.polls : DeepLinks.home,
       closingRoute: DeepLinks.home,
     );
   }

@@ -106,9 +106,16 @@ void main() {
     expect(service.checks, 2);
   });
 
-  test('Close iQLY ends the app through the service', () async {
+  test('Close on Update applied only takes the dialog down', () async {
+    service.found = [PatchCheck.ready];
     final c = container();
-    await c.read(patchesProvider.notifier).close();
-    expect(service.closed, isTrue);
+    final patches = c.read(patchesProvider.notifier);
+    await patches.check();
+    expect(c.read(patchesProvider), PatchPhase.ready);
+    patches.dismiss();
+    expect(c.read(patchesProvider), PatchPhase.idle);
+    now = now.add(const Duration(hours: 2));
+    patches.resumed();
+    expect(service.checks, 1);
   });
 }

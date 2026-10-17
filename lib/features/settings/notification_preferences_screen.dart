@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../data/device.dart';
 import '../../data/profile_service.dart';
+import '../../data/repository.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/setting_row.dart';
@@ -33,7 +33,8 @@ const notificationCopy = {
 /// with Open settings (484:23502, designer answer 25). A flip
 /// slides the knob (the Switch's own 160 ms) with the select haptic; a flip
 /// the account refuses slides back with the error haptic. No stagger: a
-/// settings list is not news. The Polls switch follows Flags.polls.
+/// settings list is not news. The Polls switch shows only
+/// where polls do (Flags.polls, preview launches).
 ///
 /// Switches that cannot load show the error banner and Try again, as the
 /// other pages do (the frame has no failed state); opening the page again
@@ -51,7 +52,8 @@ class NotificationPreferencesScreen extends ConsumerWidget {
     final allowed = ref.watch(notificationsAllowedProvider).value ?? true;
     final topics = [
       for (final topic in NotificationTopic.values)
-        if (topic != NotificationTopic.polls || Flags.polls) topic,
+        if (topic != NotificationTopic.polls || ref.watch(pollsShownProvider))
+          topic,
     ];
 
     Future<void> flip(NotificationTopic topic, IqSwitchState state) async {

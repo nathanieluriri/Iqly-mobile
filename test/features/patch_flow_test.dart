@@ -9,6 +9,7 @@ import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/splash/patch_dialog.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/theme/theme.dart';
+import 'package:iqly_mobile/ui/button.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../golden/screens/app_harness.dart';
@@ -81,10 +82,14 @@ void main() {
     service.checks = 0;
     await tester.pump(const Duration(seconds: 1));
     await tester.pump(const Duration(milliseconds: 200));
-    expect(find.text('Update ready'), findsOneWidget);
-    await tester.tap(find.text('Close iQLY'));
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(service.closed, isTrue);
+    expect(find.text('Update applied'), findsOneWidget);
+    expect(find.textContaining('over the air'), findsOneWidget);
+    expect(find.textContaining('next time you open'), findsOneWidget);
+    expect(find.byType(IqButton), findsOneWidget);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    expect(find.byType(IqPatchDialog), findsNothing);
+    expect(c.read(patchesProvider), PatchPhase.idle);
   });
 
   testWidgets('Continue after a failure returns to the app', (tester) async {

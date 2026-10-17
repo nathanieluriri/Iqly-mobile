@@ -45,7 +45,9 @@ void main() {
         expect(find.textContaining('ADAEZE24'), findsNothing);
         expect(find.text('Invite friends, earn ₦500'), findsNothing);
         expect(find.text('Leaderboard'), findsNothing);
-        expect(find.text('Quick polls'), findsOneWidget);
+        expect(find.text('Quick polls'), findsNothing);
+        expect(find.text('Activations'), findsNothing);
+        expect(find.text('Saved briefs'), findsOneWidget);
       });
 
       testWidgets('Your profile has no invite code or Invite friends', (

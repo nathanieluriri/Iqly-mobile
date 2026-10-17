@@ -17,8 +17,8 @@ import 'wallet_sheet.dart';
 import 'wallet_state.dart';
 
 /// B5 · Bank account sheet (332:15657): the saved accounts, default first.
-/// From the Wallet it manages them: pick one and Set as default asks for
-/// the PIN, then switches (designer answer 14). From the Withdraw "To"
+/// From the Wallet it manages them: pick one that is not the default and
+/// Set as default asks for the PIN, then switches (designer answer 14). From the Withdraw "To"
 /// picker ([picking]) a row picks the destination and closes (designer
 /// answer 5). Add a bank account goes to Select bank. The live API keeps
 /// one account and no PIN, and a withdrawal keeps the account it was sent
@@ -115,11 +115,7 @@ class _BankAccountSheetState extends ConsumerState<BankAccountSheet> {
                 for (final (i, account) in accounts.indexed) ...[
                   IqOptionRow(
                     label: account.label,
-                    note: [
-                      account.holder,
-                      'Name verified',
-                      if (i == 0) 'Default',
-                    ].join(' · '),
+                    note: [account.holder, if (i == 0) 'Default'].join(' · '),
                     state: account.accountNumber == current
                         ? IqOptionRowState.selected
                         : IqOptionRowState.standard,
@@ -140,7 +136,9 @@ class _BankAccountSheetState extends ConsumerState<BankAccountSheet> {
                   width: double.infinity,
                   onTap: _addAccount,
                 ),
-                if (!_picking) ...[
+                if (!_picking &&
+                    data != null &&
+                    current != data.savedBank?.accountNumber) ...[
                   if (note.isNotEmpty) ...[
                     const SizedBox(height: IqSpace.s3),
                     Text(
@@ -153,7 +151,7 @@ class _BankAccountSheetState extends ConsumerState<BankAccountSheet> {
                     label: 'Set as default',
                     width: double.infinity,
                     loading: _saving,
-                    onTap: data == null ? null : () => _setDefault(data),
+                    onTap: () => _setDefault(data),
                   ),
                 ],
               ],

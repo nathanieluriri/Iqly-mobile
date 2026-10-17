@@ -243,7 +243,7 @@ void main() {
 
   group('surfaces', () {
     test(
-      'live briefs feed the closing-soon widget; polls stay preview',
+      'live briefs feed the closing-soon widget; no preview polls',
       () async {
         final api = FakeApi();
         api.data('GET', '/challenges/browse', {
@@ -258,10 +258,10 @@ void main() {
             .read(repositoryProvider)
             .saveDraft(Draft(briefId: 'c_1', title: 'Sunday', editedAt: _now));
         final inputs = await surfaceInputs(c.read, _now);
-        final preview = SurfaceInputs.demo(_now);
         expect([for (final b in inputs.briefs) b.id], ['c_1']);
         expect(inputs.draftBriefId, 'c_1');
-        expect(inputs.polls.length, preview.polls.length);
+        expect(inputs.polls, isEmpty);
+        expect(inputs.showPolls, isFalse);
         expect(inputs.now, _now);
 
         api.offline = true;

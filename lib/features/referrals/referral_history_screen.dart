@@ -7,6 +7,7 @@ import '../../core/relative_time.dart';
 import '../../data/referrals_service.dart';
 import '../../theme/theme.dart';
 import '../../ui/button.dart';
+import '../../ui/empty_state.dart';
 import '../../ui/icon.dart';
 import '../../ui/illustration.dart';
 import '../../ui/list_row.dart';
@@ -31,14 +32,9 @@ class ReferralHistoryScreen extends ConsumerWidget {
       body: referrals == null
           ? const SizedBox.shrink()
           : invites.isEmpty
-          ? Align(
-              alignment: Alignment.topCenter,
-              child: FigureState(
-                bodyInset: 45,
-                figure: const Padding(
-                  padding: EdgeInsets.only(top: IqSpace.s12),
-                  child: IqFigure(IqFigures.sender, width: 180),
-                ),
+          ? const IqEmptyFill(
+              child: IqEmptyState(
+                figure: IqFigures.sender,
                 title: 'No invites yet',
                 body: 'Share your code and the friends who join show up here.',
               ),

@@ -144,6 +144,7 @@ class _IqHighlightState extends State<IqHighlight>
             widget.text,
             maxLines: 1,
             softWrap: false,
+            overflow: TextOverflow.ellipsis,
             style: widget.style.copyWith(color: ink),
           ),
         ),
