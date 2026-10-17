@@ -247,6 +247,7 @@ LedgerEntry? ledgerEntryFromJson(Object? json) {
     note: _text(j['note']),
     referred: _text(j['referredName']),
     reversal: j['type'] == 'reversal',
+    activationId: _text(j['activationId']),
   );
 }
 

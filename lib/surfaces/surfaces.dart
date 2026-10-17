@@ -20,6 +20,7 @@ import '../data/live/live_repository.dart';
 import '../data/models.dart';
 import '../data/notifications_data.dart';
 import '../data/polls_data.dart';
+import '../data/polls_service.dart';
 import '../data/repository.dart';
 import '../theme/theme.dart';
 import 'live_activity.dart';
@@ -101,7 +102,8 @@ class SurfaceInputs {
   final List<Brief> briefs;
   final List<PollBusiness> polls;
 
-  /// Polls have no API, so a live launch offers none of the preview's.
+  /// A live launch offers polls only while the API runs them, and never
+  /// the preview's.
   final bool showPolls;
   final List<Withdrawal> withdrawals;
   final List<AppNotification> feed;
@@ -139,7 +141,7 @@ class SurfaceInputs {
 /// the newest draft on the phone, or is not offered; a live launch that
 /// pauses them shows neither. [onPhone] reads only what the phone holds,
 /// without asking the API, so a launch link never waits for the network.
-/// A live launch offers no polls.
+/// A live launch offers the API's polls while it runs them, else none.
 Future<SurfaceInputs> surfaceInputs(
   Reader read,
   DateTime now, {
@@ -165,15 +167,35 @@ Future<SurfaceInputs> surfaceInputs(
       draft = null;
     }
   }
+  final showPolls = Flags.polls && mode.isLive(LiveFeature.polls);
+  var polls = const <PollBusiness>[];
+  if (showPolls) {
+    final service = read(pollsServiceProvider);
+    polls =
+        await (onPhone && service is LivePollsService
+                ? service.kept()
+                : service.businesses())
+            .catchError((Object _) => const <PollBusiness>[]);
+  }
   return SurfaceInputs(
     briefs: briefs,
-    polls: const [],
-    showPolls: false,
+    polls: polls,
+    showPolls: showPolls,
     withdrawals: preview.withdrawals,
     feed: preview.feed,
     now: now,
     draftBriefId: draft,
   );
+}
+
+/// Publishes the surfaces again in a live launch, from what the API
+/// answers now: a vote changes the polls widget and the shortcut.
+Future<void> republishSurfaces(Ref ref) async {
+  final surfaces = ref.read(surfacesProvider);
+  if (surfaces == null || ref.read(liveModeProvider).isPreview) return;
+  final scope = ref.read(accountScopeProvider);
+  final inputs = await surfaceInputs(ref.read, ref.read(clockProvider)());
+  if (scope.open) await surfaces.publish(inputs);
 }
 
 /// Starts [surfaces] on what the phone holds, so a launch link opens at

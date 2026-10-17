@@ -21,7 +21,8 @@ import 'quick_poll_tile.dart';
 /// B2 · Quick polls (33:26), behind Flags.polls: a sub page with the open
 /// polls as Exp/PollTile, each raising its business's sheet. Opened from a
 /// Discover tile, [open] names the business and its sheet rises over this
-/// page, as Figma's tiles lead to 33:169.
+/// page, as Figma's tiles lead to 33:169. A notification names its poll
+/// instead; one the list does not hold is read on its own first.
 ///
 /// The tiles arrive the first time the list shows in a session (MOTION-SPEC
 /// §7.3) and stand still on later visits.
@@ -42,11 +43,18 @@ class _PollsScreenState extends ConsumerState<PollsScreen> {
     if (_opened || open == null) return;
     _opened = true;
     final business = businesses
-        .where((b) => b.name == open || b.id == open)
+        .where(
+          (b) =>
+              b.name == open ||
+              b.id == open ||
+              b.polls.any((p) => p.id == open),
+        )
         .firstOrNull;
-    if (business == null) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.open(pollsOf(business.id));
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final id =
+          business?.id ??
+          (mounted ? await ref.read(pollsProvider.notifier).bring(open) : null);
+      if (mounted && id != null) context.open(pollsOf(id));
     });
   }
 

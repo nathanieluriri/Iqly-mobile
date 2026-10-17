@@ -5,10 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../data/activations_data.dart';
+import '../../data/api_client.dart';
 import '../../data/media_service.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
@@ -18,6 +20,7 @@ import '../../ui/field.dart';
 import '../../ui/proof_tile.dart';
 import '../../ui/top_bar.dart';
 import '../../ui/video_preview.dart';
+import '../settings/restore_account_screen.dart' show showClosingAccount;
 import 'activation_format.dart';
 import 'activations_routes.dart';
 import 'activations_state.dart';
@@ -62,7 +65,10 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
   );
   int _shakes = 0;
   bool _sending = false;
-  bool _failed = false;
+
+  /// The banner over the form when the proof did not go: no connection
+  /// keeps Try again; a refusal keeps the first sentence.
+  String? _failed;
 
   /// 141:5492 and 485:38820 dim the screen with ink at 50%.
   static final _scrim = IqColors.fg.withValues(alpha: IqOpacity.sheetScrim);
@@ -132,25 +138,39 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
     FocusScope.of(context).unfocus();
     setState(() {
       _sending = true;
-      _failed = false;
+      _failed = null;
     });
+    final activations = ref.read(activationsProvider.notifier);
     try {
-      await ref
-          .read(activationsProvider.notifier)
-          .sendProof(
-            activation.id,
-            step: step,
-            uploadId: uploadId,
-            video: video,
-            phone: _phone.text.trim(),
-            note: _note.text.trim(),
-          );
+      await activations.sendProof(
+        activation.id,
+        step: step,
+        uploadId: uploadId,
+        video: video,
+        phone: _phone.text.trim(),
+        note: _note.text.trim(),
+      );
+    } on ApiRefused catch (refusal) {
+      if (!mounted) return;
+      errorHaptic();
+      final closing = refusal.code == 'ACCOUNT_CLOSING' && Flags.deleteAccount;
+      setState(() {
+        _sending = false;
+        _failed = closing ? null : "Couldn't send.";
+      });
+      if (closing) return showClosingAccount(context, ref);
+      if (refusal.code == 'ACTIVATION_UPLOAD_NOT_FOUND') {
+        _draft.lost();
+      } else {
+        await activations.refreshOneQuietly(activation.id);
+      }
+      return;
     } on Object {
       if (!mounted) return;
       errorHaptic();
       setState(() {
         _sending = false;
-        _failed = true;
+        _failed = "Couldn't send. Check your connection.";
       });
       return;
     }
@@ -172,6 +192,7 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
     final draft = ref.watch(proofDraftProvider(widget.id));
     final step = (activation?.waitingStep ?? activation?.confirmed ?? 0) + 1;
     final refused = draft.stage == ProofStage.refused ? draft.video : null;
+    final refusal = refused == null ? null : _refusal(refused, draft.refusal);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
@@ -200,11 +221,12 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
                             IqSpace.s4,
                           ),
                           children: [
-                            if (_failed) ...[
+                            if (_failed case final failed?) ...[
                               IqBanner(
                                 kind: IqBannerKind.error,
-                                title: "Couldn't send. Check your connection.",
+                                title: failed,
                                 action: 'Try again',
+                                showAction: failed.endsWith('connection.'),
                                 onAction: () => _send(activation, draft),
                               ),
                               const SizedBox(height: IqSpace.s4),
@@ -234,11 +256,11 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
                                 ),
                               ),
                             ),
-                            if (refused != null) ...[
+                            if (refusal != null) ...[
                               const SizedBox(height: IqSpace.s4),
                               IqBanner(
                                 kind: IqBannerKind.error,
-                                title: _refusal(refused),
+                                title: refusal,
                                 showAction: false,
                               ),
                             ],
@@ -300,10 +322,12 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
 
   /// 485:38622: "Your video is 1:42. Keep it under 60 seconds and end on the
   /// Verification page." A recording over 50 MB gets the same line with its
-  /// size (no frame draws it).
-  static String _refusal(ProofVideo video) {
+  /// size (no frame draws it), and one of a kind the API does not take none.
+  static String? _refusal(ProofVideo video, ProofRefusal? why) {
+    if (why == ProofRefusal.kind) return null;
     final length = video.length;
-    if (video.tooLong && length != null) {
+    if ((why ?? ProofRefusal.of(video)) == ProofRefusal.length &&
+        length != null) {
       return 'Your video is ${videoLength(length)}. Keep it under '
           '${ActivationRules.proofLength.inSeconds} seconds and end on the '
           'Verification page.';

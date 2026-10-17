@@ -28,6 +28,7 @@ import '../../ui/section_title.dart';
 import '../../ui/top_bar.dart';
 import '../activations/activation_format.dart';
 import '../activations/activations_state.dart';
+import '../discover/business_art.dart' show businessCover;
 import '../discover/discover_state.dart';
 import '../discover/filters_sheet.dart';
 import 'submit_parts.dart';
@@ -351,16 +352,14 @@ class _ActivationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final brand = IqSampleLogoBrand.values.firstWhere(
-      (b) => b.label == activation.business,
-      orElse: () => IqSampleLogoBrand.private,
-    );
     return IqBriefCard(
       kind: IqBriefCardKind.row,
       brand: activation.business,
       title: activation.title,
-      cover: IqSampleCover(brand),
-      logo: IqSampleLogo(brand),
+      cover: activation.live
+          ? businessCover(activation.imageUrl)
+          : IqSampleCover(businessArt(activation.business)),
+      logo: activationLogoArt(activation),
       meta: [
         IqMeta(
           kind: IqMetaKind.reward,

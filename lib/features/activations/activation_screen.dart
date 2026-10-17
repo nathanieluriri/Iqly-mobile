@@ -6,12 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/deadline.dart';
+import '../../core/flags.dart';
 import '../../core/money.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../data/activations_data.dart';
+import '../../data/api_client.dart';
 import '../../data/device.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -22,13 +24,15 @@ import '../../ui/illustration.dart';
 import '../../ui/meta.dart';
 import '../../ui/pressable.dart';
 import '../../ui/progress_thread.dart';
-import '../../ui/sample_logo.dart';
 import '../../ui/section_title.dart';
 import '../../ui/step_row.dart';
 import '../../ui/timeline_row.dart';
 import '../../ui/top_bar.dart';
 import '../../ui/video_preview.dart';
 import '../help/help_routes.dart';
+import '../profile/profile_routes.dart';
+import '../profile/your_details_screen.dart' show DetailField;
+import '../settings/restore_account_screen.dart' show showClosingAccount;
 import 'activation_format.dart';
 import 'activations_routes.dart';
 import 'activations_state.dart';
@@ -75,8 +79,17 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
   Timer? _window;
   DateTime? _windowFor;
   bool _starting = false;
-  bool _startFailed = false;
+  String? _startFailed;
   bool _paidHere = false;
+
+  @override
+  void initState() {
+    super.initState();
+    ref
+        .read(activationsProvider.notifier)
+        .refreshOneQuietly(widget.id)
+        .ignore();
+  }
 
   @override
   void dispose() {
@@ -126,20 +139,40 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
     );
   }
 
+  /// No connection keeps Try again. A refusal says "Couldn't start." and
+  /// reads the activation again, so a full or ended one shows as it is;
+  /// under 18 opens Date of birth and a closing account goes to Restore,
+  /// as a send does.
   Future<void> _start() async {
     if (_starting) return;
     setState(() {
       _starting = true;
-      _startFailed = false;
+      _startFailed = null;
     });
+    final notifier = ref.read(activationsProvider.notifier);
     try {
-      await ref.read(activationsProvider.notifier).start(widget.id);
+      await notifier.start(widget.id);
+    } on ApiRefused catch (refusal) {
+      if (!mounted) return;
+      errorHaptic();
+      final closing = refusal.code == 'ACCOUNT_CLOSING' && Flags.deleteAccount;
+      setState(() {
+        _starting = false;
+        _startFailed = closing ? null : "Couldn't start.";
+      });
+      if (closing) return showClosingAccount(context, ref);
+      if (refusal.code == 'UNDER_AGE') {
+        await context.open<void>(editDetailPath(DetailField.dateOfBirth));
+        return;
+      }
+      await notifier.refreshOneQuietly(widget.id);
+      return;
     } on Object {
       if (!mounted) return;
       errorHaptic();
       setState(() {
         _starting = false;
-        _startFailed = true;
+        _startFailed = "Couldn't start. Check your connection.";
       });
       return;
     }
@@ -185,7 +218,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
           activation: activation,
           now: now,
           starting: _starting,
-          failed: _startFailed,
+          failure: _startFailed,
           onStart: _start,
           onBack: _back,
         ),
@@ -264,11 +297,12 @@ class _Page extends StatelessWidget {
 
 const _padding = EdgeInsets.fromLTRB(IqSpace.s4, 0, IqSpace.s4, IqSpace.s6);
 
-/// The business beside its name and "Activation".
+/// The business beside its name and "Activation". A name from the API can
+/// run long, so it gives way with an ellipsis.
 class _BrandRow extends StatelessWidget {
-  const _BrandRow({required this.business, this.logo = true});
+  const _BrandRow({required this.activation, this.logo = true});
 
-  final String business;
+  final Activation activation;
   final bool logo;
 
   @override
@@ -277,12 +311,16 @@ class _BrandRow extends StatelessWidget {
       child: Row(
         children: [
           if (logo) ...[
-            ClipOval(child: IqSampleLogo(businessArt(business), size: 36)),
+            ClipOval(child: activationLogoArt(activation, size: 36)),
             const SizedBox(width: 10),
           ],
-          Text(
-            business,
-            style: IqText.smallStrong.copyWith(color: IqColors.fg),
+          Flexible(
+            child: Text(
+              activation.business,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: IqText.smallStrong.copyWith(color: IqColors.fg),
+            ),
           ),
           const SizedBox(width: 10),
           Text('Activation', style: IqText.small.copyWith(color: IqColors.fg3)),
@@ -307,7 +345,7 @@ class _OfferPage extends StatelessWidget {
     required this.activation,
     required this.now,
     required this.starting,
-    required this.failed,
+    required this.failure,
     required this.onStart,
     required this.onBack,
   });
@@ -315,7 +353,9 @@ class _OfferPage extends StatelessWidget {
   final Activation activation;
   final DateTime now;
   final bool starting;
-  final bool failed;
+
+  /// The banner over the offer when Start did not go through.
+  final String? failure;
   final VoidCallback onStart;
   final VoidCallback onBack;
 
@@ -323,7 +363,6 @@ class _OfferPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final a = activation;
     final ended = a.closedAt(now);
-    final art = businessArt(a.business);
     return _Page(
       title: 'Activation',
       onBack: onBack,
@@ -333,8 +372,8 @@ class _OfferPage extends StatelessWidget {
         children: [
           _Hero(
             child: IqBriefHero(
-              cover: activationCover(a.business),
-              logo: IqSampleLogo(art),
+              cover: activationCoverArt(a),
+              logo: activationLogoArt(a),
               showDots: false,
             ),
           ),
@@ -350,13 +389,14 @@ class _OfferPage extends StatelessWidget {
               children: _gapped([
                 Padding(
                   padding: const EdgeInsets.only(left: 66),
-                  child: _BrandRow(business: a.business, logo: false),
+                  child: _BrandRow(activation: a, logo: false),
                 ),
-                if (failed)
+                if (failure case final title?)
                   IqBanner(
                     kind: IqBannerKind.error,
-                    title: "Couldn't start. Check your connection.",
+                    title: title,
                     action: 'Try again',
+                    showAction: title.endsWith('connection.'),
                     onAction: onStart,
                   ),
                 Text(
@@ -462,7 +502,7 @@ class _Header extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          above ?? _BrandRow(business: activation.business),
+          above ?? _BrandRow(activation: activation),
           const SizedBox(height: IqSpace.s2),
           Text(
             activation.title,

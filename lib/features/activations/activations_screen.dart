@@ -55,6 +55,7 @@ class _ActivationsScreenState extends ConsumerState<ActivationsScreen> {
   void initState() {
     super.initState();
     if (_loading(ref.read(activationsProvider))) _armGate();
+    ref.read(activationsProvider.notifier).refreshQuietly().ignore();
   }
 
   void _armGate() {

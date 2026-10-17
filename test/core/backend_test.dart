@@ -107,6 +107,7 @@ void main() {
           LiveFeature.avatar,
           LiveFeature.leaderboard,
           LiveFeature.referrals,
+          LiveFeature.polls,
         }),
       );
     });
@@ -240,6 +241,8 @@ void main() {
         'avatar',
         'bankAccounts',
         'referrals',
+        'polls',
+        'activations',
       ]);
     });
 
@@ -263,9 +266,20 @@ void main() {
         LiveFeature.submissions,
         LiveFeature.briefs,
       });
+      expect(LiveFeature.polls.closure, {
+        LiveFeature.polls,
+        LiveFeature.profile,
+      });
+      expect(LiveFeature.activations.closure, {
+        LiveFeature.activations,
+        LiveFeature.profile,
+        LiveFeature.wallet,
+      });
       final backend = _decide(_health(off: {LiveFeature.wallet}));
       expect(backend.isLive(LiveFeature.bankAccounts), isFalse);
+      expect(backend.isLive(LiveFeature.activations), isFalse);
       expect(backend.isLive(LiveFeature.avatar), isTrue);
+      expect(backend.isLive(LiveFeature.polls), isTrue);
     });
 
     test('an older API without the four new features runs the rest', () {
@@ -455,6 +469,7 @@ void main() {
         'avatar',
         'leaderboard',
         'referrals',
+        'polls',
       ]);
       expect(backend.checkedAt, now);
       await backend.lock();
@@ -467,6 +482,7 @@ void main() {
         'avatar',
         'leaderboard',
         'referrals',
+        'polls',
       ]);
     });
 

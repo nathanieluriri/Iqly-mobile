@@ -209,10 +209,14 @@ class LedgerEntry {
     this.note,
     this.referred,
     this.reversal = false,
+    this.activationId,
   });
 
   final String id;
   final LedgerType type;
+
+  /// The activation a live reward paid (contract 11.2).
+  final String? activationId;
 
   /// Money a reversed payout brought back: an award on the ledger, but
   /// never earnings.
@@ -240,7 +244,7 @@ class LedgerEntry {
 
   RewardSource get source => submissionId != null
       ? RewardSource.submission
-      : business != null || id.startsWith('activation-')
+      : activationId != null || business != null || id.startsWith('activation-')
       ? RewardSource.activation
       : RewardSource.referral;
 

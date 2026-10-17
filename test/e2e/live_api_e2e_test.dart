@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:iqly_mobile/core/backend.dart';
 import 'package:iqly_mobile/core/session.dart';
+import 'package:iqly_mobile/data/activations_data.dart';
+import 'package:iqly_mobile/data/activations_service.dart';
 import 'package:iqly_mobile/data/api_client.dart';
 import 'package:iqly_mobile/data/auth.dart';
 import 'package:iqly_mobile/data/live/live_account.dart';
@@ -25,17 +27,25 @@ import 'package:iqly_mobile/data/notifications_data.dart';
 import 'package:iqly_mobile/data/notifications_service.dart';
 import 'package:iqly_mobile/data/onboarding_service.dart';
 import 'package:iqly_mobile/data/outcomes_service.dart';
+import 'package:iqly_mobile/data/polls_data.dart';
+import 'package:iqly_mobile/data/polls_service.dart';
 import 'package:iqly_mobile/data/profile_service.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/data/submit_data.dart';
 import 'package:iqly_mobile/data/submit_service.dart';
 import 'package:iqly_mobile/data/token_store.dart';
 import 'package:iqly_mobile/data/wallet_service.dart';
+import 'package:iqly_mobile/features/activations/activations_routes.dart';
+import 'package:iqly_mobile/features/activations/activations_state.dart';
 import 'package:iqly_mobile/features/notifications/notifications_state.dart';
+import 'package:iqly_mobile/features/polls/polls_routes.dart';
+import 'package:iqly_mobile/features/polls/polls_state.dart';
 import 'package:iqly_mobile/features/profile/account_sync.dart';
 import 'package:iqly_mobile/features/profile/profile_state.dart';
 import 'package:iqly_mobile/features/submissions/submissions_routes.dart';
 import 'package:iqly_mobile/router.dart';
+import 'package:iqly_mobile/surfaces/surfaces.dart';
+import 'package:iqly_mobile/ui/recording_player.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// The app's live services against a real iQLY API, wired as main.dart wires
@@ -57,6 +67,7 @@ void main() {
       late MemoryLocalStore store;
       late ProviderContainer container;
       late Outbox outbox;
+      Directory? folder;
 
       setUpAll(() async {
         tools = _LocalTools(base!);
@@ -92,6 +103,7 @@ void main() {
       tearDownAll(() {
         container.dispose();
         client.close();
+        folder?.deleteSync(recursive: true);
       });
 
       /// Sends what the outbox holds and expects every write to land.
@@ -503,7 +515,11 @@ void main() {
           );
           expect(payTo.accountNumber, '4321');
           expect(payTo.label, 'Guaranty Trust Bank ••4321');
-          expect((await repo.savedBanks()).single.accountNumber, '4321');
+          expect(
+            (await repo.savedBanks()).map((b) => b.accountNumber),
+            containsAll(['6789', '4321']),
+            reason: 'a second account is saved beside the default (10.2)',
+          );
 
           client.loseNextAnswer('POST', '/wallet/withdrawals');
           final lost = await wallet.withdraw(
@@ -752,6 +768,556 @@ void main() {
         expect(back[NotificationTopic.polls], isFalse);
       });
 
+      // Contract 11: Tola acts for the businesses, Ada uses the app.
+      late ApiClient owner;
+      Directory files() =>
+          folder ??= Directory.systemTemp.createTempSync('iqly-proof');
+      Matcher refusedWith(String code) =>
+          throwsA(isA<ApiRefused>().having((r) => r.code, 'code', code));
+
+      /// A session of its own for [email], beside Ada's.
+      Future<ApiClient> signedIn(String email) async {
+        final other = ApiClient(
+          tokens: MemoryTokenStore(),
+          baseUrl: base!,
+          appVersion: '0.5.0+5',
+          platform: 'android',
+        );
+        final res = await other.post('/auth/web/sign-in/email', {
+          'email': email,
+          'password': seed.password,
+        });
+        expect(res.ok, isTrue, reason: '$email: ${res.status} ${res.code}');
+        return other;
+      }
+
+      Future<Map<String, dynamic>> asOwner(
+        String method,
+        String path, [
+        Map<String, Object?>? body,
+      ]) async {
+        final res = await owner.send(
+          method,
+          path,
+          body: body ?? (method == 'GET' ? null : const <String, Object?>{}),
+        );
+        expect(res.ok, isTrue, reason: '$method $path: ${res.code}');
+        return res.data;
+      }
+
+      /// A Sunline Foods activation, paid for at the stand-in checkout and
+      /// live now.
+      Future<String> publishActivation(String title, {int slots = 10}) async {
+        final made = await asOwner('POST', '/activations/owner', {
+          'brandOrgId': 'org_sunline',
+          'title': title,
+          'minutes': 5,
+          'rewardKobo': 50000,
+          'slots': slots,
+          'steps': [
+            {'title': 'Sign up with code IQLY', 'hint': 'Enter IQLY.'},
+            {'title': 'Rate a recipe', 'hint': 'Any recipe counts.'},
+          ],
+          'link': 'https://sunline.example/app',
+          'closesAt': DateTime.now()
+              .add(const Duration(days: 2))
+              .toUtc()
+              .toIso8601String(),
+        });
+        final id = made['id'] as String;
+        final checkout = await asOwner(
+          'POST',
+          '/activations/owner/$id/payment/initiate',
+          {'callbackUrl': 'http://localhost:3001/activations/paid'},
+        );
+        await tools.post('/__local/payments/${checkout['reference']}/pay');
+        await asOwner('POST', '/activations/owner/$id/publish');
+        return id;
+      }
+
+      /// Ada's run at [activation], for the business to act on.
+      Future<String> runOf(String activation) async {
+        final res = await api.get('/activations/$activation');
+        return ((res.data['progress'] as Map)['id']) as String;
+      }
+
+      ProofVideo recording(String name, List<int> bytes, {int? seconds}) {
+        final file = File('${files().path}/$name')..writeAsBytesSync(bytes);
+        return ProofVideo(
+          name: name,
+          bytes: bytes.length,
+          length: seconds == null ? null : Duration(seconds: seconds),
+          source: file.uri,
+        );
+      }
+
+      Future<String> upload(String activation, ProofVideo video) async =>
+          (await container
+                  .read(activationsServiceProvider)
+                  .upload(activation, video)
+                  .last)
+              .id!;
+
+      test('polls and activations run live; their screens show', () async {
+        owner = await signedIn(seed.ownerEmail);
+        final mode = container.read(liveModeProvider);
+        expect(mode.isLive(LiveFeature.polls), isTrue);
+        expect(mode.isLive(LiveFeature.activations), isTrue);
+        expect(container.read(pollsShownProvider), isTrue);
+        expect(container.read(activationsShownProvider), isTrue);
+        for (final path in [
+          Routes.polls,
+          pollsOf('org_sunline'),
+          Routes.activations,
+          activationPath(seed.recipes),
+          proofPath(seed.account),
+        ]) {
+          expect(hiddenRoute(container.read, path), isFalse, reason: path);
+        }
+        expect(container.read(pollsServiceProvider), isA<LivePollsService>());
+        expect(
+          container.read(activationsServiceProvider),
+          isA<LiveActivationsService>(),
+        );
+      });
+
+      test('polls: the list, one poll, a vote, and each refusal', () async {
+        final service = container.read(pollsServiceProvider);
+        final businesses = await service.businesses();
+        expect(businesses.first.name, 'Harbour Telecom');
+        final kiosk = businesses.first.polls.single;
+        expect(kiosk.id, seed.kioskPoll);
+        expect((kiosk.chosen, kiosk.total), (1, 176));
+        final sunline = businesses.singleWhere(
+          (b) => b.name == 'Sunline Foods',
+        );
+        expect(sunline.logo, startsWith(base!));
+        Poll find(PollBusiness b, String id) =>
+            b.polls.singleWhere((p) => p.id == id);
+        final flavour = find(sunline, seed.flavourPoll);
+        expect(flavour.voted, isFalse);
+        expect(flavour.votes, [0, 0, 0]);
+        expect(flavour.closedAt(DateTime.now()), isFalse);
+        final noodles = find(sunline, seed.closedPoll);
+        expect(noodles.closedAt(DateTime.now()), isTrue);
+        expect((noodles.chosen, noodles.total), (0, 97));
+        expect(noodles.shares, [63, 25, 12]);
+
+        final alone = await service.poll(seed.flavourPoll);
+        expect((alone.id, alone.name), ('org_sunline', 'Sunline Foods'));
+        expect(alone.polls.single.question, flavour.question);
+
+        final polls = container.read(pollsProvider.notifier);
+        await container.read(pollsProvider.future);
+        Poll shown(String id) => container
+            .read(pollsProvider)
+            .value!
+            .expand((b) => b.polls)
+            .singleWhere((p) => p.id == id);
+        expect(await polls.vote(seed.flavourPoll, 0), VoteOutcome.counted);
+        expect(shown(seed.flavourPoll).chosen, 0);
+        expect(shown(seed.flavourPoll).total, 214);
+        expect(shown(seed.flavourPoll).shares, [45, 33, 22]);
+        expect(
+          await polls.vote(seed.flavourPoll, 0),
+          VoteOutcome.counted,
+          reason: 'the same vote again is safe',
+        );
+        expect(shown(seed.flavourPoll).total, 214);
+
+        await expectLater(
+          service.vote(seed.flavourPoll, 1),
+          refusedWith('POLL_ALREADY_VOTED'),
+        );
+        expect(await polls.vote(seed.flavourPoll, 2), VoteOutcome.refused);
+        expect(shown(seed.flavourPoll).chosen, 0);
+
+        await expectLater(
+          service.vote(seed.canSizePoll, 3),
+          refusedWith('VALIDATION_ERROR'),
+        );
+        expect(await polls.vote(seed.canSizePoll, 3), VoteOutcome.refused);
+        expect(shown(seed.canSizePoll).voted, isFalse);
+
+        const missing = '00000000-0000-4000-8000-000000000000';
+        await expectLater(service.poll(missing), refusedWith('POLL_NOT_FOUND'));
+        await expectLater(
+          service.vote(missing, 0),
+          refusedWith('POLL_NOT_FOUND'),
+        );
+
+        final made = await asOwner('POST', '/polls/owner', {
+          'brandOrgId': 'org_sunline',
+          'question': 'Which noodle flavour comes next?',
+          'choices': ['Chicken', 'Pepper soup'],
+          'closesAt': DateTime.now()
+              .add(const Duration(hours: 2))
+              .toUtc()
+              .toIso8601String(),
+        });
+        final early = made['id'] as String;
+        await asOwner('POST', '/polls/owner/$early/close');
+        await expectLater(service.vote(early, 0), refusedWith('POLL_CLOSED'));
+        expect(await polls.vote(early, 0), VoteOutcome.refused);
+        final closed = shown(early);
+        expect(closed.closedAt(DateTime.now()), isTrue);
+        expect(closed.voted, isFalse);
+
+        final inputs = await surfaceInputs(container.read, DateTime.now());
+        expect(inputs.showPolls, isTrue);
+        expect(inputs.polls.map((b) => b.name), contains('Sunline Foods'));
+      });
+
+      test('poll results reach the voters; the row opens the poll', () async {
+        final polls = container.read(pollsProvider.notifier);
+        expect(await polls.vote(seed.canSizePoll, 1), VoteOutcome.counted);
+        await asOwner('POST', '/polls/owner/${seed.canSizePoll}/close');
+        final feed = await container
+            .read(notificationsServiceProvider)
+            .notifications();
+        final row = feed.singleWhere((n) => n.facts?.type == 'poll_results');
+        expect(row.facts!.pollId, seed.canSizePoll);
+        NotificationItem words({required bool polls}) => wordNotification(
+          row,
+          briefs: const {},
+          awards: const {},
+          withdrawals: const {},
+          now: DateTime.now(),
+          polls: polls,
+        )!;
+        expect(words(polls: true).title, 'Poll results are in');
+        expect(
+          words(polls: true).link!.location,
+          quickPollsFor(seed.canSizePoll),
+        );
+        expect(words(polls: false).link, isNull);
+        expect(
+          await polls.bring(seed.canSizePoll),
+          'org_sunline',
+          reason: 'the row opens the business the poll is under',
+        );
+        final results = await container
+            .read(pollsServiceProvider)
+            .poll(seed.canSizePoll);
+        expect(results.polls.single.chosen, 1);
+        expect(results.polls.single.closedAt(DateTime.now()), isTrue);
+        expect(results.polls.single.total, 1);
+      });
+
+      test('activations: every phase the API names, mine included', () async {
+        final service = container.read(activationsServiceProvider);
+        final all = await service.activations();
+        final now = DateTime.now();
+        final raw = [
+          for (final item
+              in (await api.get('/activations')).data['items'] as List)
+            item as Map<String, dynamic>,
+          for (final item
+              in (await api.get('/activations/mine')).data['items'] as List)
+            item as Map<String, dynamic>,
+        ];
+        const phases = {
+          'offer': ActivationPhase.offer,
+          'started': ActivationPhase.started,
+          'confirming': ActivationPhase.confirming,
+          'not_confirmed': ActivationPhase.notConfirmed,
+          'checking': ActivationPhase.checking,
+          'not_accepted': ActivationPhase.notAccepted,
+          'credited': ActivationPhase.credited,
+          'expired': ActivationPhase.expired,
+        };
+        for (final json in raw) {
+          final a = all.singleWhere((a) => a.id == json['id']);
+          expect(a.phaseAt(now), phases[json['phase']], reason: a.title);
+          expect(a.live, isTrue);
+          expect(a.imageUrl, startsWith(base!));
+        }
+        Activation one(String id) => all.singleWhere((a) => a.id == id);
+        expect(one(seed.recipes).phaseAt(now), ActivationPhase.offer);
+        expect(one(seed.recipes).spotsLeft, 38);
+        expect(one(seed.account).phaseAt(now), ActivationPhase.notConfirmed);
+        expect(one(seed.account).waitingStep, 1);
+        expect(one(seed.order).phaseAt(now), ActivationPhase.checking);
+        expect(
+          one(seed.order).progress!.proof!.video.length,
+          const Duration(seconds: 42),
+        );
+        expect(
+          one(seed.closedActivation).phaseAt(now),
+          ActivationPhase.expired,
+        );
+        expect(all.map((a) => a.id), isNot(contains(seed.paused)));
+
+        final refreshed = await service.refresh(seed.paused);
+        expect(refreshed.phaseAt(now), ActivationPhase.offer);
+      });
+
+      test('start, and each refusal Start maps', () async {
+        final service = container.read(activationsServiceProvider);
+        final started = await service.start(seed.recipes);
+        expect(started.phaseAt(DateTime.now()), ActivationPhase.started);
+        expect(
+          (await service.start(seed.recipes)).progress!.startedAt,
+          started.progress!.startedAt,
+          reason: 'starting again answers the run under way',
+        );
+        await expectLater(
+          service.start(seed.paused),
+          refusedWith('ACTIVATION_PAUSED'),
+        );
+        await expectLater(
+          service.start('00000000-0000-4000-8000-000000000000'),
+          refusedWith('ACTIVATION_NOT_FOUND'),
+        );
+        final ownersOwn = LiveActivationsService(
+          AccountLink(
+            api: owner,
+            store: MemoryLocalStore(),
+            outbox: Outbox(MemoryLocalStore()),
+            userId: () => null,
+          ),
+        );
+        await expectLater(
+          ownersOwn.start(seed.recipes),
+          refusedWith('ACTIVATION_OWN_BUSINESS'),
+        );
+
+        final ended = await publishActivation('Rate a recipe on day one');
+        await asOwner('POST', '/activations/owner/$ended/close');
+        await expectLater(
+          service.start(ended),
+          refusedWith('ACTIVATION_CLOSED'),
+        );
+        final full = await publishActivation('Be first to rate', slots: 1);
+        final bob = LiveActivationsService(
+          AccountLink(
+            api: await signedIn(seed.otherEmail),
+            store: MemoryLocalStore(),
+            outbox: Outbox(MemoryLocalStore()),
+            userId: () => null,
+          ),
+        );
+        expect((await bob.start(full)).started, isTrue);
+        await expectLater(service.start(full), refusedWith('ACTIVATION_FULL'));
+        expect((await service.refresh(full)).full, isTrue);
+
+        final activations = container.read(activationsProvider.notifier);
+        await container.read(activationsProvider.future);
+        await activations.refreshOneQuietly(full);
+        expect(
+          container.read(activationProvider(full))?.full,
+          isTrue,
+          reason: 'a refused Start reads the activation again',
+        );
+      });
+
+      test(
+        'proof: upload, drop, send, turned down, sent again, paid',
+        () async {
+          final service = container.read(activationsServiceProvider);
+          final clip = List<int>.filled(4096, 7);
+
+          await expectLater(
+            service.upload(seed.account, recording('notes.txt', clip)).last,
+            refusedWith('FILE_TYPE_NOT_ALLOWED'),
+          );
+          await expectLater(
+            service
+                .upload(seed.account, recording('long.mp4', clip, seconds: 61))
+                .last,
+            refusedWith('VIDEO_TOO_LONG'),
+          );
+          await expectLater(
+            service
+                .upload(
+                  seed.account,
+                  recording('big.mp4', List<int>.filled(52500000, 0)),
+                )
+                .last,
+            refusedWith('FILE_TOO_LARGE'),
+          );
+          for (final (activation, code) in [
+            (seed.paused, 'ACTIVATION_NOT_STARTED'),
+            (seed.closedActivation, 'ACTIVATION_CLOSED'),
+          ]) {
+            await expectLater(
+              service.upload(activation, recording('p.mp4', clip)).last,
+              refusedWith(code),
+            );
+          }
+
+          final video = recording('harbour-signup.mp4', clip, seconds: 42);
+          final dropped = await upload(seed.account, video);
+          await service.discard(seed.account, dropped);
+          final again = await api.delete(
+            '/activations/${seed.account}/proof/uploads/$dropped',
+          );
+          expect(again.code, 'ACTIVATION_UPLOAD_NOT_FOUND');
+
+          await expectLater(
+            service.sendProof(
+              seed.account,
+              step: 1,
+              uploadId: dropped,
+              video: video,
+            ),
+            refusedWith('ACTIVATION_UPLOAD_NOT_FOUND'),
+          );
+          final first = await upload(seed.account, video);
+          final checking = await service.sendProof(
+            seed.account,
+            step: 1,
+            uploadId: first,
+            video: video,
+            phone: '0803 123 4567',
+            note: 'I used my work phone',
+          );
+          expect(checking.phaseAt(DateTime.now()), ActivationPhase.checking);
+          final sent = checking.progress!.proof!.video;
+          expect(sent.length, const Duration(seconds: 42));
+          final player = await http.get(
+            sent.source!,
+            headers: Recordings.headersFor(sent.source!),
+          );
+          expect(player.statusCode, 200);
+          expect(player.bodyBytes, clip);
+          expect((await http.get(sent.source!)).statusCode, isNot(200));
+          final inUse = await api.delete(
+            '/activations/${seed.account}/proof/uploads/$first',
+          );
+          expect(inUse.code, 'ACTIVATION_UPLOAD_IN_USE');
+          await expectLater(
+            service.sendProof(
+              seed.account,
+              step: 1,
+              uploadId: await upload(seed.account, video),
+              video: video,
+            ),
+            refusedWith('ACTIVATION_PROOF_PENDING'),
+          );
+
+          final run = await runOf(seed.account);
+          await asOwner(
+            'POST',
+            '/activations/owner/${seed.account}/completions/$run/reject',
+            {'reason': 'The recording ends before the Verification page.'},
+          );
+          final refused = await service.refresh(seed.account);
+          expect(refused.phaseAt(DateTime.now()), ActivationPhase.notAccepted);
+          expect(
+            refused.progress!.proof!.notAccepted,
+            'The recording ends before the Verification page.',
+          );
+
+          final resent = await service.sendProof(
+            seed.account,
+            step: 1,
+            uploadId: await upload(seed.account, video),
+            video: video,
+          );
+          expect(resent.phaseAt(DateTime.now()), ActivationPhase.checking);
+
+          await asOwner(
+            'POST',
+            '/activations/owner/${seed.account}/completions/$run/approve',
+          );
+          final paid = await service.refresh(seed.account);
+          expect(paid.phaseAt(DateTime.now()), ActivationPhase.credited);
+          final ledgerId = paid.progress!.ledgerId;
+          expect(ledgerId, isNotNull);
+          await expectLater(
+            service.upload(seed.account, recording('p.mp4', clip)).last,
+            refusedWith('ACTIVATION_COMPLETION_PAID'),
+          );
+
+          final reward = (await repository().ledger()).singleWhere(
+            (l) => l.id == ledgerId,
+          );
+          expect(reward.source, RewardSource.activation);
+          expect(reward.activationId, seed.account);
+          expect(reward.amountKobo, 150000);
+          expect(reward.business, 'Harbour Telecom');
+          expect(reward.note, paid.title);
+
+          final feed = await container
+              .read(notificationsServiceProvider)
+              .notifications();
+          NotificationItem words(AppNotification note) => wordNotification(
+            note,
+            briefs: const {},
+            awards: const {},
+            withdrawals: const {},
+            now: DateTime.now(),
+            activations: true,
+          )!;
+          final approved = feed.singleWhere(
+            (n) => n.facts?.type == 'activation_approved',
+          );
+          expect(approved.facts!.activationId, seed.account);
+          expect(approved.facts!.amountKobo, 150000);
+          expect(words(approved).title, '₦1,500.00 added to your wallet');
+          expect(words(approved).link!.location, activationPath(seed.account));
+          final rejected = feed.singleWhere(
+            (n) => n.facts?.type == 'activation_rejected',
+          );
+          expect(words(rejected).title, 'Proof not accepted');
+          expect(words(rejected).link!.location, activationPath(seed.account));
+        },
+      );
+
+      test('uploads past the limit wait; early proof is not due', () async {
+        final service = container.read(activationsServiceProvider);
+        final video = recording('early.mp4', List<int>.filled(2048, 3));
+        // Uploads count against the submit limit (10 a minute), which the
+        // walk has used up: Retry can send one once the minute is out.
+        ApiRefused? throttled;
+        for (var i = 0; i < 11 && throttled == null; i++) {
+          try {
+            await upload(seed.recipes, video);
+          } on ApiRefused catch (refusal) {
+            if (refusal.code != 'RATE_LIMITED') rethrow;
+            throttled = refusal;
+          }
+        }
+        expect(throttled?.status, 429);
+        expect(ProofRefusal.fromCode(throttled!.code), isNull);
+        final held = await api.multipart(
+          '/activations/${seed.recipes}/proof/uploads',
+          fields: const {},
+          files: [
+            ApiFile(
+              field: 'file',
+              filename: 'early.mp4',
+              bytes: const [1],
+              contentType: 'video/mp4',
+            ),
+          ],
+        );
+        expect(held.code, 'RATE_LIMITED');
+        await Future<void>.delayed(
+          (held.retryAfter ?? const Duration(minutes: 1)) +
+              const Duration(seconds: 1),
+        );
+
+        final run = await runOf(seed.recipes);
+        await asOwner(
+          'POST',
+          '/activations/owner/${seed.recipes}/completions/$run/confirm-step',
+          {'step': 0},
+        );
+        final confirming = await service.refresh(seed.recipes);
+        expect(confirming.phaseAt(DateTime.now()), ActivationPhase.confirming);
+        await expectLater(
+          service.sendProof(
+            seed.recipes,
+            step: 1,
+            uploadId: await upload(seed.recipes, video),
+            video: video,
+          ),
+          refusedWith('ACTIVATION_PROOF_NOT_DUE'),
+        );
+      }, timeout: const Timeout(Duration(minutes: 3)));
+
       test('close waits for an empty wallet; restore reopens', () async {
         final profile = container.read(profileServiceProvider);
         final wallet = container.read(walletServiceProvider);
@@ -762,7 +1328,9 @@ void main() {
           profile.deleteAccount(),
           refused('ACCOUNT_HAS_BALANCE'),
         );
-        final rest = await wallet.withdraw(amountKobo: 7500000, account: payTo);
+        final left = (await repository().walletTotals())!.withdrawableKobo;
+        expect(left, 7500000 + 150000, reason: 'the activation reward is in');
+        final rest = await wallet.withdraw(amountKobo: left, account: payTo);
         expect(rest.ok, isTrue, reason: '${rest.failure}');
         await expectLater(
           profile.deleteAccount(),
@@ -788,6 +1356,16 @@ void main() {
         expect(
           closing.closesAt!.difference(DateTime.now()).inHours,
           inInclusiveRange(30 * 24 - 1, 30 * 24),
+        );
+
+        // A vote or a Start while closing is turned down as closing.
+        expect(
+          await container.read(pollsProvider.notifier).vote(seed.kioskPoll, 1),
+          VoteOutcome.closing,
+        );
+        await expectLater(
+          container.read(activationsServiceProvider).start(seed.order),
+          refusedWith('ACCOUNT_CLOSING'),
         );
 
         // A write while closing holds the queue until the account is back.
@@ -824,6 +1402,91 @@ void main() {
       });
     },
   );
+
+  final off = Platform.environment['IQLY_E2E_API_OFF'];
+
+  group(
+    'Polls and activations switched off on the API',
+    skip: off == null
+        ? 'Set IQLY_E2E_API_OFF to a local API started with '
+              'MOBILE_FEATURES_OFF=polls,activations to run'
+        : false,
+    () {
+      test('health leaves them out: hidden, paused, never asked', () async {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
+        final asked = <String>[];
+        final api = ApiClient(
+          tokens: MemoryTokenStore(),
+          client: _Watching(http.Client(), asked),
+          baseUrl: off!,
+          appVersion: '0.5.0+5',
+          platform: 'android',
+        );
+        final container = ProviderContainer(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            apiClientProvider.overrideWithValue(api),
+            localStoreProvider.overrideWithValue(MemoryLocalStore()),
+            healthServiceProvider.overrideWithValue(LiveHealthService(api)),
+            backendProvider.overrideWith(
+              () => LiveBackendNotifier(forgetPreview: forgetPreviewRecords),
+            ),
+            authServiceProvider.overrideWithValue(LiveAuthService(api: api)),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final report = await LiveHealthService(api).check();
+        expect(report.ready, isTrue);
+        expect(report.features, isNot(contains(LiveFeature.polls)));
+        expect(report.features, isNot(contains(LiveFeature.activations)));
+        expect(report.features, contains(LiveFeature.wallet));
+        await container.read(backendProvider.notifier).check();
+        await container.read(backendProvider.notifier).lock();
+        final mode = container.read(liveModeProvider);
+        expect(mode.isPreview, isFalse);
+        expect(mode.isLive(LiveFeature.briefs), isTrue);
+        expect(mode.isLive(LiveFeature.polls), isFalse);
+        expect(mode.isLive(LiveFeature.activations), isFalse);
+
+        expect(container.read(pollsShownProvider), isFalse);
+        expect(container.read(activationsShownProvider), isFalse);
+        for (final path in [
+          Routes.polls,
+          pollsOf('org_sunline'),
+          Routes.activations,
+          myActivationsPath,
+          proofPath('a_1'),
+        ]) {
+          expect(hiddenRoute(container.read, path), isTrue, reason: path);
+        }
+        expect(container.read(pollsServiceProvider), isA<PausedPollsService>());
+        expect(
+          container.read(activationsServiceProvider),
+          isA<PausedActivationsService>(),
+        );
+        await expectLater(
+          container.read(pollsProvider.future),
+          throwsA(isA<FeaturePaused>()),
+        );
+        await expectLater(
+          container.read(activationsProvider.future),
+          throwsA(isA<FeaturePaused>()),
+        );
+        final inputs = await surfaceInputs(container.read, DateTime.now());
+        expect(inputs.showPolls, isFalse);
+        expect(inputs.polls, isEmpty);
+        expect(asked, contains('/health'));
+        expect(
+          asked.where(
+            (p) => p.startsWith('/polls') || p.startsWith('/activations'),
+          ),
+          isEmpty,
+        );
+      });
+    },
+  );
 }
 
 /// Paragraphs, and a list typed with single line breaks.
@@ -849,7 +1512,18 @@ class _Seed {
       hiddenBriefId = _at(json, ['briefs', 'hidden', 'id']),
       closedBriefId = _at(json, ['briefs', 'closed', 'id']),
       wonId = _at(json, ['submissions', 'won']),
-      withdrawalId = _at(json, ['withdrawal', 'id']);
+      withdrawalId = _at(json, ['withdrawal', 'id']),
+      ownerEmail = _at(json, ['people', 'owner', 'email']),
+      otherEmail = _at(json, ['people', 'other', 'email']),
+      flavourPoll = _at(json, ['polls', 'flavour']),
+      canSizePoll = _at(json, ['polls', 'canSize']),
+      kioskPoll = _at(json, ['polls', 'kiosk']),
+      closedPoll = _at(json, ['polls', 'closed']),
+      recipes = _at(json, ['activations', 'recipes']),
+      account = _at(json, ['activations', 'account']),
+      order = _at(json, ['activations', 'order']),
+      paused = _at(json, ['activations', 'paused']),
+      closedActivation = _at(json, ['activations', 'closed']);
 
   final String password;
   final String contributorId;
@@ -861,6 +1535,26 @@ class _Seed {
 
   /// Paid out to Access Bank ••6789 before the walk.
   final String withdrawalId;
+
+  /// Tola Bakare, who runs Sunline Foods and Harbour Telecom, and Bob Ade.
+  final String ownerEmail;
+  final String otherEmail;
+
+  /// Contract 11.1 polls: flavour and can size open and not voted, kiosk
+  /// voted 7 am, noodles closed and voted.
+  final String flavourPoll;
+  final String canSizePoll;
+  final String kioskPoll;
+  final String closedPoll;
+
+  /// Contract 11.2 activations as Ada has them: recipes an offer, account
+  /// past its window at step 2, order with proof waiting, paused with no
+  /// run, closed with her run ended.
+  final String recipes;
+  final String account;
+  final String order;
+  final String paused;
+  final String closedActivation;
 
   static String _at(Map<String, dynamic> json, List<String> path) {
     Object? value = json;
@@ -894,6 +1588,23 @@ class _LocalTools {
     final json = jsonDecode(res.body) as Map<String, dynamic>;
     return json['data'] as Map<String, dynamic>;
   }
+}
+
+/// A connection that notes the path of every request it sends.
+class _Watching extends http.BaseClient {
+  _Watching(this._inner, this.paths);
+
+  final http.Client _inner;
+  final List<String> paths;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    paths.add(request.url.path);
+    return _inner.send(request);
+  }
+
+  @override
+  void close() => _inner.close();
 }
 
 /// A connection that drops the API's answer to a request the API took, so

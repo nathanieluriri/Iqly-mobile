@@ -82,7 +82,11 @@ class WidgetSnapshot {
         ),
     ];
     final open = showPolls
-        ? polls.fold<int>(0, (sum, p) => sum + p.unanswered)
+        ? polls.fold<int>(
+            0,
+            (sum, p) =>
+                sum + p.polls.where((q) => !q.voted && !q.closedAt(now)).length,
+          )
         : 0;
     final first = closing.isEmpty ? null : closing.first;
     return WidgetSnapshot(

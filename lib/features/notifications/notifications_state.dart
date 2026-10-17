@@ -13,6 +13,10 @@ import '../../data/notifications_service.dart';
 import '../../data/repository.dart';
 import '../../router.dart';
 import '../../ui/notification.dart';
+import '../activations/activations_routes.dart' show activationPath;
+import '../activations/activations_state.dart';
+import '../polls/polls_routes.dart' show quickPollsFor;
+import '../polls/polls_state.dart';
 import '../submissions/submissions_routes.dart';
 import '../submissions/submissions_state.dart';
 import '../wallet/wallet_routes.dart';
@@ -66,8 +70,9 @@ final notificationsProvider =
       retry: (_, _) => null,
     );
 
-/// A push landed with iQLY open: the bell, the feed and My submissions read
-/// again behind what they show, whichever of them this run has loaded.
+/// A push landed with iQLY open: the bell, the feed, My submissions, the
+/// polls and the activations read again behind what they show, whichever
+/// of them this run has loaded.
 void readAgainOnPush(Ref ref) {
   ref.invalidate(unreadNotificationsProvider);
   if (ref.exists(notificationsProvider)) {
@@ -75,6 +80,12 @@ void readAgainOnPush(Ref ref) {
   }
   if (ref.exists(mySubmissionsProvider)) {
     ref.read(mySubmissionsProvider.notifier).refreshQuietly();
+  }
+  if (ref.exists(pollsProvider)) {
+    ref.read(pollsProvider.notifier).refreshQuietly().ignore();
+  }
+  if (ref.exists(activationsProvider)) {
+    ref.read(activationsProvider.notifier).refreshQuietly().ignore();
   }
 }
 
@@ -180,6 +191,8 @@ final notificationFeedProvider = FutureProvider.autoDispose<NotificationFeed>(
       withdrawals = wallet.withdrawals;
     }
     final now = ref.watch(clockProvider)();
+    final polls = ref.watch(pollsShownProvider);
+    final activations = ref.watch(activationsShownProvider);
     final items = [
       for (final note in notes)
         ?wordNotification(
@@ -188,6 +201,8 @@ final notificationFeedProvider = FutureProvider.autoDispose<NotificationFeed>(
           awards: {for (final l in ledger) l.id: l},
           withdrawals: {for (final w in withdrawals) w.id: w},
           now: now,
+          polls: polls,
+          activations: activations,
         ),
     ];
     bool today(NotificationItem item) => DateUtils.isSameDay(item.note.at, now);
@@ -210,13 +225,16 @@ String _clock(DateTime at) => DateFormat('h:mm a').format(at).toLowerCase();
 /// The words of one row and its sub page, or null when what a demo row
 /// points at is gone. A row from the API is worded from what it embeds;
 /// the API's own title and body stand in where the app has no design or
-/// the row lacks what the design needs.
+/// the row lacks what the design needs. A poll or activation row leads to
+/// it only while this launch shows [polls] or [activations].
 NotificationItem? wordNotification(
   AppNotification note, {
   required Map<String, Brief> briefs,
   required Map<String, LedgerEntry> awards,
   required Map<String, Withdrawal> withdrawals,
   required DateTime now,
+  bool polls = false,
+  bool activations = false,
 }) {
   final when = timeAgoShort(note.at, now).replaceFirst(' ago', '');
   NotificationItem item(
@@ -240,7 +258,12 @@ NotificationItem? wordNotification(
   final facts = note.facts;
   NotificationItem? said() => facts == null
       ? null
-      : item(_kindOf(note), facts.title, facts.body, link: _linkOf(note));
+      : item(
+          _kindOf(note),
+          facts.title,
+          facts.body,
+          link: _linkOf(note, polls: polls, activations: activations),
+        );
 
   switch (note.event) {
     case NotificationEvent.closing:
@@ -413,10 +436,25 @@ IqNotificationKind _kindOf(AppNotification note) => switch (note.event) {
 };
 
 /// Where a row in the API's words leads, as its push does: the brief it is
-/// about, else the withdrawal, else nowhere but read.
-NotificationLink? _linkOf(AppNotification note) {
+/// about, else the activation or the poll's business, else the withdrawal,
+/// else nowhere but read.
+NotificationLink? _linkOf(
+  AppNotification note, {
+  required bool polls,
+  required bool activations,
+}) {
   final brief = note.briefId;
   if (brief != null) return NotificationLink.push(Routes.brief(brief));
+  final activation = note.facts?.activationId;
+  if (activation != null) {
+    return activations
+        ? NotificationLink.push(activationPath(activation))
+        : null;
+  }
+  final poll = note.facts?.pollId;
+  if (poll != null) {
+    return polls ? NotificationLink.push(quickPollsFor(poll)) : null;
+  }
   final withdrawal =
       note.facts?.withdrawal?.id ??
       switch (note.event) {
