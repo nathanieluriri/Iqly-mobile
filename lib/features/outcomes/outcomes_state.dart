@@ -89,7 +89,8 @@ final resultProvider = FutureProvider.autoDispose.family<ResultData?, String>(
       ..ignore();
     final userRead = ref.watch(onboardingUserProvider.future)..ignore();
     final item = await ref.watch(submissionItemProvider(id).future);
-    if (item == null || item.underReview) return null;
+    if (item == null) throw SubmissionUnavailable(id);
+    if (item.underReview) return null;
     final (outcome, user) = await (outcomeRead, userRead).wait;
     var next = const <Brief>[];
     if (item.status == SubmissionStatus.filteredOut) {

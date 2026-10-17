@@ -47,6 +47,10 @@ enum SubmitFailure {
 
   /// The account is closing, so it takes no writes (403 ACCOUNT_CLOSING).
   closing,
+
+  /// A file of a kind the brief does not take (415 FILE_TYPE_NOT_ALLOWED):
+  /// sending it again can only be refused again.
+  fileType,
 }
 
 class SubmitResult {
@@ -76,8 +80,9 @@ abstract class SubmitService {
 
 /// The phone's own file picker.
 abstract class AttachmentPicker {
-  /// The files picked, or none when the person cancels.
-  Future<List<AttachmentFile>> pick();
+  /// The files picked, or none when the person cancels. [only] narrows the
+  /// kinds offered, by extension, to what the brief takes.
+  Future<List<AttachmentFile>> pick({List<String>? only});
 }
 
 /// Sends one attachment up, reporting progress from 0 to 1. True once it
@@ -202,13 +207,24 @@ class DeviceAttachmentPicker implements AttachmentPicker {
   /// The kinds of file offered, by extension; null offers any file.
   final List<String>? extensions;
 
+  /// What [pick] offers: the picker's own kinds, narrowed to [only].
+  List<String>? offered(List<String>? only) {
+    final own = extensions;
+    if (only == null) return own;
+    if (own == null) return only;
+    return [
+      for (final kind in own)
+        if (only.contains(kind)) kind,
+    ];
+  }
+
   @override
-  Future<List<AttachmentFile>> pick() async {
+  Future<List<AttachmentFile>> pick({List<String>? only}) async {
     try {
-      final only = extensions;
+      final kinds = offered(only);
       final files = await FilePicker.pickFiles(
-        type: only == null ? FileType.any : FileType.custom,
-        allowedExtensions: only,
+        type: kinds == null ? FileType.any : FileType.custom,
+        allowedExtensions: kinds,
       );
       return [
         for (final file in files)
@@ -219,7 +235,7 @@ class DeviceAttachmentPicker implements AttachmentPicker {
           ),
       ];
     } on MissingPluginException {
-      return fallback.pick();
+      return fallback.pick(only: only);
     }
   }
 }
@@ -230,8 +246,12 @@ class DemoAttachmentPicker implements AttachmentPicker {
   /// What the next pick returns.
   List<AttachmentFile> next = SubmitDemo.picked;
 
+  /// What each pick was narrowed to.
+  final offers = <List<String>?>[];
+
   @override
-  Future<List<AttachmentFile>> pick() async {
+  Future<List<AttachmentFile>> pick({List<String>? only}) async {
+    offers.add(only);
     picks.add(next);
     return next;
   }
