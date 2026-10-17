@@ -182,6 +182,10 @@ void main() {
       'android/app/src/main/kotlin/net/iqly/app/IqlyPushExtension.kt',
     );
     expect(push, contains('R.color.iq_accent'));
+    expect(
+      push,
+      matches(RegExp(r'setProgress\([^)]*\)\s*\.setShowWhen\(false\)')),
+    );
     expect(push, isNot(contains('R.color.iq_brand')));
   });
 }

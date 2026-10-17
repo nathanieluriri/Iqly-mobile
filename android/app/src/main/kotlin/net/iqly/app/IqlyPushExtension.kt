@@ -38,6 +38,7 @@ class IqlyPushExtension : INotificationServiceExtension {
                     val progress = data.optInt("progress", 0)
                     builder
                         .setProgress(max, progress, false)
+                        .setShowWhen(false)
                         .setOngoing(progress < max)
                         .setOnlyAlertOnce(true)
                         .setCategory(NotificationCompat.CATEGORY_PROGRESS)
