@@ -7,9 +7,12 @@ import 'package:onesignal_flutter/onesignal_flutter.dart';
 import '../data/api_client.dart';
 
 /// The OneSignal app the API sends through. Public, like the Google client
-/// ids; empty leaves push off, as in tests and preview films.
+/// ids; `--dart-define=ONESIGNAL_APP_ID=` (empty) leaves push off.
 abstract final class PushConfig {
-  static const oneSignalAppId = String.fromEnvironment('ONESIGNAL_APP_ID');
+  static const oneSignalAppId = String.fromEnvironment(
+    'ONESIGNAL_APP_ID',
+    defaultValue: '5eec74b6-9fb7-45b8-afc6-812a97f9f5b8',
+  );
 }
 
 /// The API's list of phones a signed-in person's pushes go to. A phone is
