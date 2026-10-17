@@ -36,10 +36,28 @@ class SurveyQuestion {
 
 /// What a brief asks for beyond the title and the answer.
 class SubmitForm {
-  const SubmitForm({this.questions = const [], this.acceptsFiles = false});
+  const SubmitForm({
+    this.questions = const [],
+    this.acceptsImages = false,
+    this.acceptsPdfs = false,
+  });
 
   final List<SurveyQuestion> questions;
-  final bool acceptsFiles;
+
+  /// The kinds of file the brief takes (its `acceptedFormats`): a brief can
+  /// take images only, PDFs only, both or none.
+  final bool acceptsImages;
+  final bool acceptsPdfs;
+
+  bool get acceptsFiles => acceptsImages || acceptsPdfs;
+
+  static const imageExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+
+  /// What the picker offers for this brief, by extension.
+  List<String> get fileExtensions => [
+    if (acceptsImages) ...imageExtensions,
+    if (acceptsPdfs) 'pdf',
+  ];
 
   /// The quick questions step (34:186) only exists when there is something
   /// to put on it.
@@ -138,7 +156,8 @@ abstract final class SubmitDemo {
           text: 'Where would you put this line first?',
         ),
       ],
-      acceptsFiles: true,
+      acceptsImages: true,
+      acceptsPdfs: true,
     ),
   };
 

@@ -67,7 +67,9 @@ class ResultScreen extends ConsumerWidget {
     } else if (result.hasError && !result.isLoading) {
       body = _Failed(
         key: const ValueKey('failed'),
-        onRetry: () => ref.invalidate(resultProvider(id)),
+        onRetry: () => ref
+          ..invalidate(submissionItemProvider(id))
+          ..invalidate(resultProvider(id)),
       );
     } else {
       body = const SizedBox.shrink(key: ValueKey('loading'));

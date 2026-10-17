@@ -39,7 +39,7 @@ class LiveSubmitService implements SubmitService {
   final DateTime Function() _clock;
 
   /// What the API takes besides the answer: images and PDFs.
-  static const fileExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf'];
+  static const fileExtensions = [...SubmitForm.imageExtensions, 'pdf'];
 
   final _forms = <String, SubmitForm>{};
 
@@ -151,6 +151,8 @@ class LiveSubmitService implements SubmitService {
     return SubmitResult.failure(switch (res.code) {
       'UNDER_AGE' => SubmitFailure.underAge,
       'ACCOUNT_CLOSING' => SubmitFailure.closing,
+      'FILE_TYPE_NOT_ALLOWED' => SubmitFailure.fileType,
+      _ when res.status == 415 => SubmitFailure.fileType,
       _ => SubmitFailure.unknown,
     });
   }

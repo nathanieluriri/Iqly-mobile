@@ -17,6 +17,15 @@ class SubmissionItem {
     this.awardedAt,
   });
 
+  /// An entry as the API answers it, with its brief and award inside.
+  SubmissionItem.live(Submission s)
+    : this(
+        submission: s,
+        brief: s.brief,
+        awardKobo: s.award?.amountKobo,
+        awardedAt: s.award?.awardedAt,
+      );
+
   final Submission submission;
   final Brief? brief;
   final int? awardKobo;
@@ -121,13 +130,7 @@ class MySubmissionsNotifier extends AsyncNotifier<MySubmissions> {
     final repo = ref.watch(repositoryProvider);
     if (ref.watch(liveModeProvider).isLive(LiveFeature.submissions)) {
       final items = [
-        for (final s in await repo.submissions())
-          SubmissionItem(
-            submission: s,
-            brief: s.brief,
-            awardKobo: s.award?.amountKobo,
-            awardedAt: s.award?.awardedAt,
-          ),
+        for (final s in await repo.submissions()) SubmissionItem.live(s),
       ]..sort(MySubmissions._newestFirst);
       return MySubmissions(items).including(ref.read(sentSubmissionsProvider));
     }
@@ -183,19 +186,62 @@ final submissionsTabProvider =
 /// Taken from the loaded list, or from the ones just sent, at once when
 /// either has it, so a detail pushed from a card or from the sent moment
 /// draws from its first frame. Only a cold open waits for the load.
+///
+/// Live, an entry the list lacks or still holds as under review is read
+/// by id (`GET /submissions/:id`), since a result may have come out since
+/// the list loaded; the list stands in when that read gets no answer, and
+/// with neither the page fails. No automatic retry: the pages offer Try
+/// again.
 final submissionItemProvider = FutureProvider.autoDispose
-    .family<SubmissionItem?, String>((ref, id) {
+    .family<SubmissionItem?, String>(retry: (_, _) => null, (ref, id) {
       SubmissionItem? pick(MySubmissions all) =>
           all.items.where((i) => i.id == id).firstOrNull;
-      final loaded = ref.watch(mySubmissionsProvider).value;
-      if (loaded != null) return pick(loaded);
+      final loaded = ref.watch(mySubmissionsProvider.select((s) => s.value));
       final sent = ref
           .watch(sentSubmissionsProvider)
           .where((i) => i.id == id)
           .firstOrNull;
-      if (sent != null) return sent;
+      final listed = (loaded == null ? null : pick(loaded)) ?? sent;
+      final repo = ref.watch(repositoryProvider);
+      if (repo is LiveRepository &&
+          repo.mode.isLive(LiveFeature.submissions) &&
+          (listed == null || listed.underReview)) {
+        return _readAgain(repo, id, listed);
+      }
+      if (listed != null || loaded != null) return listed;
       return ref.watch(mySubmissionsProvider.future).then(pick);
     });
+
+Future<SubmissionItem?> _readAgain(
+  LiveRepository repo,
+  String id,
+  SubmissionItem? listed,
+) async {
+  try {
+    if (await repo.submission(id) case final fresh?) {
+      return SubmissionItem.live(fresh);
+    }
+    final all = await repo.submissions();
+    if (all.where((s) => s.id == id).firstOrNull case final fresh?) {
+      return SubmissionItem.live(fresh);
+    }
+  } on Exception {
+    if (listed != null) return listed;
+    rethrow;
+  }
+  if (listed != null) return listed;
+  throw SubmissionUnavailable(id);
+}
+
+/// An entry neither the list nor the API could give.
+class SubmissionUnavailable implements Exception {
+  const SubmissionUnavailable(this.id);
+
+  final String id;
+
+  @override
+  String toString() => 'SubmissionUnavailable($id)';
+}
 
 /// Live briefs not answered yet, soonest to close first.
 Future<List<Brief>> openBriefs(Ref ref) async {

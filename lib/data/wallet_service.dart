@@ -87,6 +87,11 @@ abstract class WalletService {
   /// failed). The live API pushes or polls; the screen just listens.
   Stream<Withdrawal> watch(Withdrawal withdrawal);
 
+  /// The withdrawal [id] as the API holds it, for a page opened by a link
+  /// when the wallet does not hold it; null when there is no such
+  /// withdrawal. The demo's are all in its wallet.
+  Future<Withdrawal?> withdrawal(String id);
+
   /// Whether [pin] is the person's 4-digit iQLY PIN.
   Future<bool> confirmPin(String pin);
 
@@ -177,6 +182,9 @@ class DemoWalletService implements WalletService {
   }
 
   @override
+  Future<Withdrawal?> withdrawal(String id) async => null;
+
+  @override
   Stream<Withdrawal> watch(Withdrawal withdrawal) async* {
     yield withdrawal;
     final step = payoutStep;
@@ -246,6 +254,10 @@ class PausedWalletService implements WalletService {
 
   @override
   Stream<Withdrawal> watch(Withdrawal withdrawal) => Stream.value(withdrawal);
+
+  @override
+  Future<Withdrawal?> withdrawal(String id) =>
+      Future.error(const FeaturePaused(LiveFeature.withdrawals));
 
   @override
   Future<bool> confirmPin(String pin) async => false;

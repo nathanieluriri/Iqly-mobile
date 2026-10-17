@@ -8,12 +8,14 @@ import '../../core/backend.dart';
 import '../../data/device.dart';
 import '../../surfaces/notification_sounds.dart';
 import '../../surfaces/surface_samples.dart';
+import '../../data/repository.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/icon.dart';
 import '../../ui/list_row.dart';
 import '../../ui/toast.dart';
 import '../settings/settings_state.dart';
+import 'mode_switch.dart';
 import 'more_widgets.dart';
 
 /// B14 · Try notifications (1336:28442; owner, 16 Oct), opened by holding
@@ -25,7 +27,8 @@ import 'more_widgets.dart';
 /// comes first. The Remind me row and the Sounds group are not in Figma:
 /// they try the timed close reminder and the candidate iQLY sounds. The
 /// last row, not in Figma either, says what this launch runs on and when
-/// the API last answered its health check.
+/// the API last answered its health check; holding it opens the sheet that
+/// switches between Live and Preview ([pickLaunchMode]).
 class TryNotificationsScreen extends ConsumerWidget {
   const TryNotificationsScreen({super.key});
 
@@ -78,12 +81,13 @@ class TryNotificationsScreen extends ConsumerWidget {
         'Requested, then Sent, then Arrived',
         (NotificationTrial t) => t.payout(),
       ),
-      (
-        IqIcons.polls,
-        'New poll from Orchid Foods',
-        'With Vote now and Remind me later',
-        (NotificationTrial t) => t.poll(),
-      ),
+      if (ref.watch(pollsShownProvider))
+        (
+          IqIcons.polls,
+          'New poll from Orchid Foods',
+          'With Vote now and Remind me later',
+          (NotificationTrial t) => t.poll(),
+        ),
       (
         IqIcons.trophy,
         'You won ₦12,500.00',
@@ -161,17 +165,20 @@ class TryNotificationsScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: IqSpace.s3),
-          RowGroup(
-            children: [
-              IqListRow(
-                icon: IqIcons.info,
-                label: backend.isPreview ? 'Preview' : 'Live',
-                description: backendLine(backend, checkedAt),
-                descriptionMaxLines: 3,
-                showChevron: false,
-                divider: false,
-              ),
-            ],
+          GestureDetector(
+            onLongPress: () => pickLaunchMode(context, ref),
+            child: RowGroup(
+              children: [
+                IqListRow(
+                  icon: IqIcons.info,
+                  label: backend.isPreview ? 'Preview' : 'Live',
+                  description: backendLine(backend, checkedAt),
+                  descriptionMaxLines: 3,
+                  showChevron: false,
+                  divider: false,
+                ),
+              ],
+            ),
           ),
         ],
       ),

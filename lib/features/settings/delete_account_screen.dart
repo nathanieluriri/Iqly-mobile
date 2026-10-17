@@ -22,6 +22,7 @@ import '../../ui/list_row.dart';
 import '../../ui/top_bar.dart';
 import '../onboarding/onboarding_draft.dart';
 import '../more/more_widgets.dart';
+import '../profile/leaving.dart';
 import '../profile/profile_state.dart';
 import '../wallet/wallet_state.dart';
 import 'settings_state.dart';
@@ -150,8 +151,14 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
       return;
     }
     final email = ref.read(onboardingUserProvider).value?.email;
-    await forgetAccount(ref, closed: true);
-    if (mounted) context.go(Routes.accountClosing, extra: email);
+    if (!mounted) return;
+    await leaveUnderLoader(
+      context,
+      label: 'Closing your account',
+      work: () => forgetAccount(ref, closed: true),
+      to: Routes.accountClosing,
+      extra: email,
+    );
   }
 
   void _keep() => goBack(context);

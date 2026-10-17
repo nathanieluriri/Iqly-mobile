@@ -48,6 +48,7 @@ class SubmitFlow {
     this.answerTries = 0,
     this.sending = false,
     this.failed = false,
+    this.refusedFile = false,
     this.receipt,
     this.back = false,
     this.restored,
@@ -66,6 +67,10 @@ class SubmitFlow {
 
   /// The last send did not reach the API.
   final bool failed;
+
+  /// The last send was refused for a file the brief does not take, so
+  /// trying again as it is cannot work.
+  final bool refusedFile;
   final SubmitReceipt? receipt;
 
   /// The last step change went back.
@@ -85,6 +90,7 @@ class SubmitFlow {
     int? answerTries,
     bool? sending,
     bool? failed,
+    bool? refusedFile,
     bool? back,
   }) => SubmitFlow(
     step: step ?? this.step,
@@ -94,6 +100,7 @@ class SubmitFlow {
     answerTries: answerTries ?? this.answerTries,
     sending: sending ?? this.sending,
     failed: failed ?? this.failed,
+    refusedFile: refusedFile ?? this.refusedFile,
     receipt: receipt,
     back: back ?? this.back,
     restored: restored,
@@ -301,7 +308,7 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
     if (!form.hasQuestions && !_answerStepReady()) return null;
     if (!canSend(form)) return null;
     final scope = ref.read(accountScopeProvider);
-    state = state.copyWith(sending: true, failed: false);
+    state = state.copyWith(sending: true, failed: false, refusedFile: false);
     final draft = state.draft;
     final files = [
       for (final a in state.files)
@@ -332,6 +339,7 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
       state = state.copyWith(
         sending: false,
         failed: true,
+        refusedFile: result.failure == SubmitFailure.fileType,
         files: [
           for (final a in state.files)
             a.status == AttachmentStatus.uploading && going.contains(a.file)

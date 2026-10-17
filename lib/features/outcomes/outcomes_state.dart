@@ -89,7 +89,8 @@ final resultProvider = FutureProvider.autoDispose.family<ResultData?, String>(
       ..ignore();
     final userRead = ref.watch(onboardingUserProvider.future)..ignore();
     final item = await ref.watch(submissionItemProvider(id).future);
-    if (item == null || item.underReview) return null;
+    if (item == null) throw SubmissionUnavailable(id);
+    if (item.underReview) return null;
     final (outcome, user) = await (outcomeRead, userRead).wait;
     var next = const <Brief>[];
     if (item.status == SubmissionStatus.filteredOut) {
@@ -176,12 +177,13 @@ class Leaderboard {
   }
 }
 
+const celebratedKey = 'outcomes.celebrated';
+
 /// True the first time the Winner result shows for [id] on this device: the
 /// success haptic plays once (MOTION-SPEC §2.7, "Winner result first seen").
 bool firstCelebration(SharedPreferences prefs, String id) {
-  const key = 'outcomes.celebrated';
-  final seen = prefs.getStringList(key) ?? const [];
+  final seen = prefs.getStringList(celebratedKey) ?? const [];
   if (seen.contains(id)) return false;
-  prefs.setStringList(key, [...seen, id]);
+  prefs.setStringList(celebratedKey, [...seen, id]);
   return true;
 }

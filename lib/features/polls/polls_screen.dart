@@ -7,6 +7,8 @@ import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../data/polls_data.dart';
 import '../../theme/theme.dart';
+import '../../ui/empty_state.dart';
+import '../../ui/illustration.dart';
 import '../../ui/banner.dart';
 import '../../ui/section_title.dart';
 import '../../ui/skeleton.dart';
@@ -210,16 +212,12 @@ class _Empty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const _Page(
-      children: [
-        SizedBox(height: IqSpace.s3),
-        Appear(
-          child: _Note(
-            title: 'No open polls right now',
-            body: 'New polls land here.',
-          ),
-        ),
-      ],
+    return const IqEmptyFill(
+      child: IqEmptyState(
+        figure: IqFigures.shrug,
+        title: 'No open polls right now',
+        body: 'New polls land here.',
+      ),
     );
   }
 }

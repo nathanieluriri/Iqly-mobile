@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
 import 'core/backend.dart';
+import 'core/haptics.dart';
 import 'core/session.dart';
 import 'data/api_client.dart';
 import 'data/api_config.dart';
@@ -19,16 +20,17 @@ import 'data/local/local_store.dart';
 import 'data/local/memory_local_store.dart';
 import 'data/patches.dart';
 import 'data/profile_service.dart';
-import 'data/repository.dart';
 import 'data/token_store.dart';
 import 'features/discover/discover_state.dart';
 import 'features/more/more_state.dart';
+import 'features/notifications/notifications_state.dart';
 import 'features/profile/account_sync.dart';
 import 'features/profile/profile_state.dart';
 import 'features/settings/settings_state.dart';
 import 'router.dart';
 import 'surfaces/push.dart';
 import 'surfaces/surfaces.dart';
+import 'ui/svg_precache.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -73,7 +75,7 @@ Future<void> main() async {
             devices: ApiPushDevices(api),
             signedIn: () => ref.read(sessionProvider).signedIn,
             onOpen: (route) => ref.read(surfacesProvider)?.openLink(route),
-            onArrive: () => ref.invalidate(unreadNotificationsProvider),
+            onArrive: () => readAgainOnPush(ref),
           ),
         ),
       ],
@@ -97,11 +99,15 @@ Future<void> main() async {
     ],
   );
   container.read(sessionGuardProvider);
+  container.read(hapticsProvider);
   if (ApiConfig.liveAuth) _startAccount(container);
   runApp(
     UncontrolledProviderScope(container: container, child: const IqlyApp()),
   );
   unawaited(_startSurfaces(container));
+  WidgetsBinding.instance.addPostFrameCallback(
+    (_) => unawaited(precacheSvgs()),
+  );
 }
 
 /// The phone's local store: SQLite on Android and iOS, memory elsewhere or

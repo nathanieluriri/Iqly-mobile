@@ -129,7 +129,7 @@ class WidgetSnapshot {
               firstName!,
               leftShort(timeLeft(first.deadline, now)!),
             ),
-      pollsRoute: DeepLinks.polls,
+      pollsRoute: showPolls ? DeepLinks.polls : DeepLinks.home,
       closingRoute: DeepLinks.home,
       pollsClosesAt: firstLive ? first.deadline : null,
       pollsLive: firstLive

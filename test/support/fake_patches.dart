@@ -8,7 +8,6 @@ class FakePatchService implements PatchService {
   bool fail = false;
   int checks = 0;
   int downloads = 0;
-  bool closed = false;
   int? running;
 
   @override
@@ -26,9 +25,6 @@ class FakePatchService implements PatchService {
     downloads++;
     if (fail) throw Exception('download failed');
   }
-
-  @override
-  Future<void> close() async => closed = true;
 }
 
 void fakeAsyncCheck(

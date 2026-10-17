@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
-import '../../ui/button.dart';
+import '../../ui/empty_state.dart';
 import '../../ui/illustration.dart';
 import '../discover/discover_state.dart';
 import '../discover/discover_widgets.dart';
@@ -29,20 +29,13 @@ class MoreSavedBriefsPage extends ConsumerWidget {
       body: saved == null
           ? const SizedBox.shrink()
           : saved.isEmpty
-          ? Align(
-              alignment: Alignment.topCenter,
-              child: FigureState(
-                figure: const Padding(
-                  padding: EdgeInsets.only(top: IqSpace.s12),
-                  child: IqFigure(IqFigures.saver, width: 188),
-                ),
+          ? IqEmptyFill(
+              child: IqEmptyState(
+                figure: IqFigures.saver,
                 title: 'Nothing saved yet',
                 body: 'Tap the bookmark on any brief.',
-                action: IqButton(
-                  label: 'Browse briefs',
-                  showIcon: false,
-                  onTap: () => browseForYou(context, ref),
-                ),
+                action: 'Browse briefs',
+                onAction: () => browseForYou(context, ref),
               ),
             )
           : ListView(

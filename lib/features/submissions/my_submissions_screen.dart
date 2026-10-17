@@ -11,12 +11,13 @@ import '../../core/relative_time.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../data/models.dart';
+import '../../data/live/live_repository.dart';
 import '../../data/repository.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/brief_card.dart';
-import '../../ui/button.dart';
+import '../../ui/empty_state.dart';
 import '../../ui/icon.dart';
 import '../../ui/illustration.dart';
 import '../../ui/list_row.dart';
@@ -56,9 +57,51 @@ class _MySubmissionsScreenState extends ConsumerState<MySubmissionsScreen> {
   final _scroll = ScrollController();
   final _arrivals = ArrivalsController();
   bool _retrying = false;
+  bool _inView = true;
+  GoRouter? _router;
+
+  bool get _live => !ref.read(liveModeProvider).isPreview;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_live || !ref.read(mySubmissionsProvider).hasValue) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(mySubmissionsProvider.notifier).refreshQuietly();
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final router = GoRouter.maybeOf(context);
+    if (router == _router) return;
+    _router?.routerDelegate.removeListener(_onRoute);
+    _router = router;
+    router?.routerDelegate.addListener(_onRoute);
+  }
+
+  bool get _atTab {
+    final router = _router;
+    if (router == null || router.routerDelegate.currentConfiguration.isEmpty) {
+      return true;
+    }
+    return router.state.uri.path == Routes.submissions;
+  }
+
+  /// The tab shown again reads the list again behind what it shows: a
+  /// result may have come out since.
+  void _onRoute() {
+    final now = _atTab;
+    if (now && !_inView && _live) {
+      ref.read(mySubmissionsProvider.notifier).refreshQuietly();
+    }
+    _inView = now;
+  }
 
   @override
   void dispose() {
+    _router?.routerDelegate.removeListener(_onRoute);
     _scroll.dispose();
     super.dispose();
   }
@@ -390,36 +433,13 @@ class _Empty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(
-        IqSpace.s4,
-        121 + IqSpace.s6,
-        IqSpace.s4,
-        AppShell.contentInset(context),
-      ),
-      child: Column(
-        children: [
-          const IqFigure(IqFigures.writer, width: 188, arrive: true),
-          const SizedBox(height: IqSpace.s3),
-          Text(
-            'No submissions yet',
-            textAlign: TextAlign.center,
-            style: IqText.title.copyWith(color: IqColors.fg),
-          ),
-          const SizedBox(height: IqSpace.s3),
-          Text(
-            'Find a brief that fits you.',
-            textAlign: TextAlign.center,
-            style: IqText.body.copyWith(color: IqColors.fg2),
-          ),
-          const SizedBox(height: IqSpace.s3),
-          IqButton(
-            label: 'Browse briefs',
-            showIcon: false,
-            width: 200,
-            onTap: () => context.open(Routes.pickBrief),
-          ),
-        ],
+    return IqEmptyFill(
+      bottom: AppShell.contentInset(context),
+      child: IqEmptyState(
+        title: 'No submissions yet',
+        body: 'Find a brief that fits you.',
+        action: 'Browse briefs',
+        onAction: () => context.open(Routes.pickBrief),
       ),
     );
   }

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../../core/backend.dart';
 import '../../core/session.dart';
 import '../api_client.dart';
 import '../local/local_rows.dart';
@@ -200,6 +201,17 @@ class LiveWalletService implements WalletService {
       },
     );
     return changes.stream;
+  }
+
+  /// Unanswered or refused, it fails; a paused feature refuses before
+  /// asking.
+  @override
+  Future<Withdrawal?> withdrawal(String id) async {
+    if (!withdrawals) throw const FeaturePaused(LiveFeature.withdrawals);
+    final res = await api.get('/wallet/withdrawals/${Uri.encodeComponent(id)}');
+    if (res.status == 404) return null;
+    if (!res.ok) throw ApiRefused.of(res);
+    return withdrawalFromJson(res.body['data']);
   }
 
   Future<Withdrawal?> _fetch(String id) async {

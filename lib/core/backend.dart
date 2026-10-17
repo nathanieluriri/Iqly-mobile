@@ -190,6 +190,18 @@ class BackendNotifier extends Notifier<Backend> {
   Future<void> get locked => Future.value();
 
   void resumed() {}
+
+  /// Whether [force] can change the mode: only a build on the API can.
+  bool get canForce => false;
+
+  /// Whether the person held the app in preview from Try notifications;
+  /// otherwise health decides alone.
+  bool get forcedPreview => false;
+
+  /// Holds every launch from now on in preview ([preview] true) or hands
+  /// the mode back to health, and starts the launch's mode over so the
+  /// splash can decide and lock it again.
+  Future<void> force({required bool preview}) async {}
 }
 
 /// Decides each launch's mode from `GET /health`. A launch starts from what
@@ -210,6 +222,10 @@ class LiveBackendNotifier extends BackendNotifier {
   /// preview left; a preview launch after it never brings the clear back.
   static const previewClearedKey = 'backend.previewCleared';
 
+  /// Set while the person holds the app in preview; health still decides
+  /// what [decidedKey] keeps, for when they hand the mode back.
+  static const forcedKey = 'backend.forced';
+
   /// A resume asks again at most this often.
   static const resumeEvery = Duration(minutes: 15);
 
@@ -219,13 +235,31 @@ class LiveBackendNotifier extends BackendNotifier {
 
   Future<void>? _running;
   Future<void>? _locking;
-  final _locked = Completer<void>();
+  var _locked = Completer<void>();
   DateTime? _askedAt;
 
   SharedPreferences get _prefs => ref.read(sharedPreferencesProvider);
 
   @override
-  Backend build() => _stored(decidedKey);
+  Backend build() => forcedPreview ? Backend.preview : _stored(decidedKey);
+
+  @override
+  bool get canForce => true;
+
+  @override
+  bool get forcedPreview => _prefs.getString(forcedKey) == 'preview';
+
+  @override
+  Future<void> force({required bool preview}) async {
+    if (preview) {
+      await _prefs.setString(forcedKey, 'preview');
+    } else {
+      await _prefs.remove(forcedKey);
+    }
+    _locking = null;
+    if (_locked.isCompleted) _locked = Completer<void>();
+    state = build();
+  }
 
   @override
   bool get checking => _running != null;
@@ -247,7 +281,7 @@ class LiveBackendNotifier extends BackendNotifier {
       final report = await health.check();
       if (!ref.mounted) return;
       final decided = Backend.from(report);
-      if (_locking == null) state = decided;
+      if (_locking == null) state = forcedPreview ? Backend.preview : decided;
       await Future.wait([
         _prefs.setStringList(decidedKey, decided.names),
         _prefs.setString(

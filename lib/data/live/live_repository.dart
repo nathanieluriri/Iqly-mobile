@@ -197,6 +197,19 @@ class LiveRepository implements IqlyRepository {
     return rowsOf(items, submissionFromJson);
   }
 
+  /// One of the person's entries as the API holds it now (contract 5), for
+  /// a page opened by id; null when the API has no such entry for them.
+  /// Never from the phone's copy: it is read because a copy may be old.
+  Future<Submission?> submission(String id) {
+    _requireLive(LiveFeature.submissions);
+    return scope.guard(
+      api.get('/submissions/${Uri.encodeComponent(id)}').then((res) {
+        if (res.status == 404) return null;
+        return submissionFromJson(_data(res));
+      }),
+    );
+  }
+
   /// Without [allowCache] an API that cannot be reached fails the read
   /// instead of answering the phone's last copy.
   @override

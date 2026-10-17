@@ -16,10 +16,11 @@ void main() {
       tester,
       name,
       IqPatchDialog(phase: phase),
-      size: Size(
-        IqPatchDialog.width,
-        phase == PatchPhase.downloading ? 274 : 312,
-      ),
+      size: Size(IqPatchDialog.width, switch (phase) {
+        PatchPhase.downloading => 274,
+        PatchPhase.ready => 356,
+        _ => 312,
+      }),
     );
   }
 

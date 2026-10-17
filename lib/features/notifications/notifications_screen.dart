@@ -9,7 +9,7 @@ import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
-import '../../ui/button.dart';
+import '../../ui/empty_state.dart';
 import '../../ui/illustration.dart';
 import '../../ui/notification.dart';
 import '../../ui/section_title.dart';
@@ -42,10 +42,23 @@ class NotificationsScreen extends ConsumerStatefulWidget {
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   bool _seen = false;
 
+  /// A visit reads the feed again behind the rows kept from the last one,
+  /// and marks seen only up to what this read brought.
+  late final Future<void> _reading = ref
+      .read(notificationsProvider.notifier)
+      .refreshQuietly();
+
+  @override
+  void initState() {
+    super.initState();
+    _reading.ignore();
+  }
+
   void _markSeen() {
     if (_seen) return;
     _seen = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _reading;
       if (mounted) ref.read(notificationsProvider.notifier).markSeen();
     });
   }
@@ -262,37 +275,13 @@ class _Empty extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Arrive.illustration(
-            child: IqFigure(IqFigures.caller, width: 188),
-          ),
-          const SizedBox(height: IqSpace.s3),
-          Appear(
-            delay: IqDurations.stagger * 2,
-            child: Text(
-              'Nothing yet',
-              style: IqText.title.copyWith(color: IqColors.fg),
-            ),
-          ),
-          const SizedBox(height: IqSpace.s3),
-          Appear(
-            delay: IqDurations.stagger * 3,
-            child: Text(
-              'Deadlines, results and payouts land here.',
-              textAlign: TextAlign.center,
-              style: IqText.body.copyWith(color: IqColors.fg2),
-            ),
-          ),
-          const SizedBox(height: IqSpace.s3),
-          IqButton(
-            label: 'Browse briefs',
-            showIcon: false,
-            onTap: () => browseForYou(context, ref),
-          ),
-        ],
+    return IqEmptyFill(
+      child: IqEmptyState(
+        figure: IqFigures.caller,
+        title: 'Nothing yet',
+        body: 'Deadlines, results and payouts land here.',
+        action: 'Browse briefs',
+        onAction: () => browseForYou(context, ref),
       ),
     );
   }

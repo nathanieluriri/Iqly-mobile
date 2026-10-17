@@ -94,10 +94,14 @@ class SurfaceInputs {
     required this.feed,
     required this.now,
     this.draftBriefId,
+    this.showPolls = true,
   });
 
   final List<Brief> briefs;
   final List<PollBusiness> polls;
+
+  /// Polls have no API, so a live launch offers none of the preview's.
+  final bool showPolls;
   final List<Withdrawal> withdrawals;
   final List<AppNotification> feed;
   final DateTime now;
@@ -134,7 +138,7 @@ class SurfaceInputs {
 /// the newest draft on the phone, or is not offered; a live launch that
 /// pauses them shows neither. [onPhone] reads only what the phone holds,
 /// without asking the API, so a launch link never waits for the network.
-/// Polls stay on the preview data.
+/// A live launch offers no polls.
 Future<SurfaceInputs> surfaceInputs(
   Reader read,
   DateTime now, {
@@ -162,7 +166,8 @@ Future<SurfaceInputs> surfaceInputs(
   }
   return SurfaceInputs(
     briefs: briefs,
-    polls: preview.polls,
+    polls: const [],
+    showPolls: false,
     withdrawals: preview.withdrawals,
     feed: preview.feed,
     now: now,
@@ -259,7 +264,7 @@ class Surfaces {
       for (final s in appShortcuts(
         polls: inputs.polls,
         draftBriefId: inputs.draftBriefId,
-        showPolls: Flags.polls,
+        showPolls: Flags.polls && inputs.showPolls,
       ))
         ShortcutItem(type: s.type, localizedTitle: s.label, icon: s.icon),
     ]);
@@ -268,7 +273,7 @@ class Surfaces {
       briefs: inputs.briefs,
       polls: inputs.polls,
       now: inputs.now,
-      showPolls: Flags.polls,
+      showPolls: Flags.polls && inputs.showPolls,
     );
     final thumbs = <String, Uint8List>{};
     for (final b in inputs.briefs) {

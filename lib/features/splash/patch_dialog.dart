@@ -90,9 +90,63 @@ class _WaveClipper extends CustomClipper<Path> {
   bool shouldReclip(_WaveClipper old) => old.level != level || old.wave != wave;
 }
 
+/// The filling mark on its own, rising and waving as Updating iQLY does,
+/// for a wait with no dialog: a full-screen cover while the account is let
+/// go. Reduced motion: no wave, the level holds at half.
+class IqFillLoader extends StatefulWidget {
+  const IqFillLoader({super.key});
+
+  @override
+  State<IqFillLoader> createState() => _IqFillLoaderState();
+}
+
+class _IqFillLoaderState extends State<IqFillLoader>
+    with TickerProviderStateMixin {
+  late final AnimationController _wave = AnimationController(
+    vsync: this,
+    duration: IqDurations.patchWave,
+  );
+  late final AnimationController _level = AnimationController(vsync: this);
+  bool _reduced = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduced = MediaQuery.disableAnimationsOf(context);
+    if (_reduced) {
+      _wave.stop();
+      _level.value = IqPatchFill.stepped;
+    } else if (!_wave.isAnimating) {
+      _wave.repeat();
+      _level.animateTo(
+        IqPatchFill.hold,
+        duration: IqDurations.patchRise,
+        curve: const _Rise(),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _wave.dispose();
+    _level.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([_wave, _level]),
+      builder: (context, _) =>
+          IqFillMark(level: _level.value, wave: _wave.value, still: _reduced),
+    );
+  }
+}
+
 /// The patch dialog (Figma B · Patch, 1322:26867 / 1322:27353 / 1322:27844):
-/// Updating iQLY while the patch downloads, Update ready once it is on disk,
-/// Couldn't update when it fails. It cannot be dismissed while updating; the
+/// Updating iQLY while the patch downloads, Update applied once it is on
+/// disk (its Close only takes the dialog down; the patch boots on the next
+/// open), Couldn't update when it fails. It cannot be dismissed while updating; the
 /// glass rises toward 85% with the wave moving, fills in 400 ms when done
 /// (with the success haptic) and drains in 400 ms on a failure. The copy
 /// crossfades in 150 ms. Reduced motion: no wave, the level steps 0, 50, 100.
@@ -194,8 +248,10 @@ class _IqPatchDialogState extends State<IqPatchDialog>
   Widget build(BuildContext context) {
     final (title, body) = switch (widget.phase) {
       PatchPhase.ready => (
-        'Update ready',
-        'Close iQLY and open it again to finish updating.',
+        'Update applied',
+        'We updated iQLY over the air to improve your experience. It is '
+            'fully installed the next time you open the app. You can close '
+            'this message.',
       ),
       PatchPhase.failed => (
         "Couldn't update",
@@ -261,7 +317,7 @@ class _IqPatchDialogState extends State<IqPatchDialog>
   List<Widget> _footer() => switch (widget.phase) {
     PatchPhase.ready => [
       IqButton(
-        label: 'Close iQLY',
+        label: 'Close',
         showIcon: false,
         width: double.infinity,
         onTap: widget.onClose,
@@ -385,7 +441,7 @@ class _PatchPage extends ConsumerWidget {
         child: Center(
           child: IqPatchDialog(
             phase: ref.watch(patchesProvider),
-            onClose: patches.close,
+            onClose: patches.dismiss,
             onContinue: patches.dismiss,
           ),
         ),
