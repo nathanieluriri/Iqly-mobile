@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/flags.dart';
 import '../core/session.dart';
 import 'demo_data.dart';
 import 'drafts_data.dart';
@@ -198,6 +199,17 @@ final repositoryProvider = Provider<IqlyRepository>(
 /// person's own: their rows and cards go and the rest closes up.
 final pointsAndReferralsProvider = Provider<bool>(
   (ref) => ref.watch(liveModeProvider).isPreview,
+);
+
+/// Quick polls and activations have no API in contract 1 either, so a live
+/// launch hides every way into them, never showing the preview's samples.
+/// A preview launch keeps them behind their flags.
+final pollsShownProvider = Provider<bool>(
+  (ref) => Flags.polls && ref.watch(liveModeProvider).isPreview,
+);
+
+final activationsShownProvider = Provider<bool>(
+  (ref) => Flags.activations && ref.watch(liveModeProvider).isPreview,
 );
 
 /// The bell's unread count, shared by every tab's top bar. It clears once

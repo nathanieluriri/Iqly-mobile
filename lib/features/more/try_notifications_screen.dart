@@ -8,6 +8,7 @@ import '../../core/backend.dart';
 import '../../data/device.dart';
 import '../../surfaces/notification_sounds.dart';
 import '../../surfaces/surface_samples.dart';
+import '../../data/repository.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/icon.dart';
@@ -78,12 +79,13 @@ class TryNotificationsScreen extends ConsumerWidget {
         'Requested, then Sent, then Arrived',
         (NotificationTrial t) => t.payout(),
       ),
-      (
-        IqIcons.polls,
-        'New poll from Orchid Foods',
-        'With Vote now and Remind me later',
-        (NotificationTrial t) => t.poll(),
-      ),
+      if (ref.watch(pollsShownProvider))
+        (
+          IqIcons.polls,
+          'New poll from Orchid Foods',
+          'With Vote now and Remind me later',
+          (NotificationTrial t) => t.poll(),
+        ),
       (
         IqIcons.trophy,
         'You won ₦12,500.00',

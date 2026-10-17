@@ -11,13 +11,16 @@ import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../data/activations_data.dart';
 import '../../data/models.dart';
+import '../../data/repository.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/bookmark.dart';
 import '../../ui/brief_card.dart';
 import '../../ui/chip.dart';
+import '../../ui/empty_state.dart';
 import '../../ui/icon.dart';
+import '../../ui/illustration.dart';
 import '../../ui/meta.dart';
 import '../../ui/sample_cover.dart';
 import '../../ui/sample_logo.dart';
@@ -63,7 +66,7 @@ List<Brief> pickList({
 
 /// B3 · Discover · pick a brief (409:75), a sub page opened from My
 /// submissions with nothing sent: the feed lenses, the activation closing
-/// first and the briefs to answer. A brief opens its detail, where the
+/// first (preview launches only) and the briefs to answer. A brief opens its detail, where the
 /// response starts.
 class PickBriefScreen extends ConsumerStatefulWidget {
   const PickBriefScreen({super.key});
@@ -87,17 +90,25 @@ class _PickBriefScreenState extends ConsumerState<PickBriefScreen> {
   Widget build(BuildContext context) {
     final feed = ref.watch(discoverFeedProvider);
     final saved = ref.watch(savedBriefsProvider).value ?? const <Brief>[];
-    final activations = ref.watch(activationsProvider).value;
+    final activations = ref.watch(activationsShownProvider)
+        ? ref.watch(activationsProvider).value
+        : null;
     final now = ref.watch(clockProvider)();
-    final briefs = pickList(
-      lens: _lens,
+    final filters = ref.watch(discoverFiltersProvider);
+    List<Brief> list(PickLens lens) => pickList(
+      lens: lens,
       briefs: feed.value?.briefs ?? const [],
       saved: saved,
-      filters: ref.watch(discoverFiltersProvider),
+      filters: filters,
       interests: ref.watch(feedInterestsProvider),
       now: now,
     );
-    final activation = _firstOpen(activations, now);
+    final briefs = list(_lens);
+    final activation = _lens == PickLens.saved
+        ? null
+        : _firstOpen(activations, now);
+    final empty =
+        briefs.isEmpty && activation == null && feed.hasValue && !feed.hasError;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
@@ -121,88 +132,58 @@ class _PickBriefScreenState extends ConsumerState<PickBriefScreen> {
                   ),
                 ),
                 Expanded(
-                  child: ListView(
-                    padding: EdgeInsets.fromLTRB(
-                      IqSpace.s4,
-                      0,
-                      IqSpace.s4,
-                      IqSpace.s6 + MediaQuery.paddingOf(context).bottom,
-                    ),
-                    children: [
-                      Row(
-                        children: [
-                          for (final (i, lens) in PickLens.values.indexed) ...[
-                            if (i > 0) const SizedBox(width: IqSpace.s2),
-                            IqChip(
-                              label: _label(lens),
-                              state: lens == _lens
-                                  ? IqChipState.selected
-                                  : IqChipState.standard,
-                              onChanged: (_) => setState(() => _lens = lens),
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: IqSpace.s3 * 3),
-                      AnimatedSwitcher(
-                        duration: motion(context, IqDurations.swap),
-                        switchInCurve: IqCurves.easeOut,
-                        switchOutCurve: IqCurves.easeOut,
-                        layoutBuilder: (current, previous) => Stack(
-                          alignment: Alignment.topCenter,
-                          children: [...previous, ?current],
+                  child: CustomScrollView(
+                    slivers: [
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: IqSpace.s4,
                         ),
-                        child: Column(
-                          key: ValueKey(_lens),
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (activation != null &&
-                                _lens != PickLens.saved) ...[
-                              IqSectionTitle(
-                                title: 'Activations',
-                                onSeeAll: () =>
-                                    context.open(Routes.activations),
-                              ),
-                              const SizedBox(height: IqSpace.s3),
-                              _ActivationCard(activation: activation, now: now),
-                              const SizedBox(height: IqSpace.s3 * 3),
-                            ],
-                            IqSectionTitle(
-                              title: 'Briefs',
-                              link: 'Filter',
-                              onSeeAll: () => showIqSheet<void>(
-                                context,
-                                (_) => const FiltersSheet(),
-                                scrim: IqScrim.sheet,
-                              ),
-                            ),
-                            if (feed.hasError && briefs.isEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(top: IqSpace.s3),
-                                child: IqBanner(
-                                  kind: IqBannerKind.error,
-                                  title:
-                                      'Couldn’t load. Check your connection.',
-                                  action: 'Try again',
-                                  onAction: () => ref
-                                      .read(discoverFeedProvider.notifier)
-                                      .retry(),
+                        sliver: SliverToBoxAdapter(
+                          child: Row(
+                            children: [
+                              for (final (i, lens)
+                                  in PickLens.values.indexed) ...[
+                                if (i > 0) const SizedBox(width: IqSpace.s2),
+                                IqChip(
+                                  label: _label(lens),
+                                  state: lens == _lens
+                                      ? IqChipState.selected
+                                      : IqChipState.standard,
+                                  onChanged: (_) =>
+                                      setState(() => _lens = lens),
                                 ),
-                              ),
-                            for (final brief in briefs) ...[
-                              const SizedBox(height: IqSpace.s3),
-                              _BriefCard(
-                                brief: brief,
-                                now: now,
-                                saved: saved.any((b) => b.id == brief.id),
-                                onSaved: (on) => ref
-                                    .read(savedBriefsProvider.notifier)
-                                    .setSaved(brief, on),
-                              ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ),
+                      if (empty)
+                        IqSliverEmptyFill(
+                          key: ValueKey(('empty', _lens)),
+                          bottom: MediaQuery.paddingOf(context).bottom,
+                          child: _empty(
+                            filters,
+                            others: list(PickLens.all).isNotEmpty,
+                          ),
+                        )
+                      else
+                        SliverPadding(
+                          padding: EdgeInsets.fromLTRB(
+                            IqSpace.s4,
+                            IqSpace.s3 * 3,
+                            IqSpace.s4,
+                            IqSpace.s6 + MediaQuery.paddingOf(context).bottom,
+                          ),
+                          sliver: SliverToBoxAdapter(
+                            child: _content(
+                              feed: feed,
+                              briefs: briefs,
+                              saved: saved,
+                              activation: activation,
+                              now: now,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -210,6 +191,97 @@ class _PickBriefScreenState extends ConsumerState<PickBriefScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// With nothing to pick, the shared empty state. Its button only leads
+  /// somewhere else: filters can be cleared, and Saved points to All when
+  /// All has briefs.
+  Widget _empty(DiscoverFilters filters, {required bool others}) {
+    if (_lens == PickLens.saved) {
+      return IqEmptyState(
+        figure: IqFigures.saver,
+        title: 'Nothing saved yet',
+        body: 'Tap the bookmark on any brief.',
+        action: 'See all briefs',
+        onAction: others ? () => setState(() => _lens = PickLens.all) : null,
+      );
+    }
+    final narrowed = filters.narrowed;
+    return IqEmptyState(
+      figure: narrowed ? IqFigures.shrug : IqFigures.writer,
+      title: narrowed
+          ? 'No briefs match these filters'
+          : 'No open briefs right now',
+      body: narrowed ? null : 'New briefs land here.',
+      action: 'Clear filters',
+      onAction: narrowed
+          ? () => ref
+                .read(discoverFiltersProvider.notifier)
+                .apply(const DiscoverFilters())
+          : null,
+    );
+  }
+
+  Widget _content({
+    required AsyncValue<Object?> feed,
+    required List<Brief> briefs,
+    required List<Brief> saved,
+    required Activation? activation,
+    required DateTime now,
+  }) {
+    return AnimatedSwitcher(
+      duration: motion(context, IqDurations.swap),
+      switchInCurve: IqCurves.easeOut,
+      switchOutCurve: IqCurves.easeOut,
+      layoutBuilder: (current, previous) => Stack(
+        alignment: Alignment.topCenter,
+        children: [...previous, ?current],
+      ),
+      child: Column(
+        key: ValueKey(_lens),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (activation != null) ...[
+            IqSectionTitle(
+              title: 'Activations',
+              onSeeAll: () => context.open(Routes.activations),
+            ),
+            const SizedBox(height: IqSpace.s3),
+            _ActivationCard(activation: activation, now: now),
+            const SizedBox(height: IqSpace.s3 * 3),
+          ],
+          IqSectionTitle(
+            title: 'Briefs',
+            link: 'Filter',
+            onSeeAll: () => showIqSheet<void>(
+              context,
+              (_) => const FiltersSheet(),
+              scrim: IqScrim.sheet,
+            ),
+          ),
+          if (feed.hasError && briefs.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: IqSpace.s3),
+              child: IqBanner(
+                kind: IqBannerKind.error,
+                title: 'Couldn’t load. Check your connection.',
+                action: 'Try again',
+                onAction: () => ref.read(discoverFeedProvider.notifier).retry(),
+              ),
+            ),
+          for (final brief in briefs) ...[
+            const SizedBox(height: IqSpace.s3),
+            _BriefCard(
+              brief: brief,
+              now: now,
+              saved: saved.any((b) => b.id == brief.id),
+              onSaved: (on) =>
+                  ref.read(savedBriefsProvider.notifier).setSaved(brief, on),
+            ),
+          ],
+        ],
       ),
     );
   }

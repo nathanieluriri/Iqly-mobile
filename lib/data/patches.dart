@@ -1,6 +1,3 @@
-import 'dart:io';
-
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shorebird_code_push/shorebird_code_push.dart' as shorebird;
 
@@ -16,9 +13,6 @@ abstract class PatchService {
   /// Returns once the newest patch is on disk, or at once when Shorebird's
   /// own launch download is already running.
   Future<void> download();
-
-  /// Ends the app so the downloaded patch boots on the next launch.
-  Future<void> close();
 }
 
 class ShorebirdPatchService implements PatchService {
@@ -50,14 +44,6 @@ class ShorebirdPatchService implements PatchService {
 
   @override
   Future<void> download() => _updater.update();
-
-  @override
-  Future<void> close() async {
-    // Gives the engine a moment to finish writing the patch to disk.
-    await Future<void>.delayed(const Duration(milliseconds: 200));
-    if (Platform.isAndroid) exit(0);
-    await SystemNavigator.pop();
-  }
 }
 
 /// Builds without the Shorebird engine (flutter run, tests) have no patches.
@@ -72,9 +58,6 @@ class NoPatchService implements PatchService {
 
   @override
   Future<void> download() async {}
-
-  @override
-  Future<void> close() => SystemNavigator.pop();
 }
 
 final patchServiceProvider = Provider<PatchService>(

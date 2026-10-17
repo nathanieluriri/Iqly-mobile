@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/deadline.dart';
-import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
@@ -19,12 +18,14 @@ import '../../theme/theme.dart';
 import '../../core/money.dart';
 import '../../data/activations_data.dart';
 import '../../data/device.dart';
+import '../../data/repository.dart';
 import '../../data/polls_data.dart';
 import '../../ui/banner.dart';
 import '../../ui/brief_card.dart';
 import '../../ui/button.dart';
 import '../../ui/confirm_sheet.dart';
 import '../../ui/dock.dart';
+import '../../ui/empty_state.dart';
 import '../../ui/illustration.dart';
 import '../../ui/meta.dart';
 import '../../ui/pull_indicator.dart';
@@ -344,7 +345,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ref.listen(tabEntryProvider, (previous, next) {
       if (next?.tab != IqDockActive.discover) return;
       ref.read(discoverFeedProvider.notifier).refreshQuietly();
-      if (Flags.polls) ref.read(pollsProvider.notifier).refreshQuietly();
+      if (ref.read(pollsShownProvider)) {
+        ref.read(pollsProvider.notifier).refreshQuietly();
+      }
       // The tab is told before the dock switch shows it.
       WidgetsBinding.instance.addPostFrameCallback((_) => _offerUpdate());
     });
@@ -360,8 +363,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final data = feed.value;
     final failed = feed.hasError && !feed.isLoading;
     final proposalsPending =
-        (Flags.polls && _pending(ref.watch(pollsProvider))) ||
-        (Flags.activations && _pending(ref.watch(activationsProvider)));
+        (ref.watch(pollsShownProvider) && _pending(ref.watch(pollsProvider))) ||
+        (ref.watch(activationsShownProvider) &&
+            _pending(ref.watch(activationsProvider)));
     final onboardingDone = ref.watch(
       sessionProvider.select((s) => s.onboardingDone),
     );
@@ -547,13 +551,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               : const ArriveItem(child: _SetupNudgeSlot()),
         ),
       if (content)
-        SliverList.list(
-          key: const ValueKey('feed'),
-          children: _spaced(
-            data == null ? _failed() : _feed(data),
-            standing: standing,
+        if (data == null ? _failed() : _emptyFeed(data) case final empty?)
+          IqSliverEmptyFill(
+            key: const ValueKey('feed'),
+            bottom: AppShell.contentInset(context),
+            child: empty,
+          )
+        else
+          SliverList.list(
+            key: const ValueKey('feed'),
+            children: _spaced(_feed(data!), standing: standing),
           ),
-        ),
     ];
     if (slivers.isEmpty) return const SliverToBoxAdapter();
     return SliverMainAxisGroup(slivers: slivers);
@@ -623,19 +631,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ];
   }
 
-  List<_Item> _failed() => [
-    _Item(
-      'failed',
-      _inset(
-        const _EmptyState(
-          figure: IqFigures.thinker,
-          top: IqSpace.s8,
-          title: 'Couldn’t load briefs',
-          body: 'Check your data or Wi-Fi and try again.',
-        ),
-      ),
-    ),
-  ];
+  Widget _failed() => const IqEmptyState(
+    figure: IqFigures.thinker,
+    title: 'Couldn’t load briefs',
+    body: 'Check your data or Wi-Fi and try again.',
+  );
 
   /// Quick polls and Activations sit above the feed, so the feed waits for
   /// their first answer rather than being pushed down when they land.
@@ -654,12 +654,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ),
   );
 
-  /// Quick polls and the Activations block, each behind its flag.
+  /// Quick polls and the Activations block, each behind its flag and only
+  /// in a preview launch.
   List<_Item> _proposals() {
-    final businesses = Flags.polls
+    final businesses = ref.watch(pollsShownProvider)
         ? ref.watch(pollsProvider).value ?? const <PollBusiness>[]
         : const <PollBusiness>[];
-    final activations = Flags.activations
+    final activations = ref.watch(activationsShownProvider)
         ? ref.watch(activationsProvider).value ?? const <Activation>[]
         : const <Activation>[];
     final now = ref.watch(clockProvider)();
@@ -740,40 +741,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ];
   }
 
+  /// The empty feed, or null when it has briefs. Its button only leads
+  /// somewhere else: For you points to All, and filters can be cleared.
+  Widget? _emptyFeed(FeedData data) {
+    if (!_view(data).isEmpty) return null;
+    final filters = ref.read(discoverFiltersProvider);
+    final narrowed = filters.narrowed;
+    return IqEmptyState(
+      figure: narrowed ? IqFigures.shrug : IqFigures.writer,
+      title: narrowed
+          ? 'No briefs match these filters'
+          : 'No open briefs right now',
+      body: narrowed ? null : 'New briefs land here.',
+      action: narrowed ? 'Clear filters' : 'See all briefs',
+      onAction: narrowed
+          ? () => ref
+                .read(discoverFiltersProvider.notifier)
+                .apply(const DiscoverFilters())
+          : filters.forYou
+          ? () {
+              _crossContent();
+              ref.read(discoverFiltersProvider.notifier).showAll();
+            }
+          : null,
+    );
+  }
+
   List<_Item> _feed(FeedData data) {
     final view = _view(data);
     final filters = ref.read(discoverFiltersProvider);
     final proposals = _proposals();
     final lead = proposals.isEmpty ? 0.0 : _section;
-    if (view.isEmpty) {
-      final narrowed = filters.narrowed;
-      return [
-        _Item(
-          'empty',
-          _inset(
-            _EmptyState(
-              figure: narrowed ? IqFigures.shrug : IqFigures.writer,
-              top: IqSpace.s10,
-              title: narrowed
-                  ? 'No briefs match these filters'
-                  : 'No open briefs right now',
-              body: narrowed ? null : 'New briefs land here.',
-              action: narrowed ? 'Clear filters' : 'See all briefs',
-              onAction: narrowed
-                  ? () => ref
-                        .read(discoverFiltersProvider.notifier)
-                        .apply(const DiscoverFilters())
-                  : filters.forYou
-                  ? () {
-                      _crossContent();
-                      ref.read(discoverFiltersProvider.notifier).showAll();
-                    }
-                  : null,
-            ),
-          ),
-        ),
-      ];
-    }
     final status = filters.status.label.toLowerCase();
     return [
       ...proposals,
@@ -942,81 +940,6 @@ class _Tail extends StatelessWidget {
         ),
       ),
       child: child,
-    );
-  }
-}
-
-/// The empty and failed feed (165:8285, 165:8401): the Exp/Figure rising
-/// in, then the title and one line appearing at +80 and +120 (spec 6.24),
-/// then the action.
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({
-    required this.figure,
-    required this.top,
-    required this.title,
-    this.body,
-    this.action,
-    this.onAction,
-  });
-
-  final IqFigures figure;
-  final double top;
-  final String title;
-  final String? body;
-  final String? action;
-  final VoidCallback? onAction;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(top: top, bottom: IqSpace.s6),
-      child: Column(
-        children: [
-          SizedBox(
-            height: 200,
-            child: ClipRect(
-              child: OverflowBox(
-                alignment: Alignment.topCenter,
-                maxHeight: double.infinity,
-                child: IqFigure(figure, width: 188, arrive: true),
-              ),
-            ),
-          ),
-          const SizedBox(height: IqSpace.s3),
-          Appear(
-            delay: IqDurations.stagger * 2,
-            child: SizedBox(
-              width: double.infinity,
-              child: Text(
-                title,
-                textAlign: TextAlign.center,
-                style: IqText.title.copyWith(color: IqColors.fg),
-              ),
-            ),
-          ),
-          if (body case final body?) ...[
-            const SizedBox(height: IqSpace.s3),
-            Appear(
-              delay: IqDurations.stagger * 3,
-              child: SizedBox(
-                width: double.infinity,
-                child: Text(
-                  body,
-                  textAlign: TextAlign.center,
-                  style: IqText.body.copyWith(color: IqColors.fg2),
-                ),
-              ),
-            ),
-          ],
-          if (action case final action?) ...[
-            const SizedBox(height: IqSpace.s3),
-            Appear(
-              delay: IqDurations.stagger * 4,
-              child: IqButton(label: action, showIcon: false, onTap: onAction),
-            ),
-          ],
-        ],
-      ),
     );
   }
 }

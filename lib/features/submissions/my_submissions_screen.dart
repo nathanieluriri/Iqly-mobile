@@ -17,7 +17,7 @@ import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/brief_card.dart';
-import '../../ui/button.dart';
+import '../../ui/empty_state.dart';
 import '../../ui/icon.dart';
 import '../../ui/illustration.dart';
 import '../../ui/list_row.dart';
@@ -433,36 +433,13 @@ class _Empty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(
-        IqSpace.s4,
-        121 + IqSpace.s6,
-        IqSpace.s4,
-        AppShell.contentInset(context),
-      ),
-      child: Column(
-        children: [
-          const IqFigure(IqFigures.writer, width: 188, arrive: true),
-          const SizedBox(height: IqSpace.s3),
-          Text(
-            'No submissions yet',
-            textAlign: TextAlign.center,
-            style: IqText.title.copyWith(color: IqColors.fg),
-          ),
-          const SizedBox(height: IqSpace.s3),
-          Text(
-            'Find a brief that fits you.',
-            textAlign: TextAlign.center,
-            style: IqText.body.copyWith(color: IqColors.fg2),
-          ),
-          const SizedBox(height: IqSpace.s3),
-          IqButton(
-            label: 'Browse briefs',
-            showIcon: false,
-            width: 200,
-            onTap: () => context.open(Routes.pickBrief),
-          ),
-        ],
+    return IqEmptyFill(
+      bottom: AppShell.contentInset(context),
+      child: IqEmptyState(
+        title: 'No submissions yet',
+        body: 'Find a brief that fits you.',
+        action: 'Browse briefs',
+        onAction: () => context.open(Routes.pickBrief),
       ),
     );
   }

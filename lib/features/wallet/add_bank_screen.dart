@@ -183,7 +183,10 @@ class _AddBankScreenState extends ConsumerState<AddBankScreen> {
                           Align(
                             alignment: Alignment.centerLeft,
                             child: IqHighlight(
-                              text: '$verified · Name verified',
+                              text: verified
+                                  .trim()
+                                  .split(RegExp(r'\s+'))
+                                  .join(' '),
                               tone: IqHighlightTone.green,
                             ),
                           ),
