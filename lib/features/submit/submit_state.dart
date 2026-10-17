@@ -179,8 +179,8 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
     _save(state.draft.copyWith(answers: answers));
   }
 
-  /// Takes what fits, as iqly.net does: five files at most, 10 MB each,
-  /// then sends each one up.
+  /// Takes what fits, as iqly.net does: five files at most, 10 MB each and
+  /// 30 MB together, then sends each one up.
   void addFiles(List<AttachmentFile> picked) {
     final files = [...state.files];
     final added = <AttachmentFile>[];
@@ -192,6 +192,11 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
       }
       if (file.bytes > SubmitLimits.fileBytes) {
         error = '${file.name} exceeds ${SubmitLimits.fileBytes ~/ _mb} MB.';
+        continue;
+      }
+      final total = files.fold(0, (sum, a) => sum + a.file.bytes);
+      if (total + file.bytes > SubmitLimits.totalBytes) {
+        error = 'Max ${SubmitLimits.totalBytes ~/ _mb} MB in total.';
         continue;
       }
       files.add(Attachment(file));

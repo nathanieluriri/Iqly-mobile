@@ -9,6 +9,9 @@ abstract final class SubmitLimits {
   static const questionMax = 500;
   static const files = 5;
   static const fileBytes = 10 * 1024 * 1024;
+
+  /// The API refuses a send whose files add up to more.
+  static const totalBytes = 30 * 1024 * 1024;
 }
 
 /// One of the business's audience questions (iqly.net audienceSurvey): a
