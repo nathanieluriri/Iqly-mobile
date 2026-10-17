@@ -201,6 +201,9 @@ Future<void> forgetAccount(WidgetRef ref, {bool closed = false}) async {
 Future<void> forgetSession(Reader read) async {
   final session = read(sessionProvider);
   final userId = session.userId ?? session.lostUserId;
+  // Building it moves an avatar 0.4.0+4 kept phone wide onto the account
+  // before the sign-out below forgets the phone-wide copy.
+  read(avatarProvider);
   await read(sessionProvider.notifier).signOut();
   read(onboardingDraftProvider.notifier).clear();
   await forgetSubmitDrafts(read(sharedPreferencesProvider));
