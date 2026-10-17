@@ -6,10 +6,10 @@ import '../../data/models.dart';
 import '../../ui/meta.dart';
 import '../../ui/sample_cover.dart';
 import '../../ui/sample_logo.dart';
+import '../discover/business_art.dart';
 
 /// The sample art and response time of the demo briefs, as the B4 and B13
-/// frames draw them. Brief carries no logo, cover or minutes on this branch
-/// yet; once it does these read from the brief instead.
+/// frames draw them. Any other brief (a live one) draws its own.
 const _art = <String, (IqSampleLogoBrand, int, int)>{
   'c1': (IqSampleLogoBrand.orchidFoods, 2, 3),
   'c2': (IqSampleLogoBrand.basketNg, 1, 5),
@@ -29,13 +29,18 @@ const _art = <String, (IqSampleLogoBrand, int, int)>{
 IqSampleLogoBrand _brand(Brief? brief) =>
     _art[brief?.id]?.$1 ?? IqSampleLogoBrand.private;
 
-Widget briefLogo(Brief? brief, {double size = 120}) =>
-    IqSampleLogo(_brand(brief), size: size);
+bool _sample(Brief? brief) => brief == null || _art.containsKey(brief.id);
 
-Widget briefCover(Brief? brief) =>
-    IqSampleCover(_brand(brief), shot: _art[brief?.id]?.$2 ?? 1);
+Widget briefLogo(Brief? brief, {double size = 120}) => _sample(brief)
+    ? IqSampleLogo(_brand(brief), size: size)
+    : businessLogo(brief!.logo, size: size);
 
-int? briefMinutes(Brief brief) => _art[brief.id]?.$3;
+Widget briefCover(Brief? brief) => _sample(brief)
+    ? IqSampleCover(_brand(brief), shot: _art[brief?.id]?.$2 ?? 1)
+    : businessCover(brief!.cover);
+
+int? briefMinutes(Brief brief) =>
+    _sample(brief) ? _art[brief.id]?.$3 : brief.minutes;
 
 /// "₦150k", "₦12.5k", "₦62.5k": a prize or pool on a chip or the podium,
 /// never with kobo.

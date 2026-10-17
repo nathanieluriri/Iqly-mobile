@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/backend.dart';
 import '../../core/money.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/transitions.dart';
 import '../../data/biometric_service.dart';
+import '../../data/live/live_repository.dart';
 import '../../data/models.dart';
 import '../../data/wallet_service.dart';
 import '../../theme/theme.dart';
@@ -29,7 +31,9 @@ import 'wallet_state.dart';
 /// (designer doc rev 55). To opens the Bank account sheet to pick the
 /// destination (answer 5). Withdraw confirms with the phone's own check
 /// when it has one, otherwise the iQLY PIN (answer 4, 483:22222); then the
-/// button sends, the sheet drops and Withdrawal pending pushes.
+/// button sends, the sheet drops and Withdrawal pending pushes. The live API
+/// has no PIN yet (nor does the web), so a live withdrawal goes straight to
+/// the request.
 class WithdrawSheet extends ConsumerStatefulWidget {
   const WithdrawSheet({super.key, this.amountKobo, this.bankCode});
 
@@ -132,6 +136,10 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
     }
     if (kobo > available) return;
     FocusScope.of(context).unfocus();
+    if (ref.read(liveModeProvider).isLive(LiveFeature.withdrawals)) {
+      await _send(kobo, to);
+      return;
+    }
     final biometrics = ref.read(biometricServiceProvider);
     var confirmed = false;
     final kind = await biometrics.available();

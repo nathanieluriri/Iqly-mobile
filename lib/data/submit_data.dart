@@ -44,13 +44,22 @@ class SubmitForm {
 }
 
 class AttachmentFile {
-  const AttachmentFile({required this.name, required this.bytes, this.length});
+  const AttachmentFile({
+    required this.name,
+    required this.bytes,
+    this.length,
+    this.read,
+  });
 
   final String name;
   final int bytes;
 
   /// How long a recording plays, when the file is audio or video.
   final Duration? length;
+
+  /// Reads the file's contents, which a live send carries. Null for the
+  /// demo's files, which never leave the phone.
+  final Future<List<int>> Function()? read;
 }
 
 enum AttachmentStatus { uploading, failed, done }
@@ -85,6 +94,7 @@ class SubmitRequest {
     required this.answer,
     this.answers = const {},
     this.files = const [],
+    this.onProgress,
   });
 
   final String briefId;
@@ -94,6 +104,9 @@ class SubmitRequest {
   /// Question id to the options picked, or the typed answer as one entry.
   final Map<String, List<String>> answers;
   final List<AttachmentFile> files;
+
+  /// Hears the upload go from 0 to 1 when [files] ride in the send itself.
+  final void Function(double progress)? onProgress;
 }
 
 /// A sent submission and how many entries the brief holds with it, when the

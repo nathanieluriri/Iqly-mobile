@@ -2,8 +2,12 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/backend.dart';
 import '../core/deadline.dart';
+import 'api_client.dart';
 import 'demo_data.dart';
+import 'live/live_repository.dart';
+import 'live/live_submit_service.dart';
 import 'models.dart';
 import 'repository.dart';
 import 'submit_data.dart';
@@ -179,20 +183,28 @@ class DemoSubmitService implements SubmitService {
 /// The system picker (file_picker). Without the plugin, as in tests and
 /// on a desktop build without it, it falls back to [fallback].
 class DeviceAttachmentPicker implements AttachmentPicker {
-  DeviceAttachmentPicker({AttachmentPicker? fallback})
+  DeviceAttachmentPicker({AttachmentPicker? fallback, this.extensions})
     : fallback = fallback ?? DemoAttachmentPicker();
 
   final AttachmentPicker fallback;
 
+  /// The kinds of file offered, by extension; null offers any file.
+  final List<String>? extensions;
+
   @override
   Future<List<AttachmentFile>> pick() async {
     try {
-      final files = await FilePicker.pickFiles();
+      final only = extensions;
+      final files = await FilePicker.pickFiles(
+        type: only == null ? FileType.any : FileType.custom,
+        allowedExtensions: only,
+      );
       return [
         for (final file in files)
           AttachmentFile(
             name: file.name,
             bytes: file.lengthSync() ?? await file.length() ?? 0,
+            read: file.readAsBytes,
           ),
       ];
     } on MissingPluginException {
@@ -241,19 +253,32 @@ class DemoAttachmentUploader implements AttachmentUploader {
   }
 }
 
-/// The demo writes into the same dataset the repository reads.
+/// The API when submit is live. The demo writes into the same dataset the
+/// repository reads, which in a live launch is the one the live repository
+/// answers its preview features from.
 final submitServiceProvider = Provider<SubmitService>((ref) {
+  final api = ref.watch(apiClientProvider);
+  if (api != null && ref.watch(liveModeProvider).isLive(LiveFeature.submit)) {
+    return LiveSubmitService(api, clock: ref.watch(clockProvider));
+  }
   final repository = ref.watch(repositoryProvider);
   return DemoSubmitService(
-    repository is DemoRepository ? repository.data : DemoData(),
+    repository is DemoRepository
+        ? repository.data
+        : ref.watch(demoRepositoryProvider).data,
     clock: ref.watch(clockProvider),
   );
 });
 
+/// A live send takes images and PDFs only: the API refuses anything else.
 final attachmentPickerProvider = Provider<AttachmentPicker>(
-  (ref) => DeviceAttachmentPicker(),
+  (ref) => ref.watch(liveModeProvider).isLive(LiveFeature.submit)
+      ? DeviceAttachmentPicker(extensions: LiveSubmitService.fileExtensions)
+      : DeviceAttachmentPicker(),
 );
 
 final attachmentUploaderProvider = Provider<AttachmentUploader>(
-  (ref) => DemoAttachmentUploader(),
+  (ref) => ref.watch(liveModeProvider).isLive(LiveFeature.submit)
+      ? const LiveAttachmentUploader()
+      : DemoAttachmentUploader(),
 );

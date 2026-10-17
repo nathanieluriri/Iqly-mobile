@@ -151,9 +151,7 @@ class DemoReferralsService implements ReferralsService {
 
 /// The referral rewards in [ledger], the "Earned" on Referral history.
 int referralEarnedKobo(List<LedgerEntry> ledger) => ledger
-    .where(
-      (l) => l.type == LedgerType.award && l.source == RewardSource.referral,
-    )
+    .where((l) => l.earned && l.source == RewardSource.referral)
     .fold(0, (sum, l) => sum + l.amountKobo);
 
 final referralsServiceProvider = Provider<ReferralsService>(
