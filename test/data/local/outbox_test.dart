@@ -575,7 +575,8 @@ Future<void> main() async {
           expect(sent, ['upload', 'preset']);
           final refused = await stored(photo);
           expect(refused.status, OutboxStatus.failed);
-          expect(refused.lastErrorCode, 'FILE_TOO_LARGE');
+          expect(refused.lastErrorCode, OutboxCodes.superseded);
+          expect(refused.lastErrorMessage, 'Avatar photos are 1 MB at most');
           expect((await stored(preset)).status, OutboxStatus.done);
         });
 
@@ -933,6 +934,215 @@ Future<void> main() async {
           expect((await stored(dependant)).status, OutboxStatus.failed);
           expect((await stored(older)).status, OutboxStatus.failed);
         });
+      });
+
+      group('a write that fails behind a newer one with its key', () {
+        late IdempotentServer server;
+
+        setUp(() => server = IdempotentServer());
+
+        Future<OutboxItem> set(
+          String key,
+          String value, {
+          String kind = 'set',
+          String? dependsOn,
+        }) => outbox.enqueue(
+          'u1',
+          kind: kind,
+          payload: {'resource': key, 'value': value},
+          coalesceKey: key,
+          dependsOn: dependsOn,
+        );
+
+        Future<void> cannotLandLast(
+          OutboxItem older,
+          String newest, [
+          Outbox? runner,
+        ]) async {
+          final failed = await stored(older);
+          expect(failed.status, OutboxStatus.failed);
+          expect(failed.lastErrorCode, OutboxCodes.superseded);
+          final applied = [...server.applied];
+          expect(await (runner ?? outbox).retry(older.id), isFalse);
+          await (runner ?? outbox).kick();
+          expect(server.applied, applied);
+          expect(server.resources['u1/${older.payload['resource']}'], newest);
+        }
+
+        test('is superseded when refused after it was sent once', () async {
+          final answers = [
+            outboxResultFor(status: 503),
+            outboxResultFor(
+              status: 404,
+              code: 'CONTRIBUTOR_PROFILE_NOT_FOUND',
+              message: 'No profile yet',
+            ),
+          ];
+          outbox.register('set', (item) async {
+            if (answers.isNotEmpty) return answers.removeAt(0);
+            return server.post(item);
+          });
+          await outbox.start('u1');
+          final older = await set('prefs', 'polls off');
+          await pumpEventQueue();
+          final newer = await set('prefs', 'polls on');
+          expect(newer.id, isNot(older.id));
+          clock.advance(outboxLongestWait);
+          await outbox.kick();
+          expect((await stored(older)).lastErrorMessage, 'No profile yet');
+          await cannotLandLast(older, 'polls on');
+        });
+
+        test('is superseded when it gives up itself', () async {
+          var down = true;
+          outbox.register('set', (item) async {
+            return down ? lost : server.post(item);
+          });
+          await outbox.start('u1');
+          final older = await set('prefs', 'polls off');
+          await pumpEventQueue();
+          await set('prefs', 'polls on');
+          for (var i = 0; i < Outbox.maxFailures; i++) {
+            clock.advance(outboxLongestWait);
+            await outbox.kick();
+          }
+          expect((await stored(older)).lastErrorMessage, OutboxCodes.network);
+          down = false;
+          clock.advance(outboxLongestWait);
+          await outbox.kick();
+          await cannotLandLast(older, 'polls on');
+        });
+
+        test('is superseded when the upload it depends on gives up', () async {
+          var uploadWorks = false;
+          outbox.register('upload', (item) async {
+            return uploadWorks ? server.post(item) : lost;
+          });
+          outbox.register('set', (item) async => server.post(item));
+          await outbox.start('u1');
+          final upload = await outbox.enqueue(
+            'u1',
+            kind: 'upload',
+            payload: {'resource': 'upload:1', 'value': 'photo.jpg'},
+          );
+          final photo = await set('avatar', 'photo', dependsOn: upload.id);
+          final preset = await set('avatar', 'preset p3');
+          expect(preset.id, isNot(photo.id));
+          for (var i = 0; i < Outbox.maxFailures; i++) {
+            clock.advance(outboxLongestWait);
+            await outbox.kick();
+          }
+          expect((await stored(upload)).lastErrorCode, OutboxCodes.expired);
+          expect((await stored(preset)).status, OutboxStatus.done);
+          uploadWorks = true;
+          await cannotLandLast(photo, 'preset p3');
+        });
+
+        test(
+          'is superseded when the item it depends on is discarded',
+          () async {
+            outbox.register('set', (item) async => server.post(item));
+            await outbox.start('u1');
+            final upload = await outbox.enqueue(
+              'u1',
+              kind: 'upload',
+              payload: {'resource': 'upload:1', 'value': 'photo.jpg'},
+            );
+            final photo = await set('avatar', 'photo', dependsOn: upload.id);
+            await set('avatar', 'preset p3');
+            expect(await outbox.discard(upload.id), isTrue);
+            await pumpEventQueue();
+            await cannotLandLast(photo, 'preset p3');
+          },
+        );
+
+        test('is superseded when the newer write comes after it failed, and '
+            'stays so once the newer one is purged', () async {
+          var refuse = true;
+          outbox.register('set', (item) async {
+            if (!refuse) return server.post(item);
+            refuse = false;
+            return outboxResultFor(status: 422, code: 'VALIDATION_ERROR');
+          });
+          await outbox.start('u1');
+          final older = await set('prefs', 'polls off');
+          await pumpEventQueue();
+          final newer = await set('prefs', 'polls on');
+          await pumpEventQueue();
+          await cannotLandLast(older, 'polls on');
+          await outbox.stop();
+          clock.advance(Outbox.keepDone + const Duration(hours: 1));
+          final relaunched = Outbox(
+            store,
+            clock: clock.call,
+            random: Random(9),
+          );
+          addTearDown(relaunched.dispose);
+          relaunched.register('set', (item) async => server.post(item));
+          await relaunched.start('u1');
+          expect(await store.outboxItem(newer.id), isNull);
+          await cannotLandLast(older, 'polls on', relaunched);
+        });
+      });
+
+      test('a start for another person shows an empty state before '
+          'anything of theirs', () async {
+        final gated = GatedStore(store);
+        final runner = Outbox(gated, clock: clock.call, random: Random(1));
+        addTearDown(runner.dispose);
+        runner.register(
+          'support',
+          (item) async =>
+              outboxResultFor(status: 422, code: 'VALIDATION_ERROR'),
+        );
+        await runner.start('u1');
+        await runner.enqueue(
+          'u1',
+          kind: 'support',
+          payload: {'message': 'private'},
+        );
+        await pumpEventQueue();
+        expect(runner.state.failed.single.userId, 'u1');
+
+        final gate = gated.dueGate = Completer<void>();
+        final switching = runner.start('u2');
+        expect(runner.state.failed, isEmpty);
+        final seen = <OutboxState>[];
+        final watching = runner.watch().listen(seen.add);
+        addTearDown(watching.cancel);
+        await pumpEventQueue();
+        gated.dueGate = null;
+        gate.complete();
+        await switching;
+        expect([for (final s in seen) ...s.failed], isEmpty);
+
+        await runner.start('u2');
+        expect(seen.last.failed, isEmpty);
+      });
+
+      test('networkBack sends a waiting item at once and keeps its run of '
+          'failures', () async {
+        var online = false;
+        outbox.register('note', (item) async {
+          sent.add('A');
+          return online ? const OutboxResult.done() : lost;
+        });
+        final item = await queue('A');
+        await outbox.start('u1');
+        await sendUntil('A', 12);
+        final waiting = await stored(item);
+        expect(waiting.failures, 12);
+        expect(waiting.nextAttemptAt.isAfter(clock.now), isTrue);
+
+        await outbox.networkBack();
+        expect(sent, hasLength(13));
+        final again = await stored(item);
+        expect(again.failures, 13);
+        expect(again.status, OutboxStatus.pending);
+
+        online = true;
+        await outbox.networkBack();
+        expect((await stored(item)).status, OutboxStatus.done);
       });
 
       group('a store that fails to record an answer', () {
@@ -1785,6 +1995,189 @@ Future<void> main() async {
           expect(sends, 2);
           expect(read(async, item.id)!.status, OutboxStatus.done);
           relaunched.dispose();
+          async.flushMicrotasks();
+        });
+      });
+
+      test('a write refused after it outlasted the timeout behind a newer '
+          'one with its key is superseded', () {
+        fakeAsync((async) {
+          final outbox = open(async);
+          final server = IdempotentServer();
+          var first = true;
+          outbox.register('avatar', (item) async {
+            if (!first) return server.post(item);
+            first = false;
+            await Future<void>.delayed(const Duration(minutes: 3));
+            return outboxResultFor(status: 403, code: 'FORBIDDEN');
+          });
+          Future<OutboxItem> avatar(String value) => outbox.enqueue(
+            'u1',
+            kind: 'avatar',
+            payload: {'resource': 'avatar', 'value': value},
+            coalesceKey: 'avatar',
+          );
+          outbox.start('u1');
+          late OutboxItem photo;
+          avatar('photo').then((i) => photo = i);
+          async.elapse(const Duration(minutes: 2, seconds: 30));
+          avatar('preset p3');
+          async.elapse(const Duration(minutes: 1));
+          final refused = read(async, photo.id)!;
+          expect(refused.status, OutboxStatus.failed);
+          expect(refused.lastErrorCode, OutboxCodes.superseded);
+          expect(server.resources['u1/avatar'], 'preset p3');
+
+          bool? retried;
+          outbox.retry(photo.id).then((r) => retried = r);
+          async.elapse(const Duration(seconds: 5));
+          expect(retried, isFalse);
+          expect(server.applied, ['u1/avatar=preset p3']);
+          outbox.dispose();
+          async.flushMicrotasks();
+        });
+      });
+
+      test('no more than two sends are on their way at once', () {
+        fakeAsync((async) {
+          final outbox = open(async);
+          var inFlight = 0;
+          var most = 0;
+          final landed = <String>[];
+          outbox.register('submission', (item) async {
+            most = max(most, ++inFlight);
+            await Future<void>.delayed(const Duration(minutes: 12));
+            inFlight--;
+            landed.add(item.payload['brief'] as String);
+            return const OutboxResult.done();
+          });
+          outbox.start('u1');
+          for (var i = 0; i < 6; i++) {
+            outbox.enqueue(
+              'u1',
+              kind: 'submission',
+              payload: {'brief': 'c_$i'},
+              coalesceKey: 'submit:c_$i',
+            );
+          }
+          async.flushMicrotasks();
+          async.elapse(const Duration(minutes: 11, seconds: 59));
+          expect(most, 2);
+          expect(landed, isEmpty);
+          async.elapse(const Duration(seconds: 1));
+          expect(landed, ['c_0']);
+          expect(inFlight, 2);
+          async.elapse(const Duration(hours: 2));
+          expect(landed, hasLength(6));
+          expect(most, Outbox.maxOnTheirWay);
+          expect(outbox.state.pending, 0);
+          outbox.dispose();
+          async.flushMicrotasks();
+        });
+      });
+
+      test('a short Retry-After is a floor under the backoff, so it does not '
+          'give up within a day', () {
+        fakeAsync((async) {
+          final outbox = open(async, seed: 9);
+          var sends = 0;
+          outbox.register('submission', (item) async {
+            sends++;
+            return outboxResultFor(
+              status: 503,
+              code: 'MAINTENANCE',
+              retryAfter: const Duration(seconds: 30),
+            );
+          });
+          outbox.start('u1');
+          late OutboxItem item;
+          outbox
+              .enqueue('u1', kind: 'submission', payload: {})
+              .then((i) => item = i);
+          async.flushMicrotasks();
+          async.elapse(const Duration(seconds: 29));
+          expect(sends, 1);
+          async.elapse(const Duration(hours: 20));
+          final waiting = read(async, item.id)!;
+          expect(waiting.status, OutboxStatus.pending);
+          expect(waiting.failures, lessThan(Outbox.maxFailures));
+          expect(sends, greaterThan(150));
+          outbox.dispose();
+          async.flushMicrotasks();
+        });
+      });
+
+      test('after the network comes back, networkBack sends a waiting write '
+          'at once', () {
+        fakeAsync((async) {
+          final outbox = open(async, seed: 3);
+          var online = false;
+          final sentAt = <Duration>[];
+          outbox.register('prefs', (item) async {
+            sentAt.add(async.elapsed);
+            return online
+                ? const OutboxResult.done()
+                : outboxResultFor(status: 0, networkError: true);
+          });
+          outbox.start('u1');
+          late OutboxItem item;
+          outbox
+              .enqueue('u1', kind: 'prefs', payload: {'polls': false})
+              .then((i) => item = i);
+          async.elapse(const Duration(minutes: 40));
+          final failures = read(async, item.id)!.failures;
+          expect(failures, sentAt.length);
+          online = true;
+          final back = async.elapsed;
+          outbox.networkBack();
+          async.flushMicrotasks();
+          expect(sentAt.last, back);
+          expect(read(async, item.id)!.status, OutboxStatus.done);
+          outbox.dispose();
+          async.flushMicrotasks();
+        });
+      });
+
+      test('after signing in again, a write that was backing off goes at '
+          'once', () {
+        fakeAsync((async) {
+          final outbox = open(async, seed: 5);
+          var signedIn = true;
+          var online = false;
+          final profileSent = <Duration>[];
+          outbox.register('profile', (item) async {
+            profileSent.add(async.elapsed);
+            if (!signedIn) return outboxResultFor(status: 401);
+            return online
+                ? const OutboxResult.done()
+                : outboxResultFor(status: 503);
+          });
+          outbox.register('prefs', (item) async {
+            if (!signedIn) return outboxResultFor(status: 401);
+            return const OutboxResult.done();
+          });
+          outbox.start('u1');
+          late OutboxItem profile;
+          outbox
+              .enqueue('u1', kind: 'profile', payload: {'city': 'Yaba'})
+              .then((i) => profile = i);
+          async.elapse(const Duration(minutes: 40));
+          signedIn = false;
+          online = true;
+          outbox.enqueue('u1', kind: 'prefs', payload: {'polls': true});
+          async.flushMicrotasks();
+          expect(outbox.state.pause, OutboxPause.signIn);
+          final paused = read(async, profile.id)!;
+          expect(paused.failures, 0);
+          expect(paused.nextAttemptAt, time.now);
+
+          signedIn = true;
+          final back = async.elapsed;
+          outbox.resume();
+          async.flushMicrotasks();
+          expect(profileSent.last, back);
+          expect(read(async, profile.id)!.status, OutboxStatus.done);
+          outbox.dispose();
           async.flushMicrotasks();
         });
       });

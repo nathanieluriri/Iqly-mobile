@@ -153,6 +153,9 @@ class GatedStore implements LocalStore {
   Future<void> resetFailures(String userId) => inner.resetFailures(userId);
 
   @override
+  Future<void> resetBackoff(String userId) => inner.resetBackoff(userId);
+
+  @override
   Future<bool> requeue(String id) async {
     final requeued = await inner.requeue(id);
     await afterRequeue?.call();

@@ -158,6 +158,12 @@ abstract final class LocalRows {
     'failing_since': failingSince == null ? null : time(failingSince),
   };
 
+  /// The values that put a pending item due [now].
+  static Map<String, Object?> dueRow(DateTime now) => {
+    'next_attempt_at': time(now),
+    'retry_after': null,
+  };
+
   /// The values [LocalStore.requeue] writes.
   static Map<String, Object?> requeueRow(DateTime now) => {
     'status': OutboxStatus.pending.name,

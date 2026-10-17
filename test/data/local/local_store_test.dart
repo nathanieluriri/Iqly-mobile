@@ -798,6 +798,143 @@ Future<void> main() async {
           expect(outboxSupersededCode, 'SUPERSEDED');
         });
 
+        test('an item failing while a newer item of its person has its key '
+            'fails as superseded, keeping its message and files', () async {
+          Future<OutboxItem> write(
+            String label, {
+            String user = 'u1',
+            String? key = 'prefs',
+            List<OutboxFile> files = const [],
+          }) => store.enqueue(
+            user,
+            kind: 'prefs',
+            payload: {'label': label},
+            coalesceKey: key,
+            files: files,
+          );
+
+          final older = await write('older', files: const [_photo]);
+          await store.markSending(older.id);
+          await store.markRetry(older.id, at: clock.now);
+          final keyless = await write('keyless', key: null);
+          final otherKey = await write('other key', key: 'profile');
+          final first = await write('first', user: 'u2');
+          final newer = await write('newer');
+          await write('keyless newer', key: null);
+          await write('theirs newer', user: 'u3');
+          await store.markSending(newer.id);
+          await store.markDone(newer.id);
+          clock.advance(const Duration(minutes: 1));
+
+          for (final item in [older, keyless, otherKey, first, newer]) {
+            await store.markFailed(
+              item.id,
+              code: 'VALIDATION_ERROR',
+              message: 'Polls are off',
+            );
+          }
+          final superseded = await item(older.id);
+          expect(superseded.status, OutboxStatus.failed);
+          expect(superseded.lastErrorCode, outboxSupersededCode);
+          expect(superseded.lastErrorMessage, 'Polls are off');
+          expect(superseded.updatedAt, clock.now);
+          expect(superseded.files.single.localPath, _photo.localPath);
+          expect(deleted.paths, isEmpty);
+          for (final kept in [keyless, otherKey, first, newer]) {
+            final failed = await item(kept.id);
+            expect(failed.status, OutboxStatus.failed);
+            expect(failed.lastErrorCode, 'VALIDATION_ERROR');
+          }
+        });
+
+        test('discard fails a dependant as superseded when a newer item has '
+            'its key', () async {
+          final upload = await store.enqueue('u1', kind: 'upload', payload: {});
+          final photo = await store.enqueue(
+            'u1',
+            kind: 'avatar',
+            payload: {},
+            coalesceKey: 'avatar',
+            dependsOn: upload.id,
+          );
+          final note = await store.enqueue(
+            'u1',
+            kind: 'note',
+            payload: {},
+            dependsOn: upload.id,
+          );
+          await store.enqueue(
+            'u1',
+            kind: 'avatar',
+            payload: {},
+            coalesceKey: 'avatar',
+          );
+          expect(
+            await store.discard(upload.id, dependantsCode: 'GONE'),
+            isTrue,
+          );
+          expect((await item(photo.id)).lastErrorCode, outboxSupersededCode);
+          expect((await item(note.id)).lastErrorCode, 'GONE');
+        });
+
+        test('resetBackoff puts the person\'s pending items due now, keeping '
+            'their run of failures', () async {
+          final since = clock.now;
+          Future<OutboxItem> waiting(String user) async {
+            final queued = await store.enqueue(user, kind: 'note', payload: {});
+            await store.markSending(queued.id);
+            await store.markRetry(
+              queued.id,
+              at: clock.now.add(const Duration(minutes: 14)),
+              code: 'HTTP_503',
+              retryAfter: const Duration(minutes: 14),
+              failures: 7,
+              failingSince: since,
+            );
+            return queued;
+          }
+
+          final mine = await waiting('u1');
+          final theirs = await waiting('u2');
+          final sending = await waiting('u1');
+          await store.markSending(sending.id);
+          clock.advance(const Duration(minutes: 1));
+          await store.resetBackoff('u1');
+          final due = await item(mine.id);
+          expect(due.nextAttemptAt, clock.now);
+          expect(due.retryAfter, isNull);
+          expect(due.failures, 7);
+          expect(due.failingSince, since);
+          expect(due.lastErrorCode, 'HTTP_503');
+          expect(
+            [for (final i in await store.dueOutbox('u1', clock.now)) i.id],
+            [mine.id],
+          );
+          expect(
+            (await item(theirs.id)).nextAttemptAt,
+            since.add(const Duration(minutes: 14)),
+          );
+          expect((await item(sending.id)).status, OutboxStatus.sending);
+        });
+
+        test('resetFailures puts the person\'s pending items due now as it '
+            'ends their run of failures', () async {
+          final queued = await store.enqueue('u1', kind: 'note', payload: {});
+          await store.markSending(queued.id);
+          await store.markRetry(
+            queued.id,
+            at: clock.now.add(const Duration(minutes: 9)),
+            failures: 30,
+            failingSince: clock.now,
+          );
+          clock.advance(const Duration(minutes: 1));
+          await store.resetFailures('u1');
+          final reset = await item(queued.id);
+          expect(reset.nextAttemptAt, clock.now);
+          expect(reset.failures, 0);
+          expect(reset.failingSince, isNull);
+        });
+
         test('a write folding into a waiting item supersedes the failed ones '
             'with its key too', () async {
           final waiting = await store.enqueue(
