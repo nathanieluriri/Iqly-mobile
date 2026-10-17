@@ -7,7 +7,7 @@ import 'local_store.dart';
 /// The local store kept in memory, for Windows and tests. It keeps the same
 /// rows as the SQLite store and answers the same way, but forgets them when
 /// the app closes.
-class MemoryLocalStore implements LocalStore {
+class MemoryLocalStore implements LocalStore, CacheBytes {
   MemoryLocalStore({DateTime Function()? clock, DeleteFile? deleteFile})
     : _clock = clock ?? DateTime.now,
       _deleteFile = deleteFile ?? deleteQueuedFile;
@@ -48,6 +48,12 @@ class MemoryLocalStore implements LocalStore {
           id.$1 == userId && (keyPrefix == null || id.$2.startsWith(keyPrefix)),
     );
   }
+
+  @override
+  Future<int> cacheBytes(String userId) async => [
+    for (final MapEntry(:key, :value) in _cache.entries)
+      if (key.$1 == userId) utf8.encode(value['body']! as String).length,
+  ].fold<int>(0, (sum, bytes) => sum + bytes);
 
   @override
   Future<List<Draft>> drafts(String userId) async {

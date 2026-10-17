@@ -178,7 +178,7 @@ void main() {
       await _type(tester, 'Type delete to confirm', 'delete');
       await tester.tap(find.text('Delete my account'));
       await tester.pumpAndSettle();
-      expect(find.text(DeleteAccountScreen.pausedText), findsOneWidget);
+      expect(find.text(DeleteAccountScreen.refusedText), findsOneWidget);
       expect(find.text(DeleteAccountScreen.failedText), findsNothing);
       expect(find.byType(AccountClosingScreen), findsNothing);
       expect(router.state.uri.path, Routes.deleteAccount);
@@ -203,7 +203,7 @@ void main() {
       await _type(tester, 'Type delete to confirm', 'delete');
       await tester.tap(find.text('Delete my account'));
       await tester.pumpAndSettle();
-      expect(find.text(DeleteAccountScreen.pausedText), findsOneWidget);
+      expect(find.text(DeleteAccountScreen.refusedText), findsOneWidget);
       expect(find.byType(AccountClosingScreen), findsNothing);
       expect(c.read(sessionProvider).signedIn, isTrue);
       expect(api.routes, isNot(contains('POST /me/account/close')));

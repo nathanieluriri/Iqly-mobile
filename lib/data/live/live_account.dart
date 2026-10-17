@@ -329,21 +329,22 @@ class LiveAccount {
   final AccountLink link;
 
   /// Kept under the account's own id, which the session may not know yet.
-  Future<Me> me() async {
-    final ApiResponse res;
-    try {
-      res = await link.api.get('/me');
-    } on ApiUnreachable {
-      final kept = await link.kept(AccountKeys.me);
-      if (kept != null) return Me.fromJson(kept);
-      rethrow;
-    }
-    if (!res.ok) throw ApiRefused.of(res);
-    final me = Me.fromJson(res.data);
-    if (me.id.isNotEmpty) {
-      await link.store.writeCache(me.id, AccountKeys.me, res.data);
-    }
-    return me;
+  /// When the API does not answer ([orKept]) it answers the session's copy.
+  Future<Me> me() {
+    final fetching = link.api.get('/me').then((res) async {
+      if (!res.ok) throw ApiRefused.of(res);
+      final me = Me.fromJson(res.data);
+      if (me.id.isNotEmpty) {
+        await link.store.writeCache(me.id, AccountKeys.me, res.data);
+      }
+      return me;
+    });
+    return orKept(
+      fetching,
+      link
+          .kept(AccountKeys.me)
+          .then((json) => json == null ? null : (copy: Me.fromJson(json))),
+    );
   }
 
   /// Online only. ACCOUNT_HAS_BALANCE, WITHDRAWAL_IN_FLIGHT and any other

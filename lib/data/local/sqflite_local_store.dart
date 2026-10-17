@@ -7,7 +7,7 @@ import 'local_rows.dart';
 import 'local_store.dart';
 
 /// The local store in the phone's own SQLite, through sqflite.
-class SqfliteLocalStore implements LocalStore {
+class SqfliteLocalStore implements LocalStore, CacheBytes {
   SqfliteLocalStore._(this._db, this._clock, this._deleteFile);
 
   static const schemaVersion = 1;
@@ -149,6 +149,16 @@ class SqfliteLocalStore implements LocalStore {
         if (keyPrefix != null) ...[keyPrefix, keyPrefix],
       ],
     );
+  }
+
+  @override
+  Future<int> cacheBytes(String userId) async {
+    final rows = await _db.rawQuery(
+      'SELECT COALESCE(SUM(LENGTH(CAST(body AS BLOB))), 0) AS bytes '
+      'FROM ${LocalRows.cache} WHERE user_id = ?',
+      [userId],
+    );
+    return (rows.single['bytes'] as num?)?.toInt() ?? 0;
   }
 
   @override

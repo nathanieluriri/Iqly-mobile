@@ -11,6 +11,7 @@ import '../../data/device.dart';
 import '../../data/models.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
+import '../../ui/banner.dart';
 import '../../ui/bookmark.dart';
 import '../../ui/brief_hero.dart';
 import '../../ui/button.dart';
@@ -34,7 +35,10 @@ import 'discover_widgets.dart';
 /// Motion (spec 6.22, 4.3): the page pushes in already drawn from [initial],
 /// the brief the person tapped (or one already loaded), and its content
 /// settles 40 ms apart; only a cold open by URL waits behind LoadingGate.
-class BriefDetailScreen extends ConsumerWidget {
+/// One that neither the API nor the phone can answer fails with Try again.
+/// A visit that opens while a closing page still holds that failure asks
+/// again rather than show it.
+class BriefDetailScreen extends ConsumerStatefulWidget {
   const BriefDetailScreen({super.key, required this.id, this.initial});
 
   final String id;
@@ -54,9 +58,30 @@ class BriefDetailScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BriefDetailScreen> createState() => _BriefDetailScreenState();
+}
+
+class _BriefDetailScreenState extends ConsumerState<BriefDetailScreen> {
+  bool _askingAgain = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!ref.read(briefDetailProvider(widget.id)).hasError) return;
+    _askingAgain = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.invalidate(briefDetailProvider(widget.id));
+      setState(() => _askingAgain = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final id = widget.id;
     final loaded = ref.watch(briefDetailProvider(id));
-    final brief = loaded.value ?? initial ?? _known(ref, id);
+    final brief =
+        loaded.value ?? widget.initial ?? BriefDetailScreen._known(ref, id);
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
@@ -85,11 +110,17 @@ class BriefDetailScreen extends ConsumerWidget {
                 ),
                 Expanded(
                   child: LoadingGate(
-                    loading: brief == null && loaded.isLoading,
+                    loading:
+                        brief == null && (loaded.isLoading || _askingAgain),
                     skeleton: const _Skeleton(),
-                    child: brief == null
-                        ? const SizedBox.shrink()
-                        : _Body(brief: brief),
+                    child: brief != null
+                        ? _Body(brief: brief)
+                        : loaded.hasError && !_askingAgain
+                        ? _Failed(
+                            onRetry: () =>
+                                ref.invalidate(briefDetailProvider(id)),
+                          )
+                        : const SizedBox.shrink(),
                   ),
                 ),
                 if (brief != null) _ActionBar(brief: brief),
@@ -138,6 +169,30 @@ class _ActionBar extends ConsumerWidget {
         IqSpace.s3,
       ),
       child: button,
+    );
+  }
+}
+
+/// A cold open that neither the API nor the phone could answer: the app's
+/// error banner over the empty page (no frame draws a failed brief).
+class _Failed extends StatelessWidget {
+  const _Failed({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: IqBanner(
+          kind: IqBannerKind.error,
+          title: 'Couldn’t load. Check your connection.',
+          action: 'Try again',
+          onAction: onRetry,
+        ),
+      ),
     );
   }
 }

@@ -32,7 +32,9 @@ import 'wallet_state.dart';
 
 /// B5 · Withdraw sheet (40:9785) and its states: above available
 /// (483:21751), below minimum (483:21872), sending (483:21992) and no
-/// connection (483:22107). "You can withdraw up to" sits over the Amount
+/// connection (483:22107). The whole withdrawable balance is never below the
+/// minimum (contract 6), so a remainder under ₦1,000 can leave; any other
+/// amount under ₦1,000 is. "You can withdraw up to" sits over the Amount
 /// (designer doc rev 55). To opens the Bank account sheet to pick the
 /// destination (answer 5). Withdraw confirms with the phone's own check
 /// when it has one, otherwise the iQLY PIN (answer 4, 483:22222); then the
@@ -115,8 +117,12 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
     if (kobo == null) return;
     final shown = naira(kobo);
     if (shown != _amount.controller.text) _amount.controller.text = shown;
-    if (kobo < minimumWithdrawalKobo) setState(() => _belowShown = true);
+    if (belowMinimum(kobo, _available(ref.read(walletProvider).value))) {
+      setState(() => _belowShown = true);
+    }
   }
+
+  static int _available(WalletData? data) => data?.totals.withdrawableKobo ?? 0;
 
   SavedBank? _destination(WalletData? data) {
     final picked = _to;
@@ -147,12 +153,12 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
     final data = ref.read(walletProvider).value;
     final to = _destination(data);
     final kobo = parseNaira(_amount.controller.text);
-    final available = data?.totals.withdrawableKobo ?? 0;
+    final available = _available(data);
     if (to == null) {
       await _pickAccount(data);
       return;
     }
-    if (kobo == null || kobo < minimumWithdrawalKobo) {
+    if (kobo == null || belowMinimum(kobo, available)) {
       setState(() => _belowShown = true);
       errorHaptic();
       return;
@@ -252,7 +258,7 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
   @override
   Widget build(BuildContext context) {
     final data = ref.watch(walletProvider).value;
-    final available = data?.totals.withdrawableKobo ?? 0;
+    final available = _available(data);
     final to = _destination(data);
 
     return SheetCover(
@@ -263,7 +269,7 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
           final kobo = parseNaira(_amount.controller.text);
           final over = kobo != null && kobo > available;
           final below =
-              _belowShown && kobo != null && kobo < minimumWithdrawalKobo;
+              _belowShown && kobo != null && belowMinimum(kobo, available);
           final error = over
               ? 'You have ${naira(available)} available.'
               : below

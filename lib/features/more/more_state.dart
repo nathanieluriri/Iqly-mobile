@@ -69,9 +69,10 @@ final contributorPassProvider = FutureProvider<ContributorPass>((ref) async {
   );
 });
 
-class CacheNotifier extends AsyncNotifier<int> {
+/// What Clear cache would free, in bytes; null when it cannot be counted.
+class CacheNotifier extends AsyncNotifier<int?> {
   @override
-  Future<int> build() => ref.watch(cacheServiceProvider).sizeBytes();
+  Future<int?> build() => ref.watch(cacheServiceProvider).sizeBytes();
 
   Future<void> clear() async {
     await ref.read(cacheServiceProvider).clear();
@@ -79,6 +80,6 @@ class CacheNotifier extends AsyncNotifier<int> {
   }
 }
 
-final cacheProvider = AsyncNotifierProvider<CacheNotifier, int>(
+final cacheProvider = AsyncNotifierProvider<CacheNotifier, int?>(
   CacheNotifier.new,
 );

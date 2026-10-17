@@ -100,6 +100,32 @@ Future<void> main() async {
             expect(await kept('u2'), ['briefs/1']);
           },
         );
+
+        test('counts the bytes of one person\'s entries as kept', () async {
+          final counting = store as CacheBytes;
+          expect(await counting.cacheBytes('u1'), 0);
+          await store.writeCache('u1', 'briefs', [
+            {'title': 'Naija jollof'},
+          ]);
+          await store.writeCache('u1', 'me', {'name': 'Adé'});
+          await store.writeCache('u2', 'me', {'name': 'Bola'});
+          await store.saveDraft(
+            'u1',
+            Draft(
+              briefId: 'c_1',
+              title: 'Kept apart',
+              answer: 'Drafts are not cache.',
+              editedAt: clock.now,
+            ),
+          );
+          expect(
+            await counting.cacheBytes('u1'),
+            '[{"title":"Naija jollof"}]'.length + '{"name":"Adé"}'.length + 1,
+          );
+          await store.deleteCache('u1');
+          expect(await counting.cacheBytes('u1'), 0);
+          expect(await counting.cacheBytes('u2'), '{"name":"Bola"}'.length);
+        });
       });
 
       group('drafts', () {

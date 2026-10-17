@@ -45,7 +45,8 @@ import 'more_widgets.dart';
 /// A live launch has no iQL points or referrals yet
 /// ([pointsAndReferralsProvider]): the card shows the name alone, and the
 /// invite card and the Leaderboard row go (no frame draws More without
-/// them).
+/// them). Its Clear cache names what the phone keeps for the person, in KB
+/// under a megabyte; the frame's 42 MB is the preview's.
 class MoreScreen extends ConsumerStatefulWidget {
   const MoreScreen({super.key});
 
@@ -62,15 +63,19 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
     super.dispose();
   }
 
-  Future<void> _clearCache(int bytes) async {
-    final size = megabytes(bytes);
+  /// The size as it is now: the phone keeps more as the person browses.
+  /// One the store cannot count goes unnamed.
+  Future<void> _clearCache() async {
+    final bytes = await ref.refresh(cacheProvider.future);
+    if (!mounted) return;
+    final size = bytes == null ? null : storageSize(bytes);
     final clear = await showIqConfirmSheet(
       Navigator.of(context, rootNavigator: true).context,
       title: 'Clear cached data?',
       body:
-          'Removes $size of saved briefs and images from this phone. Your '
-          'account and submissions are not affected.',
-      confirmLabel: 'Clear $size',
+          'Removes ${size == null ? '' : '$size of '}saved briefs and images '
+          'from this phone. Your account and submissions are not affected.',
+      confirmLabel: size == null ? 'Clear' : 'Clear $size',
       cancelLabel: 'Keep it',
       confirmKind: IqButtonKind.primary,
     );
@@ -83,7 +88,7 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
     final pass = ref.watch(contributorPassProvider).value;
     final extras = ref.watch(pointsAndReferralsProvider);
     final code = pass?.code;
-    final cache = ref.watch(cacheProvider).value;
+    final cache = ref.watch(cacheProvider);
     final ios = defaultTargetPlatform == TargetPlatform.iOS;
 
     final avatar = ref.watch(avatarProvider.select((a) => a.spec));
@@ -195,7 +200,7 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
             label: 'Clear cache',
             showDescription: false,
             icon: IqIcons.eraser,
-            onTap: cache == null ? null : () => _clearCache(cache),
+            onTap: cache.hasValue ? _clearCache : null,
           ),
           IqListRow(
             label: 'Sign out',

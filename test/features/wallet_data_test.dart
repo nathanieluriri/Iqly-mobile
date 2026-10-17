@@ -65,6 +65,18 @@ void main() {
       },
     );
 
+    test('takes the whole balance under ₦1,000, and nothing else under '
+        'it (contract 6)', () {
+      expect(validWithdrawal(50000, 50000), isTrue);
+      expect(belowMinimum(50000, 50000), isFalse);
+      expect(validWithdrawal(49999, 50000), isFalse);
+      expect(belowMinimum(30000, 50000), isTrue);
+      expect(validWithdrawal(50001, 50000), isFalse);
+      expect(validWithdrawal(0, 0), isFalse);
+      expect(belowMinimum(0, 0), isTrue);
+      expect(belowMinimum(99999, 1250000), isTrue);
+    });
+
     test('splits the hero figure into naira and kobo', () {
       expect(nairaParts(1250000), ('₦12,500', '.00'));
       expect(nairaParts(750050), ('₦7,500', '.50'));

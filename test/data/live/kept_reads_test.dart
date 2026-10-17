@@ -234,6 +234,52 @@ void main() {
       );
     });
 
+    group('GET /me', () {
+      LiveAccount account(ApiClient api) => LiveAccount(
+        AccountLink(
+          api: api,
+          store: store,
+          outbox: Outbox(store),
+          userId: () => 'u_1',
+        ),
+      );
+
+      setUp(() async {
+        await store.writeCache('u_1', AccountKeys.me, {
+          'id': 'u_1',
+          'name': 'Ada Obi',
+          'email': 'ada@example.com',
+        });
+      });
+
+      test('a network that never answers shows the copy kept after 3 s, '
+          'not the 20 s timeout', () {
+        fakeAsync((async) {
+          Me? got;
+          account(_api((_) => null)).me().then((me) => got = me);
+          async.elapse(const Duration(milliseconds: 2900));
+          expect(got, isNull);
+          async.elapse(const Duration(milliseconds: 100));
+          expect(got?.name, 'Ada Obi');
+        });
+      });
+
+      test('a fault or a throttle answers the copy kept; a refusal still '
+          'fails', () async {
+        for (final status in [500, 503, 429]) {
+          expect(
+            (await account(_api((_) => _fault(status))).me()).name,
+            'Ada Obi',
+            reason: '$status',
+          );
+        }
+        await expectLater(
+          account(_api((_) => _fault(401))).me(),
+          throwsA(isA<ApiRefused>()),
+        );
+      });
+    });
+
     test('the notification feed answers the copy kept on a fault', () async {
       await store.writeCache('u_1', AccountKeys.notifications, {
         'items': <Object>[],

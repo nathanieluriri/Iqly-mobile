@@ -512,20 +512,36 @@ final closeRemindersProvider =
       CloseRemindersNotifier.new,
     );
 
-/// Brief detail: from the API, else the saved copy when offline.
-final briefDetailProvider = FutureProvider.family<Brief?, String>((
-  ref,
-  id,
-) async {
-  try {
-    final brief = await ref.watch(repositoryProvider).brief(id);
-    if (brief != null) return brief;
-  } catch (_) {
-    // Offline: fall through to the saved copy.
-  }
-  final saved = await ref.watch(savedBriefsProvider.future);
-  return saved.where((b) => b.id == id).firstOrNull;
-});
+/// Brief detail: from the API, else the saved copy when offline. With
+/// neither it fails, so the page offers Try again; nothing is held once the
+/// page closes, and the next visit asks again.
+final briefDetailProvider = FutureProvider.autoDispose.family<Brief?, String>(
+  retry: (_, _) => null,
+  (ref, id) async {
+    Future<Brief?> saved() async =>
+        (await ref.watch(savedBriefsProvider.future))
+            .where((b) => b.id == id)
+            .firstOrNull;
+    try {
+      final brief = await ref.watch(repositoryProvider).brief(id);
+      if (brief != null) return brief;
+    } on Object {
+      if (await saved() case final copy?) return copy;
+      rethrow;
+    }
+    return await saved() ?? (throw BriefUnavailable(id));
+  },
+);
+
+/// A brief neither the API nor the phone could give.
+class BriefUnavailable implements Exception {
+  const BriefUnavailable(this.id);
+
+  final String id;
+
+  @override
+  String toString() => 'BriefUnavailable($id)';
+}
 
 /// The person's submission to brief [id], if they sent one: from those
 /// sent this session at once, else from the account.

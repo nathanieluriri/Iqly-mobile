@@ -250,3 +250,9 @@ abstract class LocalStore {
 
   Future<void> close();
 }
+
+/// A store that can count what one person's cached answers take up.
+abstract interface class CacheBytes {
+  /// The bytes [userId]'s cached answers take as kept.
+  Future<int> cacheBytes(String userId);
+}

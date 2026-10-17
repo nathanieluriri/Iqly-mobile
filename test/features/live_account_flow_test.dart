@@ -11,6 +11,7 @@ import 'package:iqly_mobile/data/live/live_account.dart';
 import 'package:iqly_mobile/data/local/local_providers.dart';
 import 'package:iqly_mobile/data/local/local_store.dart';
 import 'package:iqly_mobile/data/local/memory_local_store.dart';
+import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/onboarding_service.dart';
 import 'package:iqly_mobile/data/profile_service.dart';
 import 'package:iqly_mobile/features/discover/discover_state.dart';
@@ -30,7 +31,6 @@ import 'package:iqly_mobile/ui/button.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../golden/screens/app_harness.dart';
-import '../golden/screens/more_harness.dart';
 import '../golden/screens/profile_harness.dart';
 import '../support/live_api.dart';
 import '../support/live_app.dart';
@@ -44,6 +44,16 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.pumpAndSettle();
   await tester.tap(finder);
   await tester.pumpAndSettle();
+}
+
+/// A wallet at ₦0.00 with nothing on its way, the only one whose close the
+/// API takes.
+class _ClearedWallet extends ScriptedRepository {
+  @override
+  Future<List<LedgerEntry>> ledger() async => const [];
+
+  @override
+  Future<List<Withdrawal>> withdrawals() async => const [];
 }
 
 Draft _draft() => Draft(
@@ -357,31 +367,25 @@ void main() {
         Routes.deleteAccount,
         api,
         store: store,
-        repository: EmptyWalletRepository(),
+        repository: _ClearedWallet(),
       );
       await tester.enterText(find.byType(EditableText), 'delete');
       await tester.pumpAndSettle();
       return (container, api, store);
     }
 
-    testWidgets('the API refusing with money still there fails as the screen '
-        'already fails', (tester) async {
-      final (_, api, _) = await open(
-        tester,
-        (_) => refusal(409, 'ACCOUNT_HAS_BALANCE'),
-      );
-      await _tap(tester, find.text('Delete my account'));
-      expect(find.byType(DeleteAccountScreen), findsOneWidget);
-      expect(find.text(DeleteAccountScreen.failedText), findsOneWidget);
-      expect(_button(tester, 'Delete my account').loading, isFalse);
-      expect(await api.tokens.read(), 'signed.token');
-    });
-
-    testWidgets('a withdrawal in flight fails the same way', (tester) async {
-      await open(tester, (_) => refusal(409, 'WITHDRAWAL_IN_FLIGHT'));
-      await _tap(tester, find.text('Delete my account'));
-      expect(find.text(DeleteAccountScreen.failedText), findsOneWidget);
-    });
+    for (final code in ['ACCOUNT_HAS_BALANCE', 'WITHDRAWAL_IN_FLIGHT']) {
+      testWidgets('$code that the reloaded wallet cannot show says the delete '
+          'failed, never that the connection did', (tester) async {
+        final (_, api, _) = await open(tester, (_) => refusal(409, code));
+        await _tap(tester, find.text('Delete my account'));
+        expect(find.byType(DeleteAccountScreen), findsOneWidget);
+        expect(find.text(DeleteAccountScreen.refusedText), findsOneWidget);
+        expect(find.text(DeleteAccountScreen.failedText), findsNothing);
+        expect(_button(tester, 'Delete my account').loading, isFalse);
+        expect(await api.tokens.read(), 'signed.token');
+      });
+    }
 
     testWidgets('the API ending the account\'s sessions does not sign the '
         'phone out from under Account closing', (tester) async {
@@ -402,7 +406,7 @@ void main() {
         tester,
         Routes.deleteAccount,
         api,
-        repository: EmptyWalletRepository(),
+        repository: _ClearedWallet(),
         overrides: [
           pushProvider.overrideWith(
             (ref) => Push(
