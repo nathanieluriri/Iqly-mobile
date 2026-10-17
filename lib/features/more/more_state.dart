@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/cache_service.dart';
 import '../../data/models.dart';
+import '../../data/referrals_service.dart' show referralsShownProvider;
 import '../../data/repository.dart';
 import '../onboarding/onboarding_draft.dart';
 import '../referrals/referrals_state.dart';
@@ -32,8 +33,9 @@ final buildInfoProvider = FutureProvider<BuildInfo>(
 
 /// What the summary card on More and the header of Your profile show: the
 /// name, the iQL points, this month's place on the points board (null when
-/// the board has not ranked them) and the invite code. A live launch has
-/// the name alone ([pointsAndReferralsProvider]).
+/// the board has not ranked them) and the invite code. A live launch shows
+/// each only while its feature runs live ([leaderboardShownProvider],
+/// [referralsShownProvider]).
 class ContributorPass {
   const ContributorPass({
     required this.user,
@@ -49,25 +51,36 @@ class ContributorPass {
 }
 
 final contributorPassProvider = FutureProvider<ContributorPass>((ref) async {
-  if (!ref.watch(pointsAndReferralsProvider)) {
-    return ContributorPass(
-      user: await ref.watch(onboardingUserProvider.future),
-    );
-  }
+  final points = ref.watch(leaderboardShownProvider);
+  final referrals = ref.watch(referralsShownProvider);
   final repo = ref.watch(repositoryProvider);
-  final (user, points, board, referrals) = await (
-    ref.watch(onboardingUserProvider.future),
-    repo.points(),
-    repo.pointsLeaderboard(),
-    ref.watch(referralsProvider.future),
+  final user = ref.watch(onboardingUserProvider.future);
+  final (score, board, code) = await (
+    points ? _optional(repo.points()) : Future.value(null),
+    points ? _optional(repo.pointsLeaderboard()) : Future.value(null),
+    referrals
+        ? _optional(ref.watch(referralsProvider.future))
+        : Future.value(null),
   ).wait;
   return ContributorPass(
-    user: user,
-    points: points,
-    rank: board.you?.rank,
-    code: referrals.code,
+    user: await user,
+    points: score,
+    rank: board?.you?.rank,
+    code: switch (code?.code) {
+      final code? when code.isNotEmpty => code,
+      _ => null,
+    },
   );
 });
+
+/// A live read that fails leaves its part of the pass out.
+Future<T?> _optional<T>(Future<T> read) async {
+  try {
+    return await read;
+  } on Object {
+    return null;
+  }
+}
 
 /// What Clear cache would free, in bytes; null when it cannot be counted.
 class CacheNotifier extends AsyncNotifier<int?> {

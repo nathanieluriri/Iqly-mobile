@@ -177,7 +177,7 @@ class WalletNotifier extends AsyncNotifier<WalletData> {
       fresh.copyWith(
         ledger: _merge(held.ledger, fresh.ledger, (l) => l.id),
         withdrawals: _merge(held.withdrawals, fresh.withdrawals, (w) => w.id),
-        accounts: _merge(held.accounts, fresh.accounts, (a) => a.accountNumber),
+        accounts: _merge(held.accounts, fresh.accounts, (a) => a.key),
       ),
     );
   }
@@ -263,19 +263,26 @@ class WalletNotifier extends AsyncNotifier<WalletData> {
     );
   }
 
-  /// A newly saved account, after the default. The API keeps one account,
-  /// so a live save replaces it.
-  void addAccount(SavedBank account) => _edit(
-    (data) => data.copyWith(
-      accounts: _live(LiveFeature.wallet)
-          ? [account]
-          : [
-              for (final a in data.accounts)
-                if (a.accountNumber != account.accountNumber) a,
-              account,
-            ],
-    ),
-  );
+  /// A newly saved account, after the default. A live API that keeps one
+  /// account replaces it; one that keeps several makes the first the
+  /// default and puts a later one next, as newest.
+  void addAccount(SavedBank account) => _edit((data) {
+    final others = [
+      for (final a in data.accounts)
+        if (a.key != account.key) a,
+    ];
+    if (!_live(LiveFeature.wallet)) {
+      return data.copyWith(accounts: [...others, account]);
+    }
+    if (!_live(LiveFeature.bankAccounts)) {
+      return data.copyWith(accounts: [account]);
+    }
+    return data.copyWith(
+      accounts: account.isDefault || others.isEmpty
+          ? [account, ...others]
+          : [others.first, account, ...others.skip(1)],
+    );
+  });
 
   /// [account] becomes the default and moves first.
   void setDefault(SavedBank account) => _edit(
@@ -283,10 +290,14 @@ class WalletNotifier extends AsyncNotifier<WalletData> {
       accounts: [
         account,
         for (final a in data.accounts)
-          if (a.accountNumber != account.accountNumber) a,
+          if (a.key != account.key) a,
       ],
     ),
   );
+
+  /// The accounts the API answered after a removal, the default first.
+  void setAccounts(List<SavedBank> accounts) =>
+      _edit((data) => data.copyWith(accounts: accounts));
 
   void _edit(WalletData Function(WalletData data) change) {
     final data = state.value;

@@ -9,6 +9,7 @@ import '../../core/money.dart';
 import '../../core/navigation.dart';
 import '../../core/transitions.dart';
 import '../../data/models.dart';
+import '../../data/referrals_service.dart' show referralsShownProvider;
 import '../../data/repository.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -37,7 +38,7 @@ class DiscoverTopBar extends ConsumerWidget {
       count: '$unread',
       showCount: unread > 0,
       showWallet: false,
-      showGift: ref.watch(pointsAndReferralsProvider),
+      showGift: ref.watch(referralsShownProvider),
       giftTwinkle: giftShine,
       onGift: () => context.open(Routes.referrals),
       onBell: () => context.open(Routes.notifications),

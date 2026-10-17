@@ -19,7 +19,11 @@ enum LiveFeature {
   wallet,
   withdrawals,
   notifications,
-  account;
+  account,
+  avatar,
+  bankAccounts,
+  leaderboard,
+  referrals;
 
   /// The features this one calls into, which have to be live with it.
   Set<LiveFeature> get needs => switch (this) {
@@ -28,6 +32,9 @@ enum LiveFeature {
     LiveFeature.wallet => const {LiveFeature.profile},
     LiveFeature.withdrawals => const {LiveFeature.wallet},
     LiveFeature.account => const {LiveFeature.profile, LiveFeature.wallet},
+    LiveFeature.avatar || LiveFeature.referrals => const {LiveFeature.profile},
+    LiveFeature.bankAccounts => const {LiveFeature.wallet},
+    LiveFeature.leaderboard => const {LiveFeature.submissions},
     LiveFeature.profile ||
     LiveFeature.briefs ||
     LiveFeature.notifications => const {},

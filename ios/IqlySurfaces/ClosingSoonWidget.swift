@@ -42,6 +42,21 @@ struct ClosingSoonView: View {
           }
         }
       }
+      if rows.isEmpty {
+        Spacer(minLength: 0)
+        HStack(spacing: 12) {
+          Image("WidgetBriefsArt")
+            .resizable()
+            .scaledToFit()
+            .frame(width: 70, height: 56)
+            .accessibilityHidden(true)
+          Text(section?.empty ?? "Nothing closing soon")
+            .font(IqWidgetFont.strong)
+            .foregroundColor(IqColors.fg)
+            .lineLimit(2)
+          Spacer(minLength: 0)
+        }
+      }
       Spacer(minLength: 0)
     }
     .widgetURL(section.flatMap { URL(string: $0.link) })

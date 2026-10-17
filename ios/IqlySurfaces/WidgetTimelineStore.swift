@@ -20,6 +20,7 @@ struct ClosingSoonSection: Decodable {
   let title: String
   let link: String
   let rows: [BriefRow]
+  let empty: String?
 }
 
 struct BriefRow: Decodable, Identifiable {
@@ -36,6 +37,7 @@ struct PollsSection: Decodable {
   let count: String
   let label: String
   let line: String?
+  let empty: String?
   let link: String
   let closesAt: Double?
   let live: String?

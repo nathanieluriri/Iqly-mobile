@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'core/session.dart';
 import 'core/transitions.dart';
 import 'core/updates.dart';
+import 'data/referrals_service.dart' show referralsShownProvider;
 import 'data/repository.dart';
 import 'features/avatar/avatar_routes.dart';
 import 'features/discover/discover_routes.dart';
@@ -114,11 +115,14 @@ final routerProvider = Provider<GoRouter>(
 );
 
 /// Whether this launch hides [path]: a live launch has no polls or
-/// activations to open, only the preview's samples.
+/// activations to open, only the preview's samples, and no points board or
+/// referrals while the API does not run them.
 bool hiddenRoute(Reader read, String path) {
   bool under(String root) => path == root || path.startsWith('$root/');
   return (!read(pollsShownProvider) && under(Routes.polls)) ||
-      (!read(activationsShownProvider) && under(Routes.activations));
+      (!read(activationsShownProvider) && under(Routes.activations)) ||
+      (!read(leaderboardShownProvider) && under(Routes.pointsLeaderboard)) ||
+      (!read(referralsShownProvider) && under(Routes.referrals));
 }
 
 GoRouter buildRouter({

@@ -86,6 +86,17 @@ object IqlyWidgets {
                 ?: context.getString(R.string.widget_closing_soon),
         )
         views.setOnClickPendingIntent(R.id.widget_root, open(context, section.link(), 10))
+        val empty = items.isEmpty()
+        // The paged layout only exists with more than one page of briefs.
+        if (!paged) {
+            views.setViewVisibility(R.id.closing_empty, if (empty) View.VISIBLE else View.GONE)
+            if (empty) {
+                views.setTextViewText(
+                    R.id.closing_empty_line,
+                    section.empty() ?: context.getString(R.string.widget_closing_soon_empty),
+                )
+            }
+        }
         rows.take(if (paged) rows.size else PAGE).forEachIndexed { i, row ->
             val item = items.getOrNull(i)
             if (item == null) {
@@ -107,11 +118,21 @@ object IqlyWidgets {
         val views = RemoteViews(context.packageName, R.layout.widget_polls)
         val section = WidgetStore.current(context, now)?.optJSONObject("polls")
         views.setTextViewText(R.id.widget_header_trailing, "")
-        views.setTextViewText(R.id.polls_count, section?.optString("count").orEmpty())
+        val count = section?.optString("count").orEmpty()
+        // A snapshot from before empty states existed says only "0".
+        val empty = section.empty()
+            ?: context.getString(R.string.widget_polls_empty)
+                .takeIf { count.isEmpty() || count == "0" }
+        val filled = if (empty == null) View.VISIBLE else View.GONE
+        views.setViewVisibility(R.id.polls_count, filled)
+        views.setViewVisibility(R.id.polls_label, filled)
+        views.setViewVisibility(R.id.polls_empty, if (empty == null) View.GONE else View.VISIBLE)
+        empty?.let { views.setTextViewText(R.id.polls_empty, it) }
+        views.setTextViewText(R.id.polls_count, count)
         section?.optString("label")?.takeIf { it.isNotEmpty() }
             ?.let { views.setTextViewText(R.id.polls_label, it) }
-        val line = section?.takeIf { it.isOpen(now) }?.optString("line").orEmpty()
-        countdown(views, R.id.polls_line, R.id.polls_live, section, line, now)
+        val open = section?.takeIf { empty == null && it.isOpen(now) }
+        countdown(views, R.id.polls_line, R.id.polls_live, open, open?.optString("line").orEmpty(), now)
         views.setOnClickPendingIntent(R.id.widget_root, open(context, section.link(), 20))
         return views
     }
@@ -162,6 +183,9 @@ object IqlyWidgets {
 
     private fun JSONArray?.objects(): List<JSONObject> =
         if (this == null) emptyList() else (0 until length()).mapNotNull { optJSONObject(it) }
+
+    private fun JSONObject?.empty(): String? =
+        this?.optString("empty")?.takeIf { it.isNotEmpty() }
 
     private fun JSONObject?.link(): String? =
         this?.optString("link")?.takeIf { it.startsWith("${SurfacesChannel.SCHEME}:") }

@@ -1,7 +1,7 @@
 name: iqly_mobile
 description: "The iQLY contributor app for Android, iOS and Windows."
 publish_to: 'none'
-version: 0.4.0+4
+version: 0.5.0+5
 
 environment:
   sdk: ^3.13.5
@@ -31,6 +31,7 @@ dependencies:
   shorebird_code_push: ^2.0.7
   onesignal_flutter: ^5.7.1
   sqflite: ^2.4.4+2
+  video_player: ^2.14.1
 
 dev_dependencies:
   flutter_test:

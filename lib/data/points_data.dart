@@ -26,11 +26,16 @@ class PointsBoard {
     required this.month,
     required this.contributors,
     required this.entries,
+    this.yourPoints,
   });
 
   final DateTime month;
   final int contributors;
   final List<PointsEntry> entries;
+
+  /// The person's points this month when the board says so apart from
+  /// their row (the API's `you`), which it has before they rank.
+  final int? yourPoints;
 
   PointsEntry? get you {
     for (final e in entries) {
@@ -129,6 +134,38 @@ abstract final class PointsDemo {
         wins: 0,
         submissions: 8,
       ),
+    ],
+  );
+}
+
+/// `GET /leaderboard` (contract 10.3). The person's row is the one marked
+/// `you`; their points stand apart, since a board with no points for them
+/// yet has no row.
+PointsBoard pointsBoardFromJson(Map<String, dynamic> json, DateTime now) {
+  int number(Object? value) => value is num ? value.toInt() : 0;
+  final month = RegExp(r'^(\d{4})-(\d{2})$').firstMatch('${json['month']}');
+  final entries = json['entries'];
+  final you = json['you'];
+  return PointsBoard(
+    month: month == null
+        ? DateTime(now.year, now.month)
+        : DateTime(int.parse(month[1]!), int.parse(month[2]!)),
+    contributors: number(json['contributors']),
+    yourPoints: you is Map ? number(you['points']) : null,
+    entries: [
+      if (entries is List)
+        for (final entry in entries)
+          if (entry is Map && entry['rank'] is num)
+            PointsEntry(
+              rank: number(entry['rank']),
+              name: entry['you'] == true
+                  ? 'You'
+                  : '${entry['name'] ?? ''}'.trim(),
+              points: number(entry['points']),
+              wins: number(entry['wins']),
+              submissions: number(entry['submissions']),
+              you: entry['you'] == true,
+            ),
     ],
   );
 }

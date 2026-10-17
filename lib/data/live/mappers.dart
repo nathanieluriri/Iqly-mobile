@@ -305,7 +305,21 @@ SavedBank? savedBankFromJson(Object? json) {
     bankName: name,
     accountName: holder,
     accountNumber: last4,
+    id: _text(j?['id']),
+    isDefault: j?['isDefault'] == true,
   );
+}
+
+/// `GET /wallet/bank-accounts` (contract 10.2), the default first.
+List<SavedBank> savedBanksFromJson(Object? json) {
+  final accounts = [
+    if (json is List)
+      for (final row in json) ?savedBankFromJson(row),
+  ];
+  return [
+    ...accounts.where((a) => a.isDefault),
+    ...accounts.where((a) => !a.isDefault),
+  ];
 }
 
 /// `GET /wallet` (contract 6): the figures the Wallet shows.

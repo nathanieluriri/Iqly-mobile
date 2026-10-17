@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -242,7 +241,7 @@ void main() {
       container.read(avatarProvider).spec,
       const IqBuddyAvatar(IqAvatarBuddyKind.moon),
     );
-    await avatar.startNewcomer(Random(4));
+    await avatar.startNewcomer();
     final spec = container.read(avatarProvider).spec;
     expect(spec, isA<IqPersonAvatar>());
     expect(IqAvatarPresets.people, contains((spec as IqPersonAvatar).look));

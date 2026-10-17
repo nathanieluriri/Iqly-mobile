@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/backend.dart';
 import '../core/flags.dart';
 import '../core/session.dart';
 import 'demo_data.dart';
@@ -194,12 +195,14 @@ final repositoryProvider = Provider<IqlyRepository>(
       ref.watch(liveRepositoryProvider) ?? ref.watch(demoRepositoryProvider),
 );
 
-/// iQL points, the points board and referrals have no API in contract 1,
-/// so a live launch leaves them out rather than show the preview's as the
-/// person's own: their rows and cards go and the rest closes up.
-final pointsAndReferralsProvider = Provider<bool>(
-  (ref) => ref.watch(liveModeProvider).isPreview,
-);
+/// iQL points and the points board: the preview's samples, or the API's
+/// while the leaderboard runs live. A live launch without it leaves them
+/// out rather than show the preview's as the person's own: their rows go
+/// and the rest closes up.
+final leaderboardShownProvider = Provider<bool>((ref) {
+  final mode = ref.watch(liveModeProvider);
+  return mode.isPreview || mode.isLive(LiveFeature.leaderboard);
+});
 
 /// Quick polls and activations have no API in contract 1 either, so a live
 /// launch hides every way into them, never showing the preview's samples.

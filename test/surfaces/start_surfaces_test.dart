@@ -21,7 +21,8 @@ import 'package:iqly_mobile/data/token_store.dart';
 import 'package:iqly_mobile/surfaces/surfaces.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../data/live/live_data_fixtures.dart' show FixedBackend, challengeJson;
+import '../data/live/live_data_fixtures.dart'
+    show FixedBackend, challengeJson, firstFeatures;
 
 final _now = DateTime(2026, 10, 17, 10);
 
@@ -78,7 +79,7 @@ Future<ProviderContainer> _container(
       ),
       localStoreProvider.overrideWithValue(store),
       backendProvider.overrideWith(
-        () => FixedBackend(mode ?? Backend.of(LiveFeature.values)),
+        () => FixedBackend(mode ?? Backend.of(firstFeatures)),
       ),
       demoRepositoryProvider.overrideWithValue(DemoRepository(DemoData())),
     ],

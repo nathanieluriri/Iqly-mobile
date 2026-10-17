@@ -103,8 +103,21 @@ class FixedBackend extends BackendNotifier {
   Backend build() => mode;
 }
 
-/// Every feature on the API.
-final allLive = Backend.of(LiveFeature.values);
+/// The features 0.4.0 shipped live, before contract section 10 added
+/// avatar, saved bank accounts, the leaderboard and referrals.
+const firstFeatures = {
+  LiveFeature.profile,
+  LiveFeature.briefs,
+  LiveFeature.submit,
+  LiveFeature.submissions,
+  LiveFeature.wallet,
+  LiveFeature.withdrawals,
+  LiveFeature.notifications,
+  LiveFeature.account,
+};
+
+/// Every feature 0.4.0 runs on the API.
+final allLive = Backend.of(firstFeatures);
 
 /// A live build on [api] in [mode] (everything live by default).
 List<Override> liveOverrides(FakeApi api, {Backend? mode, LocalStore? store}) =>

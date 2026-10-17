@@ -704,7 +704,7 @@ class _ProofPage extends StatelessWidget {
             duration: video.length == null ? '' : videoLength(video.length!),
             meta: videoFacts(video),
             showRemove: false,
-            thumbnail: const ProofFrame(),
+            thumbnail: ProofFrame(source: video.source),
             heroTag: proofHeroTag(a.id),
             onPlay: () => context.open(proofPlayerPath(a.id)),
           ),

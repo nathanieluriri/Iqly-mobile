@@ -89,4 +89,27 @@ void main() {
     expect((first['polls'] as Map)['count'], '3');
     expect(t.thumbs, containsAll(['thumb_sunline.png', 'thumb_kudi-box.png']));
   });
+
+  test('empty widgets carry their line, so they draw the illustration in '
+      'place of a zero (a live launch has no polls)', () {
+    final full = WidgetSnapshot.of(
+      briefs: data.briefs,
+      polls: polls,
+      now: now,
+    ).toJson();
+    expect((full['polls']! as Map).containsKey('empty'), isFalse);
+    expect((full['closingSoon']! as Map).containsKey('empty'), isFalse);
+
+    final live = WidgetSnapshot.of(
+      briefs: const [],
+      polls: const [],
+      now: now,
+      showPolls: false,
+    ).toJson();
+    final pollsJson = live['polls']! as Map;
+    expect(pollsJson['empty'], 'No open polls right now');
+    expect(pollsJson['count'], '0');
+    expect((live['closingSoon']! as Map)['empty'], 'Nothing closing soon');
+    expect((live['closingSoon']! as Map)['rows'], isEmpty);
+  });
 }

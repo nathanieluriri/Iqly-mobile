@@ -38,13 +38,21 @@ class ActivationStep {
 }
 
 /// The recording picked as proof. [length] is null when the picker cannot
-/// read it (the phone's own picker gives the file only).
+/// read it (the phone's own picker gives the file only). [source] is where
+/// it plays from (a file, an Android content uri or the API's link); the
+/// demo's recordings have none and show the phone silhouette.
 class ProofVideo {
-  const ProofVideo({required this.name, required this.bytes, this.length});
+  const ProofVideo({
+    required this.name,
+    required this.bytes,
+    this.length,
+    this.source,
+  });
 
   final String name;
   final int bytes;
   final Duration? length;
+  final Uri? source;
 
   bool get tooLong {
     final length = this.length;
