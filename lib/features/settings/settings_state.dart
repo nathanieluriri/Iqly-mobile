@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
+import '../../core/session.dart';
 import '../../data/device.dart';
 import '../../data/live/live_repository.dart';
 import '../../data/models.dart';
@@ -16,10 +17,14 @@ class NotificationPreferencesNotifier
   Future<Map<NotificationTopic, bool>> build() =>
       ref.watch(profileServiceProvider).notificationPreferences();
 
-  /// False when the account refused it and the switch went back.
+  void retry() => ref.invalidateSelf();
+
+  /// False when the account refused it and the switch went back. A refusal
+  /// that lands once its account is no longer signed in changes nothing.
   Future<bool> set(NotificationTopic topic, bool on) async {
     final before = state.value;
     if (before == null) return false;
+    final scope = ref.read(accountScopeProvider);
     state = AsyncData({...before, topic: on});
     try {
       await ref
@@ -27,6 +32,7 @@ class NotificationPreferencesNotifier
           .setNotificationPreference(topic, on);
       return true;
     } on Exception {
+      if (!ref.mounted || !scope.open) return false;
       final now = state.value ?? before;
       state = AsyncData({...now, topic: before[topic] ?? !on});
       return false;
@@ -34,11 +40,13 @@ class NotificationPreferencesNotifier
   }
 }
 
+/// No automatic retry: the failed state offers "Try again", and the page
+/// reads again each time it opens after a failure.
 final notificationPreferencesProvider =
     AsyncNotifierProvider<
       NotificationPreferencesNotifier,
       Map<NotificationTopic, bool>
-    >(NotificationPreferencesNotifier.new);
+    >(NotificationPreferencesNotifier.new, retry: (_, _) => null);
 
 /// What Delete account weighs: the available balance to withdraw first and
 /// what is already on its way (walletTotals, as on the web). A paused

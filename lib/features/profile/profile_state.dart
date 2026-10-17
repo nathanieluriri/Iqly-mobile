@@ -106,14 +106,17 @@ final accountDetailsProvider =
 
 /// An Edit page's Save: [details] and the first-run answers [change]d,
 /// on the device at once and then on the account. Throws when the account
-/// refuses; the device keeps the edit either way.
+/// refuses; the device keeps the edit either way. Nothing is kept once the
+/// account is no longer the one signed in ([AccountChanged]).
 Future<void> saveProfile(
   WidgetRef ref, {
   AccountDetails Function(AccountDetails details)? details,
   OnboardingProfile Function(OnboardingProfile answers)? answers,
 }) async {
+  final scope = ref.read(accountScopeProvider);
   final account = ref.read(accountDetailsProvider.notifier);
   final before = await ref.read(accountDetailsProvider.future);
+  if (!scope.open) throw const AccountChanged();
   final answersBefore = ref.read(profileAnswersProvider);
   var current = before;
   if (details != null) {

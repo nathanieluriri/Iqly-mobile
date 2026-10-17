@@ -57,6 +57,45 @@ class SessionState {
   );
 }
 
+/// One stretch of one account being the one signed in, from its sign-in to
+/// its sign-out or lost session. It closes the moment either happens, so
+/// async work started under it drops what it answers instead of showing it,
+/// or keeping it on the phone, for whoever comes next.
+class AccountScope {
+  AccountScope._(this.account);
+
+  /// Open for good: for code that runs outside any session's stretch.
+  AccountScope.always() : account = null;
+
+  /// As [accountProvider] has it.
+  final String? account;
+  var _open = true;
+
+  bool get open => _open;
+
+  /// The account's id, null while signed out or before the API has said.
+  String? get userId => account == null || account!.isEmpty ? null : account;
+
+  /// What [work] answers, or [AccountChanged] once this stretch has closed.
+  Future<T> guard<T>(Future<T> work) async {
+    final answer = await work;
+    if (!_open) throw const AccountChanged();
+    return answer;
+  }
+}
+
+/// What an answer meets when the account it was asked for is no longer the
+/// one signed in.
+class AccountChanged implements Exception {
+  const AccountChanged();
+
+  @override
+  String toString() => 'AccountChanged';
+}
+
+String? _accountOf(SessionState session) =>
+    session.signedIn ? session.userId ?? '' : null;
+
 class SessionNotifier extends Notifier<SessionState> {
   static const _signedIn = 'session.signedIn';
   static const _onboardingDone = 'session.onboardingDone';
@@ -66,10 +105,12 @@ class SessionNotifier extends Notifier<SessionState> {
   static const _userId = 'session.userId';
   static const _lostUserId = 'session.lostUserId';
 
+  AccountScope? _scope;
+
   @override
   SessionState build() {
     final prefs = ref.watch(sharedPreferencesProvider);
-    return SessionState(
+    final session = SessionState(
       signedIn: prefs.getBool(_signedIn) ?? false,
       onboardingDone: prefs.getBool(_onboardingDone) ?? false,
       firstTipSeen: prefs.getBool(_firstTipSeen) ?? false,
@@ -78,6 +119,26 @@ class SessionNotifier extends Notifier<SessionState> {
       userId: prefs.getString(_userId),
       lostUserId: prefs.getString(_lostUserId),
     );
+    _roll(session);
+    return session;
+  }
+
+  /// The signed-in account's current stretch ([AccountScope]).
+  AccountScope get scope => _scope!;
+
+  void _roll(SessionState next) {
+    final account = _accountOf(next);
+    final current = _scope;
+    if (current != null && current._open && current.account == account) {
+      return;
+    }
+    current?._open = false;
+    _scope = AccountScope._(account);
+  }
+
+  void _emit(SessionState next) {
+    _roll(next);
+    state = next;
   }
 
   SharedPreferences get _prefs => ref.read(sharedPreferencesProvider);
@@ -95,41 +156,47 @@ class SessionNotifier extends Notifier<SessionState> {
     final name = value?.trim().replaceAll(RegExp(r'\s+'), ' ');
     final full = name == null || name.isEmpty ? null : name;
     final first = full?.split(' ').first;
-    state = SessionState(
-      signedIn: state.signedIn,
-      onboardingDone: state.onboardingDone,
-      firstTipSeen: state.firstTipSeen,
-      firstName: first,
-      name: full,
-      userId: state.userId,
-      lostUserId: state.lostUserId,
+    _emit(
+      SessionState(
+        signedIn: state.signedIn,
+        onboardingDone: state.onboardingDone,
+        firstTipSeen: state.firstTipSeen,
+        firstName: first,
+        name: full,
+        userId: state.userId,
+        lostUserId: state.lostUserId,
+      ),
     );
     await Future.wait([_keep(_name, full), _keep(_firstName, first)]);
   }
 
   Future<void> setUserId(String? value) async {
     final id = value == null || value.isEmpty ? null : value;
-    state = SessionState(
-      signedIn: state.signedIn,
-      onboardingDone: state.onboardingDone,
-      firstTipSeen: state.firstTipSeen,
-      firstName: state.firstName,
-      name: state.name,
-      userId: id,
-      lostUserId: state.lostUserId,
+    _emit(
+      SessionState(
+        signedIn: state.signedIn,
+        onboardingDone: state.onboardingDone,
+        firstTipSeen: state.firstTipSeen,
+        firstName: state.firstName,
+        name: state.name,
+        userId: id,
+        lostUserId: state.lostUserId,
+      ),
     );
     await _keep(_userId, id);
   }
 
   Future<void> setLostUserId(String? value) async {
-    state = SessionState(
-      signedIn: state.signedIn,
-      onboardingDone: state.onboardingDone,
-      firstTipSeen: state.firstTipSeen,
-      firstName: state.firstName,
-      name: state.name,
-      userId: state.userId,
-      lostUserId: value,
+    _emit(
+      SessionState(
+        signedIn: state.signedIn,
+        onboardingDone: state.onboardingDone,
+        firstTipSeen: state.firstTipSeen,
+        firstName: state.firstName,
+        name: state.name,
+        userId: state.userId,
+        lostUserId: value,
+      ),
     );
     await _keep(_lostUserId, value);
   }
@@ -139,12 +206,14 @@ class SessionNotifier extends Notifier<SessionState> {
   /// for its next sign-in.
   Future<void> lose() async {
     final lost = state.userId;
-    state = SessionState(
-      onboardingDone: state.onboardingDone,
-      firstTipSeen: state.firstTipSeen,
-      firstName: state.firstName,
-      name: state.name,
-      lostUserId: lost,
+    _emit(
+      SessionState(
+        onboardingDone: state.onboardingDone,
+        firstTipSeen: state.firstTipSeen,
+        firstName: state.firstName,
+        name: state.name,
+        lostUserId: lost,
+      ),
     );
     await Future.wait([
       _prefs.setBool(_signedIn, false),
@@ -155,7 +224,7 @@ class SessionNotifier extends Notifier<SessionState> {
 
   /// Signed out in one step, with nothing of any account kept.
   Future<void> signOut() async {
-    state = const SessionState();
+    _emit(const SessionState());
     await Future.wait([
       _prefs.setBool(_signedIn, false),
       _prefs.setBool(_onboardingDone, false),
@@ -169,7 +238,7 @@ class SessionNotifier extends Notifier<SessionState> {
       value == null ? _prefs.remove(key) : _prefs.setString(key, value);
 
   Future<void> _set(String key, bool value, SessionState next) async {
-    state = next;
+    _emit(next);
     await _prefs.setBool(key, value);
   }
 }
@@ -183,7 +252,14 @@ final sessionProvider = NotifierProvider<SessionNotifier, SessionState>(
 /// keeps one person's data watches it, so a sign-out drops that data and
 /// the next sign-in starts from nothing of anyone else's.
 final accountProvider = Provider<String?>(
-  (ref) => ref.watch(
-    sessionProvider.select((s) => s.signedIn ? s.userId ?? '' : null),
-  ),
+  (ref) => ref.watch(sessionProvider.select(_accountOf)),
 );
+
+/// The signed-in account's current [AccountScope]: read it before an await
+/// and check it after, or hand it to what is made for the account. It
+/// watches the whole session, not [accountProvider], so a sign-out and a
+/// sign-in back to the same account still bring a new one.
+final accountScopeProvider = Provider<AccountScope>((ref) {
+  ref.watch(sessionProvider);
+  return ref.read(sessionProvider.notifier).scope;
+});

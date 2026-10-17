@@ -68,10 +68,13 @@ Future<void> _finish(
 }) async {
   final profile = ref.read(onboardingDraftProvider).profile;
   final session = ref.read(sessionProvider.notifier);
+  final scope = ref.read(accountScopeProvider);
   ref
       .read(onboardingServiceProvider)
       .saveProfile(profile, skipped: skipped)
-      .then((_) => session.setOnboardingDone(true))
+      .then((_) async {
+        if (scope.open) await session.setOnboardingDone(true);
+      })
       .ignore();
   var briefs = const <Brief>[];
   try {

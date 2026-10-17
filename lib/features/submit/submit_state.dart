@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/deadline.dart';
+import '../../core/session.dart';
 import '../../data/drafts_data.dart';
 import '../../data/submit_data.dart';
 import '../../data/submit_service.dart';
@@ -294,10 +295,12 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
 
   /// Sends once every required answer is in. Null when something is missing
   /// or a send is already on its way. A live send carries the files, so
-  /// their rows show them going up with it.
+  /// their rows show them going up with it. An answer that lands once its
+  /// account is no longer signed in leaves the flow and the drafts be.
   Future<SubmitResult?> send(SubmitForm form) async {
     if (!form.hasQuestions && !_answerStepReady()) return null;
     if (!canSend(form)) return null;
+    final scope = ref.read(accountScopeProvider);
     state = state.copyWith(sending: true, failed: false);
     final draft = state.draft;
     final files = [
@@ -323,7 +326,7 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
             onProgress: (progress) => _goingUp(going, progress),
           ),
         );
-    if (!ref.mounted) return result;
+    if (!ref.mounted || !scope.open) return result;
     final receipt = result.receipt;
     if (receipt == null) {
       state = state.copyWith(

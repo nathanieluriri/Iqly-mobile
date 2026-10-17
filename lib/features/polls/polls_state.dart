@@ -1,11 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/session.dart';
 import '../../data/polls_data.dart';
 import '../../data/polls_service.dart';
 
 /// The businesses with open polls and the person's votes, shared by the
 /// Polls screens and Discover's bubbles. No automatic retry: the failed
-/// state offers "Try again".
+/// state offers "Try again". An answer that lands once its account is no
+/// longer signed in changes nothing.
 class PollsNotifier extends AsyncNotifier<List<PollBusiness>> {
   @override
   Future<List<PollBusiness>> build() =>
@@ -17,20 +19,23 @@ class PollsNotifier extends AsyncNotifier<List<PollBusiness>> {
   /// lands; a failure keeps them.
   Future<void> refreshQuietly() async {
     if (!state.hasValue) return;
+    final scope = ref.read(accountScopeProvider);
     try {
       final businesses = await ref.read(pollsServiceProvider).businesses();
-      state = AsyncData(businesses);
+      if (scope.open) state = AsyncData(businesses);
     } catch (_) {}
   }
 
   /// Votes [choice] on [pollId]; true once the vote has counted.
   Future<bool> vote(String pollId, int choice) async {
+    final scope = ref.read(accountScopeProvider);
     final Poll poll;
     try {
       poll = await ref.read(pollsServiceProvider).vote(pollId, choice);
     } catch (_) {
       return false;
     }
+    if (!scope.open) return false;
     final data = state.value;
     if (data != null) {
       state = AsyncData([

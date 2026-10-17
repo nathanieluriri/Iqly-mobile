@@ -4,10 +4,12 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/backend.dart';
 import '../../core/flags.dart';
 import '../../core/session.dart';
 import '../../data/api_client.dart';
 import '../../data/live/live_account.dart';
+import '../../data/live/live_repository.dart';
 import '../../data/local/local_providers.dart';
 import '../../data/onboarding_service.dart';
 import '../../router.dart';
@@ -17,28 +19,50 @@ import '../onboarding/onboarding_draft.dart';
 /// signed-in person once the session knows the account (at launch and after
 /// each sign-in) and stops when the session ends, keeping what waits for
 /// that account's next sign-in: a 401 signs the phone out, so the queue
-/// holds until then. First-run answers the API refuses as under 18 take
-/// first run back to About you, the way the app shows an under-age date.
+/// holds until then. Only the features the launch runs live make their
+/// calls (contract 2 and 8): a preview launch sends nothing, and in a live
+/// one the writes of a paused feature wait, kept, for a launch that runs
+/// it. The queue waits for the launch's mode to be fixed. First-run
+/// answers the API refuses as under 18 take first run back to About you,
+/// the way the app shows an under-age date.
 final accountSyncProvider = Provider<void>((ref) {
   final api = ref.watch(apiClientProvider);
   if (api == null) return;
   final outbox = ref.watch(outboxProvider);
+  final mode = ref.watch(liveModeProvider);
+  final session = ref.read(sessionProvider.notifier);
+  bool signedIn(String userId) => session.scope.userId == userId;
   registerAccountWrites(
     outbox,
     api,
     ref.watch(localStoreProvider),
+    live: mode.isLive,
+    signedIn: signedIn,
     onFailed: (item, write, code) {
-      if (write == AccountWrite.onboarding && code == 'UNDER_AGE') {
+      if (write == AccountWrite.onboarding &&
+          code == 'UNDER_AGE' &&
+          signedIn(item.userId) &&
+          ref.mounted) {
         unawaited(_refuseDateOfBirth(ref, item.payload['dateOfBirth']));
       }
     },
   );
-  ref.listen(
-    sessionProvider.select((s) => s.signedIn ? s.userId : null),
-    (_, userId) =>
-        unawaited(userId == null ? outbox.stop() : outbox.start(userId)),
-    fireImmediately: true,
-  );
+  final locked = ref.read(backendProvider.notifier).locked;
+  ref.listen(sessionProvider.select((s) => s.signedIn ? s.userId : null), (
+    _,
+    userId,
+  ) {
+    if (userId == null || mode.isPreview) {
+      unawaited(outbox.stop());
+      return;
+    }
+    final scope = session.scope;
+    unawaited(
+      locked.then((_) {
+        if (scope.open && ref.mounted) return outbox.start(userId);
+      }),
+    );
+  }, fireImmediately: true);
 });
 
 /// The outbox tries again whenever the app comes back to the foreground,
@@ -80,9 +104,10 @@ Future<void> checkAccountAtLaunch(Reader read, GoRouter router) async {
   if (read(sessionProvider).signedIn) read(meProvider.future).ignore();
   await leftSplash(router);
   if (!read(sessionProvider).signedIn) return;
+  final scope = read(accountScopeProvider);
   try {
     final me = await read(meProvider.future);
-    if (me == null) return;
+    if (me == null || !scope.open) return;
     if (me.closing && Flags.deleteAccount) {
       router.go(Routes.restoreAccount, extra: me.closesAt);
       return;

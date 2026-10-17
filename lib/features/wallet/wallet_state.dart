@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
 import '../../core/deadline.dart';
+import '../../core/session.dart';
 import '../../data/live/live_repository.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
@@ -143,17 +144,20 @@ class WalletNotifier extends AsyncNotifier<WalletData> {
   }
 
   /// Reloads behind the shown figures (designer answer 30): no skeleton,
-  /// and a failure keeps what is on screen.
+  /// and a failure keeps what is on screen. A reload that lands once its
+  /// account is no longer signed in goes nowhere.
   Future<void> refreshQuietly() async {
     if (!state.hasValue) return;
+    final scope = ref.read(accountScopeProvider);
     final WalletData fresh;
     try {
       fresh = await _load(allowCache: false);
     } on Object {
       return;
     }
+    if (!ref.mounted || !scope.open) return;
     final held = state.value;
-    if (!ref.mounted || held == null) return;
+    if (held == null) return;
     if (fresh.reported != null) {
       // The API's rows and figures win; a withdrawal just made that the
       // reload does not have yet stays.

@@ -35,6 +35,10 @@ const notificationCopy = {
 /// the account refuses slides back with the error haptic. No stagger: a
 /// settings list is not news. The Polls switch follows Flags.polls.
 ///
+/// Switches that cannot load show the error banner and Try again, as the
+/// other pages do (the frame has no failed state); opening the page again
+/// reads them again.
+///
 /// The row note promises quiet hours; the frame has no control for them
 /// (its 100 pt action bar is empty), so none is built.
 class NotificationPreferencesScreen extends ConsumerWidget {
@@ -42,7 +46,8 @@ class NotificationPreferencesScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final preferences = ref.watch(notificationPreferencesProvider).value;
+    final switches = ref.watch(notificationPreferencesProvider);
+    final preferences = switches.value;
     final allowed = ref.watch(notificationsAllowedProvider).value ?? true;
     final topics = [
       for (final topic in NotificationTopic.values)
@@ -56,7 +61,7 @@ class NotificationPreferencesScreen extends ConsumerWidget {
       if (!taken) errorHaptic();
     }
 
-    return _RecheckOnResume(
+    return _Rechecks(
       child: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.dark,
         child: Scaffold(
@@ -90,6 +95,15 @@ class NotificationPreferencesScreen extends ConsumerWidget {
                               .read(deviceServiceProvider)
                               .openNotificationSettings(),
                         ),
+                        IqBanner(
+                          kind: IqBannerKind.error,
+                          title: 'Couldn’t load. Check your connection.',
+                          action: 'Try again',
+                          visible: preferences == null && switches.hasError,
+                          onAction: () => ref
+                              .read(notificationPreferencesProvider.notifier)
+                              .retry(),
+                        ),
                         if (preferences != null)
                           for (final (i, topic) in topics.indexed)
                             IqSettingRow(
@@ -114,18 +128,19 @@ class NotificationPreferencesScreen extends ConsumerWidget {
   }
 }
 
-/// Coming back from the phone's settings checks the permission again, so
-/// the banner goes as soon as notifications are allowed.
-class _RecheckOnResume extends ConsumerStatefulWidget {
-  const _RecheckOnResume({required this.child});
+/// Opening the page reads the switches again when their last read failed,
+/// and coming back from the phone's settings checks the permission again,
+/// so the banner goes as soon as notifications are allowed.
+class _Rechecks extends ConsumerStatefulWidget {
+  const _Rechecks({required this.child});
 
   final Widget child;
 
   @override
-  ConsumerState<_RecheckOnResume> createState() => _RecheckOnResumeState();
+  ConsumerState<_Rechecks> createState() => _RechecksState();
 }
 
-class _RecheckOnResumeState extends ConsumerState<_RecheckOnResume> {
+class _RechecksState extends ConsumerState<_Rechecks> {
   late final _lifecycle = AppLifecycleListener(
     onResume: () => ref.invalidate(notificationsAllowedProvider),
   );
@@ -134,6 +149,12 @@ class _RecheckOnResumeState extends ConsumerState<_RecheckOnResume> {
   void initState() {
     super.initState();
     _lifecycle;
+    if (!ref.read(notificationPreferencesProvider).hasError) return;
+    // After the first frame: invalidating a provider while the page mounts
+    // would mark the ProviderScope above it dirty mid-build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(notificationPreferencesProvider.notifier).retry();
+    });
   }
 
   @override

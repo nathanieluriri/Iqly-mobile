@@ -6,6 +6,7 @@ import '../../core/brief_labels.dart';
 import '../../core/deadline.dart';
 import '../../core/money.dart';
 import '../../core/relative_time.dart';
+import '../../core/session.dart';
 import '../../data/models.dart';
 import '../../data/notifications_data.dart';
 import '../../data/notifications_service.dart';
@@ -26,10 +27,12 @@ class NotificationsNotifier extends AsyncNotifier<List<AppNotification>> {
 
   void retry() => ref.invalidateSelf();
 
-  /// The feed is on screen, so the bell on every tab clears.
+  /// The feed is on screen, so the bell on every tab clears, while its
+  /// account is still the one signed in.
   Future<void> markSeen() async {
+    final scope = ref.read(accountScopeProvider);
     await ref.read(notificationsServiceProvider).markSeen();
-    ref.invalidate(unreadNotificationsProvider);
+    if (scope.open) ref.invalidate(unreadNotificationsProvider);
   }
 
   /// The person opened [id].

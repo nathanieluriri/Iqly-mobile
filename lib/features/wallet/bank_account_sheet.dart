@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/money.dart';
+import '../../core/session.dart';
 import '../../data/live/live_repository.dart';
 import '../../data/models.dart';
 import '../../data/wallet_service.dart';
@@ -67,8 +68,9 @@ class _BankAccountSheetState extends ConsumerState<BankAccountSheet> {
     );
     if (ok != true || !mounted) return;
     setState(() => _saving = true);
+    final scope = ref.read(accountScopeProvider);
     await ref.read(walletServiceProvider).setDefault(picked);
-    if (!mounted) return;
+    if (!mounted || !scope.open) return;
     ref.read(walletProvider.notifier).setDefault(picked);
     Navigator.of(context).pop();
   }

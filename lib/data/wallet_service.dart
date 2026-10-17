@@ -264,7 +264,7 @@ class PausedWalletService implements WalletService {
 /// again for each signed-in person, so a withdrawal one of them left
 /// unsettled is never sent for another.
 final walletServiceProvider = Provider<WalletService>((ref) {
-  ref.watch(accountProvider);
+  final scope = ref.watch(accountScopeProvider);
   final api = ref.watch(apiClientProvider);
   final mode = ref.watch(liveModeProvider);
   if (api == null || mode.isPreview) return DemoWalletService();
@@ -272,5 +272,6 @@ final walletServiceProvider = Provider<WalletService>((ref) {
   return LiveWalletService(
     api,
     withdrawals: mode.isLive(LiveFeature.withdrawals),
+    scope: scope,
   );
 });

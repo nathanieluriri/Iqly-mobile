@@ -280,6 +280,9 @@ class Outbox {
     if (_userId != null) unawaited(kick());
   }
 
+  /// Items of [kind] wait, kept, until a handler is set again.
+  void unregister(String kind) => _handlers.remove(kind);
+
   /// Queues a write (see [LocalStore.enqueue]). For the person whose queue
   /// runs, it goes as soon as it can.
   Future<OutboxItem> enqueue(

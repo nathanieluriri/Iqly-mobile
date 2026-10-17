@@ -172,14 +172,20 @@ Future<SurfaceInputs> surfaceInputs(
 
 /// Starts [surfaces] on what the phone holds, so a launch link opens at
 /// once, then publishes what the API answers whenever it comes: at launch,
-/// after each change of mode and when another account signs in.
+/// after each change of mode and when another account signs in. What was
+/// read for an account no longer signed in once it lands is not published.
 Future<void> startSurfaces(
   Surfaces surfaces,
   ProviderContainer container,
 ) async {
   final now = container.read(clockProvider);
-  void publishLive() =>
-      unawaited(surfaceInputs(container.read, now()).then(surfaces.publish));
+  Future<void> publish() async {
+    final scope = container.read(accountScopeProvider);
+    final inputs = await surfaceInputs(container.read, now());
+    if (scope.open) await surfaces.publish(inputs);
+  }
+
+  void publishLive() => unawaited(publish());
   await surfaces.start(
     await surfaceInputs(container.read, now(), onPhone: true),
   );
