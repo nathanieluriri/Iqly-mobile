@@ -12,6 +12,10 @@ class CacheEntry {
 
 enum OutboxStatus { pending, sending, failed, done }
 
+/// The longest the outbox waits before sending an item again, unless the
+/// API's Retry-After asks for longer.
+const outboxLongestWait = Duration(minutes: 15);
+
 /// A file sent with an outbox item. The store keeps where it is, not the
 /// file itself.
 class OutboxFile {
@@ -42,6 +46,8 @@ class OutboxItem {
     this.dependsOn,
     this.lastErrorCode,
     this.lastErrorMessage,
+    this.retryAfter,
+    this.failingSince,
     this.serverRef,
     this.files = const [],
   });
@@ -53,7 +59,8 @@ class OutboxItem {
   /// Names the handler that sends it.
   final String kind;
 
-  /// Writes sharing a key fold into one pending item and go out in order.
+  /// Writes sharing a key fold into one item while it is unsent, and go out
+  /// in order.
   final String? coalesceKey;
   final Map<String, dynamic> payload;
 
@@ -67,11 +74,28 @@ class OutboxItem {
   final String? lastErrorCode;
   final String? lastErrorMessage;
 
+  /// The API's Retry-After that set [nextAttemptAt], if it gave one.
+  final Duration? retryAfter;
+
+  /// When the failures that keep the item waiting began, for giving up.
+  final DateTime? failingSince;
+
   /// The id the API gave what it created, once done.
   final String? serverRef;
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<OutboxFile> files;
+
+  /// When the item may go, seen at [now]: its next attempt, or now when that
+  /// lies further ahead than any wait set for it, as after the phone's clock
+  /// was set back.
+  DateTime dueAt(DateTime now) {
+    final after = retryAfter;
+    final longest = after != null && after > outboxLongestWait
+        ? after
+        : outboxLongestWait;
+    return nextAttemptAt.isAfter(now.add(longest)) ? now : nextAttemptAt;
+  }
 
   @override
   String toString() => 'OutboxItem($kind $id ${status.name})';
@@ -111,13 +135,14 @@ abstract class LocalStore {
 
   Future<void> deleteDrafts(String userId, Iterable<String> briefIds);
 
-  /// Queues a write, due now. When a pending item of [userId] has the same
-  /// [coalesceKey], the write folds into it instead: the payload becomes
-  /// [merge] of the two (the new payload alone without [merge]), the kind
-  /// becomes [kind], [files] replace the old ones when there are any, and
-  /// the item keeps its id and place in the queue. A write naming a
-  /// different [dependsOn] is queued after it instead. Answers the item as
-  /// stored.
+  /// Queues a write, due now. When [userId]'s newest unsent item with the
+  /// same [coalesceKey] has never been sent, the write folds into it
+  /// instead: the payload becomes [merge] of the two (the new payload alone
+  /// without [merge]), the kind becomes [kind], [files] replace the old ones
+  /// when there are any, and the item keeps its id and place in the queue.
+  /// A write is queued after that item instead when the item has been sent
+  /// (the API may already hold its Idempotency-Key) or names a different
+  /// [dependsOn]. Answers the item as stored.
   Future<OutboxItem> enqueue(
     String userId, {
     required String kind,
@@ -128,7 +153,8 @@ abstract class LocalStore {
     List<OutboxFile> files = const [],
   });
 
-  /// [userId]'s pending items whose next attempt has come, oldest first.
+  /// [userId]'s pending items that may go at [now] (see
+  /// [OutboxItem.dueAt]), oldest first.
   Future<List<OutboxItem>> dueOutbox(String userId, DateTime now);
 
   /// [userId]'s items not done yet (pending, sending and failed), oldest
@@ -143,18 +169,25 @@ abstract class LocalStore {
 
   Future<void> markDone(String id, {String? serverRef});
 
-  /// Back to pending until [at].
+  /// Back to pending until [at]. [retryAfter] is the API's wait that set
+  /// [at]; [failingSince] keeps the item's give-up clock, and null stops it.
   Future<void> markRetry(
     String id, {
     required DateTime at,
     String? code,
     String? message,
+    Duration? retryAfter,
+    DateTime? failingSince,
   });
 
   Future<void> markFailed(String id, {required String code, String? message});
 
   /// Puts items a killed app left sending back to pending. Answers how many.
   Future<int> resetSending();
+
+  /// Stops the give-up clock of [userId]'s unsent items, as when the queue
+  /// pauses.
+  Future<void> resetFailingSince(String userId);
 
   /// Drops done items last changed before [before], keeping the ones an
   /// unsent item depends on. Answers how many went.

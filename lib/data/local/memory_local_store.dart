@@ -92,10 +92,10 @@ class MemoryLocalStore implements LocalStore {
                 (row) =>
                     row['user_id'] == userId &&
                     row['coalesce_key'] == coalesceKey &&
-                    row['status'] == OutboxStatus.pending.name,
+                    _unsent(row),
               )
               .lastOrNull;
-    if (older != null && LocalRows.joins(older, dependsOn)) {
+    if (older != null && LocalRows.folds(older, dependsOn)) {
       older.addAll({
         'kind': kind,
         'payload': LocalRows.coalesce(older['payload']! as String, body, merge),
@@ -130,6 +130,10 @@ class MemoryLocalStore implements LocalStore {
   Map<String, Object?>? _row(String id) =>
       _outbox.where((row) => row['id'] == id).firstOrNull;
 
+  static bool _unsent(Map<String, Object?> row) =>
+      row['status'] == OutboxStatus.pending.name ||
+      row['status'] == OutboxStatus.sending.name;
+
   void _update(String id, Map<String, Object?> values) =>
       _row(id)?.addAll({...values, 'updated_at': LocalRows.time(_clock())});
 
@@ -137,10 +141,9 @@ class MemoryLocalStore implements LocalStore {
   Future<List<OutboxItem>> dueOutbox(String userId, DateTime now) async => [
     for (final row in _outbox)
       if (row['user_id'] == userId &&
-          row['status'] == OutboxStatus.pending.name &&
-          (row['next_attempt_at']! as int) <= LocalRows.time(now))
+          row['status'] == OutboxStatus.pending.name)
         _item(row),
-  ];
+  ].where((item) => !item.dueAt(now).isAfter(now)).toList();
 
   @override
   Future<List<OutboxItem>> outbox(String userId) async => [
@@ -176,12 +179,18 @@ class MemoryLocalStore implements LocalStore {
     required DateTime at,
     String? code,
     String? message,
-  }) async => _update(id, {
-    'status': OutboxStatus.pending.name,
-    'next_attempt_at': LocalRows.time(at),
-    'last_error_code': code,
-    'last_error_message': message,
-  });
+    Duration? retryAfter,
+    DateTime? failingSince,
+  }) async => _update(
+    id,
+    LocalRows.retryRow(
+      at: at,
+      code: code,
+      message: message,
+      retryAfter: retryAfter,
+      failingSince: failingSince,
+    ),
+  );
 
   @override
   Future<void> markFailed(
@@ -195,15 +204,28 @@ class MemoryLocalStore implements LocalStore {
   });
 
   @override
-  Future<int> resetSending() async {
-    final sending = [
-      for (final row in _outbox)
-        if (row['status'] == OutboxStatus.sending.name) row['id']! as String,
-    ];
-    for (final id in sending) {
-      _update(id, {'status': OutboxStatus.pending.name});
+  Future<int> resetSending() async => _updateAll(
+    (row) => row['status'] == OutboxStatus.sending.name,
+    {'status': OutboxStatus.pending.name},
+  );
+
+  @override
+  Future<void> resetFailingSince(String userId) async {
+    _updateAll((row) => row['user_id'] == userId && _unsent(row), {
+      'failing_since': null,
+    });
+  }
+
+  int _updateAll(
+    bool Function(Map<String, Object?> row) test,
+    Map<String, Object?> values,
+  ) {
+    final rows = _outbox.where(test).toList();
+    final now = LocalRows.time(_clock());
+    for (final row in rows) {
+      row.addAll({...values, 'updated_at': now});
     }
-    return sending.length;
+    return rows.length;
   }
 
   @override
