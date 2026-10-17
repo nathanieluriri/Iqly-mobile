@@ -268,17 +268,38 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
       !state.uploading &&
       firstUnanswered(form, state.draft) == null;
 
+  void _goingUp(Set<AttachmentFile> files, double progress) {
+    if (!ref.mounted) return;
+    state = state.copyWith(
+      files: [
+        for (final a in state.files)
+          files.contains(a.file)
+              ? a.copyWith(
+                  status: AttachmentStatus.uploading,
+                  progress: progress,
+                )
+              : a,
+      ],
+    );
+  }
+
   /// Drops the draft once its answer is sent.
   Future<void> discard() =>
       ref.read(draftsProvider.notifier).discard([briefId]);
 
   /// Sends once every required answer is in. Null when something is missing
-  /// or a send is already on its way.
+  /// or a send is already on its way. A live send carries the files, so
+  /// their rows show them going up with it.
   Future<SubmitResult?> send(SubmitForm form) async {
     if (!form.hasQuestions && !_answerStepReady()) return null;
     if (!canSend(form)) return null;
     state = state.copyWith(sending: true, failed: false);
     final draft = state.draft;
+    final files = [
+      for (final a in state.files)
+        if (a.status == AttachmentStatus.done) a.file,
+    ];
+    final going = files.toSet();
     final result = await ref
         .read(submitServiceProvider)
         .submit(
@@ -293,16 +314,23 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
                     a.trim(),
                 ],
             },
-            files: [
-              for (final a in state.files)
-                if (a.status == AttachmentStatus.done) a.file,
-            ],
+            files: files,
+            onProgress: (progress) => _goingUp(going, progress),
           ),
         );
     if (!ref.mounted) return result;
     final receipt = result.receipt;
     if (receipt == null) {
-      state = state.copyWith(sending: false, failed: true);
+      state = state.copyWith(
+        sending: false,
+        failed: true,
+        files: [
+          for (final a in state.files)
+            a.status == AttachmentStatus.uploading && going.contains(a.file)
+                ? a.copyWith(status: AttachmentStatus.done, progress: 1)
+                : a,
+        ],
+      );
     } else {
       await discard();
       if (!ref.mounted) return result;

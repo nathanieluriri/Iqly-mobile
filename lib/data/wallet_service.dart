@@ -3,7 +3,11 @@ import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../core/backend.dart';
+import 'api_client.dart';
 import 'demo_data.dart';
+import 'live/live_repository.dart';
+import 'live/live_wallet_service.dart';
 import 'models.dart';
 
 /// How long Home keeps showing a payout that arrived.
@@ -197,6 +201,16 @@ class DemoWalletService implements WalletService {
   }
 }
 
-final walletServiceProvider = Provider<WalletService>(
-  (ref) => DemoWalletService(),
-);
+/// The API when the wallet is live, withdrawals too when they are.
+final walletServiceProvider = Provider<WalletService>((ref) {
+  final api = ref.watch(apiClientProvider);
+  final mode = ref.watch(liveModeProvider);
+  if (api == null || !mode.isLive(LiveFeature.wallet)) {
+    return DemoWalletService();
+  }
+  return LiveWalletService(
+    api,
+    demo: DemoWalletService(),
+    withdrawals: mode.isLive(LiveFeature.withdrawals),
+  );
+});

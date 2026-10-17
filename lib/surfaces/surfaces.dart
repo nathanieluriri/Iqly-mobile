@@ -8,13 +8,17 @@ import 'package:go_router/go_router.dart';
 import 'package:quick_actions/quick_actions.dart';
 import 'package:timezone/timezone.dart' as tz;
 
+import '../core/backend.dart';
 import '../core/deep_links.dart';
 import '../core/flags.dart';
 import '../core/navigation.dart';
+import '../core/session.dart';
 import '../data/demo_data.dart';
+import '../data/live/live_repository.dart';
 import '../data/models.dart';
 import '../data/notifications_data.dart';
 import '../data/polls_data.dart';
+import '../data/repository.dart';
 import '../theme/theme.dart';
 import 'live_activity.dart';
 import 'notification_content.dart';
@@ -120,6 +124,37 @@ class SurfaceInputs {
   /// The feed row that reports [entryId], which the push opens.
   String? feedIdFor(String entryId) =>
       feed.where((n) => n.entryId == entryId).firstOrNull?.id;
+}
+
+/// What the surfaces show this launch, for main.dart to start and publish
+/// them with in place of [SurfaceInputs.demo]. With briefs live the
+/// closing-soon widget reads the live briefs (the phone's last copy when
+/// offline) and, with submit live, Continue my draft opens the newest draft
+/// on the phone, or is not offered. Polls stay on the preview data.
+Future<SurfaceInputs> surfaceInputs(Reader read, DateTime now) async {
+  final preview = SurfaceInputs.demo(now);
+  final mode = read(liveModeProvider);
+  if (!mode.isLive(LiveFeature.briefs)) return preview;
+  final repository = read(repositoryProvider);
+  final briefs = await repository.briefs().catchError(
+    (Object _) => const <Brief>[],
+  );
+  var draft = preview.draftBriefId;
+  if (mode.isLive(LiveFeature.submit)) {
+    try {
+      draft = (await repository.drafts()).firstOrNull?.briefId;
+    } on Object {
+      draft = null;
+    }
+  }
+  return SurfaceInputs(
+    briefs: briefs,
+    polls: preview.polls,
+    withdrawals: preview.withdrawals,
+    feed: preview.feed,
+    now: now,
+    draftBriefId: draft,
+  );
 }
 
 /// Starts the OS surfaces from main.dart and routes their taps. Widget tests

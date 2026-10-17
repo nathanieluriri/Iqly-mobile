@@ -86,7 +86,7 @@ class WalletActivityRow extends StatelessWidget {
     switch (award.source) {
       case RewardSource.submission:
         final brief = briefs[award.submissionId];
-        final business = brief?.businessName;
+        final business = brief?.businessName ?? award.business;
         return (
           business ?? 'Private business',
           brief?.title ?? '',

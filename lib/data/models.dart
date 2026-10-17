@@ -20,7 +20,8 @@ enum Category {
   customerExperience('Customer experience'),
   productDesign('Product design'),
   innovation('Innovation'),
-  technology('Technology');
+  technology('Technology'),
+  other('Other');
 
   const Category(this.label);
   final String label;
@@ -161,6 +162,8 @@ class Submission {
     required this.body,
     required this.status,
     required this.createdAt,
+    this.brief,
+    this.award,
   });
 
   final String id;
@@ -169,6 +172,30 @@ class Submission {
   final String body;
   final SubmissionStatus status;
   final DateTime createdAt;
+
+  /// The brief as the API embeds it in the entry (only the fields a card
+  /// shows), so an entry on a brief that has left the live feed still
+  /// names it. Null in the demo, which joins its briefs by [briefId].
+  final Brief? brief;
+
+  /// What the win paid, as the API embeds it. Null in the demo, which
+  /// finds the award on its ledger.
+  final SubmissionAward? award;
+}
+
+/// A winning entry's award as the API embeds it in the submission.
+class SubmissionAward {
+  const SubmissionAward({
+    required this.amountKobo,
+    required this.awardedAt,
+    this.ledgerId,
+  });
+
+  final int amountKobo;
+  final DateTime awardedAt;
+
+  /// The wallet credit that paid it.
+  final String? ledgerId;
 }
 
 class LedgerEntry {
@@ -181,10 +208,18 @@ class LedgerEntry {
     this.business,
     this.note,
     this.referred,
+    this.reversal = false,
   });
 
   final String id;
   final LedgerType type;
+
+  /// Money a reversed payout brought back: an award on the ledger, but
+  /// never earnings.
+  final bool reversal;
+
+  /// Counts towards what was earned.
+  bool get earned => type == LedgerType.award && !reversal;
 
   /// The winning submission an award pays out; null for withdrawals.
   final String? submissionId;
@@ -380,7 +415,7 @@ WalletTotals walletTotals(
   List<Withdrawal> withdrawals,
 ) {
   final earned = ledger
-      .where((l) => l.type == LedgerType.award)
+      .where((l) => l.earned)
       .fold(0, (sum, l) => sum + l.amountKobo);
   final balance = ledger.fold(0, (sum, l) => sum + l.amountKobo);
   final pending = withdrawals

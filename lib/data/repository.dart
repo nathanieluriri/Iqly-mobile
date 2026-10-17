@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'demo_data.dart';
 import 'drafts_data.dart';
+import 'live/live_repository.dart';
 import 'models.dart';
 import 'notifications_service.dart';
 import 'points_data.dart';
@@ -176,10 +177,18 @@ class DemoRepository implements IqlyRepository {
   }
 }
 
-/// The app runs on the sample dataset at prototype pace; tests override it
-/// with a [DemoLatency.none] repository.
-final repositoryProvider = Provider<IqlyRepository>(
+/// The sample dataset at prototype pace: the app's repository in preview,
+/// and what the live repository answers for the features not live.
+final demoRepositoryProvider = Provider<DemoRepository>(
   (ref) => DemoRepository(DemoData(), latency: DemoLatency.prototype),
+);
+
+/// The app runs on the sample dataset at prototype pace; tests override it
+/// with a [DemoLatency.none] repository. A launch that runs anything live
+/// reads the API instead, feature by feature.
+final repositoryProvider = Provider<IqlyRepository>(
+  (ref) =>
+      ref.watch(liveRepositoryProvider) ?? ref.watch(demoRepositoryProvider),
 );
 
 /// The bell's unread count, shared by every tab's top bar. It clears once

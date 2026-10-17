@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/backend.dart';
 import '../../core/money.dart';
+import '../../data/live/live_repository.dart';
 import '../../data/models.dart';
 import '../../data/wallet_service.dart';
 import '../../router.dart';
@@ -18,7 +20,9 @@ import 'wallet_state.dart';
 /// From the Wallet it manages them: pick one and Set as default asks for
 /// the PIN, then switches (designer answer 14). From the Withdraw "To"
 /// picker ([picking]) a row picks the destination and closes (designer
-/// answer 5). Add a bank account goes to Select bank.
+/// answer 5). Add a bank account goes to Select bank. The live API keeps
+/// one account and no PIN, and a withdrawal keeps the account it was sent
+/// to, so a live sheet names that account and asks for no PIN.
 class BankAccountSheet extends ConsumerStatefulWidget {
   const BankAccountSheet({super.key, this.picking});
 
@@ -78,7 +82,15 @@ class _BankAccountSheetState extends ConsumerState<BankAccountSheet> {
         ? widget.picking!.accountNumber
         : _picked ?? data?.savedBank?.accountNumber;
     final pending = data?.totals.pendingWithdrawalsKobo ?? 0;
-    final defaultBank = data?.savedBank;
+    final live = ref.watch(liveModeProvider).isLive(LiveFeature.wallet);
+    final pendingTo = live
+        ? data?.withdrawals.where((w) => w.onHold).firstOrNull?.destination
+        : data?.savedBank?.label;
+    final note = [
+      if (pending > 0 && pendingTo != null)
+        'Your pending ${naira(pending)} still goes to $pendingTo.',
+      if (!live) 'We ask for your PIN before switching.',
+    ].join(' ');
 
     return SheetCover(
       covered: _covered,
@@ -128,15 +140,13 @@ class _BankAccountSheetState extends ConsumerState<BankAccountSheet> {
                   onTap: _addAccount,
                 ),
                 if (!_picking) ...[
-                  const SizedBox(height: IqSpace.s3),
-                  Text(
-                    [
-                      if (pending > 0 && defaultBank != null)
-                        'Your pending ${naira(pending)} still goes to ${defaultBank.label}.',
-                      'We ask for your PIN before switching.',
-                    ].join(' '),
-                    style: IqText.small.copyWith(color: IqColors.fg2),
-                  ),
+                  if (note.isNotEmpty) ...[
+                    const SizedBox(height: IqSpace.s3),
+                    Text(
+                      note,
+                      style: IqText.small.copyWith(color: IqColors.fg2),
+                    ),
+                  ],
                   const SizedBox(height: IqSpace.s3),
                   IqButton(
                     label: 'Set as default',
