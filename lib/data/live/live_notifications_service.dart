@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../../core/session.dart';
 import '../api_client.dart';
 import '../models.dart';
 import '../notifications_data.dart';
@@ -248,6 +249,8 @@ class LiveNotificationsService implements NotificationsService {
     } on ApiUnreachable {
       return;
     } on ApiRefused {
+      return;
+    } on AccountChanged {
       return;
     }
   }

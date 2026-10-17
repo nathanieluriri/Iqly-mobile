@@ -8,6 +8,7 @@ import '../api_client.dart';
 import '../local/local_providers.dart';
 import '../local/local_store.dart';
 import '../local/outbox.dart';
+import '../local/scoped_local_store.dart';
 import '../models.dart';
 import '../reference_data.dart';
 import 'kept_reads.dart';
@@ -57,10 +58,12 @@ String? knownValue(Object? value, List<RefOption> options) =>
     options.any((o) => o.value == value) ? value as String : null;
 
 /// The account writes the outbox sends (contract 3 and 7), each with the
-/// key its pending writes fold under and, when the answer is the record
-/// itself, the cache key it refreshes.
+/// feature it belongs to (contract 8), the key its pending writes fold
+/// under and, when the answer is the record itself, the cache key it
+/// refreshes.
 enum AccountWrite {
   onboarding(
+    LiveFeature.profile,
     'profile.onboarding',
     'POST',
     '/me/onboarding',
@@ -68,6 +71,7 @@ enum AccountWrite {
     AccountKeys.profile,
   ),
   profile(
+    LiveFeature.profile,
     'profile.patch',
     'PATCH',
     '/profiles/contributors/me',
@@ -75,16 +79,30 @@ enum AccountWrite {
     AccountKeys.profile,
   ),
   preferences(
+    LiveFeature.profile,
     'profile.preferences',
     'PUT',
     '/me/notification-preferences',
     'prefs',
     AccountKeys.preferences,
   ),
-  seen('notifications.seen', 'POST', '/notifications/seen', 'notif:seen'),
-  read('notifications.read', 'POST', '/notifications/read', 'notif:read');
+  seen(
+    LiveFeature.notifications,
+    'notifications.seen',
+    'POST',
+    '/notifications/seen',
+    'notif:seen',
+  ),
+  read(
+    LiveFeature.notifications,
+    'notifications.read',
+    'POST',
+    '/notifications/read',
+    'notif:read',
+  );
 
   const AccountWrite(
+    this.feature,
     this.kind,
     this.method,
     this.path,
@@ -92,6 +110,7 @@ enum AccountWrite {
     this.keepAs,
   ]);
 
+  final LiveFeature feature;
   final String kind;
   final String method;
   final String path;
@@ -111,13 +130,15 @@ abstract final class AccountKeys {
 
 /// Sends a queued write: its payload as the JSON body, its id as the
 /// Idempotency-Key, the answer mapped onto the outbox. A write whose answer
-/// is the record keeps it for the next read without a connection.
+/// is the record keeps it for the next read without a connection, while
+/// its account is still the one [signedIn].
 Future<OutboxResult> sendQueued(
   ApiClient api,
   LocalStore store,
   OutboxItem item,
-  AccountWrite write,
-) async {
+  AccountWrite write, {
+  bool Function(String userId)? signedIn,
+}) async {
   final ApiResponse res;
   try {
     res = await api.send(
@@ -130,7 +151,10 @@ Future<OutboxResult> sendQueued(
     return outboxResultFor(status: 0, networkError: true);
   }
   final keepAs = write.keepAs;
-  if (res.ok && keepAs != null && res.data.isNotEmpty) {
+  if (res.ok &&
+      keepAs != null &&
+      res.data.isNotEmpty &&
+      (signedIn?.call(item.userId) ?? true)) {
     await store.writeCache(item.userId, keepAs, res.data);
   }
   return outboxResultFor(
@@ -141,17 +165,31 @@ Future<OutboxResult> sendQueued(
   );
 }
 
-/// Lets [outbox] send the account's writes. [onFailed] hears each write the
-/// API refuses for good, with its code.
+/// Lets [outbox] send the account's writes of the features [live] says the
+/// launch runs (all of them without it); the rest wait, kept, for a launch
+/// that runs theirs. [onFailed] hears each write the API refuses for good,
+/// with its code.
 void registerAccountWrites(
   Outbox outbox,
   ApiClient api,
   LocalStore store, {
+  bool Function(LiveFeature feature)? live,
+  bool Function(String userId)? signedIn,
   void Function(OutboxItem item, AccountWrite write, String code)? onFailed,
 }) {
   for (final write in AccountWrite.values) {
+    if (!(live?.call(write.feature) ?? true)) {
+      outbox.unregister(write.kind);
+      continue;
+    }
     outbox.register(write.kind, (item) async {
-      final result = await sendQueued(api, store, item, write);
+      final result = await sendQueued(
+        api,
+        store,
+        item,
+        write,
+        signedIn: signedIn,
+      );
       if (result case OutboxFail(:final code)) {
         onFailed?.call(item, write, code);
       }
@@ -170,12 +208,17 @@ class AccountLink {
     required this.store,
     required this.outbox,
     required this.userId,
-  });
+    AccountScope? scope,
+  }) : scope = scope ?? AccountScope.always();
 
   final ApiClient api;
   final LocalStore store;
   final Outbox outbox;
   final String? Function() userId;
+
+  /// The account's stretch this link serves: once it has closed, a read
+  /// that lands fails with [AccountChanged] and no write queues.
+  final AccountScope scope;
 
   /// GET [path]'s payload, kept under [key]. When the API does not answer
   /// ([orKept]) it answers what was kept last, and fails as the API did
@@ -186,9 +229,11 @@ class AccountLink {
       await keep(key, res.data);
       return res.data;
     });
-    return orKept(
-      fetching,
-      kept(key).then((json) => json == null ? null : (copy: json)),
+    return scope.guard(
+      orKept(
+        fetching,
+        kept(key).then((json) => json == null ? null : (copy: json)),
+      ),
     );
   }
 
@@ -205,25 +250,29 @@ class AccountLink {
   }
 
   /// Queues [write]; with no account id it is sent now, throwing
-  /// [ApiRefused] or [ApiUnreachable] when it does not land.
+  /// [ApiRefused] or [ApiUnreachable] when it does not land. Once [scope]
+  /// has closed nothing goes, and it throws [AccountChanged].
   Future<void> queue(
     AccountWrite write,
     Map<String, Object?> payload, {
     OutboxMerge? merge,
   }) async {
+    if (!scope.open) throw const AccountChanged();
     final user = userId();
     if (user == null) {
       final res = await api.send(write.method, write.path, body: payload);
       if (!res.ok) throw ApiRefused.of(res);
       return;
     }
+    final dependsOn = await _after(user, write);
+    if (!scope.open) throw const AccountChanged();
     await outbox.enqueue(
       user,
       kind: write.kind,
       payload: payload,
       coalesceKey: write.coalesceKey,
       merge: merge,
-      dependsOn: await _after(user, write),
+      dependsOn: dependsOn,
     );
   }
 
@@ -370,13 +419,13 @@ class LiveAccount {
 final accountLinkProvider = Provider<AccountLink?>((ref) {
   final api = ref.watch(apiClientProvider);
   if (api == null) return null;
-  final account = ref.watch(accountProvider);
-  final userId = account == null || account.isEmpty ? null : account;
+  final scope = ref.watch(accountScopeProvider);
   return AccountLink(
     api: api,
-    store: ref.watch(localStoreProvider),
+    store: ScopedLocalStore(ref.watch(localStoreProvider), scope),
     outbox: ref.watch(outboxProvider),
-    userId: () => userId,
+    userId: () => scope.userId,
+    scope: scope,
   );
 });
 
@@ -399,7 +448,7 @@ final meProvider = FutureProvider<Me?>(retry: (_, _) => null, (ref) async {
   final link = ref.watch(liveLinkProvider(LiveFeature.profile));
   final signedIn = ref.watch(sessionProvider.select((s) => s.signedIn));
   if (link == null || !signedIn) return null;
-  final me = await LiveAccount(link).me();
+  final me = await link.scope.guard(LiveAccount(link).me());
   final session = ref.read(sessionProvider);
   final notifier = ref.read(sessionProvider.notifier);
   if (me.id.isNotEmpty && me.id != session.userId) {

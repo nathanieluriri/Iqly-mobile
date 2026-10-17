@@ -185,6 +185,10 @@ class BackendNotifier extends Notifier<Backend> {
   /// hand-off.
   Future<void> lock() async {}
 
+  /// Completes once [lock] has fixed the mode, so what must run only on the
+  /// launch's own mode can wait for it.
+  Future<void> get locked => Future.value();
+
   void resumed() {}
 }
 
@@ -215,6 +219,7 @@ class LiveBackendNotifier extends BackendNotifier {
 
   Future<void>? _running;
   Future<void>? _locking;
+  final _locked = Completer<void>();
   DateTime? _askedAt;
 
   SharedPreferences get _prefs => ref.read(sharedPreferencesProvider);
@@ -264,7 +269,13 @@ class LiveBackendNotifier extends BackendNotifier {
   /// memory by the time it returns; the future completes once the device
   /// has caught up.
   @override
-  Future<void> lock() => _locking ??= _lock(state);
+  Future<void> lock() {
+    if (!_locked.isCompleted) _locked.complete();
+    return _locking ??= _lock(state);
+  }
+
+  @override
+  Future<void> get locked => _locked.future;
 
   Future<void> _lock(Backend mode) async {
     // A build from before the record locked a launch live only once it had

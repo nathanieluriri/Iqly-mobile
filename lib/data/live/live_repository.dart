@@ -10,6 +10,7 @@ import '../api_client.dart';
 import '../drafts_data.dart';
 import '../local/local_providers.dart';
 import '../local/local_store.dart';
+import '../local/scoped_local_store.dart';
 import '../models.dart';
 import '../points_data.dart';
 import '../repository.dart';
@@ -32,9 +33,11 @@ final liveRepositoryProvider = Provider<LiveRepository?>((ref) {
   final api = ref.watch(apiClientProvider);
   final mode = ref.watch(liveModeProvider);
   if (api == null || mode.isPreview) return null;
+  final scope = ref.watch(accountScopeProvider);
   return LiveRepository(
     api: api,
-    store: ref.watch(localStoreProvider),
+    store: ScopedLocalStore(ref.watch(localStoreProvider), scope),
+    scope: scope,
     mode: mode,
     demo: ref.watch(demoRepositoryProvider),
     userId: ref.watch(sessionProvider.select((s) => s.userId)),
@@ -67,9 +70,11 @@ class LiveRepository implements IqlyRepository {
     required this.mode,
     required this.demo,
     this.userId,
+    AccountScope? scope,
     String? Function()? name,
     DateTime Function()? clock,
-  }) : _name = name ?? (() => null),
+  }) : scope = scope ?? AccountScope.always(),
+       _name = name ?? (() => null),
        _clock = clock ?? DateTime.now;
 
   final ApiClient api;
@@ -80,6 +85,10 @@ class LiveRepository implements IqlyRepository {
   /// Keys this person's rows in [store]; without one nothing is kept, and
   /// drafts last only as long as the screens hold them.
   final String? userId;
+
+  /// The account's stretch this repository reads for: an answer that lands
+  /// after it has closed fails with [AccountChanged].
+  final AccountScope scope;
   final String? Function() _name;
   final DateTime Function() _clock;
 
@@ -153,7 +162,7 @@ class LiveRepository implements IqlyRepository {
         .get('/challenges/${Uri.encodeComponent(id)}')
         .then((res) => res.status == 404 ? null : briefFromJson(_data(res)));
     try {
-      return await orKept(fetching, _knownBrief(id));
+      return await scope.guard(orKept(fetching, _knownBrief(id)));
     } on Object catch (error) {
       if (unanswered(error)) return null;
       rethrow;
@@ -226,9 +235,8 @@ class LiveRepository implements IqlyRepository {
       await _keep(LiveCacheKeys.banks, res.list);
       return res.list;
     });
-    final list = await orKept(
-      fetching,
-      Future.value(kept == null ? null : (copy: kept.json)),
+    final list = await scope.guard(
+      orKept(fetching, Future.value(kept == null ? null : (copy: kept.json))),
     );
     return rowsOf(list, bankFromJson);
   }
@@ -347,10 +355,12 @@ class LiveRepository implements IqlyRepository {
     bool allowCache = true,
   }) {
     final read = '$key $allowCache';
-    return _reading[read] ??= _readOnce(key, fetch, allowCache: allowCache)
-        .whenComplete(() {
-          _reading.remove(read);
-        });
+    return scope.guard(
+      _reading[read] ??= _readOnce(key, fetch, allowCache: allowCache)
+          .whenComplete(() {
+            _reading.remove(read);
+          }),
+    );
   }
 
   Future<Object?> _readOnce(

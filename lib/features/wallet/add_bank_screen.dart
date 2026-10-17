@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
+import '../../core/session.dart';
 import '../../core/transitions.dart';
 import '../../data/api_client.dart';
 import '../../data/models.dart';
@@ -101,6 +102,7 @@ class _AddBankScreenState extends ConsumerState<AddBankScreen> {
     final name = _verifiedName;
     if (name == null) return;
     setState(() => _busy = true);
+    final scope = ref.read(accountScopeProvider);
     final SavedBank account;
     try {
       account = await ref
@@ -119,7 +121,7 @@ class _AddBankScreenState extends ConsumerState<AddBankScreen> {
       _number.fail(error is ApiUnreachable ? EntryCopy.offline : verifyHelp);
       return;
     }
-    if (!mounted) return;
+    if (!mounted || !scope.open) return;
     ref.read(walletProvider.notifier).addAccount(account);
     context.pop(true);
   }

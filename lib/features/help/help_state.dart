@@ -119,7 +119,8 @@ final helpDraftProvider =
 
 /// The help threads of this session, kept up to date while support answers
 /// them. A reply that credits a reward puts it on the wallet's ledger, so
-/// the thread's updated balance and the Wallet foot.
+/// the thread's updated balance and the Wallet foot. An answer that lands
+/// once its account is no longer signed in goes nowhere.
 class HelpTicketsNotifier extends Notifier<Map<String, HelpTicket>> {
   final _watching = <String, StreamSubscription<HelpTicket>>{};
 
@@ -136,9 +137,12 @@ class HelpTicketsNotifier extends Notifier<Map<String, HelpTicket>> {
   }
 
   Future<HelpTicket> open(HelpRequest request) async {
+    final scope = ref.read(accountScopeProvider);
     final ticket = await ref.read(helpServiceProvider).send(request);
-    _put(ticket);
-    follow(ticket.id);
+    if (scope.open) {
+      _put(ticket);
+      follow(ticket.id);
+    }
     return ticket;
   }
 
@@ -148,11 +152,17 @@ class HelpTicketsNotifier extends Notifier<Map<String, HelpTicket>> {
     _watching[id] = ref.read(helpServiceProvider).watch(id).listen(_put);
   }
 
-  Future<void> reply(String id, String body) async =>
-      _put(await ref.read(helpServiceProvider).reply(id, body));
+  Future<void> reply(String id, String body) =>
+      _putting(ref.read(helpServiceProvider).reply(id, body));
 
-  Future<void> resolve(String id) async =>
-      _put(await ref.read(helpServiceProvider).resolve(id));
+  Future<void> resolve(String id) =>
+      _putting(ref.read(helpServiceProvider).resolve(id));
+
+  Future<void> _putting(Future<HelpTicket> answer) async {
+    final scope = ref.read(accountScopeProvider);
+    final ticket = await answer;
+    if (scope.open) _put(ticket);
+  }
 
   void _put(HelpTicket ticket) {
     state = {...state, ticket.id: ticket};
@@ -160,12 +170,13 @@ class HelpTicketsNotifier extends Notifier<Map<String, HelpTicket>> {
   }
 
   Future<void> _credit(LedgerEntry award) async {
+    final scope = ref.read(accountScopeProvider);
     try {
       await ref.read(walletProvider.future);
     } catch (_) {
       return;
     }
-    ref.read(walletProvider.notifier).credit(award);
+    if (scope.open) ref.read(walletProvider.notifier).credit(award);
   }
 }
 

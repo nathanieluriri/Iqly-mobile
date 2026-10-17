@@ -120,6 +120,8 @@ void main() {
           container.read(backendProvider).live,
           LiveFeature.values.toSet(),
         );
+        // As the splash does at its hand-off: the outbox runs from here.
+        await container.read(backendProvider.notifier).lock();
       });
 
       test('email sign-in gives the session the account id', () async {

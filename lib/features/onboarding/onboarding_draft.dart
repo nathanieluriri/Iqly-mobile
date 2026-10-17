@@ -333,8 +333,8 @@ final accountNameProvider = Provider<String?>((ref) {
 });
 
 final _askedNameProvider = FutureProvider<String?>((ref) async {
-  ref.watch(accountProvider);
-  final name = await ref.read(authServiceProvider).accountName();
+  final scope = ref.watch(accountScopeProvider);
+  final name = await scope.guard(ref.read(authServiceProvider).accountName());
   if (name != null) await ref.read(sessionProvider.notifier).setName(name);
   return name;
 });

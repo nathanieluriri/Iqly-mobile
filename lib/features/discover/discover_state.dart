@@ -163,20 +163,25 @@ class DiscoverFeedNotifier extends AsyncNotifier<FeedData> {
   );
 
   Future<void> retry() async {
+    final scope = ref.read(accountScopeProvider);
     state = const AsyncLoading();
-    state = await AsyncValue.guard(build);
+    final loaded = await AsyncValue.guard(build);
+    if (scope.open) state = loaded;
   }
 
   /// Pull to refresh: the feed stays as it is (no dimming) until the new
-  /// list lands.
+  /// list lands. Like every load here, one that lands once its account is
+  /// no longer signed in changes nothing.
   Future<void> refresh() async {
     final current = state.value;
     if (current == null || current.refresh == RefreshPhase.refreshing) return;
+    final scope = ref.read(accountScopeProvider);
     state = AsyncData(current.copyWith(refresh: RefreshPhase.refreshing));
     try {
       final briefs = await ref
           .read(repositoryProvider)
           .briefs(load: BriefsLoad.refresh);
+      if (!scope.open) return;
       state = AsyncData(
         current.copyWith(
           briefs: briefs,
@@ -185,6 +190,7 @@ class DiscoverFeedNotifier extends AsyncNotifier<FeedData> {
         ),
       );
     } catch (_) {
+      if (!scope.open) return;
       state = AsyncData(current.copyWith(refresh: RefreshPhase.idle));
     }
   }
@@ -194,12 +200,15 @@ class DiscoverFeedNotifier extends AsyncNotifier<FeedData> {
   Future<void> refreshQuietly() async {
     final current = state.value;
     if (current == null || current.refresh != RefreshPhase.idle) return;
+    final scope = ref.read(accountScopeProvider);
     try {
       final briefs = await ref
           .read(repositoryProvider)
           .briefs(load: BriefsLoad.refresh);
       final now = state.value;
-      if (now == null || now.refresh != RefreshPhase.idle) return;
+      if (!scope.open || now == null || now.refresh != RefreshPhase.idle) {
+        return;
+      }
       state = AsyncData(now.copyWith(briefs: briefs));
     } catch (_) {}
   }
@@ -213,11 +222,13 @@ class DiscoverFeedNotifier extends AsyncNotifier<FeedData> {
   Future<void> loadMore() async {
     final current = state.value;
     if (current == null || current.loadingMore) return;
+    final scope = ref.read(accountScopeProvider);
     state = AsyncData(current.copyWith(loadingMore: true));
     try {
       final briefs = await ref
           .read(repositoryProvider)
           .briefs(load: BriefsLoad.nextPage);
+      if (!scope.open) return;
       state = AsyncData(
         current.copyWith(
           briefs: briefs,
@@ -226,6 +237,7 @@ class DiscoverFeedNotifier extends AsyncNotifier<FeedData> {
         ),
       );
     } catch (_) {
+      if (!scope.open) return;
       state = AsyncData(current.copyWith(loadingMore: false));
     }
   }
@@ -397,11 +409,12 @@ class SavedBriefsNotifier extends AsyncNotifier<List<Brief>> {
   }
 
   Future<List<Brief>> _seed() async {
+    final scope = ref.read(accountScopeProvider);
     final repo = ref.watch(repositoryProvider);
     final saved = [
       for (final id in await repo.savedBriefIds()) ?await repo.brief(id),
     ];
-    await _persist(saved);
+    if (scope.open) await _persist(saved);
     return saved;
   }
 
@@ -454,8 +467,11 @@ class CloseRemindersNotifier extends AsyncNotifier<Set<String>> {
   }
 
   Future<Set<String>> _seed() async {
+    final scope = ref.read(accountScopeProvider);
     final ids = await ref.watch(repositoryProvider).closeReminderIds();
-    await ref.read(sharedPreferencesProvider).setStringList(key, ids);
+    if (scope.open) {
+      await ref.read(sharedPreferencesProvider).setStringList(key, ids);
+    }
     return ids.toSet();
   }
 
@@ -478,10 +494,12 @@ class CloseRemindersNotifier extends AsyncNotifier<Set<String>> {
   /// Puts the phone's scheduled reminders in step with the switches and
   /// each brief's current close. A brief this launch cannot read (no
   /// answer and no copy on the phone, or a live brief in a preview launch)
-  /// keeps the reminder it has.
+  /// keeps the reminder it has. Nothing is scheduled for an account no
+  /// longer signed in by the time the briefs are read.
   Future<void> syncSurfaces() async {
     final surfaces = ref.read(surfacesProvider);
     if (surfaces == null) return;
+    final scope = ref.read(accountScopeProvider);
     try {
       final ids = await future;
       final repository = ref.read(repositoryProvider);
@@ -494,6 +512,7 @@ class CloseRemindersNotifier extends AsyncNotifier<Set<String>> {
                 onError: (Object _) => (id, null),
               ),
       ]);
+      if (!scope.open) return;
       await surfaces.syncCloseReminders(
         [for (final (_, brief) in read) ?brief],
         keep: {

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../../core/session.dart';
 import '../api_client.dart';
 import '../local/local_rows.dart';
 import '../models.dart';
@@ -15,9 +16,15 @@ class LiveWalletService implements WalletService {
     this.api, {
     this.withdrawals = true,
     this.pollEvery = const Duration(seconds: 5),
-  });
+    AccountScope? scope,
+  }) : scope = scope ?? AccountScope.always();
 
   final ApiClient api;
+
+  /// The account's stretch this service serves: once it has closed, a
+  /// saved account's answer fails with [AccountChanged] and a watched
+  /// withdrawal is asked after no more.
+  final AccountScope scope;
 
   /// Whether withdrawals run on the API.
   final bool withdrawals;
@@ -60,10 +67,12 @@ class LiveWalletService implements WalletService {
   /// [ApiUnreachable] offline and [ApiRefused] when the API says no.
   @override
   Future<SavedBank> addAccount(SavedBank account) async {
-    final res = await api.put('/wallet/bank-account', {
-      'bankCode': account.bankCode,
-      'accountNumber': account.accountNumber,
-    });
+    final res = await scope.guard(
+      api.put('/wallet/bank-account', {
+        'bankCode': account.bankCode,
+        'accountNumber': account.accountNumber,
+      }),
+    );
     if (!res.ok) throw ApiRefused(res.status, res.code);
     final saved = savedBankFromJson(res.body['data']);
     if (saved == null) throw ApiRefused(res.status);
@@ -146,7 +155,7 @@ class LiveWalletService implements WalletService {
 
   /// [withdrawal] at once, then asks the API every [pollEvery] while it is
   /// pending or processing and passes on each change. Ends on a final
-  /// status, or when the listener goes.
+  /// status, when the listener goes, or once [scope] has closed.
   @override
   Stream<Withdrawal> watch(Withdrawal withdrawal) {
     if (!withdrawals) return Stream.value(withdrawal);
@@ -164,6 +173,7 @@ class LiveWalletService implements WalletService {
     Future<void> poll() async {
       final latest = await _fetch(current.id);
       if (done) return;
+      if (!scope.open) return finish();
       if (latest != null && !_same(latest, current)) {
         current = latest;
         changes.add(latest);

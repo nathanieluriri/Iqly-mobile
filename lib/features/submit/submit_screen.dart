@@ -7,6 +7,7 @@ import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
+import '../../core/session.dart';
 import '../../core/transitions.dart';
 import '../../data/models.dart';
 import '../../data/submit_data.dart';
@@ -187,8 +188,9 @@ class _FlowState extends ConsumerState<_Flow> {
   }
 
   Future<void> _send() async {
+    final scope = ref.read(accountScopeProvider);
     final result = await ref.read(submitFlowProvider(_id).notifier).send(_form);
-    if (!mounted) return;
+    if (!mounted || !scope.open) return;
     if (result == null) {
       if (!ref.read(submitFlowProvider(_id)).sending) IqHaptics.error.play();
       return;
