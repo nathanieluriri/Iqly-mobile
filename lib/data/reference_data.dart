@@ -266,6 +266,23 @@ abstract final class Reference {
     RefOption('other', 'Other'),
   ];
 
+  /// The work question's answers (owner, 16 Oct, a proposal the API does
+  /// not take yet): one sector, or Other in their own words.
+  static const sectors = [
+    RefOption('tech', 'Tech'),
+    RefOption('finance', 'Banking & finance'),
+    RefOption('retail_trade', 'Retail & trade'),
+    RefOption('food_farming', 'Food & farming'),
+    RefOption('health', 'Health'),
+    RefOption('education', 'Education'),
+    RefOption('media_creative', 'Media & creative'),
+    RefOption('fashion_beauty', 'Fashion & beauty'),
+    RefOption('transport_logistics', 'Transport & logistics'),
+    RefOption('oil_gas_power', 'Oil, gas & power'),
+    RefOption('public_sector', 'Government & NGOs'),
+    RefOption('other', 'Other'),
+  ];
+
   static const interests = [
     RefOption('tech_gadgets', 'Technology & gadgets'),
     RefOption('business_entrepreneurship', 'Business & entrepreneurship'),

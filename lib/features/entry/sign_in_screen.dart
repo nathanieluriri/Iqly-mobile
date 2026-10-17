@@ -88,7 +88,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       setState(() => _busy = false);
       return _fail(EntryCopy.signIn(failure));
     }
-    await completeSignIn(ref, newAccount: result.newAccount);
+    await completeSignIn(ref, newAccount: result.newAccount, name: result.name);
     if (!mounted) return;
     FocusManager.instance.primaryFocus?.unfocus();
     context.go(result.newAccount ? Routes.onboarding : Routes.home);

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/deadline.dart';
@@ -8,6 +9,7 @@ import '../../core/session.dart';
 import '../../data/models.dart';
 import '../../data/reference_data.dart';
 import '../../data/repository.dart';
+import '../../surfaces/surfaces.dart';
 import '../onboarding/onboarding_draft.dart';
 import '../submissions/submissions_state.dart';
 
@@ -432,6 +434,22 @@ class CloseRemindersNotifier extends AsyncNotifier<Set<String>> {
     state = AsyncData(next);
     await ref.read(sharedPreferencesProvider).setStringList(_key, [...next]);
     await ref.read(repositoryProvider).setCloseReminder(id, on);
+    await syncSurfaces();
+  }
+
+  /// Puts the phone's scheduled reminders in step with the switches and
+  /// each brief's current close.
+  Future<void> syncSurfaces() async {
+    final surfaces = ref.read(surfacesProvider);
+    if (surfaces == null) return;
+    try {
+      final ids = await future;
+      final repository = ref.read(repositoryProvider);
+      final briefs = await Future.wait(ids.map(repository.brief));
+      await surfaces.syncCloseReminders(briefs.nonNulls);
+    } on Object catch (error) {
+      debugPrint('Close reminders not scheduled: $error');
+    }
   }
 }
 

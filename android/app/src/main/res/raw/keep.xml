@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Named only from Dart, so release resource shrinking would drop them. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_stat_iqly,@drawable/ic_shortcut_*,@raw/iqly_*" />

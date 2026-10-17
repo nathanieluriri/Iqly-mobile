@@ -13,8 +13,10 @@ import '../../data/repository.dart';
 import '../avatar/avatar_state.dart';
 import '../discover/discover_state.dart';
 import '../onboarding/onboarding_draft.dart';
+import '../onboarding/onboarding_flow.dart';
 import '../onboarding/what_you_like_screen.dart';
 import '../submit/submit_state.dart';
+import '../../surfaces/push.dart';
 
 /// The first-run answers Your details shows and edits: the onboarding draft,
 /// with the account's own values where first run left a gap (skipped, or a
@@ -23,7 +25,7 @@ final profileAnswersProvider = Provider<OnboardingProfile>((ref) {
   final draft = ref.watch(onboardingDraftProvider).profile;
   final user = ref.watch(onboardingUserProvider).value;
   final ownPlace = draft.state != null;
-  return draft.copyWith(
+  final merged = draft.copyWith(
     occupation: draft.occupation ?? user?.occupation,
     state: draft.state ?? user?.state,
     city: ownPlace || draft.city.trim().isNotEmpty
@@ -39,6 +41,7 @@ final profileAnswersProvider = Provider<OnboardingProfile>((ref) {
         : null,
     interests: ref.watch(feedInterestsProvider),
   );
+  return OnboardingFlow.current.tidy(merged);
 });
 
 /// Phone, date of birth, gender and state of origin, kept on the device once
@@ -132,6 +135,7 @@ String interestsLine(List<String> values) => [
 /// answers and the cached details. Sign out and account deletion end here.
 Future<void> forgetAccount(WidgetRef ref) async {
   final session = ref.read(sessionProvider.notifier);
+  await ref.read(pushProvider)?.signingOut();
   await ref.read(authServiceProvider).signOut();
   ref.read(onboardingDraftProvider.notifier).clear();
   await forgetSubmitDrafts(ref.read(sharedPreferencesProvider));
@@ -139,6 +143,6 @@ Future<void> forgetAccount(WidgetRef ref) async {
   await ref.read(avatarProvider.notifier).forget();
   await session.setFirstTipSeen(false);
   await session.setOnboardingDone(false);
-  await session.setFirstName(null);
+  await session.setName(null);
   await session.setSignedIn(false);
 }

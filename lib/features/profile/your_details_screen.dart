@@ -10,6 +10,8 @@ import '../../ui/icon.dart';
 import '../../ui/list_row.dart';
 import '../more/more_widgets.dart';
 import 'profile_routes.dart';
+import '../onboarding/onboarding_draft.dart';
+import '../onboarding/onboarding_flow.dart';
 import 'profile_state.dart';
 
 /// One row of Your details and the Edit page it opens.
@@ -69,13 +71,37 @@ String detailValue(
   DetailField.state => answers.state ?? '',
   DetailField.university => answers.university ?? '',
   DetailField.interests => interestsLine(answers.interests),
-  DetailField.occupation => occupationLabels[answers.occupation] ?? '',
+  DetailField.occupation => occupationLine(answers),
   DetailField.city => [
     ?answers.state,
     if (answers.city.isNotEmpty) answers.city,
   ].join(' · '),
   DetailField.education => educationLabel(answers.education) ?? '',
 };
+
+/// "Employed · Banking & finance": the occupation, then the sector when the
+/// occupation path asks for one and it has been given.
+String occupationLine(OnboardingProfile answers) {
+  final occupation = occupationLabels[answers.occupation] ?? '';
+  final sector = answers.sector == OnboardingFlow.otherSector
+      ? answers.otherSector.trim()
+      : optionLabel(Reference.sectors, answers.sector) ?? '';
+  return [occupation, sector].where((s) => s.isNotEmpty).join(' · ');
+}
+
+/// Education and University only on a path that asks where someone
+/// studies, and University only when the answers name one.
+bool detailShown(DetailField field, OnboardingProfile answers) =>
+    switch (field) {
+      DetailField.education =>
+        OnboardingFlow.current
+            .path(answers)
+            .contains(OnboardingStep.whereYouStudied),
+      DetailField.university =>
+        detailShown(DetailField.education, answers) &&
+            Reference.namesUniversity(answers.occupation, answers.education),
+      _ => true,
+    };
 
 /// B7 · Your details (40:141): eight rows, each with its own filled icon
 /// (designer answer, 5 Oct) and the value under the label. A row opens its
@@ -93,11 +119,7 @@ class YourDetailsScreen extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
         children: [
           for (final field in DetailField.values)
-            if (field != DetailField.university ||
-                Reference.namesUniversity(
-                  answers.occupation,
-                  answers.education,
-                ))
+            if (detailShown(field, answers))
               IqListRow(
                 label: field.label,
                 description: detailValue(field, details, answers),

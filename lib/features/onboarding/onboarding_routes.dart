@@ -11,6 +11,7 @@ import 'welcome_screen.dart';
 import 'what_you_like_screen.dart';
 import 'where_you_live_screen.dart';
 import 'where_you_studied_screen.dart';
+import 'your_work_screen.dart';
 
 /// Welcome, Resume and Done take over from another flow (the splash, sign
 /// up, the last step), so they hand off; the steps and Add your university
@@ -21,6 +22,7 @@ final onboardingRoutes = <RouteBase>[
   _push(Routes.onboardingAboutYou, const AboutYouScreen()),
   _push(Routes.onboardingWhereYouLive, const WhereYouLiveScreen()),
   _push(Routes.onboardingWhereYouStudied, const WhereYouStudiedScreen()),
+  _push(Routes.onboardingYourWork, const YourWorkScreen()),
   GoRoute(
     path: Routes.onboardingAddUniversity,
     pageBuilder: (context, state) => pushPage(

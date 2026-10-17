@@ -5,6 +5,7 @@ import '../../core/transitions.dart';
 import '../../router.dart';
 import 'more_screen.dart';
 import 'saved_briefs_page.dart';
+import 'try_notifications_screen.dart';
 
 /// More, the fourth dock tab, a branch of the app shell.
 final moreTab = GoRoute(
@@ -21,4 +22,9 @@ final moreRoutes = <RouteBase>[
       pageBuilder: (context, state) =>
           pushPage(state, const MoreSavedBriefsPage()),
     ),
+  GoRoute(
+    path: Routes.tryNotifications,
+    pageBuilder: (context, state) =>
+        pushPage(state, const TryNotificationsScreen()),
+  ),
 ];

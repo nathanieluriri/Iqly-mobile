@@ -16,6 +16,8 @@ class OnboardingProfile {
     this.otherInterest = '',
     this.dateOfBirth,
     this.phone = '',
+    this.sector,
+    this.otherSector = '',
   });
 
   final String? occupation;
@@ -35,6 +37,12 @@ class OnboardingProfile {
   /// Optional until the first withdrawal (answer 17).
   final String phone;
 
+  /// What anyone but a student works in, from [Reference.sectors].
+  final String? sector;
+
+  /// What "Other" means, typed when the Other sector is picked.
+  final String otherSector;
+
   /// Keeps every field the change does not name, so an edit to one answer
   /// never drops another.
   OnboardingProfile copyWith({
@@ -47,6 +55,8 @@ class OnboardingProfile {
     String? otherInterest,
     DateTime? dateOfBirth,
     String? phone,
+    String? sector,
+    String? otherSector,
   }) => OnboardingProfile(
     occupation: occupation ?? this.occupation,
     state: state ?? this.state,
@@ -57,6 +67,28 @@ class OnboardingProfile {
     otherInterest: otherInterest ?? this.otherInterest,
     dateOfBirth: dateOfBirth ?? this.dateOfBirth,
     phone: phone ?? this.phone,
+    sector: sector ?? this.sector,
+    otherSector: otherSector ?? this.otherSector,
+  );
+
+  /// The same answers without what is never asked on this path: no
+  /// education or university without [keepStudy], no sector without
+  /// [keepWork].
+  OnboardingProfile keeping({
+    required bool keepStudy,
+    required bool keepWork,
+  }) => OnboardingProfile(
+    occupation: occupation,
+    state: state,
+    city: city,
+    education: keepStudy ? education : null,
+    university: keepStudy ? university : null,
+    interests: interests,
+    otherInterest: otherInterest,
+    dateOfBirth: dateOfBirth,
+    phone: phone,
+    sector: keepWork ? sector : null,
+    otherSector: keepWork ? otherSector : '',
   );
 
   /// The same answers with [education] set, dropping the university when
@@ -82,6 +114,8 @@ class OnboardingProfile {
         otherInterest: otherInterest,
         dateOfBirth: dateOfBirth,
         phone: phone,
+        sector: sector,
+        otherSector: otherSector,
       );
 }
 

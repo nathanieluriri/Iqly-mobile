@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/data/auth.dart';
 import 'package:iqly_mobile/data/device.dart';
@@ -129,13 +130,15 @@ void main() {
     expect(find.byType(LandingScreen), findsOneWidget);
   });
 
-  testWidgets('Apple: a new account goes to onboarding', (tester) async {
+  testWidgets('Apple: a new account goes to onboarding, greeted by the '
+      "account's own name", (tester) async {
     final c = await _boot(tester, prefs: {'session.firstName': 'Tolu'});
     await tester.tap(find.byType(IqProviderButton).first);
     await tester.pumpAndSettle();
     expect(find.byType(WelcomeScreen), findsOneWidget);
     expect(find.text('Three quick steps, Adaeze'), findsOneWidget);
-    expect(c.read(sessionProvider).firstName, isNull);
+    expect(c.read(sessionProvider).firstName, 'Adaeze');
+    expect(c.read(sessionProvider).name, DemoData.user.name);
   });
 
   testWidgets('Google: a known account goes to Discover', (tester) async {

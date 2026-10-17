@@ -34,6 +34,7 @@ import '../activations/activation_format.dart' hide activationCover;
 import '../activations/activations_routes.dart';
 import '../activations/activations_state.dart';
 import '../entry/first_tip.dart';
+import '../entry/notifications_ask_screen.dart';
 import '../polls/polls_routes.dart';
 import '../polls/polls_state.dart';
 import '../polls/quick_poll_tile.dart';
@@ -254,6 +255,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   void _offerUpdate() {
     if (!mounted || !_landed || !TickerMode.valuesOf(context).enabled) return;
     if (!ref.read(sessionProvider).firstTipSeen) return;
+    unawaited(_offerAfterNotifications());
+  }
+
+  /// The notifications ask comes once, in place of the update offer, when
+  /// the phone does not let iQLY notify and this person never saw it.
+  Future<void> _offerAfterNotifications() async {
+    if (!ref.read(notificationsAskedProvider)) {
+      final asked = ref.read(notificationsAskedProvider.notifier);
+      if (!await ref.read(deviceServiceProvider).notificationsAllowed()) {
+        if (!mounted) return;
+        whenUncovered(context, () {
+          if (mounted) unawaited(context.open(Routes.notificationsAsk));
+        });
+        return;
+      }
+      await asked.mark();
+      if (!mounted) return;
+    }
     final updates = ref.read(updatesProvider.notifier);
     if (!updates.offer) return;
     whenUncovered(context, () async {

@@ -4,11 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/reference_data.dart';
 import '../../core/motion.dart';
-import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/chip.dart';
 import '../../ui/field.dart';
-import '../../ui/step_mark.dart';
 import '../../ui/toast.dart';
 import 'done_screen.dart';
 import 'onboarding_draft.dart';
@@ -46,10 +44,10 @@ class WhatYouLikeScreen extends ConsumerWidget {
     final profile = ref.watch(onboardingDraftProvider.select((d) => d.profile));
     final draft = ref.read(onboardingDraftProvider.notifier);
     return OnboardingStepScaffold(
-      step: IqStepMarkStep.threeOfThree,
+      step: OnboardingStep.whatYouLike.mark,
       title: 'What are you into?',
       caption: interestsCaption,
-      onBack: () => leaveStep(context, Routes.onboardingWhereYouStudied),
+      onBack: () => leaveToPrevious(context, ref, OnboardingStep.whatYouLike),
       onSkip: () => finishOnboarding(context, ref),
       onNext: () => finishOnboarding(context, ref),
       nextEnabled: OnboardingDraft.interestsComplete(profile),
@@ -169,11 +167,13 @@ class OtherInterestField extends StatefulWidget {
     required this.shown,
     required this.value,
     required this.onChanged,
+    this.label = 'Other interest',
   });
 
   final bool shown;
   final String value;
   final ValueChanged<String> onChanged;
+  final String label;
 
   @override
   State<OtherInterestField> createState() => _OtherInterestFieldState();
@@ -204,7 +204,7 @@ class _OtherInterestFieldState extends State<OtherInterestField> {
       child: Padding(
         padding: const EdgeInsets.only(top: IqSpace.s3),
         child: IqField(
-          label: 'Other interest',
+          label: widget.label,
           value: '',
           state: _words.text.trim().isEmpty ? null : IqFieldState.valid,
           showNote: false,

@@ -8,8 +8,8 @@ import UserNotifications
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    // flutter_local_notifications: banners while the app is open, and taps
-    // that reach Dart.
+    // Lets flutter_local_notifications show banners in the foreground and
+    // hear taps.
     UNUserNotificationCenter.current().delegate = self as UNUserNotificationCenterDelegate
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }

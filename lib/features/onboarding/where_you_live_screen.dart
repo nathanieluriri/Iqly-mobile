@@ -3,11 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../theme/theme.dart';
 import '../../ui/field.dart';
-import '../../ui/step_mark.dart';
 import 'onboarding_draft.dart';
 import 'onboarding_layout.dart';
 import 'onboarding_sheets.dart';
-import '../../router.dart';
 
 /// B11 · Step 2 · Where you are (188:8255): state of residence, city and
 /// the optional phone number (answer 17).
@@ -40,7 +38,7 @@ class _WhereYouLiveScreenState extends ConsumerState<WhereYouLiveScreen> {
     final draft = ref.read(onboardingDraftProvider.notifier);
     final city = profile.city.trim();
     final state = profile.state;
-    void next() => goToStep(context, ref, OnboardingStep.whereYouStudied);
+    void next() => goToNextStep(context, ref, OnboardingStep.whereYouLive);
 
     Future<void> pickState() async {
       final picked = await showOnboardingSheet<String>(
@@ -66,9 +64,9 @@ class _WhereYouLiveScreenState extends ConsumerState<WhereYouLiveScreen> {
     }
 
     return OnboardingStepScaffold(
-      step: IqStepMarkStep.twoOfThree,
+      step: OnboardingStep.whereYouLive.mark,
       title: 'Where do you live?',
-      onBack: () => leaveStep(context, Routes.onboardingAboutYou),
+      onBack: () => leaveToPrevious(context, ref, OnboardingStep.whereYouLive),
       onSkip: next,
       onNext: next,
       nextEnabled: state != null && city.isNotEmpty,
