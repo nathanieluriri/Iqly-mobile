@@ -8,7 +8,7 @@ import 'local_store.dart';
 
 /// The local store in the phone's own SQLite, through sqflite.
 class SqfliteLocalStore implements LocalStore {
-  SqfliteLocalStore._(this._db, this._clock);
+  SqfliteLocalStore._(this._db, this._clock, this._deleteFile);
 
   static const schemaVersion = 1;
 
@@ -19,12 +19,17 @@ class SqfliteLocalStore implements LocalStore {
     String path = 'iqly_local.db',
     DatabaseFactory? factory,
     DateTime Function()? clock,
+    DeleteFile? deleteFile,
   }) async {
     final db = await (factory ?? databaseFactorySqflitePlugin).openDatabase(
       path,
       options: OpenDatabaseOptions(version: schemaVersion, onUpgrade: _upgrade),
     );
-    return SqfliteLocalStore._(db, clock ?? DateTime.now);
+    return SqfliteLocalStore._(
+      db,
+      clock ?? DateTime.now,
+      deleteFile ?? deleteQueuedFile,
+    );
   }
 
   // A fresh install runs every step. Steps must be safe to run twice: a
@@ -75,6 +80,7 @@ class SqfliteLocalStore implements LocalStore {
           last_error_code TEXT,
           last_error_message TEXT,
           retry_after INTEGER,
+          failures INTEGER NOT NULL,
           failing_since INTEGER,
           server_ref TEXT,
           created_at INTEGER NOT NULL,
@@ -100,6 +106,7 @@ class SqfliteLocalStore implements LocalStore {
 
   final Database _db;
   final DateTime Function() _clock;
+  final DeleteFile _deleteFile;
 
   static final _pending = OutboxStatus.pending.name;
   static final _sending = OutboxStatus.sending.name;
@@ -189,67 +196,102 @@ class SqfliteLocalStore implements LocalStore {
     List<OutboxFile> files = const [],
   }) async {
     final body = jsonEncode(payload);
-    return _db.transaction((txn) async {
+    final (item, unused) = await _db.transaction((txn) async {
       final now = _clock();
-      if (coalesceKey != null) {
-        final rows = await txn.query(
+      final older = coalesceKey == null
+          ? null
+          : (await txn.query(
+              LocalRows.outbox,
+              where: 'user_id = ? AND coalesce_key = ? AND status IN (?, ?)',
+              whereArgs: [userId, coalesceKey, _pending, _sending],
+              orderBy: 'seq DESC',
+              limit: 1,
+            )).firstOrNull;
+      final String id;
+      var replaced = const <String>[];
+      if (older != null && LocalRows.folds(older, dependsOn)) {
+        id = older['id']! as String;
+        await txn.update(
           LocalRows.outbox,
-          where: 'user_id = ? AND coalesce_key = ? AND status IN (?, ?)',
-          whereArgs: [userId, coalesceKey, _pending, _sending],
-          orderBy: 'seq DESC',
-          limit: 1,
+          {
+            'kind': kind,
+            'payload': LocalRows.coalesce(
+              older['payload']! as String,
+              body,
+              merge,
+            ),
+            'updated_at': LocalRows.time(now),
+          },
+          where: 'id = ?',
+          whereArgs: [id],
         );
-        final older = rows.firstOrNull;
-        if (older != null && LocalRows.folds(older, dependsOn)) {
-          final id = older['id']! as String;
-          await txn.update(
-            LocalRows.outbox,
-            {
-              'kind': kind,
-              'payload': LocalRows.coalesce(
-                older['payload']! as String,
-                body,
-                merge,
-              ),
-              'updated_at': LocalRows.time(now),
-            },
-            where: 'id = ?',
-            whereArgs: [id],
-          );
-          if (files.isNotEmpty) await _attach(txn, id, files);
-          return (await _items(txn, 'id = ?', [id])).single;
-        }
+        replaced = await _dropFiles(txn, 'id = ?', [id]);
+      } else {
+        id = LocalRows.newId();
+        await txn.insert(
+          LocalRows.outbox,
+          LocalRows.outboxRow(
+            id: id,
+            userId: userId,
+            kind: kind,
+            coalesceKey: coalesceKey,
+            payload: body,
+            dependsOn: dependsOn,
+            now: now,
+          ),
+        );
       }
-      final id = LocalRows.newId();
-      await txn.insert(
-        LocalRows.outbox,
-        LocalRows.outboxRow(
-          id: id,
-          userId: userId,
-          kind: kind,
-          coalesceKey: coalesceKey,
-          payload: body,
-          dependsOn: dependsOn,
-          now: now,
-        ),
+      for (final file in files) {
+        await txn.insert(LocalRows.outboxFiles, LocalRows.fileRow(id, file));
+      }
+      return (
+        (await _items(txn, 'id = ?', [id])).single,
+        await _unused(txn, replaced),
       );
-      await _attach(txn, id, files);
-      return (await _items(txn, 'id = ?', [id])).single;
     });
+    await _deleteFiles(unused);
+    return item;
   }
 
-  static Future<void> _attach(
+  /// Drops the file rows of the outbox items matching [where] (on outbox
+  /// columns) and answers their paths.
+  static Future<List<String>> _dropFiles(
     Transaction txn,
-    String id,
-    List<OutboxFile> files,
+    String where,
+    List<Object?> args,
   ) async {
-    await txn.delete(
-      LocalRows.outboxFiles,
-      where: 'outbox_id = ?',
-      whereArgs: [id],
+    final rows = await txn.rawQuery(
+      'SELECT f.local_path FROM ${LocalRows.outboxFiles} f '
+      'JOIN ${LocalRows.outbox} ON ${LocalRows.outbox}.id = f.outbox_id '
+      'WHERE $where ORDER BY f.rowid',
+      args,
     );
-    for (final file in files) {
-      await txn.insert(LocalRows.outboxFiles, LocalRows.fileRow(id, file));
+    await txn.rawDelete(
+      'DELETE FROM ${LocalRows.outboxFiles} WHERE outbox_id IN '
+      '(SELECT id FROM ${LocalRows.outbox} WHERE $where)',
+      args,
+    );
+    return {for (final row in rows) row['local_path']! as String}.toList();
+  }
+
+  /// The [paths] that no queued item needs any more.
+  static Future<List<String>> _unused(
+    Transaction txn,
+    List<String> paths,
+  ) async => [
+    for (final path in paths)
+      if ((await txn.query(
+        LocalRows.outboxFiles,
+        where: 'local_path = ?',
+        whereArgs: [path],
+        limit: 1,
+      )).isEmpty)
+        path,
+  ];
+
+  Future<void> _deleteFiles(List<String> paths) async {
+    for (final path in paths) {
+      await _deleteFile(path);
     }
   }
 
@@ -324,7 +366,20 @@ class SqfliteLocalStore implements LocalStore {
 
   @override
   Future<void> markDone(String id, {String? serverRef}) async {
-    await _update(id, {'status': _done, 'server_ref': serverRef});
+    final unused = await _db.transaction((txn) async {
+      await txn.update(
+        LocalRows.outbox,
+        {
+          'status': _done,
+          'server_ref': serverRef,
+          'updated_at': LocalRows.time(_clock()),
+        },
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      return _unused(txn, await _dropFiles(txn, 'id = ?', [id]));
+    });
+    await _deleteFiles(unused);
   }
 
   @override
@@ -334,6 +389,7 @@ class SqfliteLocalStore implements LocalStore {
     String? code,
     String? message,
     Duration? retryAfter,
+    int failures = 0,
     DateTime? failingSince,
   }) async {
     await _update(
@@ -343,6 +399,7 @@ class SqfliteLocalStore implements LocalStore {
         code: code,
         message: message,
         retryAfter: retryAfter,
+        failures: failures,
         failingSince: failingSince,
       ),
     );
@@ -370,54 +427,112 @@ class SqfliteLocalStore implements LocalStore {
   );
 
   @override
-  Future<void> resetFailingSince(String userId) async {
+  Future<void> resetFailures(String userId) async {
     await _db.update(
       LocalRows.outbox,
-      {'failing_since': null, 'updated_at': LocalRows.time(_clock())},
+      {
+        'failures': 0,
+        'failing_since': null,
+        'updated_at': LocalRows.time(_clock()),
+      },
       where: 'user_id = ? AND status IN (?, ?)',
       whereArgs: [userId, _pending, _sending],
     );
   }
 
   @override
-  Future<int> pruneDone(DateTime before) => _db.transaction((txn) async {
-    final stale =
-        'status = ? AND updated_at < ? AND id NOT IN '
-        '(SELECT depends_on FROM ${LocalRows.outbox} '
-        'WHERE depends_on IS NOT NULL AND status != ?)';
-    final args = [_done, LocalRows.time(before), _done];
-    await txn.rawDelete(
-      'DELETE FROM ${LocalRows.outboxFiles} WHERE outbox_id IN '
-      '(SELECT id FROM ${LocalRows.outbox} WHERE $stale)',
-      args,
+  Future<bool> requeue(String id) async {
+    final now = _clock();
+    final changed = await _db.update(
+      LocalRows.outbox,
+      {...LocalRows.requeueRow(now), 'updated_at': LocalRows.time(now)},
+      where: 'id = ? AND status = ?',
+      whereArgs: [id, _failed],
     );
-    return txn.rawDelete('DELETE FROM ${LocalRows.outbox} WHERE $stale', args);
-  });
+    return changed == 1;
+  }
 
-  static Future<void> _deleteOutbox(Transaction txn, String userId) async {
-    await txn.rawDelete(
-      'DELETE FROM ${LocalRows.outboxFiles} WHERE outbox_id IN '
-      '(SELECT id FROM ${LocalRows.outbox} WHERE user_id = ?)',
-      [userId],
-    );
+  @override
+  Future<bool> discard(String id, {required String dependantsCode}) async {
+    final (gone, unused) = await _db.transaction((txn) async {
+      final rows = await txn.query(
+        LocalRows.outbox,
+        columns: ['status'],
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      final status = rows.firstOrNull?['status'];
+      if (status == null || status == _sending || status == _done) {
+        return (false, const <String>[]);
+      }
+      await txn.update(
+        LocalRows.outbox,
+        {
+          'status': _failed,
+          'last_error_code': dependantsCode,
+          'last_error_message': null,
+          'updated_at': LocalRows.time(_clock()),
+        },
+        where: 'depends_on = ? AND status IN (?, ?)',
+        whereArgs: [id, _pending, _failed],
+      );
+      final paths = await _dropFiles(txn, 'id = ?', [id]);
+      await txn.delete(LocalRows.outbox, where: 'id = ?', whereArgs: [id]);
+      return (true, await _unused(txn, paths));
+    });
+    await _deleteFiles(unused);
+    return gone;
+  }
+
+  @override
+  Future<int> pruneDone(DateTime before) async {
+    final (count, unused) = await _db.transaction((txn) async {
+      final stale =
+          'status = ? AND updated_at < ? AND id NOT IN '
+          '(SELECT depends_on FROM ${LocalRows.outbox} '
+          'WHERE depends_on IS NOT NULL AND status != ?)';
+      final args = [_done, LocalRows.time(before), _done];
+      final paths = await _dropFiles(txn, stale, args);
+      final count = await txn.rawDelete(
+        'DELETE FROM ${LocalRows.outbox} WHERE $stale',
+        args,
+      );
+      return (count, await _unused(txn, paths));
+    });
+    await _deleteFiles(unused);
+    return count;
+  }
+
+  static Future<List<String>> _deleteOutbox(
+    Transaction txn,
+    String userId,
+  ) async {
+    final paths = await _dropFiles(txn, 'user_id = ?', [userId]);
     await txn.delete(
       LocalRows.outbox,
       where: 'user_id = ?',
       whereArgs: [userId],
     );
+    return _unused(txn, paths);
   }
 
   @override
-  Future<void> deleteOutbox(String userId) =>
-      _db.transaction((txn) => _deleteOutbox(txn, userId));
+  Future<void> deleteOutbox(String userId) async {
+    await _deleteFiles(
+      await _db.transaction((txn) => _deleteOutbox(txn, userId)),
+    );
+  }
 
   @override
-  Future<void> wipeUser(String userId) => _db.transaction((txn) async {
-    for (final table in [LocalRows.cache, LocalRows.drafts]) {
-      await txn.delete(table, where: 'user_id = ?', whereArgs: [userId]);
-    }
-    await _deleteOutbox(txn, userId);
-  });
+  Future<void> wipeUser(String userId) async {
+    final unused = await _db.transaction((txn) async {
+      for (final table in [LocalRows.cache, LocalRows.drafts]) {
+        await txn.delete(table, where: 'user_id = ?', whereArgs: [userId]);
+      }
+      return _deleteOutbox(txn, userId);
+    });
+    await _deleteFiles(unused);
+  }
 
   @override
   Future<void> close() => _db.close();

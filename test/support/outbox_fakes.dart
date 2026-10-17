@@ -30,13 +30,19 @@ class IdempotentServer {
 }
 
 /// Forwards to [inner]. A test can hold [dueOutbox] until it completes
-/// [dueGate], or make the next [resetSending] throw [failNextReset].
+/// [dueGate], make the next [resetSending], [markDone] or [markRetry]
+/// throw, as a locked database or a full disk would, or run
+/// [afterRequeue] after each [requeue], as a run of the queue under way
+/// would.
 class GatedStore implements LocalStore {
   GatedStore(this.inner);
 
   final LocalStore inner;
   Completer<void>? dueGate;
   Object? failNextReset;
+  Object? failNextMarkDone;
+  Object? failNextMarkRetry;
+  Future<void> Function()? afterRequeue;
 
   @override
   Future<List<OutboxItem>> dueOutbox(String userId, DateTime now) async {
@@ -50,6 +56,38 @@ class GatedStore implements LocalStore {
     failNextReset = null;
     if (error != null) throw error;
     return inner.resetSending();
+  }
+
+  @override
+  Future<void> markDone(String id, {String? serverRef}) async {
+    final error = failNextMarkDone;
+    failNextMarkDone = null;
+    if (error != null) throw error;
+    return inner.markDone(id, serverRef: serverRef);
+  }
+
+  @override
+  Future<void> markRetry(
+    String id, {
+    required DateTime at,
+    String? code,
+    String? message,
+    Duration? retryAfter,
+    int failures = 0,
+    DateTime? failingSince,
+  }) async {
+    final error = failNextMarkRetry;
+    failNextMarkRetry = null;
+    if (error != null) throw error;
+    return inner.markRetry(
+      id,
+      at: at,
+      code: code,
+      message: message,
+      retryAfter: retryAfter,
+      failures: failures,
+      failingSince: failingSince,
+    );
   }
 
   @override
@@ -108,33 +146,22 @@ class GatedStore implements LocalStore {
   Future<OutboxItem?> markSending(String id) => inner.markSending(id);
 
   @override
-  Future<void> markDone(String id, {String? serverRef}) =>
-      inner.markDone(id, serverRef: serverRef);
-
-  @override
-  Future<void> markRetry(
-    String id, {
-    required DateTime at,
-    String? code,
-    String? message,
-    Duration? retryAfter,
-    DateTime? failingSince,
-  }) => inner.markRetry(
-    id,
-    at: at,
-    code: code,
-    message: message,
-    retryAfter: retryAfter,
-    failingSince: failingSince,
-  );
-
-  @override
   Future<void> markFailed(String id, {required String code, String? message}) =>
       inner.markFailed(id, code: code, message: message);
 
   @override
-  Future<void> resetFailingSince(String userId) =>
-      inner.resetFailingSince(userId);
+  Future<void> resetFailures(String userId) => inner.resetFailures(userId);
+
+  @override
+  Future<bool> requeue(String id) async {
+    final requeued = await inner.requeue(id);
+    await afterRequeue?.call();
+    return requeued;
+  }
+
+  @override
+  Future<bool> discard(String id, {required String dependantsCode}) =>
+      inner.discard(id, dependantsCode: dependantsCode);
 
   @override
   Future<int> pruneDone(DateTime before) => inner.pruneDone(before);

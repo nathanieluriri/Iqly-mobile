@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import '../drafts_data.dart';
 
 /// A cached API answer: the decoded [json], the ETag it came with and when
@@ -16,8 +18,21 @@ enum OutboxStatus { pending, sending, failed, done }
 /// API's Retry-After asks for longer.
 const outboxLongestWait = Duration(minutes: 15);
 
-/// A file sent with an outbox item. The store keeps where it is, not the
-/// file itself.
+/// Removes a queued file from the phone once no outbox item needs it.
+typedef DeleteFile = Future<void> Function(String path);
+
+/// Deletes the file at [path] from disk.
+Future<void> deleteQueuedFile(String path) async {
+  try {
+    await File(path).delete();
+  } on FileSystemException {
+    // Already gone, which is all that was asked.
+  }
+}
+
+/// A file sent with an outbox item. The outbox owns it: the file is deleted
+/// from disk once no item needs it (done, replaced by a fold, discarded or
+/// wiped).
 class OutboxFile {
   const OutboxFile({
     required this.localPath,
@@ -47,6 +62,7 @@ class OutboxItem {
     this.lastErrorCode,
     this.lastErrorMessage,
     this.retryAfter,
+    this.failures = 0,
     this.failingSince,
     this.serverRef,
     this.files = const [],
@@ -77,7 +93,11 @@ class OutboxItem {
   /// The API's Retry-After that set [nextAttemptAt], if it gave one.
   final Duration? retryAfter;
 
-  /// When the failures that keep the item waiting began, for giving up.
+  /// Sends that failed in a row and will be tried again. A pause starts the
+  /// count again.
+  final int failures;
+
+  /// When that run of failures began, for showing.
   final DateTime? failingSince;
 
   /// The id the API gave what it created, once done.
@@ -136,13 +156,13 @@ abstract class LocalStore {
   Future<void> deleteDrafts(String userId, Iterable<String> briefIds);
 
   /// Queues a write, due now. When [userId]'s newest unsent item with the
-  /// same [coalesceKey] has never been sent, the write folds into it
-  /// instead: the payload becomes [merge] of the two (the new payload alone
-  /// without [merge]), the kind becomes [kind], [files] replace the old ones
-  /// when there are any, and the item keeps its id and place in the queue.
-  /// A write is queued after that item instead when the item has been sent
-  /// (the API may already hold its Idempotency-Key) or names a different
-  /// [dependsOn]. Answers the item as stored.
+  /// same [coalesceKey] has never been sent and names the same [dependsOn]
+  /// (none counts as a value), the write folds into it instead: the payload
+  /// becomes [merge] of the two (the new payload alone without [merge]), the
+  /// kind becomes [kind], [files] replace the old files entirely, and the
+  /// item keeps its id and place in the queue. Otherwise the write is queued
+  /// after that item: a sent item's Idempotency-Key may already be used.
+  /// Answers the item as stored.
   Future<OutboxItem> enqueue(
     String userId, {
     required String kind,
@@ -167,16 +187,19 @@ abstract class LocalStore {
   /// item as it goes out, or null when it is no longer pending.
   Future<OutboxItem?> markSending(String id);
 
+  /// Marks the item done. Its files leave the phone.
   Future<void> markDone(String id, {String? serverRef});
 
   /// Back to pending until [at]. [retryAfter] is the API's wait that set
-  /// [at]; [failingSince] keeps the item's give-up clock, and null stops it.
+  /// [at]; [failures] and [failingSince] are the item's run of failures, and
+  /// leaving them out ends it.
   Future<void> markRetry(
     String id, {
     required DateTime at,
     String? code,
     String? message,
     Duration? retryAfter,
+    int failures = 0,
     DateTime? failingSince,
   });
 
@@ -185,17 +208,27 @@ abstract class LocalStore {
   /// Puts items a killed app left sending back to pending. Answers how many.
   Future<int> resetSending();
 
-  /// Stops the give-up clock of [userId]'s unsent items, as when the queue
+  /// Ends the run of failures of [userId]'s unsent items, as when the queue
   /// pauses.
-  Future<void> resetFailingSince(String userId);
+  Future<void> resetFailures(String userId);
+
+  /// Puts a failed item back to pending, due now, with its run of failures
+  /// ended. Answers whether it was failed.
+  Future<bool> requeue(String id);
+
+  /// Removes a pending or failed item and its files. The items that depend
+  /// on it and are not on their way or done fail with [dependantsCode].
+  /// Answers whether it went: an item on its way or done stays.
+  Future<bool> discard(String id, {required String dependantsCode});
 
   /// Drops done items last changed before [before], keeping the ones an
-  /// unsent item depends on. Answers how many went.
+  /// item not done yet depends on. Answers how many went.
   Future<int> pruneDone(DateTime before);
 
+  /// Removes [userId]'s outbox and its files.
   Future<void> deleteOutbox(String userId);
 
-  /// Removes everything kept for [userId]: cache, drafts and outbox.
+  /// Removes everything kept for [userId]: cache, drafts, outbox and files.
   Future<void> wipeUser(String userId);
 
   Future<void> close();

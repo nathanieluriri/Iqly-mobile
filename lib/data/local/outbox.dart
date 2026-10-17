@@ -114,14 +114,17 @@ abstract final class OutboxCodes {
   /// No answer from the API: no connection, or it timed out.
   static const network = 'NETWORK_ERROR';
 
-  /// Still failing a day after its first failure.
+  /// Still failing after [Outbox.maxFailures] sends in a row.
   static const expired = 'OUTBOX_EXPIRED';
 
   /// The handler threw instead of answering.
   static const crashed = 'HANDLER_ERROR';
 
-  /// The handler had not answered within [Outbox.sendTimeout].
-  static const timedOut = 'HANDLER_TIMEOUT';
+  /// The phone could not record the API's answer, so the item goes again.
+  static const storeError = 'STORE_ERROR';
+
+  /// The item this one depends on was discarded.
+  static const discarded = 'DEPENDENCY_DISCARDED';
 }
 
 /// How an API answer lands in the outbox. No answer, a timeout, 5xx and 429
@@ -159,12 +162,12 @@ OutboxResult outboxResultFor({
   };
 }
 
-/// The wait after the [attempts]th send of an item failed: full jitter, a
-/// random duration up to 2 s after the first failure, doubling with each
+/// The wait after the [failures]th failure in a row of an item: full
+/// jitter, a random duration up to 2 s after the first, doubling with each
 /// one after it, never more than [outboxLongestWait].
-Duration outboxRetryDelay(int attempts, Random random) {
+Duration outboxRetryDelay(int failures, Random random) {
   const first = Duration(seconds: 2);
-  final doublings = min(max(attempts - 1, 0), 20);
+  final doublings = min(max(failures - 1, 0), 20);
   final ceiling = min(
     first.inMicroseconds << doublings,
     outboxLongestWait.inMicroseconds,
@@ -178,7 +181,7 @@ enum OutboxPause { signIn, closing, upgrade }
 class OutboxState {
   const OutboxState({this.pending = 0, this.failed = const [], this.pause});
 
-  /// Writes still to send, the one on its way included.
+  /// Writes still to send, the ones on their way included.
   final int pending;
 
   /// Writes refused or given up on, oldest first.
@@ -194,8 +197,9 @@ class OutboxState {
 /// the earliest retry is due. One item at a time, the oldest due first. An
 /// item waits while the item it depends on is not done, and while an older
 /// unsent item has its coalesce key; when an item fails, the items that
-/// depend on it fail the same way. Signing out is [stop], then
-/// [LocalStore.wipeUser].
+/// depend on it fail the same way. A send that outlasts [sendTimeout] stays
+/// on its way while the rest of the queue goes on. Signing out is [stop],
+/// then [LocalStore.wipeUser].
 class Outbox {
   Outbox(
     this._store, {
@@ -205,15 +209,18 @@ class Outbox {
   }) : _clock = clock ?? DateTime.now,
        _random = random ?? Random();
 
-  /// Items still failing this long after their first failure give up. A
-  /// pause starts the count again.
-  static const giveUpAfter = Duration(hours: 24);
+  /// Items that fail this many sends in a row give up: about a day of
+  /// trying while the app is open, once the waits reach
+  /// [outboxLongestWait]. A pause starts the count again.
+  static const maxFailures = 200;
 
   /// Done items stay this long, then go at the next launch.
   static const keepDone = Duration(days: 1);
 
-  /// How long a handler may take before its send counts as failed and the
-  /// queue moves on.
+  /// How long the queue waits for a send before it goes on with other
+  /// items. The item stays on its way, and its key and its dependants keep
+  /// waiting, until its handler answers; when it never does, the next
+  /// launch sends it again under the same Idempotency-Key.
   final Duration sendTimeout;
 
   final LocalStore _store;
@@ -229,6 +236,8 @@ class Outbox {
   var _again = false;
   Duration? _wait;
   Timer? _timer;
+  Completer<void>? _waiting;
+  final _onTheirWay = <String, OutboxItem>{};
 
   // _generation tells a start still recovering that a later start or stop
   // overtook it. _epoch also moves on resume: a send picked in an older
@@ -289,13 +298,56 @@ class Outbox {
     return item;
   }
 
+  /// Puts a failed item back in line, due now, with its run of failures
+  /// ended, and with it the failed items it depends on, which go first.
+  /// Answers whether it went back: an item that is not failed stays as it
+  /// is, and so does one whose dependency was discarded.
+  Future<bool> retry(String id) async {
+    final chain = <OutboxItem>[];
+    final seen = <String>{};
+    for (String? next = id; next != null && seen.add(next);) {
+      final item = await _store.outboxItem(next);
+      if (item == null || item.status != OutboxStatus.failed) break;
+      if (item.lastErrorCode == OutboxCodes.discarded) return false;
+      chain.add(item);
+      next = item.dependsOn;
+    }
+    if (chain.isEmpty) return false;
+    for (final item in chain.reversed) {
+      await _store.requeue(item.id);
+    }
+    await _refresh();
+    unawaited(kick());
+    return true;
+  }
+
+  /// Removes a pending or failed item and its files. The items that depend
+  /// on it fail with [OutboxCodes.discarded]. Answers whether it went: an
+  /// item on its way or done stays.
+  Future<bool> discard(String id) async {
+    final gone = await _store.discard(
+      id,
+      dependantsCode: OutboxCodes.discarded,
+    );
+    if (gone) {
+      await _refresh();
+      unawaited(kick());
+    }
+    return gone;
+  }
+
   /// Runs [userId]'s queue, lifting any pause. The first start puts back in
   /// line what a killed app left sending and drops old done items; when that
-  /// fails, the next start tries again. Completes once nothing more can go
+  /// fails, the next start tries again. A send on its way for whoever ran
+  /// before does not hold the queue up. Completes once nothing more can go
   /// for now.
   Future<void> start(String userId) async {
     final generation = ++_generation;
     _epoch++;
+    // Cleared first, so the drain let go of below cannot step on for the
+    // person before.
+    _userId = null;
+    _letGo();
     final recovery = _recovery ??= _recover();
     try {
       await recovery;
@@ -343,6 +395,7 @@ class Outbox {
   Future<void> stop() async {
     _generation++;
     _epoch++;
+    _letGo();
     _userId = null;
     _pause = null;
     _timer?.cancel();
@@ -407,7 +460,7 @@ class Outbox {
     return false;
   }
 
-  static bool _waits(
+  bool _waits(
     OutboxItem item,
     List<OutboxItem> open,
     Map<String, OutboxItem> byId,
@@ -417,6 +470,13 @@ class Outbox {
       for (final other in open) {
         if (other.id == item.id) break;
         if (other.coalesceKey == key && _unsent(other)) return true;
+      }
+      // A send on its way holds its key even after a wipe took its row, so a
+      // person who signs out and back in cannot overtake it.
+      for (final other in _onTheirWay.values) {
+        if (other.userId == item.userId && other.coalesceKey == key) {
+          return true;
+        }
       }
     }
     final parent = byId[item.dependsOn];
@@ -444,6 +504,9 @@ class Outbox {
     return wait;
   }
 
+  /// Claims [due] and hands it to its handler, then waits for the answer
+  /// to land: for at most [sendTimeout], and only until the queue stops or
+  /// starts again.
   Future<void> _send(OutboxItem due, int epoch) async {
     final item = await _store.markSending(due.id);
     if (item == null) return;
@@ -454,20 +517,76 @@ class Outbox {
         code: item.lastErrorCode,
         message: item.lastErrorMessage,
         retryAfter: item.retryAfter,
+        failures: item.failures,
         failingSince: item.failingSince,
       );
       return;
     }
-    OutboxResult result;
+    _onTheirWay[item.id] = item;
+    var landed = false;
+    final sent = _answer(item)
+        .then((result) => _settle(item, result, epoch))
+        .whenComplete(() {
+          landed = true;
+          _onTheirWay.remove(item.id);
+        });
+    final waiting = _waiting = Completer<void>();
+    final timer = Timer(sendTimeout, () => _release(waiting));
+    await Future.any([sent, waiting.future]);
+    timer.cancel();
+    if (identical(_waiting, waiting)) _waiting = null;
+    if (!landed) unawaited(sent.then((_) => kick()));
+  }
+
+  /// Stops waiting for the send on its way. It keeps its item and lands by
+  /// itself.
+  void _letGo() {
+    final waiting = _waiting;
+    _waiting = null;
+    if (waiting != null) _release(waiting);
+  }
+
+  static void _release(Completer<void> waiting) {
+    if (!waiting.isCompleted) waiting.complete();
+  }
+
+  Future<OutboxResult> _answer(OutboxItem item) async {
     try {
-      result = await _handlers[item.kind]!(item).timeout(sendTimeout);
-    } on TimeoutException {
-      result = const OutboxResult.retry(code: OutboxCodes.timedOut);
+      return await _handlers[item.kind]!(item);
     } catch (error) {
-      result = OutboxResult.retry(code: OutboxCodes.crashed, message: '$error');
+      return OutboxResult.retry(code: OutboxCodes.crashed, message: '$error');
     }
-    await _land(item, result, epoch);
-    await _refresh();
+  }
+
+  /// Lands a send's answer. When the store fails to take it, the item goes
+  /// back in line after a backoff: its Idempotency-Key makes sending it again
+  /// safe.
+  Future<void> _settle(OutboxItem item, OutboxResult result, int epoch) async {
+    try {
+      await _land(item, result, epoch);
+    } catch (error, stack) {
+      final now = _clock();
+      final failures = item.failures + 1;
+      try {
+        await _store.markRetry(
+          item.id,
+          at: now.add(outboxRetryDelay(failures, _random)),
+          code: OutboxCodes.storeError,
+          message: '$error',
+          failures: failures,
+          failingSince: item.failingSince ?? now,
+        );
+      } catch (_) {
+        // The store takes nothing now: the item stays on its way until the
+        // next launch puts it back in line.
+        Zone.current.handleUncaughtError(error, stack);
+      }
+    }
+    try {
+      await _refresh();
+    } catch (error, stack) {
+      Zone.current.handleUncaughtError(error, stack);
+    }
   }
 
   Future<void> _land(OutboxItem item, OutboxResult result, int epoch) async {
@@ -478,8 +597,11 @@ class Outbox {
       case OutboxFail(:final code, :final message):
         await _store.markFailed(item.id, code: code, message: message);
       case OutboxRetry(:final after, :final code, :final message):
-        final since = item.failingSince ?? now;
-        if (now.difference(since) > giveUpAfter) {
+        // Read again: a pause while the send was out ended its run.
+        final sent = await _store.outboxItem(item.id);
+        if (sent == null) return;
+        final failures = sent.failures + 1;
+        if (failures >= maxFailures) {
           await _store.markFailed(
             item.id,
             code: OutboxCodes.expired,
@@ -490,11 +612,12 @@ class Outbox {
         final asked = after != null && after > Duration.zero ? after : null;
         await _store.markRetry(
           item.id,
-          at: now.add(asked ?? outboxRetryDelay(item.attempts, _random)),
+          at: now.add(asked ?? outboxRetryDelay(failures, _random)),
           code: code,
           message: message,
           retryAfter: asked,
-          failingSince: since,
+          failures: failures,
+          failingSince: sent.failingSince ?? now,
         );
       case OutboxPaused(:final pause):
         await _store.markRetry(
@@ -508,7 +631,7 @@ class Outbox {
         );
         if (_current(item.userId, epoch)) {
           _pause = pause;
-          await _store.resetFailingSince(item.userId);
+          await _store.resetFailures(item.userId);
         }
     }
   }

@@ -8,10 +8,12 @@ import 'local_store.dart';
 /// rows as the SQLite store and answers the same way, but forgets them when
 /// the app closes.
 class MemoryLocalStore implements LocalStore {
-  MemoryLocalStore({DateTime Function()? clock})
-    : _clock = clock ?? DateTime.now;
+  MemoryLocalStore({DateTime Function()? clock, DeleteFile? deleteFile})
+    : _clock = clock ?? DateTime.now,
+      _deleteFile = deleteFile ?? deleteQueuedFile;
 
   final DateTime Function() _clock;
+  final DeleteFile _deleteFile;
   final _cache = <(String, String), Map<String, Object?>>{};
   final _drafts = <(String, String), Map<String, Object?>>{};
   final _outbox = <Map<String, Object?>>[];
@@ -95,32 +97,38 @@ class MemoryLocalStore implements LocalStore {
                     _unsent(row),
               )
               .lastOrNull;
+    final Map<String, Object?> row;
+    var replaced = const <String>[];
     if (older != null && LocalRows.folds(older, dependsOn)) {
-      older.addAll({
-        'kind': kind,
-        'payload': LocalRows.coalesce(older['payload']! as String, body, merge),
-        'updated_at': LocalRows.time(now),
-      });
-      if (files.isNotEmpty) _attach(older['id']! as String, files);
-      return _item(older);
+      row = older
+        ..addAll({
+          'kind': kind,
+          'payload': LocalRows.coalesce(
+            older['payload']! as String,
+            body,
+            merge,
+          ),
+          'updated_at': LocalRows.time(now),
+        });
+      replaced = _dropFiles({row['id']});
+    } else {
+      row = LocalRows.outboxRow(
+        id: LocalRows.newId(),
+        userId: userId,
+        kind: kind,
+        coalesceKey: coalesceKey,
+        payload: body,
+        dependsOn: dependsOn,
+        now: now,
+      );
+      _outbox.add(row);
     }
-    final row = LocalRows.outboxRow(
-      id: LocalRows.newId(),
-      userId: userId,
-      kind: kind,
-      coalesceKey: coalesceKey,
-      payload: body,
-      dependsOn: dependsOn,
-      now: now,
-    );
-    _outbox.add(row);
-    _attach(row['id']! as String, files);
-    return _item(row);
+    final id = row['id']! as String;
+    _files.addAll([for (final file in files) LocalRows.fileRow(id, file)]);
+    final item = _item(row);
+    await _deleteUnused(replaced);
+    return item;
   }
-
-  void _attach(String id, List<OutboxFile> files) => _files
-    ..removeWhere((file) => file['outbox_id'] == id)
-    ..addAll([for (final file in files) LocalRows.fileRow(id, file)]);
 
   OutboxItem _item(Map<String, Object?> row) => LocalRows.outboxItem(row, [
     for (final file in _files)
@@ -136,6 +144,27 @@ class MemoryLocalStore implements LocalStore {
 
   void _update(String id, Map<String, Object?> values) =>
       _row(id)?.addAll({...values, 'updated_at': LocalRows.time(_clock())});
+
+  /// Drops the file rows of the items [ids] and answers their paths.
+  List<String> _dropFiles(Set<Object?> ids) {
+    final paths = <String>{
+      for (final file in _files)
+        if (ids.contains(file['outbox_id'])) file['local_path']! as String,
+    };
+    _files.removeWhere((file) => ids.contains(file['outbox_id']));
+    return paths.toList();
+  }
+
+  /// Deletes the files at [paths] that no queued item needs any more.
+  Future<void> _deleteUnused(List<String> paths) async {
+    final unused = [
+      for (final path in paths)
+        if (!_files.any((file) => file['local_path'] == path)) path,
+    ];
+    for (final path in unused) {
+      await _deleteFile(path);
+    }
+  }
 
   @override
   Future<List<OutboxItem>> dueOutbox(String userId, DateTime now) async => [
@@ -170,8 +199,10 @@ class MemoryLocalStore implements LocalStore {
   }
 
   @override
-  Future<void> markDone(String id, {String? serverRef}) async =>
-      _update(id, {'status': OutboxStatus.done.name, 'server_ref': serverRef});
+  Future<void> markDone(String id, {String? serverRef}) async {
+    _update(id, {'status': OutboxStatus.done.name, 'server_ref': serverRef});
+    await _deleteUnused(_dropFiles({id}));
+  }
 
   @override
   Future<void> markRetry(
@@ -180,6 +211,7 @@ class MemoryLocalStore implements LocalStore {
     String? code,
     String? message,
     Duration? retryAfter,
+    int failures = 0,
     DateTime? failingSince,
   }) async => _update(
     id,
@@ -188,6 +220,7 @@ class MemoryLocalStore implements LocalStore {
       code: code,
       message: message,
       retryAfter: retryAfter,
+      failures: failures,
       failingSince: failingSince,
     ),
   );
@@ -210,8 +243,9 @@ class MemoryLocalStore implements LocalStore {
   );
 
   @override
-  Future<void> resetFailingSince(String userId) async {
+  Future<void> resetFailures(String userId) async {
     _updateAll((row) => row['user_id'] == userId && _unsent(row), {
+      'failures': 0,
       'failing_since': null,
     });
   }
@@ -229,6 +263,42 @@ class MemoryLocalStore implements LocalStore {
   }
 
   @override
+  Future<bool> requeue(String id) async {
+    final row = _row(id);
+    if (row == null || row['status'] != OutboxStatus.failed.name) return false;
+    final now = _clock();
+    row.addAll({
+      ...LocalRows.requeueRow(now),
+      'updated_at': LocalRows.time(now),
+    });
+    return true;
+  }
+
+  @override
+  Future<bool> discard(String id, {required String dependantsCode}) async {
+    final row = _row(id);
+    final status = row?['status'];
+    if (row == null ||
+        status == OutboxStatus.sending.name ||
+        status == OutboxStatus.done.name) {
+      return false;
+    }
+    _updateAll(
+      (other) =>
+          other['depends_on'] == id &&
+          (other['status'] == OutboxStatus.pending.name ||
+              other['status'] == OutboxStatus.failed.name),
+      {
+        'status': OutboxStatus.failed.name,
+        'last_error_code': dependantsCode,
+        'last_error_message': null,
+      },
+    );
+    await _removeOutbox((other) => identical(other, row));
+    return true;
+  }
+
+  @override
   Future<int> pruneDone(DateTime before) async {
     final needed = {
       for (final row in _outbox)
@@ -242,26 +312,28 @@ class MemoryLocalStore implements LocalStore {
     );
   }
 
-  int _removeOutbox(bool Function(Map<String, Object?> row) test) {
+  Future<int> _removeOutbox(
+    bool Function(Map<String, Object?> row) test,
+  ) async {
     final gone = {
       for (final row in _outbox)
         if (test(row)) row['id'],
     };
     _outbox.removeWhere((row) => gone.contains(row['id']));
-    _files.removeWhere((file) => gone.contains(file['outbox_id']));
+    await _deleteUnused(_dropFiles(gone));
     return gone.length;
   }
 
   @override
   Future<void> deleteOutbox(String userId) async {
-    _removeOutbox((row) => row['user_id'] == userId);
+    await _removeOutbox((row) => row['user_id'] == userId);
   }
 
   @override
   Future<void> wipeUser(String userId) async {
     _cache.removeWhere((id, _) => id.$1 == userId);
     _drafts.removeWhere((id, _) => id.$1 == userId);
-    _removeOutbox((row) => row['user_id'] == userId);
+    await _removeOutbox((row) => row['user_id'] == userId);
   }
 
   @override

@@ -21,16 +21,38 @@ class StoreBackend {
   const StoreBackend(this.name, this.open, {this.skip});
 
   final String name;
-  final Future<LocalStore> Function(TestClock clock) open;
+
+  /// Opens a store on [clock]. Queued files are left on disk unless a test
+  /// passes [deleteFile].
+  final Future<LocalStore> Function(TestClock clock, {DeleteFile? deleteFile})
+  open;
   final String? skip;
 }
 
 /// The memory store, and the SQLite store through sqflite_common_ffi when
 /// the machine's SQLite loads.
 Future<List<StoreBackend>> storeBackends() async => [
-  StoreBackend('memory', (clock) async => MemoryLocalStore(clock: clock.call)),
-  StoreBackend('sqflite', openFileStore, skip: await sqliteMissing()),
+  StoreBackend(
+    'memory',
+    (clock, {deleteFile}) async =>
+        MemoryLocalStore(clock: clock.call, deleteFile: deleteFile ?? keepFile),
+  ),
+  StoreBackend(
+    'sqflite',
+    (clock, {deleteFile}) => openFileStore(clock, deleteFile: deleteFile),
+    skip: await sqliteMissing(),
+  ),
 ];
+
+/// Deletes nothing, so a test's made-up paths never reach the disk.
+Future<void> keepFile(String path) async {}
+
+/// Notes each path the store deletes, in order.
+class DeletedFiles {
+  final paths = <String>[];
+
+  Future<void> call(String path) async => paths.add(path);
+}
 
 Future<String?> sqliteMissing() async {
   try {
@@ -52,11 +74,16 @@ String storeFile() {
   return '${dir.path}${Platform.pathSeparator}local.db';
 }
 
-Future<SqfliteLocalStore> openFileStore(TestClock clock, {String? path}) async {
+Future<SqfliteLocalStore> openFileStore(
+  TestClock clock, {
+  String? path,
+  DeleteFile? deleteFile,
+}) async {
   final store = await SqfliteLocalStore.open(
     path: path ?? storeFile(),
     factory: databaseFactoryFfiNoIsolate,
     clock: clock.call,
+    deleteFile: deleteFile ?? keepFile,
   );
   addTearDown(store.close);
   return store;
