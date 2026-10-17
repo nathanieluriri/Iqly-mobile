@@ -865,10 +865,15 @@ void main() {
       }
 
       ProofVideo recording(String name, List<int> bytes, {int? seconds}) {
-        final file = File('${files().path}/$name')..writeAsBytesSync(bytes);
+        // The API reads a recording's first bytes (an MP4 opens with its
+        // ftyp box), so each sample recording starts with one.
+        final media = name.endsWith('.mp4')
+            ? [0, 0, 0, 0x18, ...'ftypmp42'.codeUnits, ...bytes]
+            : bytes;
+        final file = File('${files().path}/$name')..writeAsBytesSync(media);
         return ProofVideo(
           name: name,
-          bytes: bytes.length,
+          bytes: media.length,
           length: seconds == null ? null : Duration(seconds: seconds),
           source: file.uri,
         );
@@ -1236,8 +1241,14 @@ void main() {
             headers: Recordings.headersFor(sent.source!),
           );
           expect(player.statusCode, 200);
-          expect(player.bodyBytes, clip);
+          final sample = File.fromUri(video.source!).readAsBytesSync();
+          expect(player.bodyBytes, sample);
           expect((await http.get(sent.source!)).statusCode, isNot(200));
+          // Players open the copy downloaded once, never the stream.
+          final copy = await Recordings.fetchSignedIn!(sent.source!);
+          expect(copy.scheme, 'file');
+          expect(File.fromUri(copy).readAsBytesSync(), sample);
+          expect((await Recordings.fetchSignedIn!(sent.source!)), copy);
           final inUse = await api.delete(
             '/activations/${seed.account}/proof/uploads/$first',
           );

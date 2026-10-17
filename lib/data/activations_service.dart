@@ -11,6 +11,7 @@ import 'activations_data.dart';
 import 'api_client.dart';
 import 'live/live_account.dart';
 import 'live/live_repository.dart' show liveModeProvider;
+import 'signed_in_files.dart';
 
 /// An upload on its way: [progress] from 0 to 1, then the upload's [id].
 class ProofUpload {
@@ -357,12 +358,29 @@ class LiveActivationsService implements ActivationsService {
     return activation;
   }
 
-  /// Proof recordings play only with the session's token.
+  /// Proof recordings play only with the session's token, from a copy
+  /// downloaded once to the account's folder ([SignedInFiles]).
   Future<void> _authorize() async {
     final token = await _api.tokens.read();
     Recordings.signedIn = token == null
         ? null
         : (base: _api.baseUrl, token: token);
+    final files = SignedInFiles(api: _api);
+    final user = link.userId() ?? '';
+    Recordings.fetchSignedIn = token == null
+        ? null
+        : (source) async {
+            final name = source.pathSegments.lastOrNull ?? 'proof';
+            final file = await files.fetch(
+              userId: user,
+              id: source.hasQuery
+                  ? '${source.path}_${source.query}'
+                  : source.path,
+              url: source.toString(),
+              name: name.contains('.') ? name : '$name.mp4',
+            );
+            return Uri.file(file.path);
+          };
   }
 
   @override
@@ -458,6 +476,7 @@ class LiveActivationsService implements ActivationsService {
   void dispose() {
     _changes.close();
     Recordings.signedIn = null;
+    Recordings.fetchSignedIn = null;
   }
 }
 
