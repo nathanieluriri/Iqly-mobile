@@ -14,6 +14,7 @@ import 'package:iqly_mobile/data/help_service.dart';
 import 'package:iqly_mobile/data/live/live_help_service.dart';
 import 'package:iqly_mobile/data/live/mappers.dart';
 import 'package:iqly_mobile/data/referrals_service.dart';
+import 'package:iqly_mobile/data/signed_in_files.dart';
 import 'package:iqly_mobile/data/support_files.dart';
 import 'package:iqly_mobile/features/help/help_routes.dart';
 import 'package:iqly_mobile/features/referrals/referrals_state.dart';
@@ -1131,6 +1132,39 @@ void main() {
         final mine = await chidi.download(seen.url.toString());
         expect(mine.ok, isTrue);
         expect(mine.bytes, mp4);
+
+        // Recordings play from a file downloaded once to the account's
+        // folder, never streamed.
+        final root = await Directory.systemTemp.createTemp('iqly-e2e-files');
+        addTearDown(() => root.delete(recursive: true));
+        final files = SignedInFiles(api: chidi, root: root);
+        final saved = await files.fetch(
+          userId: 'chidi',
+          id: seen.id!,
+          url: seen.url.toString(),
+          name: seen.name,
+        );
+        expect(await saved.readAsBytes(), mp4);
+        expect(
+          (await files.fetch(
+            userId: 'chidi',
+            id: seen.id!,
+            url: seen.url.toString(),
+            name: seen.name,
+          )).path,
+          saved.path,
+        );
+        await expectLater(
+          SignedInFiles(api: api, root: root).fetch(
+            userId: 'ada',
+            id: seen.id!,
+            url: seen.url.toString(),
+            name: seen.name,
+          ),
+          throwsA(isA<ApiRefused>().having((r) => r.status, 'status', 404)),
+        );
+        await files.forget('chidi');
+        expect(await Directory('${root.path}/chidi').exists(), isFalse);
         expect(
           (await api.download(seen.url.toString())).status,
           404,

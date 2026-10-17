@@ -1,11 +1,14 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:iqly_mobile/core/backend.dart';
+import 'package:iqly_mobile/data/api_client.dart';
 import 'package:iqly_mobile/data/avatar_service.dart';
 import 'package:iqly_mobile/data/help_data.dart';
 import 'package:iqly_mobile/data/help_service.dart';
@@ -16,6 +19,7 @@ import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/notifications_data.dart';
 import 'package:iqly_mobile/data/outcomes_service.dart';
 import 'package:iqly_mobile/data/referrals_service.dart';
+import 'package:iqly_mobile/data/signed_in_files.dart';
 import 'package:iqly_mobile/data/support_files.dart';
 import 'package:iqly_mobile/features/avatar/avatar_state.dart';
 import 'package:iqly_mobile/features/avatar/choose_avatar.dart';
@@ -92,6 +96,7 @@ Future<ProviderContainer> _launch(
   Backend? mode,
   Map<String, Object> prefs = const {},
   SupportFiles? files,
+  List<Override> overrides = const [],
 }) async {
   final (container, _) = await pumpLiveLaunch(
     tester,
@@ -101,6 +106,7 @@ Future<ProviderContainer> _launch(
     prefs: signedInLive(prefs),
     overrides: [
       if (files != null) supportFilesProvider.overrideWithValue(files),
+      ...overrides,
     ],
   );
   await tester.pumpAndSettle();
@@ -784,20 +790,27 @@ void main() {
       expect(heic.mime, 'image/heic');
     });
 
-    testWidgets('a picture and a recording in a thread open with the '
-        'session token', (tester) async {
-      final opened = <(Uri, Map<String, String>)>[];
-      Recordings.openWith = (source, headers) {
-        opened.add((source, headers));
+    testWidgets('a picture opens with the session token; a recording is '
+        'downloaded with it to the account\'s folder and plays from there, '
+        'once', (tester) async {
+      final opened = <Uri>[];
+      Recordings.open = (source) {
+        opened.add(source);
         return _FakeRecording(source);
       };
-      addTearDown(
-        () =>
-            Recordings.openWith = (source, headers) =>
-                VideoPlayerController.networkUrl(source, httpHeaders: headers),
+      addTearDown(() => Recordings.open = openRecording);
+      final root = await tester.runAsync(
+        () => Directory.systemTemp.createTemp('iqly-files-test'),
       );
+      addTearDown(() => tester.runAsync(() => root!.delete(recursive: true)));
+      final memo = [0, 0, 0, 0x18, ...'ftypM4A '.codeUnits];
       final api = _api()
         ..data('GET', '/support/unread', {'unread': 0})
+        ..on(
+          'GET',
+          '/support/attachments/up_2',
+          (_) => http.Response.bytes(memo, 200),
+        )
         ..data(
           'GET',
           '/support/tickets/t_1',
@@ -825,11 +838,17 @@ void main() {
           ),
         )
         ..data('POST', '/support/tickets/t_1/read', {'unread': 0});
-      await _launch(
+      final c = await _launch(
         tester,
         api,
         helpThreadPath('t_1'),
         mode: _with({LiveFeature.support}),
+        overrides: [
+          signedInFilesProvider.overrideWith(
+            (ref) =>
+                SignedInFiles(api: ref.watch(apiClientProvider)!, root: root),
+          ),
+        ],
       );
       await tester.tap(find.text('Attached activity.png · 1 KB'));
       await tester.pumpAndSettle();
@@ -843,13 +862,47 @@ void main() {
 
       await tester.pageBack();
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Attached memo.m4a · 0:20 · 1 KB'));
+      Future<void> openMemo() async {
+        await tester.tap(find.text('Attached memo.m4a · 0:20 · 1 KB'));
+        await tester.pump();
+        for (
+          var i = 0;
+          i < 20 && find.byType(IqRecordingPlayer).evaluate().isEmpty;
+          i++
+        ) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 20)),
+          );
+          await tester.pump();
+        }
+        await tester.pumpAndSettle();
+      }
+
+      await openMemo();
+      final read = api.to('/support/attachments/up_2', method: 'GET');
+      expect(read, hasLength(1));
+      expect(read.single.url.host, 'api.test');
+      expect(read.single.headers['authorization'], 'Bearer session.signed');
+      expect(opened.single.scheme, 'file');
+      final file = File.fromUri(opened.single);
+      expect(file.path, startsWith('${root!.path}/u_1/'));
+      expect(await tester.runAsync(file.readAsBytes), memo);
+
+      await tester.pageBack();
       await tester.pumpAndSettle();
+      await openMemo();
       expect(
-        opened.single.$1.toString(),
-        'https://api.test/support/attachments/up_2',
+        api.to('/support/attachments/up_2', method: 'GET'),
+        hasLength(1),
+        reason: 'the downloaded file is used again',
       );
-      expect(opened.single.$2['authorization'], 'Bearer session.signed');
+      expect(opened, hasLength(2));
+
+      await tester.runAsync(() => c.read(signedInFilesProvider)!.forget('u_1'));
+      expect(
+        await tester.runAsync(() => Directory('${root.path}/u_1').exists()),
+        isFalse,
+      );
     });
   });
 

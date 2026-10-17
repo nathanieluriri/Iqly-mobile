@@ -272,15 +272,7 @@ class ApiClient {
   /// the path and query of [url] are kept, so the token never goes to any
   /// host but the API's.
   Future<ApiBytes> download(String url) async {
-    final request = http.Request('GET', authorized(url));
-    final token = await tokens.read();
-    request.headers.addAll({
-      'x-iqly-client': 'mobile',
-      'x-app': 'web',
-      'x-app-version': ?appVersion,
-      'x-platform': platform,
-      if (token != null) 'authorization': 'Bearer $token',
-    });
+    final request = await _fileRequest(url);
     final http.Response response;
     try {
       response = await http.Response.fromStream(
@@ -298,6 +290,61 @@ class ApiClient {
       response.bodyBytes,
       contentType: response.headers['content-type'],
     );
+  }
+
+  /// Writes the file the API serves at [url] to [target] as it arrives,
+  /// [onProgress] going from 0 to 1 when the API says the size. [timeout]
+  /// counts from the last bytes received. Throws [ApiUnreachable] without a
+  /// whole answer, [ApiRefused] when the API refuses.
+  Future<void> downloadTo(
+    String url,
+    File target, {
+    void Function(double progress)? onProgress,
+  }) async {
+    final request = await _fileRequest(url);
+    final IOSink sink;
+    try {
+      final response = await _client.send(request).timeout(timeout);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        await response.stream.drain<void>();
+        throw ApiRefused(response.statusCode);
+      }
+      final total = response.contentLength;
+      var received = 0;
+      onProgress?.call(0);
+      sink = target.openWrite();
+      try {
+        await for (final chunk in response.stream.timeout(timeout)) {
+          sink.add(chunk);
+          received += chunk.length;
+          if (total != null && total > 0) {
+            onProgress?.call((received / total).clamp(0, 1));
+          }
+        }
+      } finally {
+        await sink.close();
+      }
+    } on TimeoutException {
+      throw const ApiUnreachable();
+    } on http.ClientException catch (error) {
+      throw ApiUnreachable(nothingSent: _beforeSending(error));
+    } on IOException catch (error) {
+      throw ApiUnreachable(nothingSent: _beforeSending(error));
+    }
+    onProgress?.call(1);
+  }
+
+  Future<http.Request> _fileRequest(String url) async {
+    final request = http.Request('GET', authorized(url));
+    final token = await tokens.read();
+    request.headers.addAll({
+      'x-iqly-client': 'mobile',
+      'x-app': 'web',
+      'x-app-version': ?appVersion,
+      'x-platform': platform,
+      if (token != null) 'authorization': 'Bearer $token',
+    });
+    return request;
   }
 
   Future<ApiResponse> _dispatch(

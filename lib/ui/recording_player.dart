@@ -27,11 +27,6 @@ VideoPlayerController openRecording(Uri source) => switch (source.scheme) {
 abstract final class Recordings {
   static RecordingOpener open = openRecording;
 
-  /// Opens a link that needs [headers] (a signed-in file); tests swap it.
-  static VideoPlayerController Function(Uri source, Map<String, String> headers)
-  openWith = (source, headers) =>
-      VideoPlayerController.networkUrl(source, httpHeaders: headers);
-
   static final _posters = <Uri, _Poster>{};
 
   /// A paused player on the first frame, shared by every poster of [source].
@@ -194,15 +189,10 @@ class IqRecordingPlayer extends StatefulWidget {
     super.key,
     required this.source,
     this.placeholder = const SizedBox.shrink(),
-    this.headers = const {},
   });
 
   final Uri source;
   final Widget placeholder;
-
-  /// Sent with an http [source] that needs them, such as the session token
-  /// for a file sent to support.
-  final Map<String, String> headers;
 
   @override
   State<IqRecordingPlayer> createState() => _IqRecordingPlayerState();
@@ -236,9 +226,7 @@ class _IqRecordingPlayerState extends State<IqRecordingPlayer>
 
   Future<void> _load() async {
     if (!mounted) return;
-    final controller = widget.headers.isEmpty
-        ? Recordings.open(widget.source)
-        : Recordings.openWith(widget.source, widget.headers);
+    final controller = Recordings.open(widget.source);
     _controller = controller;
     controller.addListener(_changed);
     try {
