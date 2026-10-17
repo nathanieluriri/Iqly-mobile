@@ -488,6 +488,10 @@ class Surfaces {
     }
   }
 
+  /// Opens a route or `iqly://app/...` link a push carried, once the
+  /// person is signed in and on a tab.
+  void openLink(String link) => _openLink(link);
+
   void _openLink(String link) {
     final route = DeepLinks.route(link);
     if (route != null) _open(route);
