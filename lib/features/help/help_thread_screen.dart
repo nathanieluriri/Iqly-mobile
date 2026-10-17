@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
+import '../../core/transitions.dart';
 import '../../data/help_data.dart';
 import '../../theme/theme.dart';
 import '../../ui/button.dart';
@@ -70,7 +71,16 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
   void initState() {
     super.initState();
     ref.read(helpTicketsProvider.notifier).follow(widget.id);
-    ref.read(helpServiceProvider).markRead(widget.id).ignore();
+    // Marking read rebuilds the inbox beneath, so it waits for the push to
+    // land rather than stutter it.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      whenArrived(context, () {
+        if (mounted) {
+          ref.read(helpServiceProvider).markRead(widget.id).ignore();
+        }
+      });
+    });
   }
 
   @override

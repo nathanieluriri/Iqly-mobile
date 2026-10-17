@@ -2,11 +2,13 @@ import 'package:flutter/widgets.dart';
 
 import 'motion.dart';
 
-/// Plays [IqHaptics.edge] once when a drag pushes a list past either end, on
-/// clamping (Android) and bouncing (iOS) physics alike, except the start of
-/// a list under [PullsToRefresh], where the pull has its own click. A flick
-/// that coasts into an end stays quiet, and so do lists too short to scroll
-/// and wheels (they tick on their own).
+/// Plays [IqHaptics.edge] once on the frame a scroll the person drives (a
+/// drag, or the fling it lets go into) reaches the top or bottom of a list,
+/// on clamping (Android) and bouncing (iOS) physics alike. Pushing on past
+/// the end plays nothing, and the end plays again only once the list has
+/// left it. The start of a list under [PullsToRefresh] is left to the
+/// pull's own click. Lists too short to scroll, programmatic scrolls and
+/// wheels (they tick on their own) stay quiet.
 class EdgeHaptics extends StatefulWidget {
   const EdgeHaptics({super.key, required this.child});
 
@@ -17,34 +19,37 @@ class EdgeHaptics extends StatefulWidget {
 }
 
 class _EdgeHapticsState extends State<EdgeHaptics> {
-  bool _armed = false;
+  // Keyed by each scrollable's context, since nested lists report here too.
+  final _at = <BuildContext, _End?>{};
 
   bool _onScroll(ScrollNotification n) {
     final metrics = n.metrics;
-    if (metrics is FixedExtentMetrics) return false;
+    final key = n.context;
+    if (metrics is FixedExtentMetrics || key == null) return false;
     if (n is ScrollStartNotification) {
-      _armed = n.dragDetails != null;
-    } else if (n is ScrollEndNotification) {
-      _armed = false;
-    } else if (_armed && metrics.maxScrollExtent > metrics.minScrollExtent) {
-      final end = _pushedPast(n);
-      if (end == _End.far || (end == _End.start && !_pullsToRefresh(n))) {
-        _armed = false;
-        IqHaptics.edge.play();
+      if (n.dragDetails != null) {
+        _at[key] = _edgeOf(metrics);
+      } else {
+        _at.remove(key);
       }
+    } else if (n is ScrollEndNotification) {
+      _at.remove(key);
+    } else if (n is ScrollUpdateNotification && _at.containsKey(key)) {
+      final was = _at[key];
+      final now = _edgeOf(metrics);
+      _at[key] = now;
+      if (now == null || now == was) return false;
+      if (metrics.maxScrollExtent <= metrics.minScrollExtent) return false;
+      if (now == _End.start && _pullsToRefresh(n)) return false;
+      IqHaptics.edge.play();
     }
     return false;
   }
 
-  static _End? _pushedPast(ScrollNotification n) {
-    if (n is OverscrollNotification) {
-      if (n.dragDetails == null || n.overscroll == 0) return null;
-      return n.overscroll > 0 ? _End.far : _End.start;
-    }
-    if (n is ScrollUpdateNotification && n.dragDetails != null) {
-      if (n.metrics.pixels > n.metrics.maxScrollExtent) return _End.far;
-      if (n.metrics.pixels < n.metrics.minScrollExtent) return _End.start;
-    }
+  static _End? _edgeOf(ScrollMetrics m) {
+    const tolerance = 0.5;
+    if (m.pixels >= m.maxScrollExtent - tolerance) return _End.far;
+    if (m.pixels <= m.minScrollExtent + tolerance) return _End.start;
     return null;
   }
 

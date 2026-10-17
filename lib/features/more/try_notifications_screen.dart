@@ -14,6 +14,7 @@ import '../../ui/icon.dart';
 import '../../ui/list_row.dart';
 import '../../ui/toast.dart';
 import '../settings/settings_state.dart';
+import 'mode_switch.dart';
 import 'more_widgets.dart';
 
 /// B14 · Try notifications (1336:28442; owner, 16 Oct), opened by holding
@@ -25,7 +26,8 @@ import 'more_widgets.dart';
 /// comes first. The Remind me row and the Sounds group are not in Figma:
 /// they try the timed close reminder and the candidate iQLY sounds. The
 /// last row, not in Figma either, says what this launch runs on and when
-/// the API last answered its health check.
+/// the API last answered its health check; holding it opens the sheet that
+/// switches between Live and Preview ([pickLaunchMode]).
 class TryNotificationsScreen extends ConsumerWidget {
   const TryNotificationsScreen({super.key});
 
@@ -161,17 +163,20 @@ class TryNotificationsScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: IqSpace.s3),
-          RowGroup(
-            children: [
-              IqListRow(
-                icon: IqIcons.info,
-                label: backend.isPreview ? 'Preview' : 'Live',
-                description: backendLine(backend, checkedAt),
-                descriptionMaxLines: 3,
-                showChevron: false,
-                divider: false,
-              ),
-            ],
+          GestureDetector(
+            onLongPress: () => pickLaunchMode(context, ref),
+            child: RowGroup(
+              children: [
+                IqListRow(
+                  icon: IqIcons.info,
+                  label: backend.isPreview ? 'Preview' : 'Live',
+                  description: backendLine(backend, checkedAt),
+                  descriptionMaxLines: 3,
+                  showChevron: false,
+                  divider: false,
+                ),
+              ],
+            ),
           ),
         ],
       ),
