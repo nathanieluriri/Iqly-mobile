@@ -153,6 +153,7 @@ Future<void> forgetSession(Reader read) async {
   await session.setFirstTipSeen(false);
   await session.setOnboardingDone(false);
   await session.setName(null);
+  await session.setUserId(null);
   await session.setSignedIn(false);
 }
 

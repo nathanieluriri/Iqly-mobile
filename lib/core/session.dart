@@ -18,6 +18,7 @@ class SessionState {
     this.firstTipSeen = false,
     this.firstName,
     this.name,
+    this.userId,
   });
 
   final bool signedIn;
@@ -31,6 +32,10 @@ class SessionState {
   /// holds it after any other sign-in. Null when neither has said.
   final String? name;
 
+  /// The account's id on the API, which keys this person's local store rows.
+  /// Null in preview and until the API has said.
+  final String? userId;
+
   SessionState copyWith({
     bool? signedIn,
     bool? onboardingDone,
@@ -41,6 +46,7 @@ class SessionState {
     firstTipSeen: firstTipSeen ?? this.firstTipSeen,
     firstName: firstName,
     name: name,
+    userId: userId,
   );
 }
 
@@ -50,6 +56,7 @@ class SessionNotifier extends Notifier<SessionState> {
   static const _firstTipSeen = 'session.firstTipSeen';
   static const _firstName = 'session.firstName';
   static const _name = 'session.name';
+  static const _userId = 'session.userId';
 
   @override
   SessionState build() {
@@ -60,6 +67,7 @@ class SessionNotifier extends Notifier<SessionState> {
       firstTipSeen: prefs.getBool(_firstTipSeen) ?? false,
       firstName: prefs.getString(_firstName),
       name: prefs.getString(_name),
+      userId: prefs.getString(_userId),
     );
   }
 
@@ -82,6 +90,7 @@ class SessionNotifier extends Notifier<SessionState> {
       firstTipSeen: state.firstTipSeen,
       firstName: first,
       name: full,
+      userId: state.userId,
     );
     final prefs = ref.read(sharedPreferencesProvider);
     await Future.wait([
@@ -90,6 +99,20 @@ class SessionNotifier extends Notifier<SessionState> {
           ? prefs.remove(_firstName)
           : prefs.setString(_firstName, first),
     ]);
+  }
+
+  Future<void> setUserId(String? value) async {
+    final id = value == null || value.isEmpty ? null : value;
+    state = SessionState(
+      signedIn: state.signedIn,
+      onboardingDone: state.onboardingDone,
+      firstTipSeen: state.firstTipSeen,
+      firstName: state.firstName,
+      name: state.name,
+      userId: id,
+    );
+    final prefs = ref.read(sharedPreferencesProvider);
+    await (id == null ? prefs.remove(_userId) : prefs.setString(_userId, id));
   }
 
   Future<void> _set(String key, bool value, SessionState next) async {
