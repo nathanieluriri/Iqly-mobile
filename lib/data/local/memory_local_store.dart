@@ -239,11 +239,32 @@ class MemoryLocalStore implements LocalStore {
     String id, {
     required String code,
     String? message,
-  }) async => _update(id, {
-    'status': OutboxStatus.failed.name,
-    'last_error_code': code,
-    'last_error_message': message,
-  });
+  }) async {
+    final row = _row(id);
+    if (row != null) _fail(row, code, message);
+  }
+
+  void _fail(Map<String, Object?> row, String code, String? message) {
+    row.addAll({
+      'status': OutboxStatus.failed.name,
+      'last_error_code': _overtaken(row) ? outboxSupersededCode : code,
+      'last_error_message': message,
+      'updated_at': LocalRows.time(_clock()),
+    });
+  }
+
+  /// Whether a newer item of [row]'s person has its coalesce key.
+  bool _overtaken(Map<String, Object?> row) {
+    final key = row['coalesce_key'];
+    if (key == null) return false;
+    return _outbox
+        .skip(_outbox.indexOf(row) + 1)
+        .any(
+          (newer) =>
+              newer['user_id'] == row['user_id'] &&
+              newer['coalesce_key'] == key,
+        );
+  }
 
   @override
   Future<int> resetSending() async => _updateAll(
@@ -257,6 +278,17 @@ class MemoryLocalStore implements LocalStore {
       'failures': 0,
       'failing_since': null,
     });
+    await resetBackoff(userId);
+  }
+
+  @override
+  Future<void> resetBackoff(String userId) async {
+    _updateAll(
+      (row) =>
+          row['user_id'] == userId &&
+          row['status'] == OutboxStatus.pending.name,
+      LocalRows.dueRow(_clock()),
+    );
   }
 
   int _updateAll(
@@ -292,17 +324,13 @@ class MemoryLocalStore implements LocalStore {
         status == OutboxStatus.done.name) {
       return false;
     }
-    _updateAll(
-      (other) =>
-          other['depends_on'] == id &&
+    for (final other in _outbox) {
+      if (other['depends_on'] == id &&
           (other['status'] == OutboxStatus.pending.name ||
-              other['status'] == OutboxStatus.failed.name),
-      {
-        'status': OutboxStatus.failed.name,
-        'last_error_code': dependantsCode,
-        'last_error_message': null,
-      },
-    );
+              other['status'] == OutboxStatus.failed.name)) {
+        _fail(other, dependantsCode, null);
+      }
+    }
     await _removeOutbox((other) => identical(other, row));
     return true;
   }

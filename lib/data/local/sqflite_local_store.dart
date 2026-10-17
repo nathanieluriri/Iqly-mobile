@@ -417,17 +417,34 @@ class SqfliteLocalStore implements LocalStore {
   }
 
   @override
-  Future<void> markFailed(
-    String id, {
-    required String code,
+  Future<void> markFailed(String id, {required String code, String? message}) =>
+      _fail(_db, 'id = ?', [id], code, message);
+
+  /// Fails the outbox rows matching [where], each with [code], or as
+  /// superseded when a newer item of its person has its coalesce key: one
+  /// statement, so the check and the failure cannot be split.
+  Future<void> _fail(
+    DatabaseExecutor db,
+    String where,
+    List<Object?> args,
+    String code,
     String? message,
-  }) async {
-    await _update(id, {
-      'status': _failed,
-      'last_error_code': code,
-      'last_error_message': message,
-    });
-  }
+  ) => db.rawUpdate(
+    'UPDATE ${LocalRows.outbox} SET status = ?, last_error_code = CASE '
+    'WHEN EXISTS (SELECT 1 FROM ${LocalRows.outbox} newer '
+    'WHERE newer.user_id = ${LocalRows.outbox}.user_id '
+    'AND newer.coalesce_key = ${LocalRows.outbox}.coalesce_key '
+    'AND newer.seq > ${LocalRows.outbox}.seq) THEN ? ELSE ? END, '
+    'last_error_message = ?, updated_at = ? WHERE $where',
+    [
+      _failed,
+      outboxSupersededCode,
+      code,
+      message,
+      LocalRows.time(_clock()),
+      ...args,
+    ],
+  );
 
   @override
   Future<int> resetSending() => _db.update(
@@ -438,8 +455,8 @@ class SqfliteLocalStore implements LocalStore {
   );
 
   @override
-  Future<void> resetFailures(String userId) async {
-    await _db.update(
+  Future<void> resetFailures(String userId) => _db.transaction((txn) async {
+    await txn.update(
       LocalRows.outbox,
       {
         'failures': 0,
@@ -448,6 +465,20 @@ class SqfliteLocalStore implements LocalStore {
       },
       where: 'user_id = ? AND status IN (?, ?)',
       whereArgs: [userId, _pending, _sending],
+    );
+    await _resetBackoff(txn, userId);
+  });
+
+  @override
+  Future<void> resetBackoff(String userId) => _resetBackoff(_db, userId);
+
+  Future<void> _resetBackoff(DatabaseExecutor db, String userId) {
+    final now = _clock();
+    return db.update(
+      LocalRows.outbox,
+      {...LocalRows.dueRow(now), 'updated_at': LocalRows.time(now)},
+      where: 'user_id = ? AND status = ?',
+      whereArgs: [userId, _pending],
     );
   }
 
@@ -476,16 +507,12 @@ class SqfliteLocalStore implements LocalStore {
       if (status == null || status == _sending || status == _done) {
         return (false, const <String>[]);
       }
-      await txn.update(
-        LocalRows.outbox,
-        {
-          'status': _failed,
-          'last_error_code': dependantsCode,
-          'last_error_message': null,
-          'updated_at': LocalRows.time(_clock()),
-        },
-        where: 'depends_on = ? AND status IN (?, ?)',
-        whereArgs: [id, _pending, _failed],
+      await _fail(
+        txn,
+        'depends_on = ? AND status IN (?, ?)',
+        [id, _pending, _failed],
+        dependantsCode,
+        null,
       );
       final paths = await _dropFiles(txn, 'id = ?', [id]);
       await txn.delete(LocalRows.outbox, where: 'id = ?', whereArgs: [id]);

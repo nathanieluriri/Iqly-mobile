@@ -18,9 +18,10 @@ enum OutboxStatus { pending, sending, failed, done }
 /// API's Retry-After asks for longer.
 const outboxLongestWait = Duration(minutes: 15);
 
-/// The code a failed item takes in place of its own when a newer write with
-/// its coalesce key is queued for the same person. The newer write carries
-/// what the person wants now, so the failed one can only be discarded.
+/// The code a failed item takes in place of its own when the store holds a
+/// newer item of the same person with its coalesce key, whether that item
+/// was queued before the failure or after it. The newer write carries what
+/// the person wants now, so the failed one can only be discarded.
 const outboxSupersededCode = 'SUPERSEDED';
 
 /// Removes a queued file from the phone once no outbox item needs it.
@@ -95,7 +96,7 @@ class OutboxItem {
   final String? lastErrorCode;
   final String? lastErrorMessage;
 
-  /// The API's Retry-After that set [nextAttemptAt], if it gave one.
+  /// The API's Retry-After that [nextAttemptAt] waits out, if it gave one.
   final Duration? retryAfter;
 
   /// Sends that failed in a row and will be tried again. A pause starts the
@@ -210,22 +211,30 @@ abstract class LocalStore {
     DateTime? failingSince,
   });
 
+  /// Fails the item with [code] and [message], or with
+  /// [outboxSupersededCode] in place of [code] when a newer item of the same
+  /// person has its coalesce key.
   Future<void> markFailed(String id, {required String code, String? message});
 
   /// Puts items a killed app left sending back to pending. Answers how many.
   Future<int> resetSending();
 
   /// Ends the run of failures of [userId]'s unsent items, as when the queue
-  /// pauses.
+  /// pauses, and puts their pending items due now.
   Future<void> resetFailures(String userId);
+
+  /// Puts [userId]'s pending items due now, keeping their run of failures,
+  /// as when the phone is back online.
+  Future<void> resetBackoff(String userId);
 
   /// Puts a failed item back to pending, due now, with its run of failures
   /// ended. Answers whether it was failed.
   Future<bool> requeue(String id);
 
   /// Removes a pending or failed item and its files. The items that depend
-  /// on it and are not on their way or done fail with [dependantsCode].
-  /// Answers whether it went: an item on its way or done stays.
+  /// on it and are not on their way or done fail with [dependantsCode] (see
+  /// [markFailed]). Answers whether it went: an item on its way or done
+  /// stays.
   Future<bool> discard(String id, {required String dependantsCode});
 
   /// Drops done items last changed before [before], keeping the ones an

@@ -13,8 +13,8 @@ sealed class OutboxResult {
   /// The API took it. [serverRef] is the id it gave what it created.
   const factory OutboxResult.done([String? serverRef]) = OutboxDone;
 
-  /// Not this time: send again [after] this long (the API's Retry-After),
-  /// or after the backoff without one.
+  /// Not this time: send again after the backoff, and no sooner than
+  /// [after] (the API's Retry-After) when it gives one.
   const factory OutboxResult.retry({
     Duration? after,
     String? code,
@@ -131,12 +131,12 @@ abstract final class OutboxCodes {
 }
 
 /// How an API answer lands in the outbox. No answer, a timeout, 5xx and 429
-/// are sent again ([retryAfter] first when the API gives one); 401 holds the
-/// queue for sign-in, 403 ACCOUNT_CLOSING until the account is restored and
-/// 426 until the app is updated; 409 SUBMISSION_DUPLICATE means an earlier
-/// send already landed; any other 4xx fails with its [code], and anything
-/// else is sent again. [serverRef] is the id the API answered, kept when the
-/// write is done.
+/// are sent again (no sooner than [retryAfter] when the API gives one); 401
+/// holds the queue for sign-in, 403 ACCOUNT_CLOSING until the account is
+/// restored and 426 until the app is updated; 409 SUBMISSION_DUPLICATE means
+/// an earlier send already landed; any other 4xx fails with its [code], and
+/// anything else is sent again. [serverRef] is the id the API answered, kept
+/// when the write is done.
 OutboxResult outboxResultFor({
   required int status,
   String? code,
@@ -201,8 +201,8 @@ class OutboxState {
 /// item waits while the item it depends on is not done, and while an older
 /// unsent item has its coalesce key; when an item fails, the items that
 /// depend on it fail the same way. A send that outlasts [sendTimeout] stays
-/// on its way while the rest of the queue goes on. Signing out is [stop],
-/// then [LocalStore.wipeUser].
+/// on its way while the rest of the queue goes on, up to [maxOnTheirWay]
+/// sends at once. Signing out is [stop], then [LocalStore.wipeUser].
 class Outbox {
   Outbox(
     this._store, {
@@ -219,6 +219,11 @@ class Outbox {
 
   /// Done items stay this long, then go at the next launch.
   static const keepDone = Duration(days: 1);
+
+  /// Sends that may be on their way at once: the one the queue waits for,
+  /// and one more once a send outlasts [sendTimeout]. With this many out,
+  /// the queue waits for one to settle, or for the next launch.
+  static const maxOnTheirWay = 2;
 
   /// How long the queue waits for a send before it goes on with other
   /// items. The item stays on its way, and its key and its dependants keep
@@ -241,6 +246,7 @@ class Outbox {
   Timer? _timer;
   Completer<void>? _waiting;
   final _onTheirWay = <String, OutboxItem>{};
+  String? _shownFor;
 
   // _generation tells a start still recovering that a later start or stop
   // overtook it. _epoch also moves on resume: a send picked in an older
@@ -355,6 +361,7 @@ class Outbox {
     // person before.
     _userId = null;
     _letGo();
+    if (_shownFor != userId) _publish(const OutboxState(), null);
     final recovery = _recovery ??= _recover();
     try {
       await recovery;
@@ -374,15 +381,28 @@ class Outbox {
     await _store.pruneDone(_clock().subtract(keepDone));
   }
 
-  /// Lifts a pause, after sign-in or once the account is restored. A send
-  /// that began before this cannot pause the queue again.
+  /// Lifts a pause, after sign-in or once the account is restored, and puts
+  /// the person's pending items due now. A send that began before this
+  /// cannot pause the queue again.
   Future<void> resume() async {
     _epoch++;
-    if (_pause != null) {
-      _pause = null;
-      await _refresh();
-    }
+    _pause = null;
+    await _dueNow();
     return kick();
+  }
+
+  /// Tells the queue the phone is back online: the person's pending items
+  /// are due now, keeping their run of failures, and what is due goes.
+  Future<void> networkBack() async {
+    await _dueNow();
+    return kick();
+  }
+
+  Future<void> _dueNow() async {
+    final userId = _userId;
+    if (userId == null) return;
+    await _store.resetBackoff(userId);
+    await _refresh();
   }
 
   /// Sends what is due. Completes once nothing more can go for now; a kick
@@ -406,7 +426,7 @@ class Outbox {
     _userId = null;
     _pause = null;
     _timer?.cancel();
-    _publish(const OutboxState());
+    _publish(const OutboxState(), null);
   }
 
   Future<void> dispose() async {
@@ -453,6 +473,10 @@ class Outbox {
         await _refresh();
         return true;
       }
+    }
+    if (_onTheirWay.length >= maxOnTheirWay) {
+      _wait = null;
+      return false;
     }
     final now = _clock();
     final due = await _store.dueOutbox(userId, now);
@@ -617,9 +641,10 @@ class Outbox {
           return;
         }
         final asked = after != null && after > Duration.zero ? after : null;
+        final backoff = outboxRetryDelay(failures, _random);
         await _store.markRetry(
           item.id,
-          at: now.add(asked ?? outboxRetryDelay(failures, _random)),
+          at: now.add(asked != null && asked > backoff ? asked : backoff),
           code: code,
           message: message,
           retryAfter: asked,
@@ -657,11 +682,15 @@ class Outbox {
         ],
         pause: _pause,
       ),
+      userId,
     );
   }
 
-  void _publish(OutboxState state) {
+  /// Shows [state], which holds the items of [userId] (none for an empty
+  /// state).
+  void _publish(OutboxState state, String? userId) {
     _state = state;
+    _shownFor = userId;
     if (!_changes.isClosed) _changes.add(state);
   }
 
