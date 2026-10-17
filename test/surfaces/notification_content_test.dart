@@ -137,4 +137,51 @@ void main() {
       expect(xcode, contains('${sound.iosFile} in Resources'));
     }
   });
+
+  test('the small icon is the cut-out logomark tile, also on the summaries '
+      'OneSignal builds; shortcuts are fg glyphs on a tint disc that read the '
+      'same on any launcher and theme', () {
+    String read(String path) => File(path).readAsStringSync();
+    const res = 'android/app/src/main/res';
+    final icon = read('$res/drawable/ic_stat_iqly.xml');
+    expect(icon, contains('tool/gen_status_icon.py'));
+    expect('<path'.allMatches(icon), hasLength(1));
+    expect(icon, contains('#FFFFFFFF'));
+
+    for (final name in ['polls', 'forward', 'submissions']) {
+      final adaptive = read('$res/drawable-anydpi-v26/ic_shortcut_$name.xml');
+      expect(
+        adaptive,
+        contains('<background android:drawable="@color/iq_tint"'),
+      );
+      expect(adaptive, contains('@drawable/ic_shortcut_${name}_foreground'));
+      for (final glyph in [
+        read('$res/drawable/ic_shortcut_$name.xml'),
+        read('$res/drawable/ic_shortcut_${name}_foreground.xml'),
+      ]) {
+        expect(glyph, contains('@color/iq_fg'));
+        expect(glyph, isNot(contains('#2D0048')));
+      }
+    }
+    expect(
+      Directory('$res/values-night').listSync().map((f) => f.path),
+      isNot(contains(endsWith('surface_colors.xml'))),
+    );
+    final accent = RegExp(r'name="iq_accent">#([0-9A-F]{8})<')
+        .firstMatch(read('$res/values/iq_colors.xml'))![1];
+    final oneSignal = read('$res/values/onesignal.xml');
+    expect(oneSignal, contains('>@drawable/ic_stat_iqly<'));
+    expect(oneSignal, contains('ic_stat_onesignal_default'));
+    expect(
+      oneSignal,
+      contains(
+        '"onesignal_notification_accent_color" translatable="false">$accent<',
+      ),
+    );
+    final push = read(
+      'android/app/src/main/kotlin/net/iqly/app/IqlyPushExtension.kt',
+    );
+    expect(push, contains('R.color.iq_accent'));
+    expect(push, isNot(contains('R.color.iq_brand')));
+  });
 }

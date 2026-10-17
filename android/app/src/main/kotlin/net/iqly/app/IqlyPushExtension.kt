@@ -19,7 +19,7 @@ class IqlyPushExtension : INotificationServiceExtension {
             NotificationCompat.Extender { builder ->
                 builder
                     .setSmallIcon(R.drawable.ic_stat_iqly)
-                    .setColor(ContextCompat.getColor(context, R.color.iq_brand))
+                    .setColor(ContextCompat.getColor(context, R.color.iq_accent))
                     .setStyle(NotificationCompat.BigTextStyle().bigText(body))
                 data.optString("subtext").takeIf { it.isNotEmpty() }?.let(builder::setSubText)
 
@@ -49,7 +49,7 @@ class IqlyPushExtension : INotificationServiceExtension {
                         .setPublicVersion(
                             NotificationCompat.Builder(context, "")
                                 .setSmallIcon(R.drawable.ic_stat_iqly)
-                                .setColor(ContextCompat.getColor(context, R.color.iq_brand))
+                                .setColor(ContextCompat.getColor(context, R.color.iq_accent))
                                 .setContentTitle(context.getString(R.string.app_name))
                                 .setContentText(data.optString("publicText"))
                                 .build(),
