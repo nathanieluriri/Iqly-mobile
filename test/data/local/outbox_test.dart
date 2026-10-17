@@ -8,6 +8,7 @@ import 'package:iqly_mobile/data/local/memory_local_store.dart';
 import 'package:iqly_mobile/data/local/outbox.dart';
 
 import '../../support/local_stores.dart';
+import '../../support/outbox_fakes.dart';
 
 Map<String, Object?> _merge(
   Map<String, dynamic> older,
@@ -61,7 +62,7 @@ Future<void> main() async {
       );
     });
 
-    test('holds the queue on 401 and on a closing account', () {
+    test('holds the queue on 401, a closing account and 426', () {
       expect(
         outboxResultFor(status: 401, code: 'UNAUTHORIZED'),
         const OutboxResult.pauseForSignIn(),
@@ -69,6 +70,10 @@ Future<void> main() async {
       expect(
         outboxResultFor(status: 403, code: 'ACCOUNT_CLOSING'),
         const OutboxResult.pauseForClosing(),
+      );
+      expect(
+        outboxResultFor(status: 426, code: 'UPGRADE_REQUIRED'),
+        const OutboxResult.pauseForUpgrade(),
       );
     });
 
@@ -339,12 +344,14 @@ Future<void> main() async {
         expect((await stored(item)).status, OutboxStatus.done);
       });
 
-      test(
-        'gives up on an item still failing a day after it was queued',
-        () async {
-          answer('note', [outboxResultFor(status: 0, networkError: true)]);
+      group('giving up', () {
+        final lost = outboxResultFor(status: 0, networkError: true);
+
+        test('comes after a day of failures since the first', () async {
+          answer('note', [lost]);
           final item = await queue('A');
           await outbox.start('u1');
+          expect((await stored(item)).failingSince, clock.now);
           clock.advance(const Duration(hours: 23, minutes: 59));
           await outbox.kick();
           expect(sent, ['A', 'A']);
@@ -358,8 +365,263 @@ Future<void> main() async {
           expect(failed.lastErrorCode, OutboxCodes.expired);
           expect(failed.lastErrorMessage, OutboxCodes.network);
           expect(outbox.state.failed.single.id, item.id);
-        },
-      );
+        });
+
+        test('does not count the time before the first send', () async {
+          answer('note', [lost, const OutboxResult.done()]);
+          final item = await queue('A');
+          clock.advance(const Duration(hours: 25));
+          await outbox.start('u1');
+          final waiting = await stored(item);
+          expect(waiting.status, OutboxStatus.pending);
+          expect(waiting.failingSince, clock.now);
+          clock.advance(outboxLongestWait);
+          await outbox.kick();
+          expect((await stored(item)).status, OutboxStatus.done);
+        });
+
+        test('waits out a Retry-After on a write queued days ago', () async {
+          answer('note', [
+            outboxResultFor(
+              status: 429,
+              code: 'RATE_LIMITED',
+              retryAfter: const Duration(seconds: 30),
+            ),
+            const OutboxResult.done(),
+          ]);
+          final item = await queue('A');
+          clock.advance(const Duration(hours: 30));
+          await outbox.start('u1');
+          expect((await stored(item)).status, OutboxStatus.pending);
+          clock.advance(const Duration(seconds: 30));
+          await outbox.kick();
+          expect((await stored(item)).status, OutboxStatus.done);
+        });
+
+        test('gives a dependant first tried late a day of its own', () async {
+          var uploadFails = true;
+          outbox.register('upload', (item) async {
+            sent.add('upload');
+            return uploadFails ? lost : const OutboxResult.done('up_1');
+          });
+          answer('submission', [
+            outboxResultFor(status: 503),
+            outboxResultFor(status: 503),
+            const OutboxResult.done('s_1'),
+          ]);
+          final upload = await queue('upload', kind: 'upload');
+          final submission = await queue(
+            'submission',
+            kind: 'submission',
+            dependsOn: upload.id,
+          );
+          await outbox.start('u1');
+          clock.advance(const Duration(hours: 23));
+          uploadFails = false;
+          await outbox.kick();
+          expect(sent, ['upload', 'upload', 'submission']);
+
+          clock.advance(const Duration(hours: 2));
+          await outbox.kick();
+          final waiting = await stored(submission);
+          expect(waiting.status, OutboxStatus.pending);
+          expect(waiting.lastErrorCode, 'HTTP_503');
+
+          clock.advance(outboxLongestWait);
+          await outbox.kick();
+          expect((await stored(submission)).status, OutboxStatus.done);
+        });
+
+        test('does not count a week waiting for sign-in', () async {
+          var signedIn = false;
+          outbox.register('upload', (item) async {
+            sent.add('upload');
+            return outboxResultFor(status: signedIn ? 503 : 401);
+          });
+          answer('submission', [const OutboxResult.done('s_1')]);
+          final upload = await queue('upload', kind: 'upload');
+          final submission = await queue(
+            'submission',
+            kind: 'submission',
+            dependsOn: upload.id,
+          );
+          await outbox.start('u1');
+          expect(outbox.state.pause, OutboxPause.signIn);
+          expect((await stored(upload)).failingSince, isNull);
+
+          clock.advance(const Duration(days: 7));
+          signedIn = true;
+          await outbox.resume();
+          final waiting = await stored(upload);
+          expect(waiting.status, OutboxStatus.pending);
+          expect(waiting.lastErrorCode, 'HTTP_503');
+          expect(waiting.failingSince, clock.now);
+          expect((await stored(submission)).status, OutboxStatus.pending);
+        });
+
+        test('starts again for every write when the queue pauses', () async {
+          answer('note', [outboxResultFor(status: 503)]);
+          answer('other', [
+            outboxResultFor(status: 401),
+            const OutboxResult.done(),
+          ]);
+          final failing = await queue('A');
+          await outbox.start('u1');
+          final since = clock.now;
+          expect((await stored(failing)).failingSince, since);
+
+          clock.advance(const Duration(hours: 20));
+          await queue('B', kind: 'other');
+          await outbox.kick();
+          expect(outbox.state.pause, OutboxPause.signIn);
+          expect((await stored(failing)).failingSince, isNull);
+
+          clock.advance(const Duration(days: 3));
+          await outbox.resume();
+          final waiting = await stored(failing);
+          expect(waiting.status, OutboxStatus.pending);
+          expect(waiting.failingSince, clock.now);
+          expect(outbox.state.pending, 1);
+        });
+
+        test('fails the dependants of an item it gives up on', () async {
+          answer('upload', [lost]);
+          answer('submission', [const OutboxResult.done()]);
+          final upload = await queue('upload', kind: 'upload');
+          final submission = await queue(
+            'submission',
+            kind: 'submission',
+            dependsOn: upload.id,
+          );
+          await outbox.start('u1');
+          clock.advance(const Duration(hours: 24, minutes: 1));
+          await outbox.kick();
+          expect((await stored(upload)).lastErrorCode, OutboxCodes.expired);
+          final failed = await stored(submission);
+          expect(failed.status, OutboxStatus.failed);
+          expect(failed.lastErrorCode, OutboxCodes.expired);
+          expect(sent, ['upload', 'upload']);
+        });
+      });
+
+      group('a change after a send went out', () {
+        test('goes under its own key when the answer was lost', () async {
+          final server = IdempotentServer();
+          var loseAnswer = true;
+          outbox.register('proof', (item) async {
+            final reply = server.post(item);
+            if (!loseAnswer) return reply;
+            loseAnswer = false;
+            return outboxResultFor(status: 0, networkError: true);
+          });
+          Future<OutboxItem> photo(String file) => outbox.enqueue(
+            'u1',
+            kind: 'proof',
+            payload: {'resource': 'proof:a_1:1', 'value': file},
+            coalesceKey: 'proof:a_1:1',
+            merge: _merge,
+          );
+          await outbox.start('u1');
+          final first = await photo('blurry.jpg');
+          await pumpEventQueue();
+          expect(server.applied, ['u1/proof:a_1:1=blurry.jpg']);
+
+          final retaken = await photo('sharp.jpg');
+          expect(retaken.id, isNot(first.id));
+          clock.advance(outboxLongestWait);
+          await outbox.kick();
+          expect(server.requests, [first.id, first.id, retaken.id]);
+          expect(server.resources['u1/proof:a_1:1'], 'sharp.jpg');
+          expect(await store.outbox('u1'), isEmpty);
+        });
+
+        test(
+          'goes under its own key after a killed app sent the first',
+          () async {
+            final server = IdempotentServer();
+            Future<OutboxItem> photo(String file) => store.enqueue(
+              'u1',
+              kind: 'proof',
+              payload: {'resource': 'proof:a_1:1', 'value': file},
+              coalesceKey: 'proof:a_1:1',
+              merge: _merge,
+            );
+            final first = await photo('blurry.jpg');
+            server.post((await store.markSending(first.id))!);
+
+            final retaken = await photo('sharp.jpg');
+            expect(retaken.id, isNot(first.id));
+            outbox.register('proof', (item) async => server.post(item));
+            await outbox.start('u1');
+            expect(server.applied, [
+              'u1/proof:a_1:1=blurry.jpg',
+              'u1/proof:a_1:1=sharp.jpg',
+            ]);
+            expect(server.resources['u1/proof:a_1:1'], 'sharp.jpg');
+            expect(await store.outbox('u1'), isEmpty);
+          },
+        );
+      });
+
+      group('a phone clock set back', () {
+        test('does not hold a write queued before it', () async {
+          answer('note', [const OutboxResult.done()]);
+          final item = await queue('A');
+          clock.now = clock.now.subtract(const Duration(days: 1));
+          await outbox.start('u1');
+          expect(sent, ['A']);
+          expect((await stored(item)).status, OutboxStatus.done);
+        });
+
+        test('does not stretch a backoff past 15 minutes', () async {
+          answer('note', [
+            outboxResultFor(status: 0, networkError: true),
+            const OutboxResult.done(),
+          ]);
+          await outbox.start('u1');
+          final item = await queue('A');
+          await pumpEventQueue();
+          expect(sent, ['A']);
+          clock.now = clock.now.subtract(const Duration(hours: 6));
+          await outbox.kick();
+          expect(sent, ['A', 'A']);
+          expect((await stored(item)).status, OutboxStatus.done);
+        });
+
+        test('lets writes made after it go too', () async {
+          answer('profile', [const OutboxResult.done()]);
+          Future<OutboxItem> edit(String label) => outbox.enqueue(
+            'u1',
+            kind: 'profile',
+            payload: {'label': label},
+            coalesceKey: 'profile',
+            merge: _merge,
+          );
+          await edit('Ada');
+          clock.now = clock.now.subtract(const Duration(days: 2));
+          await outbox.start('u1');
+          await edit('Yaba');
+          await pumpEventQueue();
+          expect(sent, ['Ada', 'Yaba']);
+          expect(await store.outbox('u1'), isEmpty);
+        });
+
+        test('still honours a Retry-After longer than 15 minutes', () async {
+          answer('note', [
+            outboxResultFor(status: 503, retryAfter: const Duration(hours: 1)),
+            const OutboxResult.done(),
+          ]);
+          final item = await queue('A');
+          await outbox.start('u1');
+          expect((await stored(item)).retryAfter, const Duration(hours: 1));
+          clock.advance(const Duration(minutes: 59));
+          await outbox.kick();
+          expect(sent, ['A']);
+          clock.advance(const Duration(minutes: 1));
+          await outbox.kick();
+          expect(sent, ['A', 'A']);
+        });
+      });
 
       test(
         '401 holds the whole queue until resume, keeping the items',
@@ -560,22 +822,253 @@ Future<void> main() async {
         expect(states.last.pending, 1);
         expect(states.last.failed.single.id, refused.id);
       });
+
+      test('426 holds the queue until the updated app starts it', () async {
+        answer('note', [
+          outboxResultFor(status: 426, code: 'UPGRADE_REQUIRED'),
+          const OutboxResult.done(),
+        ]);
+        final item = await queue('A');
+        await queue('B');
+        await outbox.start('u1');
+        expect(sent, ['A']);
+        expect(outbox.state.pause, OutboxPause.upgrade);
+        final held = await stored(item);
+        expect(held.status, OutboxStatus.pending);
+        expect(held.lastErrorCode, 'UPGRADE_REQUIRED');
+        await outbox.kick();
+        expect(sent, ['A']);
+
+        await outbox.start('u1');
+        expect(sent, ['A', 'A', 'B']);
+        expect(outbox.state.pause, isNull);
+      });
+
+      group('a pause from a send that began before', () {
+        late Completer<OutboxResult> reply;
+
+        setUp(() {
+          reply = Completer<OutboxResult>();
+          addTearDown(() {
+            if (!reply.isCompleted) reply.complete(const OutboxResult.done());
+          });
+          outbox.register('note', (item) {
+            sent.add(item.payload['label'] as String);
+            return sent.length == 1
+                ? reply.future
+                : Future.value(const OutboxResult.done());
+          });
+        });
+
+        test('signing in again is ignored', () async {
+          await outbox.start('u1');
+          await queue('A');
+          await pumpEventQueue();
+          final again = outbox.start('u1');
+          await pumpEventQueue();
+          reply.complete(const OutboxResult.pauseForSignIn());
+          await again;
+          await queue('B');
+          await outbox.kick();
+          expect(outbox.state.pause, isNull);
+          expect(sent, ['A', 'A', 'B']);
+        });
+
+        test('resume is ignored', () async {
+          await outbox.start('u1');
+          await queue('A');
+          await pumpEventQueue();
+          final resumed = outbox.resume();
+          reply.complete(outboxResultFor(status: 403, code: 'ACCOUNT_CLOSING'));
+          await resumed;
+          await outbox.kick();
+          expect(outbox.state.pause, isNull);
+          expect(sent, ['A', 'A']);
+        });
+      });
+
+      test('stop does not wait for a send on its way, and a wipe leaves '
+          'nothing behind', () async {
+        final reply = Completer<OutboxResult>();
+        addTearDown(() {
+          if (!reply.isCompleted) reply.complete(const OutboxResult.done());
+        });
+        outbox.register('note', (item) => reply.future);
+        await outbox.start('u1');
+        final item = await outbox.enqueue(
+          'u1',
+          kind: 'note',
+          payload: {},
+          files: const [
+            OutboxFile(localPath: '/x/a.jpg', bytes: 1, mime: 'image/jpeg'),
+          ],
+        );
+        await pumpEventQueue();
+        var stopped = false;
+        unawaited(outbox.stop().then((_) => stopped = true));
+        await pumpEventQueue();
+        expect(stopped, isTrue);
+
+        await store.wipeUser('u1');
+        reply.complete(const OutboxResult.done('n_1'));
+        await pumpEventQueue();
+        expect(await store.outboxItem(item.id), isNull);
+        await outbox.start('u1');
+        expect(await store.outbox('u1'), isEmpty);
+      });
+
+      test('a write picked before a switch to another person is not sent '
+          'in their session', () async {
+        final gated = GatedStore(store);
+        final switching = Outbox(gated, clock: clock.call, random: Random(5));
+        addTearDown(switching.dispose);
+        final handed = <String>[];
+        switching.register('note', (item) async {
+          handed.add(item.userId);
+          return const OutboxResult.done();
+        });
+        await switching.start('u1');
+        final gate = gated.dueGate = Completer<void>();
+        addTearDown(() {
+          if (!gate.isCompleted) gate.complete();
+        });
+        final mine = await store.enqueue('u1', kind: 'note', payload: {});
+        unawaited(switching.kick());
+        await pumpEventQueue();
+        await switching.stop();
+        final theirs = switching.start('u2');
+        await pumpEventQueue();
+        gated.dueGate = null;
+        gate.complete();
+        await theirs;
+        expect(handed, isEmpty);
+        expect((await stored(mine)).status, OutboxStatus.pending);
+
+        await switching.start('u1');
+        expect(handed, ['u1']);
+      });
+
+      test('a start that fails to recover leaves the next start to try '
+          'again', () async {
+        final gated = GatedStore(store)
+          ..failNextReset = StateError('database is locked');
+        final flaky = Outbox(gated, clock: clock.call, random: Random(6));
+        addTearDown(flaky.dispose);
+        flaky.register('note', (item) async {
+          sent.add(item.payload['label'] as String);
+          return const OutboxResult.done();
+        });
+        await store.enqueue('u1', kind: 'note', payload: {'label': 'A'});
+        await expectLater(flaky.start('u1'), throwsStateError);
+        await flaky.start('u1');
+        expect(sent, ['A']);
+      });
+
+      test(
+        'a send that never answers times out and the queue moves on',
+        () async {
+          final watched = Outbox(
+            store,
+            clock: clock.call,
+            random: Random(3),
+            sendTimeout: const Duration(milliseconds: 100),
+          );
+          addTearDown(watched.dispose);
+          var uploads = 0;
+          watched.register('upload', (item) {
+            uploads++;
+            return uploads == 1
+                ? Completer<OutboxResult>().future
+                : Future.value(const OutboxResult.done());
+          });
+          watched.register('note', (item) async {
+            sent.add(item.payload['label'] as String);
+            return const OutboxResult.done();
+          });
+          final upload = await store.enqueue('u1', kind: 'upload', payload: {});
+          await store.enqueue('u1', kind: 'note', payload: {'label': 'A'});
+          await watched.start('u1');
+          expect(sent, ['A']);
+          final retried = await stored(upload);
+          expect(retried.status, OutboxStatus.pending);
+          expect(retried.lastErrorCode, OutboxCodes.timedOut);
+          expect(retried.failingSince, isNotNull);
+        },
+      );
     }, skip: backend.skip);
   }
 
   group('outbox timer', () {
     late List<String> sent;
+    late LocalStore store;
+    var setBack = Duration.zero;
 
     Outbox open(FakeAsync async) {
       final start = DateTime(2026, 10, 17, 9);
-      DateTime now() => start.add(async.elapsed);
+      DateTime now() => start.add(async.elapsed).subtract(setBack);
       sent = [];
-      return Outbox(
-        MemoryLocalStore(clock: now),
-        clock: now,
-        random: Random(7),
-      );
+      setBack = Duration.zero;
+      store = MemoryLocalStore(clock: now);
+      return Outbox(store, clock: now, random: Random(7));
     }
+
+    OutboxItem? read(FakeAsync async, String id) {
+      OutboxItem? found;
+      store.outboxItem(id).then((item) => found = item);
+      async.flushMicrotasks();
+      return found;
+    }
+
+    test('a send gets two minutes before it counts as failed', () {
+      fakeAsync((async) {
+        final outbox = open(async);
+        var sends = 0;
+        outbox.register('note', (item) {
+          sends++;
+          return sends == 1
+              ? Completer<OutboxResult>().future
+              : Future.value(const OutboxResult.done());
+        });
+        outbox.start('u1');
+        late OutboxItem item;
+        outbox.enqueue('u1', kind: 'note', payload: {}).then((i) => item = i);
+        async.flushMicrotasks();
+        async.elapse(const Duration(minutes: 1, seconds: 59));
+        expect(read(async, item.id)!.status, OutboxStatus.sending);
+
+        async.elapse(const Duration(seconds: 1));
+        final timedOut = read(async, item.id)!;
+        expect(timedOut.status, OutboxStatus.pending);
+        expect(timedOut.lastErrorCode, OutboxCodes.timedOut);
+        async.elapse(const Duration(seconds: 2));
+        expect(sends, 2);
+        expect(read(async, item.id)!.status, OutboxStatus.done);
+        outbox.dispose();
+        async.flushMicrotasks();
+      });
+    });
+
+    test('a clock set back while a retry waits does not stall it', () {
+      fakeAsync((async) {
+        final outbox = open(async);
+        outbox.register('note', (item) async {
+          sent.add('A');
+          return sent.length == 1
+              ? const OutboxResult.retry(after: Duration(seconds: 30))
+              : const OutboxResult.done();
+        });
+        outbox.start('u1');
+        outbox.enqueue('u1', kind: 'note', payload: {});
+        async.flushMicrotasks();
+        expect(sent, ['A']);
+        setBack = const Duration(days: 1);
+        async.elapse(const Duration(seconds: 30));
+        expect(sent, ['A', 'A']);
+        expect(outbox.state.pending, 0);
+        outbox.dispose();
+        async.flushMicrotasks();
+      });
+    });
 
     test('sends a retry when it is due, with no kick', () {
       fakeAsync((async) {

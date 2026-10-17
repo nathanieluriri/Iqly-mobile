@@ -74,6 +74,8 @@ class SqfliteLocalStore implements LocalStore {
           next_attempt_at INTEGER NOT NULL,
           last_error_code TEXT,
           last_error_message TEXT,
+          retry_after INTEGER,
+          failing_since INTEGER,
           server_ref TEXT,
           created_at INTEGER NOT NULL,
           updated_at INTEGER NOT NULL
@@ -192,13 +194,13 @@ class SqfliteLocalStore implements LocalStore {
       if (coalesceKey != null) {
         final rows = await txn.query(
           LocalRows.outbox,
-          where: 'user_id = ? AND coalesce_key = ? AND status = ?',
-          whereArgs: [userId, coalesceKey, _pending],
+          where: 'user_id = ? AND coalesce_key = ? AND status IN (?, ?)',
+          whereArgs: [userId, coalesceKey, _pending, _sending],
           orderBy: 'seq DESC',
           limit: 1,
         );
         final older = rows.firstOrNull;
-        if (older != null && LocalRows.joins(older, dependsOn)) {
+        if (older != null && LocalRows.folds(older, dependsOn)) {
           final id = older['id']! as String;
           await txn.update(
             LocalRows.outbox,
@@ -290,8 +292,15 @@ class SqfliteLocalStore implements LocalStore {
   @override
   Future<List<OutboxItem>> dueOutbox(String userId, DateTime now) => _items(
     _db,
-    'user_id = ? AND status = ? AND next_attempt_at <= ?',
-    [userId, _pending, LocalRows.time(now)],
+    'user_id = ? AND status = ? AND (next_attempt_at <= ? OR '
+    'next_attempt_at > ? + max(?, coalesce(retry_after, 0)))',
+    [
+      userId,
+      _pending,
+      LocalRows.time(now),
+      LocalRows.time(now),
+      outboxLongestWait.inMicroseconds,
+    ],
   );
 
   @override
@@ -324,13 +333,19 @@ class SqfliteLocalStore implements LocalStore {
     required DateTime at,
     String? code,
     String? message,
+    Duration? retryAfter,
+    DateTime? failingSince,
   }) async {
-    await _update(id, {
-      'status': _pending,
-      'next_attempt_at': LocalRows.time(at),
-      'last_error_code': code,
-      'last_error_message': message,
-    });
+    await _update(
+      id,
+      LocalRows.retryRow(
+        at: at,
+        code: code,
+        message: message,
+        retryAfter: retryAfter,
+        failingSince: failingSince,
+      ),
+    );
   }
 
   @override
@@ -353,6 +368,16 @@ class SqfliteLocalStore implements LocalStore {
     where: 'status = ?',
     whereArgs: [_sending],
   );
+
+  @override
+  Future<void> resetFailingSince(String userId) async {
+    await _db.update(
+      LocalRows.outbox,
+      {'failing_since': null, 'updated_at': LocalRows.time(_clock())},
+      where: 'user_id = ? AND status IN (?, ?)',
+      whereArgs: [userId, _pending, _sending],
+    );
+  }
 
   @override
   Future<int> pruneDone(DateTime before) => _db.transaction((txn) async {

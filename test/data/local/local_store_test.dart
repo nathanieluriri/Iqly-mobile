@@ -217,6 +217,8 @@ Future<void> main() async {
           expect(stored.updatedAt, clock.now);
           expect(stored.coalesceKey, isNull);
           expect(stored.dependsOn, isNull);
+          expect(stored.retryAfter, isNull);
+          expect(stored.failingSince, isNull);
           expect(stored.serverRef, isNull);
           expect(
             [for (final f in stored.files) f.localPath],
@@ -389,6 +391,82 @@ Future<void> main() async {
           );
         });
 
+        test('a write folds only into an item never sent', () async {
+          Future<OutboxItem> write(String key, String label) => store.enqueue(
+            'u1',
+            kind: 'proof',
+            payload: {'label': label},
+            coalesceKey: key,
+          );
+
+          final onItsWay = await write('proof', 'blurry');
+          await store.markSending(onItsWay.id);
+          final behind = await write('proof', 'sharp');
+          expect(behind.id, isNot(onItsWay.id));
+          expect((await write('proof', 'sharper')).id, behind.id);
+
+          final retried = await write('bio', 'one');
+          await store.markSending(retried.id);
+          await store.markRetry(retried.id, at: clock.now);
+          expect((await write('bio', 'two')).id, isNot(retried.id));
+
+          final cutOff = await write('avatar', 'x');
+          await store.markSending(cutOff.id);
+          await store.resetSending();
+          expect((await write('avatar', 'y')).id, isNot(cutOff.id));
+
+          expect(await labels('u1'), [
+            'blurry',
+            'sharper',
+            'one',
+            'two',
+            'x',
+            'y',
+          ]);
+        });
+
+        test('an item due further ahead than any wait set for it is due '
+            'now, as after the clock was set back', () async {
+          Future<void> waiting(
+            String label,
+            Duration wait, [
+            Duration? retryAfter,
+          ]) async {
+            final queued = await store.enqueue(
+              'u1',
+              kind: 'note',
+              payload: {'label': label},
+            );
+            await store.markRetry(
+              queued.id,
+              at: clock.now.add(wait),
+              retryAfter: retryAfter,
+            );
+          }
+
+          await waiting('backoff', const Duration(minutes: 10));
+          await waiting('longest', outboxLongestWait);
+          await waiting('skewed', const Duration(minutes: 16));
+          await waiting(
+            'asked',
+            const Duration(minutes: 50),
+            const Duration(hours: 1),
+          );
+          await waiting(
+            'askedSkewed',
+            const Duration(minutes: 61),
+            const Duration(hours: 1),
+          );
+          final due = await store.dueOutbox('u1', clock.now);
+          expect(
+            [for (final i in due) i.payload['label']],
+            ['skewed', 'askedSkewed'],
+          );
+          for (final item in due) {
+            expect(item.dueAt(clock.now), clock.now);
+          }
+        });
+
         test('due items are the person\'s pending ones whose time has '
             'come, oldest first', () async {
           Future<String> add(String label, [String user = 'u1']) async =>
@@ -450,17 +528,28 @@ Future<void> main() async {
           final queued = await store.enqueue('u1', kind: 'note', payload: {});
           await store.markSending(queued.id);
           final at = clock.now.add(const Duration(seconds: 30));
+          final since = clock.now.subtract(const Duration(hours: 2));
           await store.markRetry(
             queued.id,
             at: at,
             code: 'RATE_LIMITED',
             message: 'Slow down',
+            retryAfter: const Duration(seconds: 30),
+            failingSince: since,
           );
           var stored = await item(queued.id);
           expect(stored.status, OutboxStatus.pending);
           expect(stored.nextAttemptAt, at);
           expect(stored.lastErrorCode, 'RATE_LIMITED');
           expect(stored.lastErrorMessage, 'Slow down');
+          expect(stored.retryAfter, const Duration(seconds: 30));
+          expect(stored.failingSince, since);
+
+          await store.markSending(queued.id);
+          await store.markRetry(queued.id, at: at, code: 'UNAUTHORIZED');
+          stored = await item(queued.id);
+          expect(stored.retryAfter, isNull);
+          expect(stored.failingSince, isNull);
 
           await store.markFailed(
             queued.id,
@@ -471,8 +560,41 @@ Future<void> main() async {
           expect(stored.status, OutboxStatus.failed);
           expect(stored.lastErrorCode, 'UNDER_AGE');
           expect(stored.lastErrorMessage, 'You need to be 18');
-          expect(stored.attempts, 1);
+          expect(stored.attempts, 2);
         });
+
+        test(
+          'the give-up clock stops for the person\'s unsent items',
+          () async {
+            final since = clock.now;
+            Future<OutboxItem> failing(String user) async {
+              final queued = await store.enqueue(
+                user,
+                kind: 'note',
+                payload: {},
+              );
+              await store.markSending(queued.id);
+              await store.markRetry(
+                queued.id,
+                at: clock.now,
+                failingSince: since,
+              );
+              return queued;
+            }
+
+            final waiting = await failing('u1');
+            final sending = await failing('u1');
+            await store.markSending(sending.id);
+            final refused = await failing('u1');
+            await store.markFailed(refused.id, code: 'OUTBOX_EXPIRED');
+            final theirs = await failing('u2');
+            await store.resetFailingSince('u1');
+            expect((await item(waiting.id)).failingSince, isNull);
+            expect((await item(sending.id)).failingSince, isNull);
+            expect((await item(refused.id)).failingSince, since);
+            expect((await item(theirs.id)).failingSince, since);
+          },
+        );
 
         test('sending items go back to pending after a restart', () async {
           final one = await store.enqueue('u1', kind: 'note', payload: {});
