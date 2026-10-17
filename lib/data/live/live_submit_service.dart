@@ -8,13 +8,19 @@ import '../submit_service.dart';
 import 'mappers.dart';
 
 /// The answer as the API stores it: each paragraph (split on blank lines)
-/// escaped and wrapped in `<p>`.
+/// escaped and wrapped in `<p>`, a single line break inside it as `<br>`.
+/// HTML reads a bare newline as a space, so without the `<br>` a typed list
+/// would reach the business, and come back, as one line.
 String answerHtml(String answer) => [
   for (final paragraph in answer.replaceAll('\r\n', '\n').split(_blankLine))
-    if (paragraph.trim().isNotEmpty) '<p>${_escape(paragraph.trim())}</p>',
+    if (paragraph.trim().isNotEmpty) '<p>${_lines(paragraph)}</p>',
 ].join();
 
 final _blankLine = RegExp(r'\n\s*\n');
+
+String _lines(String paragraph) =>
+    [for (final line in paragraph.trim().split('\n')) _escape(line.trim())]
+        .join('<br>');
 
 String _escape(String text) => text
     .replaceAll('&', '&amp;')

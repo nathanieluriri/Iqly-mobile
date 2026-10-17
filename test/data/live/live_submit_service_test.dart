@@ -176,10 +176,19 @@ void main() {
         ),
         '<p>Give a bonus &lt;bundle&gt; &amp; a badge.</p>'
         '<p>Then tell people.</p>'
-        '<p>On Sundays.\nEvery week.</p>',
+        '<p>On Sundays.<br>Every week.</p>',
       );
       expect(answerHtml('One line'), '<p>One line</p>');
       expect(answerHtml('a\n\n\n\nb'), '<p>a</p><p>b</p>');
+    });
+
+    test('a single line break stays a line break', () {
+      expect(
+        answerHtml(
+          'What would get me to switch:\r\n1. A bigger pack  \n  2. A sample',
+        ),
+        '<p>What would get me to switch:<br>1. A bigger pack<br>2. A sample</p>',
+      );
     });
   });
 
