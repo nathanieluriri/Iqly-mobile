@@ -878,16 +878,16 @@ Future<void> main() async {
         });
 
         test('resetBackoff puts the person\'s pending items due now, keeping '
-            'their run of failures', () async {
+            'their run of failures and any wait the API asked for', () async {
           final since = clock.now;
-          Future<OutboxItem> waiting(String user) async {
+          Future<OutboxItem> waiting(String user, {Duration? asked}) async {
             final queued = await store.enqueue(user, kind: 'note', payload: {});
             await store.markSending(queued.id);
             await store.markRetry(
               queued.id,
               at: clock.now.add(const Duration(minutes: 14)),
               code: 'HTTP_503',
-              retryAfter: const Duration(minutes: 14),
+              retryAfter: asked,
               failures: 7,
               failingSince: since,
             );
@@ -895,6 +895,7 @@ Future<void> main() async {
           }
 
           final mine = await waiting('u1');
+          final asked = await waiting('u1', asked: const Duration(minutes: 14));
           final theirs = await waiting('u2');
           final sending = await waiting('u1');
           await store.markSending(sending.id);
@@ -902,7 +903,6 @@ Future<void> main() async {
           await store.resetBackoff('u1');
           final due = await item(mine.id);
           expect(due.nextAttemptAt, clock.now);
-          expect(due.retryAfter, isNull);
           expect(due.failures, 7);
           expect(due.failingSince, since);
           expect(due.lastErrorCode, 'HTTP_503');
@@ -910,6 +910,9 @@ Future<void> main() async {
             [for (final i in await store.dueOutbox('u1', clock.now)) i.id],
             [mine.id],
           );
+          final kept = await item(asked.id);
+          expect(kept.nextAttemptAt, since.add(const Duration(minutes: 14)));
+          expect(kept.retryAfter, const Duration(minutes: 14));
           expect(
             (await item(theirs.id)).nextAttemptAt,
             since.add(const Duration(minutes: 14)),

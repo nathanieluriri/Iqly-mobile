@@ -477,7 +477,7 @@ class SqfliteLocalStore implements LocalStore {
     return db.update(
       LocalRows.outbox,
       {...LocalRows.dueRow(now), 'updated_at': LocalRows.time(now)},
-      where: 'user_id = ? AND status = ?',
+      where: 'user_id = ? AND status = ? AND retry_after IS NULL',
       whereArgs: [userId, _pending],
     );
   }

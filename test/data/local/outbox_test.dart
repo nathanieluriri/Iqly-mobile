@@ -1120,6 +1120,31 @@ Future<void> main() async {
         expect(seen.last.failed, isEmpty);
       });
 
+      test('networkBack and resume keep a wait the API asked for', () async {
+        answer('note', [
+          outboxResultFor(
+            status: 429,
+            code: 'RATE_LIMITED',
+            retryAfter: const Duration(seconds: 120),
+          ),
+          const OutboxResult.done(),
+        ]);
+        final item = await queue('A');
+        await outbox.start('u1');
+        expect(sent, ['A']);
+
+        clock.advance(const Duration(seconds: 1));
+        await outbox.networkBack();
+        await outbox.resume();
+        expect(sent, ['A']);
+        expect((await stored(item)).status, OutboxStatus.pending);
+
+        clock.advance(const Duration(seconds: 119));
+        await outbox.networkBack();
+        expect(sent, ['A', 'A']);
+        expect((await stored(item)).status, OutboxStatus.done);
+      });
+
       test('networkBack sends a waiting item at once and keeps its run of '
           'failures', () async {
         var online = false;

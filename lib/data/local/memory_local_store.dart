@@ -286,7 +286,8 @@ class MemoryLocalStore implements LocalStore {
     _updateAll(
       (row) =>
           row['user_id'] == userId &&
-          row['status'] == OutboxStatus.pending.name,
+          row['status'] == OutboxStatus.pending.name &&
+          row['retry_after'] == null,
       LocalRows.dueRow(_clock()),
     );
   }

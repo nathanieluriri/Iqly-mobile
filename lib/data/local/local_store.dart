@@ -224,7 +224,8 @@ abstract class LocalStore {
   Future<void> resetFailures(String userId);
 
   /// Puts [userId]'s pending items due now, keeping their run of failures,
-  /// as when the phone is back online.
+  /// as when the phone is back online. Items waiting out a Retry-After keep
+  /// their wait.
   Future<void> resetBackoff(String userId);
 
   /// Puts a failed item back to pending, due now, with its run of failures

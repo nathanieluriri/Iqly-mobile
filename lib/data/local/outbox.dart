@@ -392,7 +392,8 @@ class Outbox {
   }
 
   /// Tells the queue the phone is back online: the person's pending items
-  /// are due now, keeping their run of failures, and what is due goes.
+  /// are due now, keeping their run of failures, and what is due goes. An
+  /// item the API asked to wait (Retry-After) keeps its wait.
   Future<void> networkBack() async {
     await _dueNow();
     return kick();
