@@ -118,11 +118,12 @@ void main() {
       );
     });
 
-    test('a contract below 1, or none, is preview', () {
+    test('any contract but this build\'s, or none, is preview', () {
       expect(_decide(_health(contract: 0)), Backend.preview);
       expect(_decide(_health(contract: null)), Backend.preview);
       expect(_decide(_health(contract: '1')), Backend.preview);
-      expect(_decide(_health(contract: 2)), _all);
+      expect(_decide(_health(contract: 2)), Backend.preview);
+      expect(_decide(_health(contract: 1)), _all);
     });
 
     test('not ready is preview', () {

@@ -100,7 +100,7 @@ class Backend {
   /// A live feature needs health to say it is ready for this contract, and
   /// on for it and for everything it needs.
   factory Backend.from(HealthReport report) {
-    if (!report.ready || report.contract < contract) return preview;
+    if (!report.ready || report.contract != contract) return preview;
     return Backend.of(report.features);
   }
 
