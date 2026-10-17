@@ -95,6 +95,7 @@ abstract final class LocalRows {
     'last_error_code': null,
     'last_error_message': null,
     'retry_after': null,
+    'failures': 0,
     'failing_since': null,
     'server_ref': null,
     'created_at': time(now),
@@ -120,6 +121,7 @@ abstract final class LocalRows {
       final int micros => Duration(microseconds: micros),
       _ => null,
     },
+    failures: row['failures']! as int,
     failingSince: timeOrNull(row['failing_since']),
     serverRef: row['server_ref'] as String?,
     createdAt: timeOf(row['created_at']),
@@ -131,11 +133,12 @@ abstract final class LocalRows {
       jsonDecode(text) as Map<String, dynamic>;
 
   /// Whether a write naming [dependsOn] may fold into [row], the newest
-  /// unsent item with its key: only while that item has never been sent.
+  /// unsent item with its key: only while that item has never been sent and
+  /// names the same dependency, none included.
   static bool folds(Map<String, Object?> row, String? dependsOn) =>
       row['status'] == OutboxStatus.pending.name &&
       row['attempts'] == 0 &&
-      (dependsOn == null || dependsOn == row['depends_on']);
+      row['depends_on'] == dependsOn;
 
   /// The values [LocalStore.markRetry] writes.
   static Map<String, Object?> retryRow({
@@ -143,6 +146,7 @@ abstract final class LocalRows {
     required String? code,
     required String? message,
     required Duration? retryAfter,
+    required int failures,
     required DateTime? failingSince,
   }) => {
     'status': OutboxStatus.pending.name,
@@ -150,7 +154,17 @@ abstract final class LocalRows {
     'last_error_code': code,
     'last_error_message': message,
     'retry_after': retryAfter?.inMicroseconds,
+    'failures': failures,
     'failing_since': failingSince == null ? null : time(failingSince),
+  };
+
+  /// The values [LocalStore.requeue] writes.
+  static Map<String, Object?> requeueRow(DateTime now) => {
+    'status': OutboxStatus.pending.name,
+    'next_attempt_at': time(now),
+    'retry_after': null,
+    'failures': 0,
+    'failing_since': null,
   };
 
   /// The payload text of a pending item after a newer write folds into it.

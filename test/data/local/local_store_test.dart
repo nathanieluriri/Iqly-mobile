@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/data/drafts_data.dart';
 import 'package:iqly_mobile/data/local/local_store.dart';
@@ -28,9 +30,12 @@ Future<void> main() async {
       late TestClock clock;
       late LocalStore store;
 
+      late DeletedFiles deleted;
+
       setUp(() async {
         clock = TestClock();
-        store = await backend.open(clock);
+        deleted = DeletedFiles();
+        store = await backend.open(clock, deleteFile: deleted.call);
       });
 
       Future<OutboxItem> item(String id) async => (await store.outboxItem(id))!;
@@ -218,6 +223,7 @@ Future<void> main() async {
           expect(stored.coalesceKey, isNull);
           expect(stored.dependsOn, isNull);
           expect(stored.retryAfter, isNull);
+          expect(stored.failures, 0);
           expect(stored.failingSince, isNull);
           expect(stored.serverRef, isNull);
           expect(
@@ -326,40 +332,47 @@ Future<void> main() async {
           expect(await labels('u2'), ['theirs']);
         });
 
-        test(
-          'a write naming another dependency queues behind instead',
-          () async {
-            final account = await store.enqueue(
-              'u1',
-              kind: 'bank',
-              payload: {'label': 'bank'},
-            );
-            await store.enqueue(
-              'u1',
-              kind: 'profile',
-              payload: {'label': 'one'},
-              coalesceKey: 'profile',
-            );
-            final behind = await store.enqueue(
-              'u1',
-              kind: 'profile',
-              payload: {'label': 'two'},
-              coalesceKey: 'profile',
-              dependsOn: account.id,
-            );
-            final folded = await store.enqueue(
-              'u1',
-              kind: 'profile',
-              payload: {'label': 'three'},
-              coalesceKey: 'profile',
-            );
-            expect(folded.id, behind.id);
-            expect(folded.dependsOn, account.id);
-            expect(await labels('u1'), ['bank', 'one', 'three']);
-          },
-        );
+        test('a write folds only into an item naming the same dependency, '
+            'none included', () async {
+          final account = await store.enqueue(
+            'u1',
+            kind: 'bank',
+            payload: {'label': 'bank'},
+          );
+          Future<OutboxItem> profile(String label, [String? dependsOn]) =>
+              store.enqueue(
+                'u1',
+                kind: 'profile',
+                payload: {'label': label},
+                coalesceKey: 'profile',
+                dependsOn: dependsOn,
+              );
 
-        test('new files replace a coalesced item\'s files', () async {
+          final one = await profile('one');
+          final two = await profile('two', account.id);
+          final three = await profile('three');
+          final four = await profile('four', account.id);
+          final five = await profile('five', account.id);
+          final ghost = await profile('ghost', 'gone');
+          expect(two.id, isNot(one.id));
+          expect(three.id, isNot(two.id));
+          expect(three.dependsOn, isNull);
+          expect(four.id, isNot(three.id));
+          expect(five.id, four.id);
+          expect(five.dependsOn, account.id);
+          expect(ghost.id, isNot(four.id));
+          expect(await labels('u1'), [
+            'bank',
+            'one',
+            'two',
+            'three',
+            'five',
+            'ghost',
+          ]);
+        });
+
+        test('a fold\'s files replace the older ones entirely, none '
+            'included', () async {
           final first = await store.enqueue(
             'u1',
             kind: 'avatar',
@@ -373,10 +386,10 @@ Future<void> main() async {
             payload: {},
             coalesceKey: 'avatar',
           );
-          expect(
-            [for (final f in folded.files) f.localPath],
-            [_photo.localPath],
-          );
+          expect(folded.id, first.id);
+          expect(folded.files, isEmpty);
+          expect((await item(first.id)).files, isEmpty);
+
           folded = await store.enqueue(
             'u1',
             kind: 'avatar',
@@ -535,6 +548,7 @@ Future<void> main() async {
             code: 'RATE_LIMITED',
             message: 'Slow down',
             retryAfter: const Duration(seconds: 30),
+            failures: 3,
             failingSince: since,
           );
           var stored = await item(queued.id);
@@ -543,12 +557,14 @@ Future<void> main() async {
           expect(stored.lastErrorCode, 'RATE_LIMITED');
           expect(stored.lastErrorMessage, 'Slow down');
           expect(stored.retryAfter, const Duration(seconds: 30));
+          expect(stored.failures, 3);
           expect(stored.failingSince, since);
 
           await store.markSending(queued.id);
           await store.markRetry(queued.id, at: at, code: 'UNAUTHORIZED');
           stored = await item(queued.id);
           expect(stored.retryAfter, isNull);
+          expect(stored.failures, 0);
           expect(stored.failingSince, isNull);
 
           await store.markFailed(
@@ -563,38 +579,174 @@ Future<void> main() async {
           expect(stored.attempts, 2);
         });
 
-        test(
-          'the give-up clock stops for the person\'s unsent items',
-          () async {
-            final since = clock.now;
-            Future<OutboxItem> failing(String user) async {
-              final queued = await store.enqueue(
-                user,
-                kind: 'note',
-                payload: {},
-              );
-              await store.markSending(queued.id);
-              await store.markRetry(
-                queued.id,
-                at: clock.now,
-                failingSince: since,
-              );
-              return queued;
-            }
+        test('a pause ends the run of failures of the person\'s unsent '
+            'items', () async {
+          final since = clock.now;
+          Future<OutboxItem> failing(String user) async {
+            final queued = await store.enqueue(user, kind: 'note', payload: {});
+            await store.markSending(queued.id);
+            await store.markRetry(
+              queued.id,
+              at: clock.now,
+              failures: 7,
+              failingSince: since,
+            );
+            return queued;
+          }
 
-            final waiting = await failing('u1');
-            final sending = await failing('u1');
-            await store.markSending(sending.id);
-            final refused = await failing('u1');
-            await store.markFailed(refused.id, code: 'OUTBOX_EXPIRED');
-            final theirs = await failing('u2');
-            await store.resetFailingSince('u1');
-            expect((await item(waiting.id)).failingSince, isNull);
-            expect((await item(sending.id)).failingSince, isNull);
-            expect((await item(refused.id)).failingSince, since);
-            expect((await item(theirs.id)).failingSince, since);
-          },
-        );
+          final waiting = await failing('u1');
+          final sending = await failing('u1');
+          await store.markSending(sending.id);
+          final refused = await failing('u1');
+          await store.markFailed(refused.id, code: 'OUTBOX_EXPIRED');
+          final theirs = await failing('u2');
+          await store.resetFailures('u1');
+          for (final ended in [waiting, sending]) {
+            final stored = await item(ended.id);
+            expect(stored.failures, 0);
+            expect(stored.failingSince, isNull);
+          }
+          for (final kept in [refused, theirs]) {
+            final stored = await item(kept.id);
+            expect(stored.failures, 7);
+            expect(stored.failingSince, since);
+          }
+          expect((await item(sending.id)).status, OutboxStatus.sending);
+        });
+
+        test('requeue puts a failed item back, due now, its run of failures '
+            'ended', () async {
+          final queued = await store.enqueue(
+            'u1',
+            kind: 'note',
+            payload: {},
+            files: const [_photo],
+          );
+          await store.markSending(queued.id);
+          await store.markRetry(
+            queued.id,
+            at: clock.now.add(const Duration(minutes: 9)),
+            code: 'HTTP_503',
+            retryAfter: const Duration(minutes: 9),
+            failures: 199,
+            failingSince: clock.now,
+          );
+          await store.markSending(queued.id);
+          await store.markFailed(queued.id, code: 'OUTBOX_EXPIRED');
+          clock.advance(const Duration(days: 3));
+          expect(await store.requeue(queued.id), isTrue);
+          final back = await item(queued.id);
+          expect(back.status, OutboxStatus.pending);
+          expect(back.nextAttemptAt, clock.now);
+          expect(back.updatedAt, clock.now);
+          expect(back.retryAfter, isNull);
+          expect(back.failures, 0);
+          expect(back.failingSince, isNull);
+          expect(back.attempts, 2);
+          expect(back.lastErrorCode, 'OUTBOX_EXPIRED');
+          expect(back.files.single.localPath, _photo.localPath);
+          expect(
+            [for (final i in await store.dueOutbox('u1', clock.now)) i.id],
+            [queued.id],
+          );
+        });
+
+        test('requeue leaves an item that is not failed', () async {
+          final pending = await store.enqueue('u1', kind: 'note', payload: {});
+          final sending = await store.enqueue('u1', kind: 'note', payload: {});
+          await store.markSending(sending.id);
+          final done = await store.enqueue('u1', kind: 'note', payload: {});
+          await store.markSending(done.id);
+          await store.markDone(done.id);
+          clock.advance(const Duration(minutes: 1));
+          for (final id in [pending.id, sending.id, done.id, 'nope']) {
+            expect(await store.requeue(id), isFalse);
+          }
+          expect((await item(pending.id)).updatedAt, isNot(clock.now));
+          expect((await item(sending.id)).status, OutboxStatus.sending);
+          expect((await item(done.id)).status, OutboxStatus.done);
+        });
+
+        test('discard removes a pending or failed item, and fails what '
+            'depends on it', () async {
+          final upload = await store.enqueue(
+            'u1',
+            kind: 'upload',
+            payload: {'label': 'upload'},
+            files: const [_photo],
+          );
+          final waiting = await store.enqueue(
+            'u1',
+            kind: 'submission',
+            payload: {'label': 'waiting'},
+            dependsOn: upload.id,
+          );
+          final refused = await store.enqueue(
+            'u1',
+            kind: 'submission',
+            payload: {'label': 'refused'},
+            dependsOn: upload.id,
+          );
+          await store.markFailed(refused.id, code: 'FILE_TOO_LARGE');
+          final behind = await store.enqueue(
+            'u1',
+            kind: 'note',
+            payload: {'label': 'behind'},
+            dependsOn: waiting.id,
+          );
+          final other = await store.enqueue(
+            'u1',
+            kind: 'note',
+            payload: {'label': 'other'},
+          );
+          clock.advance(const Duration(minutes: 1));
+
+          expect(
+            await store.discard(upload.id, dependantsCode: 'GONE'),
+            isTrue,
+          );
+          expect(await store.outboxItem(upload.id), isNull);
+          for (final dependant in [waiting, refused]) {
+            final failed = await item(dependant.id);
+            expect(failed.status, OutboxStatus.failed);
+            expect(failed.lastErrorCode, 'GONE');
+            expect(failed.lastErrorMessage, isNull);
+            expect(failed.updatedAt, clock.now);
+          }
+          expect((await item(behind.id)).status, OutboxStatus.pending);
+          expect((await item(other.id)).status, OutboxStatus.pending);
+          expect(await labels('u1'), ['waiting', 'refused', 'behind', 'other']);
+
+          expect(
+            await store.discard(refused.id, dependantsCode: 'GONE'),
+            isTrue,
+          );
+          expect(
+            await store.discard(upload.id, dependantsCode: 'GONE'),
+            isFalse,
+          );
+          expect(await labels('u1'), ['waiting', 'behind', 'other']);
+        });
+
+        test('discard leaves an item on its way or done', () async {
+          final sending = await store.enqueue('u1', kind: 'note', payload: {});
+          await store.markSending(sending.id);
+          final done = await store.enqueue('u1', kind: 'note', payload: {});
+          await store.markSending(done.id);
+          await store.markDone(done.id);
+          final dependant = await store.enqueue(
+            'u1',
+            kind: 'note',
+            payload: {},
+            dependsOn: sending.id,
+          );
+          for (final id in [sending.id, done.id]) {
+            expect(await store.discard(id, dependantsCode: 'GONE'), isFalse);
+          }
+          expect((await item(sending.id)).status, OutboxStatus.sending);
+          expect((await item(done.id)).status, OutboxStatus.done);
+          expect((await item(dependant.id)).status, OutboxStatus.pending);
+        });
 
         test('sending items go back to pending after a restart', () async {
           final one = await store.enqueue('u1', kind: 'note', payload: {});
@@ -656,6 +808,120 @@ Future<void> main() async {
           await store.deleteOutbox('u1');
           expect(await store.outboxItem(mine.id), isNull);
           expect(await labels('u2'), ['B']);
+        });
+      });
+
+      group('queued files', () {
+        Future<OutboxItem> queue(
+          String user,
+          List<OutboxFile> files, {
+          String? key,
+        }) => store.enqueue(
+          user,
+          kind: 'submission',
+          payload: {},
+          coalesceKey: key,
+          files: files,
+        );
+
+        test('leave the phone once their item is done', () async {
+          final queued = await queue('u1', const [_photo, _brief]);
+          await store.markSending(queued.id);
+          await store.markRetry(queued.id, at: clock.now);
+          await store.markSending(queued.id);
+          expect(deleted.paths, isEmpty);
+          await store.markDone(queued.id);
+          expect(deleted.paths, [_photo.localPath, _brief.localPath]);
+          expect((await item(queued.id)).files, isEmpty);
+        });
+
+        test('replaced by a fold leave, unless the new write names them '
+            'again', () async {
+          final first = await queue('u1', const [_photo, _brief], key: 'k');
+          await queue('u1', const [_photo], key: 'k');
+          expect(deleted.paths, [_brief.localPath]);
+          await queue('u1', const [], key: 'k');
+          expect(deleted.paths, [_brief.localPath, _photo.localPath]);
+          expect((await item(first.id)).files, isEmpty);
+        });
+
+        test('shared by two items stay until neither needs them', () async {
+          final one = await queue('u1', const [_photo]);
+          final two = await queue('u1', const [_photo, _brief]);
+          await store.markSending(one.id);
+          await store.markDone(one.id);
+          expect(deleted.paths, isEmpty);
+          await store.markSending(two.id);
+          await store.markDone(two.id);
+          expect(deleted.paths, [_photo.localPath, _brief.localPath]);
+        });
+
+        test('stay while their item is failed, and leave when it is '
+            'discarded', () async {
+          final queued = await queue('u1', const [_photo]);
+          await store.markSending(queued.id);
+          await store.markFailed(queued.id, code: 'FILE_TOO_LARGE');
+          expect(deleted.paths, isEmpty);
+          await store.discard(queued.id, dependantsCode: 'GONE');
+          expect(deleted.paths, [_photo.localPath]);
+        });
+
+        test('leave with the person\'s outbox and when they are wiped, and '
+            'no one else\'s do', () async {
+          const theirs = OutboxFile(
+            localPath: '/data/outbox/theirs.jpg',
+            bytes: 1,
+            mime: 'image/jpeg',
+          );
+          await queue('u1', const [_photo]);
+          await queue('u1', const [_brief]);
+          await queue('u2', const [theirs]);
+          await store.deleteOutbox('u1');
+          expect(deleted.paths, [_photo.localPath, _brief.localPath]);
+          await queue('u1', const [_photo]);
+          await store.wipeUser('u1');
+          expect(deleted.paths, [
+            _photo.localPath,
+            _brief.localPath,
+            _photo.localPath,
+          ]);
+          expect(
+            (await store.outbox('u2')).single.files.single.localPath,
+            theirs.localPath,
+          );
+        });
+
+        test('are deleted from disk, and one already gone is no '
+            'error', () async {
+          final dir = Directory.systemTemp.createTempSync('iqly_outbox_');
+          addTearDown(() => dir.delete(recursive: true));
+          final disk = await backend.open(clock, deleteFile: deleteQueuedFile);
+          OutboxFile file(String name) {
+            final path = '${dir.path}${Platform.pathSeparator}$name';
+            File(path).writeAsBytesSync([1, 2, 3]);
+            return OutboxFile(localPath: path, bytes: 3, mime: 'image/jpeg');
+          }
+
+          final kept = file('kept.jpg');
+          final sent = file('sent.jpg');
+          final gone = file('gone.jpg');
+          final queued = await disk.enqueue(
+            'u1',
+            kind: 'submission',
+            payload: {},
+            files: [sent, gone],
+          );
+          await disk.enqueue(
+            'u1',
+            kind: 'submission',
+            payload: {},
+            files: [kept],
+          );
+          File(gone.localPath).deleteSync();
+          await disk.markSending(queued.id);
+          await disk.markDone(queued.id);
+          expect(File(sent.localPath).existsSync(), isFalse);
+          expect(File(kept.localPath).existsSync(), isTrue);
         });
       });
 
