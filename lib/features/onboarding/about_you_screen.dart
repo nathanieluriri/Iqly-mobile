@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/deadline.dart';
+import '../../data/onboarding_service.dart';
 import '../../data/reference_data.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -22,7 +23,8 @@ String dateOfBirthLabel(DateTime date) => DateFormat('d MMM y').format(date);
 
 /// B11 · Step 1 · About you (188:8171): occupation and date of birth. Under
 /// 18 (480:20079) the banner says why, the field shows "Under 18" and
-/// Continue stays off; Skip for now still moves on.
+/// Continue stays off; Skip for now still moves on. A date the account
+/// refused as under 18 comes back here cleared, under the same banner.
 class AboutYouScreen extends ConsumerWidget {
   const AboutYouScreen({super.key});
 
@@ -31,7 +33,8 @@ class AboutYouScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final profile = ref.watch(onboardingDraftProvider).profile;
+    final onboarding = ref.watch(onboardingDraftProvider);
+    final profile = onboarding.profile;
     final occupation = profile.occupation;
     final born = profile.dateOfBirth;
     final today = ref.watch(clockProvider)();
@@ -50,7 +53,7 @@ class AboutYouScreen extends ConsumerWidget {
     return OnboardingStepScaffold(
       step: OnboardingStep.aboutYou.mark,
       title: 'What do you do?',
-      banner: tooYoung ? underAge : null,
+      banner: tooYoung || onboarding.underAge ? underAge : null,
       onBack: () => leaveStep(context, Routes.onboarding),
       onSkip: next,
       onNext: next,

@@ -160,6 +160,10 @@ class Push {
     await _guard(() => devices.unregister(id));
   }
 
+  /// The API ended the session itself, so there is nothing to unregister,
+  /// and the next sign-in registers this phone again.
+  void sessionLost() => _registered = null;
+
   static Future<void> _guard(Future<void> Function() call) async {
     try {
       await call().timeout(const Duration(seconds: 8));

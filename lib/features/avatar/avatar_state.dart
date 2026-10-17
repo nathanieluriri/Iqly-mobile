@@ -29,6 +29,7 @@ class AvatarNotifier extends Notifier<AvatarState> {
 
   @override
   AvatarState build() {
+    ref.watch(accountProvider);
     final prefs = ref.watch(sharedPreferencesProvider);
     Map<String, Object?>? json(String key) {
       final value = prefs.getString(key);

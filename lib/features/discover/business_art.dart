@@ -15,10 +15,18 @@ IqSampleLogoBrand _brand(String slug) => IqSampleLogoBrand.values.firstWhere(
 );
 
 /// A business logo from the data: the Sample/Logo art for the demo's asset
-/// paths, the image at a URL from the API, the anonymous mark when unset.
+/// paths, the image at a URL from the API, the anonymous mark when unset or
+/// when the image cannot be had.
 Widget businessLogo(String? source, {double size = 120}) {
   if (source != null && source.startsWith('http')) {
-    return Image.network(source, width: size, height: size, fit: BoxFit.cover);
+    return Image.network(
+      source,
+      width: size,
+      height: size,
+      fit: BoxFit.cover,
+      errorBuilder: (_, _, _) =>
+          IqSampleLogo(IqSampleLogoBrand.private, size: size),
+    );
   }
   final slug = source == null ? null : _sampleLogo.firstMatch(source)?[1];
   return IqSampleLogo(
@@ -30,7 +38,11 @@ Widget businessLogo(String? source, {double size = 120}) {
 /// A business photo from the data, as [businessLogo] reads its logo.
 Widget businessCover(String? source) {
   if (source != null && source.startsWith('http')) {
-    return Image.network(source, fit: BoxFit.cover);
+    return Image.network(
+      source,
+      fit: BoxFit.cover,
+      errorBuilder: (_, _, _) => const IqSampleCover(IqSampleLogoBrand.private),
+    );
   }
   final match = source == null ? null : _sampleCover.firstMatch(source);
   if (match == null) return const IqSampleCover(IqSampleLogoBrand.private);

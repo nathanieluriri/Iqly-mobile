@@ -1,6 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/backend.dart';
 import '../../core/deadline.dart';
+import '../../core/session.dart';
+import '../../data/live/live_repository.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
 
@@ -78,12 +81,16 @@ class MySubmissions {
       of(SubmissionsTab.winners).fold(0, (sum, i) => sum + (i.awardKobo ?? 0));
 }
 
-/// The submissions sent in this session, newest first. A send hands its
-/// receipt here, so My submissions and Submission detail have the new one
-/// at once instead of waiting for the next load to bring it back.
+/// The submissions the signed-in account sent in this session, newest
+/// first. A send hands its receipt here, so My submissions and Submission
+/// detail have the new one at once instead of waiting for the next load to
+/// bring it back.
 class SentSubmissionsNotifier extends Notifier<List<SubmissionItem>> {
   @override
-  List<SubmissionItem> build() => const [];
+  List<SubmissionItem> build() {
+    ref.watch(accountProvider);
+    return const [];
+  }
 
   void add(SubmissionItem item) => state = [
     item,
@@ -99,16 +106,31 @@ final sentSubmissionsProvider =
 
 /// The contributor's submissions, with the ones sent this session in place
 /// from the moment they are sent. Kept for the session: a later visit shows
-/// what it has and [refreshQuietly] loads behind it.
+/// what it has and [refreshQuietly] loads behind it. Live entries carry
+/// their brief and award as the API embeds them, so an entry on a brief
+/// that has left the live feed still shows it.
 class MySubmissionsNotifier extends AsyncNotifier<MySubmissions> {
   @override
   Future<MySubmissions> build() async {
+    ref.watch(accountProvider);
     ref.listen(sentSubmissionsProvider, (_, sent) {
       if (state case AsyncData(:final value)) {
         state = AsyncData(value.including(sent));
       }
     });
     final repo = ref.watch(repositoryProvider);
+    if (ref.watch(liveModeProvider).isLive(LiveFeature.submissions)) {
+      final items = [
+        for (final s in await repo.submissions())
+          SubmissionItem(
+            submission: s,
+            brief: s.brief,
+            awardKobo: s.award?.amountKobo,
+            awardedAt: s.award?.awardedAt,
+          ),
+      ]..sort(MySubmissions._newestFirst);
+      return MySubmissions(items).including(ref.read(sentSubmissionsProvider));
+    }
     final (submissions, briefs, ledger) = await (
       repo.submissions(),
       repo.briefs(),

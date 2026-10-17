@@ -2,8 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/backend.dart';
 import '../../core/session.dart';
 import '../../data/auth.dart';
+import '../../data/live/live_account.dart';
 import '../../data/models.dart';
 import '../../data/onboarding_service.dart';
 import '../../data/reference_data.dart';
@@ -31,17 +33,6 @@ String placeKey(String name) =>
 /// The keys of [city] and of its alternate spellings.
 Iterable<String> placeSpellings(String city) =>
     [city, ...?Reference.cityAlternates[city]].map(placeKey);
-
-/// Contributors must be 18 or older (answer 10).
-const minimumAge = 18;
-
-/// Whether someone born on [born] is [minimumAge] or older on [today].
-bool isAdult(DateTime? born, [DateTime? today]) {
-  if (born == null) return false;
-  final now = today ?? DateTime.now();
-  final birthday = DateTime(born.year + minimumAge, born.month, born.day);
-  return !birthday.isAfter(DateTime(now.year, now.month, now.day));
-}
 
 /// The screens of first run; OnboardingFlow says their order. [label] is
 /// what Resume shows after "Next:", [mark] the step mark's part.
@@ -76,6 +67,7 @@ class OnboardingDraft {
     this.profile = const OnboardingProfile(),
     this.lastStep,
     this.deferred = false,
+    this.underAge = false,
   });
 
   final OnboardingProfile profile;
@@ -86,6 +78,10 @@ class OnboardingDraft {
   /// Set by "Skip for now": the app opens on Discover with the setup nudge
   /// instead of Resume.
   final bool deferred;
+
+  /// The account refused the date of birth as under 18; About you says so
+  /// until another date is picked.
+  final bool underAge;
 
   bool get started => lastStep != null;
 
@@ -113,10 +109,12 @@ class OnboardingDraft {
     OnboardingProfile? profile,
     OnboardingStep? lastStep,
     bool? deferred,
+    bool? underAge,
   }) => OnboardingDraft(
     profile: profile ?? this.profile,
     lastStep: lastStep ?? this.lastStep,
     deferred: deferred ?? this.deferred,
+    underAge: underAge ?? this.underAge,
   );
 
   Map<String, Object?> toJson() => {
@@ -133,6 +131,7 @@ class OnboardingDraft {
     'otherSector': profile.otherSector,
     'lastStep': lastStep?.name,
     'deferred': deferred,
+    'underAge': underAge,
   };
 
   static OnboardingDraft fromJson(Map<String, Object?> json) => OnboardingDraft(
@@ -154,6 +153,7 @@ class OnboardingDraft {
         .where((s) => s.name == json['lastStep'])
         .firstOrNull,
     deferred: json['deferred'] as bool? ?? false,
+    underAge: json['underAge'] as bool? ?? false,
   );
 }
 
@@ -164,6 +164,7 @@ class OnboardingDraftNotifier extends Notifier<OnboardingDraft> {
 
   @override
   OnboardingDraft build() {
+    ref.watch(accountProvider);
     final raw = ref.watch(sharedPreferencesProvider).getString(_key);
     if (raw == null) return const OnboardingDraft();
     try {
@@ -202,7 +203,18 @@ class OnboardingDraftNotifier extends Notifier<OnboardingDraft> {
 
   void setUniversity(String value) => _save(_profile(university: value));
 
-  void setDateOfBirth(DateTime value) => _save(_profile(dateOfBirth: value));
+  void setDateOfBirth(DateTime value) =>
+      _save(_profile(dateOfBirth: value).copyWith(underAge: false));
+
+  /// The account refused the date of birth as under 18: it goes, and first
+  /// run picks up again at About you, which says why.
+  void refuseDateOfBirth() => _save(
+    state.copyWith(
+      profile: _p.withoutDateOfBirth(),
+      lastStep: OnboardingStep.aboutYou,
+      underAge: true,
+    ),
+  );
 
   void setPhone(String value) => _save(_profile(phone: value));
 
@@ -290,9 +302,26 @@ String? onboardingLaunchRoute(SessionState session, OnboardingDraft draft) {
   return draft.started ? Routes.onboardingResume : Routes.onboarding;
 }
 
-final onboardingUserProvider = FutureProvider<User>(
-  (ref) => ref.watch(repositoryProvider).user(),
-);
+/// The account's name, email and profile answers: from `GET /me` while the
+/// profile runs live (the session's name alone when the API cannot say),
+/// else the repository's.
+final onboardingUserProvider = FutureProvider<User>((ref) {
+  if (ref.watch(liveLinkProvider(LiveFeature.profile)) == null) {
+    return ref.watch(repositoryProvider).user();
+  }
+  return _liveUser(ref);
+});
+
+Future<User> _liveUser(Ref ref) async {
+  try {
+    final me = await ref.watch(meProvider.future);
+    if (me != null) return me.toUser();
+  } on Exception {
+    // Offline with nothing kept: the name the session holds.
+  }
+  final name = ref.read(sessionProvider).name ?? '';
+  return Me(id: '', name: name, email: '').toUser();
+}
 
 /// The signed-in account's name: kept on this device since sign-in, else
 /// asked of the API once (an account signed in before names were kept).
@@ -304,7 +333,8 @@ final accountNameProvider = Provider<String?>((ref) {
 });
 
 final _askedNameProvider = FutureProvider<String?>((ref) async {
-  final name = await ref.read(authServiceProvider).accountName();
+  final scope = ref.watch(accountScopeProvider);
+  final name = await scope.guard(ref.read(authServiceProvider).accountName());
   if (name != null) await ref.read(sessionProvider.notifier).setName(name);
   return name;
 });

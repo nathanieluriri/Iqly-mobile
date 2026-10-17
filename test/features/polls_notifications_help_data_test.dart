@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/deadline.dart';
+import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/data/activations_data.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/help_data.dart';
@@ -15,6 +16,7 @@ import 'package:iqly_mobile/features/notifications/notifications_state.dart';
 import 'package:iqly_mobile/features/polls/polls_state.dart';
 import 'package:iqly_mobile/features/wallet/wallet_state.dart';
 import 'package:iqly_mobile/ui/notification.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../golden/screens/app_harness.dart';
 
@@ -308,8 +310,11 @@ void main() {
   });
 
   test('the bubbles follow the votes', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
     final container = ProviderContainer(
       overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
         pollsServiceProvider.overrideWithValue(
           DemoPollsService(delay: Duration.zero, clock: () => figmaNow),
         ),

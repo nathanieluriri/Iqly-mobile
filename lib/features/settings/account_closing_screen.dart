@@ -7,6 +7,7 @@ import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
+import '../../ui/banner.dart';
 import '../../ui/button.dart';
 import '../../ui/illustration.dart';
 import '../entry/entry_state.dart';
@@ -53,7 +54,8 @@ class AccountClosingScreen extends ConsumerWidget {
 
 /// The Account closing and Restore layout: the Caller figure, a display
 /// title and a line, centred around the middle of the screen, over a
-/// Primary and a Ghost button.
+/// Primary and a Ghost button. [failed] slides the error banner in at the
+/// top, saying [failedTitle].
 class ClosingLayout extends StatelessWidget {
   const ClosingLayout({
     super.key,
@@ -61,12 +63,19 @@ class ClosingLayout extends StatelessWidget {
     required this.body,
     required this.primary,
     required this.ghost,
+    this.failed = false,
+    this.failedTitle = failedText,
   });
 
   final String title;
   final String body;
   final Widget primary;
   final Widget ghost;
+  final bool failed;
+  final String failedTitle;
+
+  /// The app's words when an action does not go through.
+  static const failedText = 'Couldn’t send. Check your connection.';
 
   @override
   Widget build(BuildContext context) {
@@ -79,6 +88,16 @@ class ClosingLayout extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
+                  child: IqBanner(
+                    kind: IqBannerKind.error,
+                    title: failedTitle,
+                    showAction: false,
+                    visible: failed,
+                    margin: const EdgeInsets.only(top: IqSpace.s3),
+                  ),
+                ),
                 Expanded(
                   child: Center(
                     child: SingleChildScrollView(

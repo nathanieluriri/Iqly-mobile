@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/deadline.dart';
+import '../../core/session.dart';
 import '../../data/models.dart';
 import '../../data/referrals_service.dart';
 import '../../data/repository.dart';
@@ -10,11 +11,14 @@ class ReferralsNotifier extends AsyncNotifier<Referrals> {
   @override
   Future<Referrals> build() => ref.watch(referralsServiceProvider).referrals();
 
+  /// An answer that lands once its account is no longer signed in shows
+  /// on no one's referrals.
   Future<InviteCodeResult> apply(String code) async {
+    final scope = ref.read(accountScopeProvider);
     final result = await ref.read(referralsServiceProvider).applyCode(code);
     final inviter = result.inviter;
     final current = state.value;
-    if (inviter != null && current != null) {
+    if (scope.open && inviter != null && current != null) {
       state = AsyncData(current.withInviter(inviter));
     }
     return result;

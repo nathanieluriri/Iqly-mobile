@@ -11,7 +11,9 @@ import 'vector.dart';
 /// rank with one orange spark. The card opens Your profile (the screen
 /// wraps it); the avatar or pencil opens the avatar picker
 /// ([onAvatarTap]) and the rank the iQL points leaderboard ([onRankTap]).
-/// An empty [rank] (not on this month's board yet) leaves the rank out.
+/// An empty [rank] (not on this month's board yet) leaves the rank out, and
+/// empty [points] the points line, so the name sits alone by the avatar
+/// (the app's live launch, which has no points yet; no frame draws it).
 class IqAchievementCard extends StatelessWidget {
   const IqAchievementCard({
     super.key,
@@ -102,24 +104,26 @@ class IqAchievementCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: IqText.cardTitle.copyWith(color: IqColors.fg),
                 ),
-                const SizedBox(height: IqSpace.s1),
-                Row(
-                  children: [
-                    Text(
-                      points,
-                      style: IqText.smallStrong.copyWith(color: IqColors.fg),
-                    ),
-                    const SizedBox(width: IqSpace.s1),
-                    Flexible(
-                      child: Text(
-                        'iQL points',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: IqText.small.copyWith(color: IqColors.fg2),
+                if (points.isNotEmpty) ...[
+                  const SizedBox(height: IqSpace.s1),
+                  Row(
+                    children: [
+                      Text(
+                        points,
+                        style: IqText.smallStrong.copyWith(color: IqColors.fg),
                       ),
-                    ),
-                  ],
-                ),
+                      const SizedBox(width: IqSpace.s1),
+                      Flexible(
+                        child: Text(
+                          'iQL points',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: IqText.small.copyWith(color: IqColors.fg2),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),

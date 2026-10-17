@@ -70,10 +70,7 @@ class LiveAppVersionService implements AppVersionService {
   final http.Client _http;
   final ApiClient _api;
 
-  static String get platform => switch (defaultTargetPlatform) {
-    TargetPlatform.iOS => 'ios',
-    final other => other.name,
-  };
+  static String get platform => ApiClient.platformName;
 
   static Uri playPage(String package) =>
       Uri.https('play.google.com', '/store/apps/details', {'id': package});

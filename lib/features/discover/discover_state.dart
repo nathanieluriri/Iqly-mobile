@@ -4,8 +4,11 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/backend.dart';
 import '../../core/deadline.dart';
 import '../../core/session.dart';
+import '../../data/demo_data.dart';
+import '../../data/live/live_repository.dart';
 import '../../data/models.dart';
 import '../../data/reference_data.dart';
 import '../../data/repository.dart';
@@ -160,20 +163,25 @@ class DiscoverFeedNotifier extends AsyncNotifier<FeedData> {
   );
 
   Future<void> retry() async {
+    final scope = ref.read(accountScopeProvider);
     state = const AsyncLoading();
-    state = await AsyncValue.guard(build);
+    final loaded = await AsyncValue.guard(build);
+    if (scope.open) state = loaded;
   }
 
   /// Pull to refresh: the feed stays as it is (no dimming) until the new
-  /// list lands.
+  /// list lands. Like every load here, one that lands once its account is
+  /// no longer signed in changes nothing.
   Future<void> refresh() async {
     final current = state.value;
     if (current == null || current.refresh == RefreshPhase.refreshing) return;
+    final scope = ref.read(accountScopeProvider);
     state = AsyncData(current.copyWith(refresh: RefreshPhase.refreshing));
     try {
       final briefs = await ref
           .read(repositoryProvider)
           .briefs(load: BriefsLoad.refresh);
+      if (!scope.open) return;
       state = AsyncData(
         current.copyWith(
           briefs: briefs,
@@ -182,6 +190,7 @@ class DiscoverFeedNotifier extends AsyncNotifier<FeedData> {
         ),
       );
     } catch (_) {
+      if (!scope.open) return;
       state = AsyncData(current.copyWith(refresh: RefreshPhase.idle));
     }
   }
@@ -191,12 +200,15 @@ class DiscoverFeedNotifier extends AsyncNotifier<FeedData> {
   Future<void> refreshQuietly() async {
     final current = state.value;
     if (current == null || current.refresh != RefreshPhase.idle) return;
+    final scope = ref.read(accountScopeProvider);
     try {
       final briefs = await ref
           .read(repositoryProvider)
           .briefs(load: BriefsLoad.refresh);
       final now = state.value;
-      if (now == null || now.refresh != RefreshPhase.idle) return;
+      if (!scope.open || now == null || now.refresh != RefreshPhase.idle) {
+        return;
+      }
       state = AsyncData(now.copyWith(briefs: briefs));
     } catch (_) {}
   }
@@ -210,11 +222,13 @@ class DiscoverFeedNotifier extends AsyncNotifier<FeedData> {
   Future<void> loadMore() async {
     final current = state.value;
     if (current == null || current.loadingMore) return;
+    final scope = ref.read(accountScopeProvider);
     state = AsyncData(current.copyWith(loadingMore: true));
     try {
       final briefs = await ref
           .read(repositoryProvider)
           .briefs(load: BriefsLoad.nextPage);
+      if (!scope.open) return;
       state = AsyncData(
         current.copyWith(
           briefs: briefs,
@@ -223,6 +237,7 @@ class DiscoverFeedNotifier extends AsyncNotifier<FeedData> {
         ),
       );
     } catch (_) {
+      if (!scope.open) return;
       state = AsyncData(current.copyWith(loadingMore: false));
     }
   }
@@ -360,32 +375,46 @@ List<Brief> _sorted(Iterable<Brief> briefs, int Function(Brief, Brief) by) {
   return [for (final e in indexed) e.value];
 }
 
+/// Whether this launch reads the briefs from the API, so a sample brief
+/// saved or reminded on a preview launch is never the person's.
+bool _liveBriefs(Ref ref) =>
+    ref.watch(liveModeProvider).isLive(LiveFeature.briefs);
+
 /// Saved briefs, newest save first, kept on the device in full so the Saved
 /// list and brief detail still open offline. Seeds from the account on
-/// first run.
+/// first run. A live launch drops the sample briefs a preview launch saved.
 class SavedBriefsNotifier extends AsyncNotifier<List<Brief>> {
-  static const _key = 'discover.savedBriefs';
+  static const key = 'discover.savedBriefs';
 
   /// The device's copy is there from the first frame, so a bookmark never
   /// animates into the state it already had.
   @override
   FutureOr<List<Brief>> build() {
-    final raw = ref.watch(sharedPreferencesProvider).getString(_key);
+    ref.watch(accountProvider);
+    final raw = ref.watch(sharedPreferencesProvider).getString(key);
     if (raw != null) {
-      return [
+      final saved = [
         for (final item in jsonDecode(raw) as List<Object?>)
           Brief.fromJson((item! as Map).cast<String, Object?>()),
       ];
+      if (!_liveBriefs(ref)) return saved;
+      final own = [
+        for (final brief in saved)
+          if (!DemoData.isSampleBrief(brief.id)) brief,
+      ];
+      if (own.length != saved.length) unawaited(_persist(own));
+      return own;
     }
     return _seed();
   }
 
   Future<List<Brief>> _seed() async {
+    final scope = ref.read(accountScopeProvider);
     final repo = ref.watch(repositoryProvider);
     final saved = [
       for (final id in await repo.savedBriefIds()) ?await repo.brief(id),
     ];
-    await _persist(saved);
+    if (scope.open) await _persist(saved);
     return saved;
   }
 
@@ -399,9 +428,15 @@ class SavedBriefsNotifier extends AsyncNotifier<List<Brief>> {
     await ref.read(repositoryProvider).setBriefSaved(brief.id, saved);
   }
 
+  /// Sign out: the phone keeps no saved brief of the account.
+  Future<void> forget() async {
+    await ref.read(sharedPreferencesProvider).remove(key);
+    ref.invalidateSelf();
+  }
+
   Future<void> _persist(List<Brief> briefs) => ref
       .read(sharedPreferencesProvider)
-      .setString(_key, jsonEncode([for (final b in briefs) b.toJson()]));
+      .setString(key, jsonEncode([for (final b in briefs) b.toJson()]));
 }
 
 final savedBriefsProvider =
@@ -409,22 +444,34 @@ final savedBriefsProvider =
       SavedBriefsNotifier.new,
     );
 
-/// Briefs with a close reminder (an hour before close).
+/// Briefs with a close reminder (an hour before close). A live launch drops
+/// the reminders a preview launch set on sample briefs.
 class CloseRemindersNotifier extends AsyncNotifier<Set<String>> {
-  static const _key = 'discover.closeReminders';
+  static const key = 'discover.closeReminders';
 
   /// The device's copy is there from the first frame, so "Remind me" opens
   /// in its state instead of switching into it.
   @override
   FutureOr<Set<String>> build() {
-    final stored = ref.watch(sharedPreferencesProvider).getStringList(_key);
-    if (stored != null) return stored.toSet();
-    return _seed();
+    ref.watch(accountProvider);
+    final prefs = ref.watch(sharedPreferencesProvider);
+    final stored = prefs.getStringList(key);
+    if (stored == null) return _seed();
+    if (!_liveBriefs(ref)) return stored.toSet();
+    final own = [
+      for (final id in stored)
+        if (!DemoData.isSampleBrief(id)) id,
+    ];
+    if (own.length != stored.length) unawaited(prefs.setStringList(key, own));
+    return own.toSet();
   }
 
   Future<Set<String>> _seed() async {
+    final scope = ref.read(accountScopeProvider);
     final ids = await ref.watch(repositoryProvider).closeReminderIds();
-    await ref.read(sharedPreferencesProvider).setStringList(_key, ids);
+    if (scope.open) {
+      await ref.read(sharedPreferencesProvider).setStringList(key, ids);
+    }
     return ids.toSet();
   }
 
@@ -432,21 +479,47 @@ class CloseRemindersNotifier extends AsyncNotifier<Set<String>> {
     final next = {...?state.value};
     on ? next.add(id) : next.remove(id);
     state = AsyncData(next);
-    await ref.read(sharedPreferencesProvider).setStringList(_key, [...next]);
+    await ref.read(sharedPreferencesProvider).setStringList(key, [...next]);
     await ref.read(repositoryProvider).setCloseReminder(id, on);
     await syncSurfaces();
   }
 
+  /// Sign out: no reminder of the account stays, scheduled or kept.
+  Future<void> forget() async {
+    await ref.read(sharedPreferencesProvider).remove(key);
+    ref.invalidateSelf();
+    await ref.read(surfacesProvider)?.syncCloseReminders(const []);
+  }
+
   /// Puts the phone's scheduled reminders in step with the switches and
-  /// each brief's current close.
+  /// each brief's current close. A brief this launch cannot read (no
+  /// answer and no copy on the phone, or a live brief in a preview launch)
+  /// keeps the reminder it has. Nothing is scheduled for an account no
+  /// longer signed in by the time the briefs are read.
   Future<void> syncSurfaces() async {
     final surfaces = ref.read(surfacesProvider);
     if (surfaces == null) return;
+    final scope = ref.read(accountScopeProvider);
     try {
       final ids = await future;
       final repository = ref.read(repositoryProvider);
-      final briefs = await Future.wait(ids.map(repository.brief));
-      await surfaces.syncCloseReminders(briefs.nonNulls);
+      final read = await Future.wait([
+        for (final id in ids)
+          repository
+              .brief(id)
+              .then<(String, Brief?)>(
+                (brief) => (id, brief),
+                onError: (Object _) => (id, null),
+              ),
+      ]);
+      if (!scope.open) return;
+      await surfaces.syncCloseReminders(
+        [for (final (_, brief) in read) ?brief],
+        keep: {
+          for (final (id, brief) in read)
+            if (brief == null) id,
+        },
+      );
     } on Object catch (error) {
       debugPrint('Close reminders not scheduled: $error');
     }
@@ -458,20 +531,36 @@ final closeRemindersProvider =
       CloseRemindersNotifier.new,
     );
 
-/// Brief detail: from the API, else the saved copy when offline.
-final briefDetailProvider = FutureProvider.family<Brief?, String>((
-  ref,
-  id,
-) async {
-  try {
-    final brief = await ref.watch(repositoryProvider).brief(id);
-    if (brief != null) return brief;
-  } catch (_) {
-    // Offline: fall through to the saved copy.
-  }
-  final saved = await ref.watch(savedBriefsProvider.future);
-  return saved.where((b) => b.id == id).firstOrNull;
-});
+/// Brief detail: from the API, else the saved copy when offline. With
+/// neither it fails, so the page offers Try again; nothing is held once the
+/// page closes, and the next visit asks again.
+final briefDetailProvider = FutureProvider.autoDispose.family<Brief?, String>(
+  retry: (_, _) => null,
+  (ref, id) async {
+    Future<Brief?> saved() async =>
+        (await ref.watch(savedBriefsProvider.future))
+            .where((b) => b.id == id)
+            .firstOrNull;
+    try {
+      final brief = await ref.watch(repositoryProvider).brief(id);
+      if (brief != null) return brief;
+    } on Object {
+      if (await saved() case final copy?) return copy;
+      rethrow;
+    }
+    return await saved() ?? (throw BriefUnavailable(id));
+  },
+);
+
+/// A brief neither the API nor the phone could give.
+class BriefUnavailable implements Exception {
+  const BriefUnavailable(this.id);
+
+  final String id;
+
+  @override
+  String toString() => 'BriefUnavailable($id)';
+}
 
 /// The person's submission to brief [id], if they sent one: from those
 /// sent this session at once, else from the account.

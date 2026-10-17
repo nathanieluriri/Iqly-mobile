@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
+import '../../core/session.dart';
 import '../../core/transitions.dart';
+import '../../data/api_client.dart';
 import '../../data/models.dart';
 import '../../data/wallet_service.dart';
 import '../../theme/theme.dart';
@@ -23,7 +25,8 @@ const verifyHelp = 'Could not verify account. Check the number and bank.';
 
 /// B5 · Add bank · account number (483:22323) and name verified
 /// (483:22389). Check the name asks the bank for the name on the ten
-/// digits; once verified, Save account saves it and pops true.
+/// digits; once verified, Save account saves it and pops true. A save the
+/// API refuses stays on the page with the field's own error.
 class AddBankScreen extends ConsumerStatefulWidget {
   const AddBankScreen({super.key, required this.bankCode});
 
@@ -99,17 +102,26 @@ class _AddBankScreenState extends ConsumerState<AddBankScreen> {
     final name = _verifiedName;
     if (name == null) return;
     setState(() => _busy = true);
-    final account = await ref
-        .read(walletServiceProvider)
-        .addAccount(
-          SavedBank(
-            bankCode: widget.bankCode,
-            bankName: _bankName(data),
-            accountName: name,
-            accountNumber: _verifiedNumber,
-          ),
-        );
-    if (!mounted) return;
+    final scope = ref.read(accountScopeProvider);
+    final SavedBank account;
+    try {
+      account = await ref
+          .read(walletServiceProvider)
+          .addAccount(
+            SavedBank(
+              bankCode: widget.bankCode,
+              bankName: _bankName(data),
+              accountName: name,
+              accountNumber: _verifiedNumber,
+            ),
+          );
+    } on Exception catch (error) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      _number.fail(error is ApiUnreachable ? EntryCopy.offline : verifyHelp);
+      return;
+    }
+    if (!mounted || !scope.open) return;
     ref.read(walletProvider.notifier).addAccount(account);
     context.pop(true);
   }

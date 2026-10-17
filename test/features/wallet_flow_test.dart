@@ -177,6 +177,43 @@ void main() {
     expect(find.byType(PinSheet), findsNothing);
   });
 
+  testWidgets('B5: ₦500.00 left goes whole through the PIN; any other amount '
+      'under ₦1,000 stays below the minimum (contract 6)', (tester) async {
+    final wallet = instantWallet();
+    await pumpApp(
+      tester,
+      Routes.wallet,
+      repository: WalletRepository(),
+      overrides: walletOverrides(wallet: wallet),
+    );
+    await _tap(tester, find.text('Withdraw'));
+    await _type(tester, 'Amount', '14500');
+    await _tap(tester, find.text('Withdraw').last);
+    await _type(tester, 'iQLY PIN', '1234');
+    await _tap(tester, find.text('Confirm withdrawal'));
+    await _tap(tester, find.text('Done'));
+    expect(_card(tester).amount, '₦500.00');
+
+    await _tap(tester, find.text('Withdraw'));
+    expect(
+      find.text('You can withdraw up to ₦500.00 right now'),
+      findsOneWidget,
+    );
+    await _type(tester, 'Amount', '300');
+    await _tap(tester, find.text('Withdraw').last);
+    expect(find.text('Minimum withdrawal is ₦1,000.00.'), findsOneWidget);
+    expect(find.byType(PinSheet), findsNothing);
+
+    await _type(tester, 'Amount', '500');
+    expect(find.text('Minimum withdrawal is ₦1,000.00.'), findsNothing);
+    await _tap(tester, find.text('Withdraw').last);
+    await _type(tester, 'iQLY PIN', '1234');
+    await _tap(tester, find.text('Confirm withdrawal'));
+    expect([for (final r in wallet.requests) r.amountKobo], [1450000, 50000]);
+    expect(find.byType(WithdrawalPendingScreen), findsOneWidget);
+    expect(find.text('₦500.00 is on its way'), findsOneWidget);
+  });
+
   testWidgets('B5: no connection keeps the sheet; Try again sends', (
     tester,
   ) async {

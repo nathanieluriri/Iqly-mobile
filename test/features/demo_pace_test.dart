@@ -1,20 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/discover/discover_state.dart';
 import 'package:iqly_mobile/features/submissions/submission_widgets.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/dock.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../golden/screens/app_harness.dart';
 
 /// The app's repository answers at the Figma prototype's pace, so each
 /// loading state shows as long as the prototype holds it.
 void main() {
-  test('the app runs at prototype pace; test fakes default to none', () {
-    final container = ProviderContainer();
+  test('the app runs at prototype pace; test fakes default to none', () async {
+    SharedPreferences.setMockInitialValues({});
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(
+          await SharedPreferences.getInstance(),
+        ),
+      ],
+    );
     addTearDown(container.dispose);
     final app = container.read(repositoryProvider) as DemoRepository;
     expect(app.latency, same(DemoLatency.prototype));

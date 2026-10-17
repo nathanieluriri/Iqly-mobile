@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/cache_service.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
+import '../onboarding/onboarding_draft.dart';
 import '../referrals/referrals_state.dart';
 
 /// The build the footer names (B7 · More): "IQLY FOR IOS 1.4.2 (310)", and
@@ -31,25 +32,31 @@ final buildInfoProvider = FutureProvider<BuildInfo>(
 
 /// What the summary card on More and the header of Your profile show: the
 /// name, the iQL points, this month's place on the points board (null when
-/// the board has not ranked them) and the invite code.
+/// the board has not ranked them) and the invite code. A live launch has
+/// the name alone ([pointsAndReferralsProvider]).
 class ContributorPass {
   const ContributorPass({
     required this.user,
-    required this.points,
-    required this.rank,
-    required this.code,
+    this.points,
+    this.rank,
+    this.code,
   });
 
   final User user;
-  final int points;
+  final int? points;
   final int? rank;
-  final String code;
+  final String? code;
 }
 
 final contributorPassProvider = FutureProvider<ContributorPass>((ref) async {
+  if (!ref.watch(pointsAndReferralsProvider)) {
+    return ContributorPass(
+      user: await ref.watch(onboardingUserProvider.future),
+    );
+  }
   final repo = ref.watch(repositoryProvider);
   final (user, points, board, referrals) = await (
-    repo.user(),
+    ref.watch(onboardingUserProvider.future),
     repo.points(),
     repo.pointsLeaderboard(),
     ref.watch(referralsProvider.future),
@@ -62,9 +69,10 @@ final contributorPassProvider = FutureProvider<ContributorPass>((ref) async {
   );
 });
 
-class CacheNotifier extends AsyncNotifier<int> {
+/// What Clear cache would free, in bytes; null when it cannot be counted.
+class CacheNotifier extends AsyncNotifier<int?> {
   @override
-  Future<int> build() => ref.watch(cacheServiceProvider).sizeBytes();
+  Future<int?> build() => ref.watch(cacheServiceProvider).sizeBytes();
 
   Future<void> clear() async {
     await ref.read(cacheServiceProvider).clear();
@@ -72,6 +80,6 @@ class CacheNotifier extends AsyncNotifier<int> {
   }
 }
 
-final cacheProvider = AsyncNotifierProvider<CacheNotifier, int>(
+final cacheProvider = AsyncNotifierProvider<CacheNotifier, int?>(
   CacheNotifier.new,
 );

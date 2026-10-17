@@ -23,9 +23,11 @@ import 'result_screen.dart';
 /// B13 · Leaderboard (193:9779) and Leaderboard · not selected (225:10747):
 /// the brief, "48 submissions, ranked", the podium, then every rank from
 /// fourth down in one scrolling list with your row highlighted in place;
-/// amounts only on paid ranks (designer doc rev 57). The rows arrive 40
-/// apart and the contributor's orange rank disc pops at its row's arrival
-/// + 120 (MOTION-SPEC §5.33). Open the brief goes to Brief detail.
+/// amounts only on paid ranks (designer doc rev 57). A live board has no
+/// entry titles but your own (the API keeps them private), so the other
+/// rows drop the entry line. The rows arrive 40 apart and the
+/// contributor's orange rank disc pops at its row's arrival + 120
+/// (MOTION-SPEC §5.33). Open the brief goes to Brief detail.
 ///
 /// Figma over the component: the frames ink every rank disc orange; the
 /// kit keeps the orange disc for your row, which is what marks it.
@@ -145,6 +147,7 @@ class _Board extends StatelessWidget {
       rank: '${row.entry.rank}',
       name: row.entry.name,
       entry: row.entry.entry,
+      showEntry: row.entry.entry.isNotEmpty,
       amount: row.entry.amountKobo == null ? '' : naira(row.entry.amountKobo!),
       showAmount: row.entry.amountKobo != null,
       state: row.you

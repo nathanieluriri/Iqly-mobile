@@ -1,0 +1,587 @@
+import 'dart:convert';
+
+import 'package:sqflite/sqflite.dart';
+
+import '../drafts_data.dart';
+import 'local_rows.dart';
+import 'local_store.dart';
+
+/// The local store in the phone's own SQLite, through sqflite.
+class SqfliteLocalStore implements LocalStore, CacheBytes {
+  SqfliteLocalStore._(this._db, this._clock, this._deleteFile);
+
+  static const schemaVersion = 1;
+
+  /// Opens the store, creating or upgrading its tables. A relative [path]
+  /// lands in the app's databases directory. [factory] defaults to the
+  /// sqflite plugin's; tests pass sqflite_common_ffi's.
+  static Future<SqfliteLocalStore> open({
+    String path = 'iqly_local.db',
+    DatabaseFactory? factory,
+    DateTime Function()? clock,
+    DeleteFile? deleteFile,
+  }) async {
+    final db = await (factory ?? databaseFactorySqflitePlugin).openDatabase(
+      path,
+      options: OpenDatabaseOptions(version: schemaVersion, onUpgrade: _upgrade),
+    );
+    return SqfliteLocalStore._(
+      db,
+      clock ?? DateTime.now,
+      deleteFile ?? deleteQueuedFile,
+    );
+  }
+
+  // A fresh install runs every step. Steps must be safe to run twice: a
+  // rolled back patch reopens the file at its older version, and the next
+  // update runs the newer steps again.
+  static const _steps = <Future<void> Function(Database db)>[_createV1];
+
+  static Future<void> _upgrade(Database db, int from, int to) async {
+    for (var version = from; version < to; version++) {
+      await _steps[version](db);
+    }
+  }
+
+  static Future<void> _createV1(Database db) async {
+    final batch = db.batch()
+      ..execute('''
+        CREATE TABLE IF NOT EXISTS ${LocalRows.cache} (
+          user_id TEXT NOT NULL,
+          cache_key TEXT NOT NULL,
+          body TEXT NOT NULL,
+          etag TEXT,
+          fetched_at INTEGER NOT NULL,
+          PRIMARY KEY (user_id, cache_key)
+        )''')
+      ..execute('''
+        CREATE TABLE IF NOT EXISTS ${LocalRows.drafts} (
+          user_id TEXT NOT NULL,
+          brief_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          answer TEXT NOT NULL,
+          answers TEXT NOT NULL,
+          step INTEGER NOT NULL,
+          edited_at INTEGER NOT NULL,
+          PRIMARY KEY (user_id, brief_id)
+        )''')
+      ..execute('''
+        CREATE TABLE IF NOT EXISTS ${LocalRows.outbox} (
+          seq INTEGER PRIMARY KEY,
+          id TEXT NOT NULL UNIQUE,
+          user_id TEXT NOT NULL,
+          kind TEXT NOT NULL,
+          coalesce_key TEXT,
+          payload TEXT NOT NULL,
+          depends_on TEXT,
+          status TEXT NOT NULL,
+          attempts INTEGER NOT NULL,
+          next_attempt_at INTEGER NOT NULL,
+          last_error_code TEXT,
+          last_error_message TEXT,
+          retry_after INTEGER,
+          failures INTEGER NOT NULL,
+          failing_since INTEGER,
+          server_ref TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        )''')
+      ..execute(
+        'CREATE INDEX IF NOT EXISTS outbox_user_status '
+        'ON ${LocalRows.outbox} (user_id, status)',
+      )
+      ..execute('''
+        CREATE TABLE IF NOT EXISTS ${LocalRows.outboxFiles} (
+          outbox_id TEXT NOT NULL,
+          local_path TEXT NOT NULL,
+          bytes INTEGER NOT NULL,
+          mime TEXT NOT NULL
+        )''')
+      ..execute(
+        'CREATE INDEX IF NOT EXISTS outbox_files_item '
+        'ON ${LocalRows.outboxFiles} (outbox_id)',
+      );
+    await batch.commit(noResult: true);
+  }
+
+  final Database _db;
+  final DateTime Function() _clock;
+  final DeleteFile _deleteFile;
+
+  static final _pending = OutboxStatus.pending.name;
+  static final _sending = OutboxStatus.sending.name;
+  static final _failed = OutboxStatus.failed.name;
+  static final _done = OutboxStatus.done.name;
+
+  @override
+  Future<CacheEntry?> readCache(String userId, String key) async {
+    final rows = await _db.query(
+      LocalRows.cache,
+      where: 'user_id = ? AND cache_key = ?',
+      whereArgs: [userId, key],
+    );
+    return rows.isEmpty ? null : LocalRows.cacheEntry(rows.single);
+  }
+
+  @override
+  Future<void> writeCache(
+    String userId,
+    String key,
+    Object? json, {
+    String? etag,
+  }) async {
+    await _db.insert(
+      LocalRows.cache,
+      LocalRows.cacheRow(userId, key, json, etag, _clock()),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  @override
+  Future<void> deleteCache(String userId, {String? keyPrefix}) async {
+    await _db.delete(
+      LocalRows.cache,
+      where: keyPrefix == null
+          ? 'user_id = ?'
+          : 'user_id = ? AND substr(cache_key, 1, length(?)) = ?',
+      whereArgs: [
+        userId,
+        if (keyPrefix != null) ...[keyPrefix, keyPrefix],
+      ],
+    );
+  }
+
+  @override
+  Future<int> cacheBytes(String userId) async {
+    final rows = await _db.rawQuery(
+      'SELECT COALESCE(SUM(LENGTH(CAST(body AS BLOB))), 0) AS bytes '
+      'FROM ${LocalRows.cache} WHERE user_id = ?',
+      [userId],
+    );
+    return (rows.single['bytes'] as num?)?.toInt() ?? 0;
+  }
+
+  @override
+  Future<List<Draft>> drafts(String userId) async {
+    final rows = await _db.query(
+      LocalRows.drafts,
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      orderBy: 'edited_at DESC, brief_id',
+    );
+    return [for (final row in rows) LocalRows.draft(row)];
+  }
+
+  @override
+  Future<void> saveDraft(String userId, Draft draft) async {
+    if (draft.isEmpty) return deleteDrafts(userId, [draft.briefId]);
+    await _db.insert(
+      LocalRows.drafts,
+      LocalRows.draftRow(userId, draft),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  @override
+  Future<void> deleteDrafts(String userId, Iterable<String> briefIds) async {
+    final batch = _db.batch();
+    for (final briefId in briefIds.toSet()) {
+      batch.delete(
+        LocalRows.drafts,
+        where: 'user_id = ? AND brief_id = ?',
+        whereArgs: [userId, briefId],
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  @override
+  Future<OutboxItem> enqueue(
+    String userId, {
+    required String kind,
+    required Map<String, Object?> payload,
+    String? coalesceKey,
+    OutboxMerge? merge,
+    String? dependsOn,
+    List<OutboxFile> files = const [],
+  }) async {
+    final body = jsonEncode(payload);
+    final (item, unused) = await _db.transaction((txn) async {
+      final now = _clock();
+      final older = coalesceKey == null
+          ? null
+          : (await txn.query(
+              LocalRows.outbox,
+              where: 'user_id = ? AND coalesce_key = ? AND status IN (?, ?)',
+              whereArgs: [userId, coalesceKey, _pending, _sending],
+              orderBy: 'seq DESC',
+              limit: 1,
+            )).firstOrNull;
+      final String id;
+      var replaced = const <String>[];
+      if (older != null && LocalRows.folds(older, dependsOn)) {
+        id = older['id']! as String;
+        await txn.update(
+          LocalRows.outbox,
+          {
+            'kind': kind,
+            'payload': LocalRows.coalesce(
+              older['payload']! as String,
+              body,
+              merge,
+            ),
+            'updated_at': LocalRows.time(now),
+          },
+          where: 'id = ?',
+          whereArgs: [id],
+        );
+        replaced = await _dropFiles(txn, 'id = ?', [id]);
+      } else {
+        id = LocalRows.newId();
+        await txn.insert(
+          LocalRows.outbox,
+          LocalRows.outboxRow(
+            id: id,
+            userId: userId,
+            kind: kind,
+            coalesceKey: coalesceKey,
+            payload: body,
+            dependsOn: dependsOn,
+            now: now,
+          ),
+        );
+      }
+      if (coalesceKey != null) {
+        await txn.update(
+          LocalRows.outbox,
+          {
+            'last_error_code': outboxSupersededCode,
+            'updated_at': LocalRows.time(now),
+          },
+          where: 'user_id = ? AND coalesce_key = ? AND status = ?',
+          whereArgs: [userId, coalesceKey, _failed],
+        );
+      }
+      for (final file in files) {
+        await txn.insert(LocalRows.outboxFiles, LocalRows.fileRow(id, file));
+      }
+      return (
+        (await _items(txn, 'id = ?', [id])).single,
+        await _unused(txn, replaced),
+      );
+    });
+    await _deleteFiles(unused);
+    return item;
+  }
+
+  /// Drops the file rows of the outbox items matching [where] (on outbox
+  /// columns) and answers their paths.
+  static Future<List<String>> _dropFiles(
+    Transaction txn,
+    String where,
+    List<Object?> args,
+  ) async {
+    final rows = await txn.rawQuery(
+      'SELECT f.local_path FROM ${LocalRows.outboxFiles} f '
+      'JOIN ${LocalRows.outbox} ON ${LocalRows.outbox}.id = f.outbox_id '
+      'WHERE $where ORDER BY f.rowid',
+      args,
+    );
+    await txn.rawDelete(
+      'DELETE FROM ${LocalRows.outboxFiles} WHERE outbox_id IN '
+      '(SELECT id FROM ${LocalRows.outbox} WHERE $where)',
+      args,
+    );
+    return {for (final row in rows) row['local_path']! as String}.toList();
+  }
+
+  /// The [paths] that no queued item needs any more.
+  static Future<List<String>> _unused(
+    Transaction txn,
+    List<String> paths,
+  ) async => [
+    for (final path in paths)
+      if ((await txn.query(
+        LocalRows.outboxFiles,
+        where: 'local_path = ?',
+        whereArgs: [path],
+        limit: 1,
+      )).isEmpty)
+        path,
+  ];
+
+  Future<void> _deleteFiles(List<String> paths) async {
+    for (final path in paths) {
+      await _deleteFile(path);
+    }
+  }
+
+  /// The outbox rows matching [where] (on outbox columns), oldest first,
+  /// with their files.
+  static Future<List<OutboxItem>> _items(
+    DatabaseExecutor db,
+    String where,
+    List<Object?> args,
+  ) async {
+    final rows = await db.query(
+      LocalRows.outbox,
+      where: where,
+      whereArgs: args,
+      orderBy: 'seq',
+    );
+    if (rows.isEmpty) return const [];
+    final files = <Object?, List<Map<String, Object?>>>{};
+    for (final file in await db.rawQuery(
+      'SELECT f.* FROM ${LocalRows.outboxFiles} f '
+      'JOIN ${LocalRows.outbox} ON ${LocalRows.outbox}.id = f.outbox_id '
+      'WHERE $where ORDER BY f.rowid',
+      args,
+    )) {
+      (files[file['outbox_id']] ??= []).add(file);
+    }
+    return [
+      for (final row in rows)
+        LocalRows.outboxItem(row, files[row['id']] ?? const []),
+    ];
+  }
+
+  Future<int> _update(String id, Map<String, Object?> values) => _db.update(
+    LocalRows.outbox,
+    {...values, 'updated_at': LocalRows.time(_clock())},
+    where: 'id = ?',
+    whereArgs: [id],
+  );
+
+  @override
+  Future<List<OutboxItem>> dueOutbox(String userId, DateTime now) => _items(
+    _db,
+    'user_id = ? AND status = ? AND (next_attempt_at <= ? OR '
+    'next_attempt_at > ? + max(?, coalesce(retry_after, 0)))',
+    [
+      userId,
+      _pending,
+      LocalRows.time(now),
+      LocalRows.time(now),
+      outboxLongestWait.inMicroseconds,
+    ],
+  );
+
+  @override
+  Future<List<OutboxItem>> outbox(String userId) =>
+      _items(_db, 'user_id = ? AND status != ?', [userId, _done]);
+
+  @override
+  Future<OutboxItem?> outboxItem(String id) async =>
+      (await _items(_db, 'id = ?', [id])).firstOrNull;
+
+  @override
+  Future<OutboxItem?> markSending(String id) => _db.transaction((txn) async {
+    final claimed = await txn.rawUpdate(
+      'UPDATE ${LocalRows.outbox} '
+      'SET status = ?, attempts = attempts + 1, updated_at = ? '
+      'WHERE id = ? AND status = ?',
+      [_sending, LocalRows.time(_clock()), id, _pending],
+    );
+    return claimed == 0 ? null : (await _items(txn, 'id = ?', [id])).single;
+  });
+
+  @override
+  Future<void> markDone(String id, {String? serverRef}) async {
+    final unused = await _db.transaction((txn) async {
+      await txn.update(
+        LocalRows.outbox,
+        {
+          'status': _done,
+          'server_ref': serverRef,
+          'updated_at': LocalRows.time(_clock()),
+        },
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      return _unused(txn, await _dropFiles(txn, 'id = ?', [id]));
+    });
+    await _deleteFiles(unused);
+  }
+
+  @override
+  Future<void> markRetry(
+    String id, {
+    required DateTime at,
+    String? code,
+    String? message,
+    Duration? retryAfter,
+    int failures = 0,
+    DateTime? failingSince,
+  }) async {
+    await _update(
+      id,
+      LocalRows.retryRow(
+        at: at,
+        code: code,
+        message: message,
+        retryAfter: retryAfter,
+        failures: failures,
+        failingSince: failingSince,
+      ),
+    );
+  }
+
+  @override
+  Future<void> markFailed(String id, {required String code, String? message}) =>
+      _fail(_db, 'id = ?', [id], code, message);
+
+  /// Fails the outbox rows matching [where], each with [code], or as
+  /// superseded when a newer item of its person has its coalesce key: one
+  /// statement, so the check and the failure cannot be split.
+  Future<void> _fail(
+    DatabaseExecutor db,
+    String where,
+    List<Object?> args,
+    String code,
+    String? message,
+  ) => db.rawUpdate(
+    'UPDATE ${LocalRows.outbox} SET status = ?, last_error_code = CASE '
+    'WHEN EXISTS (SELECT 1 FROM ${LocalRows.outbox} newer '
+    'WHERE newer.user_id = ${LocalRows.outbox}.user_id '
+    'AND newer.coalesce_key = ${LocalRows.outbox}.coalesce_key '
+    'AND newer.seq > ${LocalRows.outbox}.seq) THEN ? ELSE ? END, '
+    'last_error_message = ?, updated_at = ? WHERE $where',
+    [
+      _failed,
+      outboxSupersededCode,
+      code,
+      message,
+      LocalRows.time(_clock()),
+      ...args,
+    ],
+  );
+
+  @override
+  Future<int> resetSending() => _db.update(
+    LocalRows.outbox,
+    {'status': _pending, 'updated_at': LocalRows.time(_clock())},
+    where: 'status = ?',
+    whereArgs: [_sending],
+  );
+
+  @override
+  Future<void> resetFailures(String userId) => _db.transaction((txn) async {
+    await txn.update(
+      LocalRows.outbox,
+      {
+        'failures': 0,
+        'failing_since': null,
+        'updated_at': LocalRows.time(_clock()),
+      },
+      where: 'user_id = ? AND status IN (?, ?)',
+      whereArgs: [userId, _pending, _sending],
+    );
+    await _resetBackoff(txn, userId);
+  });
+
+  @override
+  Future<void> resetBackoff(String userId) => _resetBackoff(_db, userId);
+
+  Future<void> _resetBackoff(DatabaseExecutor db, String userId) {
+    final now = _clock();
+    return db.update(
+      LocalRows.outbox,
+      {...LocalRows.dueRow(now), 'updated_at': LocalRows.time(now)},
+      where: 'user_id = ? AND status = ? AND retry_after IS NULL',
+      whereArgs: [userId, _pending],
+    );
+  }
+
+  @override
+  Future<bool> requeue(String id) async {
+    final now = _clock();
+    final changed = await _db.update(
+      LocalRows.outbox,
+      {...LocalRows.requeueRow(now), 'updated_at': LocalRows.time(now)},
+      where: 'id = ? AND status = ?',
+      whereArgs: [id, _failed],
+    );
+    return changed == 1;
+  }
+
+  @override
+  Future<bool> discard(String id, {required String dependantsCode}) async {
+    final (gone, unused) = await _db.transaction((txn) async {
+      final rows = await txn.query(
+        LocalRows.outbox,
+        columns: ['status'],
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      final status = rows.firstOrNull?['status'];
+      if (status == null || status == _sending || status == _done) {
+        return (false, const <String>[]);
+      }
+      await _fail(
+        txn,
+        'depends_on = ? AND status IN (?, ?)',
+        [id, _pending, _failed],
+        dependantsCode,
+        null,
+      );
+      final paths = await _dropFiles(txn, 'id = ?', [id]);
+      await txn.delete(LocalRows.outbox, where: 'id = ?', whereArgs: [id]);
+      return (true, await _unused(txn, paths));
+    });
+    await _deleteFiles(unused);
+    return gone;
+  }
+
+  @override
+  Future<int> pruneDone(DateTime before) async {
+    final (count, unused) = await _db.transaction((txn) async {
+      final stale =
+          'status = ? AND updated_at < ? AND id NOT IN '
+          '(SELECT depends_on FROM ${LocalRows.outbox} '
+          'WHERE depends_on IS NOT NULL AND status != ?)';
+      final args = [_done, LocalRows.time(before), _done];
+      final paths = await _dropFiles(txn, stale, args);
+      final count = await txn.rawDelete(
+        'DELETE FROM ${LocalRows.outbox} WHERE $stale',
+        args,
+      );
+      return (count, await _unused(txn, paths));
+    });
+    await _deleteFiles(unused);
+    return count;
+  }
+
+  static Future<List<String>> _deleteOutbox(
+    Transaction txn,
+    String userId,
+  ) async {
+    final paths = await _dropFiles(txn, 'user_id = ?', [userId]);
+    await txn.delete(
+      LocalRows.outbox,
+      where: 'user_id = ?',
+      whereArgs: [userId],
+    );
+    return _unused(txn, paths);
+  }
+
+  @override
+  Future<void> deleteOutbox(String userId) async {
+    await _deleteFiles(
+      await _db.transaction((txn) => _deleteOutbox(txn, userId)),
+    );
+  }
+
+  @override
+  Future<void> wipeUser(String userId) async {
+    final unused = await _db.transaction((txn) async {
+      for (final table in [LocalRows.cache, LocalRows.drafts]) {
+        await txn.delete(table, where: 'user_id = ?', whereArgs: [userId]);
+      }
+      return _deleteOutbox(txn, userId);
+    });
+    await _deleteFiles(unused);
+  }
+
+  @override
+  Future<void> close() => _db.close();
+}

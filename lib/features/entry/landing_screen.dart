@@ -272,10 +272,15 @@ class _LandingScreenState extends ConsumerState<LandingScreen>
       _setBanner(_Banner(EntryCopy.social(provider), social: true));
       return;
     }
-    await completeSignIn(ref, newAccount: result.newAccount, name: result.name);
+    final next = await completeSignIn(
+      ref,
+      newAccount: result.newAccount,
+      name: result.name,
+      userId: result.userId,
+    );
     if (!mounted) return;
     if (result.newAccount) IqHaptics.success.play();
-    context.go(result.newAccount ? Routes.onboarding : Routes.home);
+    context.go(next.route, extra: next.extra);
   }
 
   @override
