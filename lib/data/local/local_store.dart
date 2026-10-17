@@ -18,6 +18,11 @@ enum OutboxStatus { pending, sending, failed, done }
 /// API's Retry-After asks for longer.
 const outboxLongestWait = Duration(minutes: 15);
 
+/// The code a failed item takes in place of its own when a newer write with
+/// its coalesce key is queued for the same person. The newer write carries
+/// what the person wants now, so the failed one can only be discarded.
+const outboxSupersededCode = 'SUPERSEDED';
+
 /// Removes a queued file from the phone once no outbox item needs it.
 typedef DeleteFile = Future<void> Function(String path);
 
@@ -162,7 +167,9 @@ abstract class LocalStore {
   /// kind becomes [kind], [files] replace the old files entirely, and the
   /// item keeps its id and place in the queue. Otherwise the write is queued
   /// after that item: a sent item's Idempotency-Key may already be used.
-  /// Answers the item as stored.
+  /// Either way, [userId]'s failed items with [coalesceKey] take the code
+  /// [outboxSupersededCode] and keep their files. Answers the item as
+  /// stored.
   Future<OutboxItem> enqueue(
     String userId, {
     required String kind,

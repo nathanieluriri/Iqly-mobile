@@ -123,6 +123,15 @@ class MemoryLocalStore implements LocalStore {
       );
       _outbox.add(row);
     }
+    if (coalesceKey != null) {
+      _updateAll(
+        (other) =>
+            other['user_id'] == userId &&
+            other['coalesce_key'] == coalesceKey &&
+            other['status'] == OutboxStatus.failed.name,
+        {'last_error_code': outboxSupersededCode},
+      );
+    }
     final id = row['id']! as String;
     _files.addAll([for (final file in files) LocalRows.fileRow(id, file)]);
     final item = _item(row);
