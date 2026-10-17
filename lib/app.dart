@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/backend.dart';
 import 'core/edge_haptics.dart';
 import 'core/patches.dart';
 import 'core/updates.dart';
@@ -26,6 +27,7 @@ class _IqlyAppState extends ConsumerState<IqlyApp> {
     _lifecycle = AppLifecycleListener(
       onResume: () {
         ref.read(updatesProvider.notifier).resumed();
+        ref.read(backendProvider.notifier).resumed();
         ref.read(patchesProvider.notifier).resumed();
       },
     );

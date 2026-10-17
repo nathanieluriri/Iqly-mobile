@@ -30,7 +30,10 @@ class _RecordingService implements OnboardingService {
   OnboardingProfile? saved;
 
   @override
-  Future<void> saveProfile(OnboardingProfile profile) async => saved = profile;
+  Future<void> saveProfile(
+    OnboardingProfile profile, {
+    bool skipped = false,
+  }) async => saved = profile;
 }
 
 /// No brief is open to everyone.

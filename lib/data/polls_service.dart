@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/session.dart';
 import 'polls_data.dart';
 
 /// Polls (Flags.polls). The API does not serve them yet; the demo answers
@@ -52,6 +53,7 @@ class DemoPollsService implements PollsService {
   }
 }
 
-final pollsServiceProvider = Provider<PollsService>(
-  (ref) => DemoPollsService(),
-);
+final pollsServiceProvider = Provider<PollsService>((ref) {
+  ref.watch(accountProvider);
+  return DemoPollsService();
+});

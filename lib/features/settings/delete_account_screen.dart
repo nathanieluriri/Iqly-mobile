@@ -1,11 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/backend.dart';
 import '../../core/money.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
+import '../../data/api_client.dart';
+import '../../data/live/live_repository.dart';
+import '../../data/models.dart';
 import '../../data/profile_service.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -17,6 +23,7 @@ import '../../ui/top_bar.dart';
 import '../onboarding/onboarding_draft.dart';
 import '../more/more_widgets.dart';
 import '../profile/profile_state.dart';
+import '../wallet/wallet_state.dart';
 import 'settings_state.dart';
 
 /// B14 · Delete account (194:9964), typed (194:10046) and at ₦0.00
@@ -36,12 +43,28 @@ import 'settings_state.dart';
 /// delete that fails shakes the button, plays the error haptic and says why
 /// under it (new copy for the owner to sign off; the frames have no failed
 /// state).
+///
+/// A live launch that pauses the account refuses the delete before anything
+/// is sent, under the failure's first sentence only: no connection is at
+/// fault (no frame for it). With the wallet paused too there is no balance
+/// to weigh, so the page names none and Delete waits only for the word.
+///
+/// A live wallet reloads as the page opens, and the API refuses the close
+/// while money is left (ACCOUNT_HAS_BALANCE) or a withdrawal is on its way
+/// (WITHDRAWAL_IN_FLIGHT), so Delete stays locked for either; a refusal
+/// reloads the wallet and the page shows why with the frames' words. At
+/// ₦0.00 with a withdrawal on its way the page has no frame: it keeps the
+/// first sentence of 484:23450 and the "on its way" row of 194:9964. The
+/// preview keeps 484:23450 as drawn.
 class DeleteAccountScreen extends ConsumerStatefulWidget {
   const DeleteAccountScreen({super.key});
 
   static const confirmWord = 'DELETE';
   static const failedText =
       'Couldn’t delete your account. Check your connection and try again.';
+
+  /// The first sentence alone, when no connection is at fault.
+  static const refusedText = 'Couldn’t delete your account.';
 
   @override
   ConsumerState<DeleteAccountScreen> createState() =>
@@ -51,12 +74,21 @@ class DeleteAccountScreen extends ConsumerStatefulWidget {
 class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
   final _typed = TextEditingController();
   bool _deleting = false;
+  bool _refused = false;
+
+  /// The last failure shows on the page itself (the money still to go).
+  bool _explained = false;
   int _failures = 0;
 
   @override
   void initState() {
     super.initState();
     _typed.addListener(() => setState(() {}));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _liveWallet(ref.read(liveModeProvider))) {
+        unawaited(ref.read(walletProvider.notifier).refreshQuietly());
+      }
+    });
   }
 
   @override
@@ -67,24 +99,58 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
 
   bool get _confirmed => _typed.text.trim() == DeleteAccountScreen.confirmWord;
 
+  static bool _liveWallet(Backend mode) => mode.isLive(LiveFeature.wallet);
+
+  /// Whether [wallet] keeps Delete locked; a paused wallet has no balance
+  /// to weigh.
+  static bool _locked(Backend mode, WalletTotals? wallet) {
+    if (mode.isPaused(LiveFeature.wallet)) return false;
+    return wallet == null ||
+        wallet.withdrawableKobo > 0 ||
+        _inFlight(mode, wallet);
+  }
+
+  static bool _inFlight(Backend mode, WalletTotals wallet) =>
+      _liveWallet(mode) && wallet.pendingWithdrawalsKobo > 0;
+
+  static bool _moneyLeft(Object error) =>
+      error is ApiRefused &&
+      (error.code == 'ACCOUNT_HAS_BALANCE' ||
+          error.code == 'WITHDRAWAL_IN_FLIGHT');
+
   Future<void> _delete() async {
-    final available = ref.read(accountWalletProvider).value?.withdrawableKobo;
-    if (!_confirmed || _deleting || available != 0) return;
+    final mode = ref.read(liveModeProvider);
+    if (!_confirmed ||
+        _deleting ||
+        _locked(mode, ref.read(accountWalletProvider).value)) {
+      return;
+    }
     FocusScope.of(context).unfocus();
     setState(() => _deleting = true);
     try {
       await ref.read(profileServiceProvider).deleteAccount();
-    } on Exception {
+    } on Exception catch (error) {
       if (!mounted) return;
+      var shown = false;
+      if (_moneyLeft(error) && _liveWallet(mode)) {
+        await ref.read(walletProvider.notifier).refreshQuietly();
+        final wallet = await ref
+            .read(accountWalletProvider.future)
+            .then<WalletTotals?>((w) => w, onError: (Object _) => null);
+        if (!mounted) return;
+        shown = wallet != null && _locked(mode, wallet);
+      }
       setState(() {
         _deleting = false;
         _failures++;
+        _explained = shown;
+        _refused = !unanswered(error);
       });
       errorHaptic();
       return;
     }
     final email = ref.read(onboardingUserProvider).value?.email;
-    await forgetAccount(ref);
+    await forgetAccount(ref, closed: true);
     if (mounted) context.go(Routes.accountClosing, extra: email);
   }
 
@@ -93,17 +159,22 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
   @override
   Widget build(BuildContext context) {
     ref.watch(onboardingUserProvider);
-    final wallet = ref.watch(accountWalletProvider).value;
+    final mode = ref.watch(liveModeProvider);
+    final weighed = !mode.isPaused(LiveFeature.wallet);
+    final wallet = weighed ? ref.watch(accountWalletProvider).value : null;
     final available = wallet?.withdrawableKobo ?? 0;
     final onItsWay = wallet?.pendingWithdrawalsKobo ?? 0;
-    final locked = wallet == null || available > 0;
+    final locked = _locked(mode, wallet);
+    final inFlight =
+        available == 0 && wallet != null && _inFlight(mode, wallet);
     final rows = [
-      if (available > 0) ...[
-        (
-          'Withdraw ${naira(available)} first',
-          IqIcons.bank,
-          () => context.go(Routes.wallet),
-        ),
+      if (available > 0 || inFlight) ...[
+        if (available > 0)
+          (
+            'Withdraw ${naira(available)} first',
+            IqIcons.bank,
+            () => context.go(Routes.wallet),
+          ),
         if (onItsWay > 0) ('${naira(onItsWay)} on its way', IqIcons.bank, null),
         ('Submissions stay with the business', IqIcons.submissions, null),
       ],
@@ -147,20 +218,24 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
                                     color: IqColors.fg,
                                   ),
                                 ),
-                                const SizedBox(height: IqSpace.s3),
-                                Text(
-                                  available > 0
-                                      ? 'Withdraw your ${naira(available)} '
-                                            'first. Delete unlocks at '
-                                            '${naira(0)}, then you have 30 '
-                                            'days to change your mind.'
-                                      : 'Your wallet is at ${naira(0)}. '
-                                            'Delete now and you have 30 days '
-                                            'to change your mind.',
-                                  style: IqText.body.copyWith(
-                                    color: IqColors.fg2,
+                                if (weighed) ...[
+                                  const SizedBox(height: IqSpace.s3),
+                                  Text(
+                                    available > 0
+                                        ? 'Withdraw your ${naira(available)} '
+                                              'first. Delete unlocks at '
+                                              '${naira(0)}, then you have 30 '
+                                              'days to change your mind.'
+                                        : inFlight
+                                        ? 'Your wallet is at ${naira(0)}.'
+                                        : 'Your wallet is at ${naira(0)}. '
+                                              'Delete now and you have 30 '
+                                              'days to change your mind.',
+                                    style: IqText.body.copyWith(
+                                      color: IqColors.fg2,
+                                    ),
                                   ),
-                                ),
+                                ],
                               ],
                             ),
                           ),
@@ -226,8 +301,10 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
                         ),
                       ),
                       _FailedLine(
-                        failures: _deleting ? 0 : _failures,
-                        text: DeleteAccountScreen.failedText,
+                        failures: _deleting || _explained ? 0 : _failures,
+                        text: _refused
+                            ? DeleteAccountScreen.refusedText
+                            : DeleteAccountScreen.failedText,
                       ),
                       const SizedBox(height: IqSpace.s2),
                       SizedBox(

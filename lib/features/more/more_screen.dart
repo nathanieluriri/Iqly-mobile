@@ -41,6 +41,12 @@ import 'more_widgets.dart';
 ///
 /// Figma over its prop: the Delete account row is Danger with the kit's
 /// close glyph, as the frame draws it (its Icon prop says profile).
+///
+/// A live launch has no iQL points or referrals yet
+/// ([pointsAndReferralsProvider]): the card shows the name alone, and the
+/// invite card and the Leaderboard row go (no frame draws More without
+/// them). Its Clear cache names what the phone keeps for the person, in KB
+/// under a megabyte; the frame's 42 MB is the preview's.
 class MoreScreen extends ConsumerStatefulWidget {
   const MoreScreen({super.key});
 
@@ -57,15 +63,19 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
     super.dispose();
   }
 
-  Future<void> _clearCache(int bytes) async {
-    final size = megabytes(bytes);
+  /// The size as it is now: the phone keeps more as the person browses.
+  /// One the store cannot count goes unnamed.
+  Future<void> _clearCache() async {
+    final bytes = await ref.refresh(cacheProvider.future);
+    if (!mounted) return;
+    final size = bytes == null ? null : storageSize(bytes);
     final clear = await showIqConfirmSheet(
       Navigator.of(context, rootNavigator: true).context,
       title: 'Clear cached data?',
       body:
-          'Removes $size of saved briefs and images from this phone. Your '
-          'account and submissions are not affected.',
-      confirmLabel: 'Clear $size',
+          'Removes ${size == null ? '' : '$size of '}saved briefs and images '
+          'from this phone. Your account and submissions are not affected.',
+      confirmLabel: size == null ? 'Clear' : 'Clear $size',
       cancelLabel: 'Keep it',
       confirmKind: IqButtonKind.primary,
     );
@@ -76,16 +86,18 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
   Widget build(BuildContext context) {
     final unread = ref.watch(unreadNotificationsProvider).value ?? 0;
     final pass = ref.watch(contributorPassProvider).value;
-    final cache = ref.watch(cacheProvider).value;
+    final extras = ref.watch(pointsAndReferralsProvider);
+    final code = pass?.code;
+    final cache = ref.watch(cacheProvider);
     final ios = defaultTargetPlatform == TargetPlatform.iOS;
 
     final avatar = ref.watch(avatarProvider.select((a) => a.spec));
     final children = <Widget>[
       SizedBox(
-        height: _PassSkeleton.height,
+        height: _PassSkeleton.heightFor(pointsAndReferrals: extras),
         child: LoadingGate(
           loading: pass == null,
-          skeleton: const _PassSkeleton(),
+          skeleton: _PassSkeleton(pointsAndReferrals: extras),
           child: pass == null
               ? const SizedBox.shrink()
               : Column(
@@ -95,22 +107,27 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
                       label: 'Your profile',
                       child: IqAchievementCard(
                         name: ref.watch(accountNameProvider) ?? pass.user.name,
-                        points: wholeNumber(pass.points),
+                        points: switch (pass.points) {
+                          final points? => wholeNumber(points),
+                          null => '',
+                        },
                         rank: pass.rank == null ? '' : '#${pass.rank}',
                         avatar: avatar,
                         onAvatarTap: () => chooseAvatar(context),
                         onRankTap: () => context.open(Routes.pointsLeaderboard),
                       ),
                     ),
-                    const SizedBox(height: IqSpace.s3),
-                    _CardPress(
-                      onTap: () => context.open(Routes.referrals),
-                      label: 'Referrals',
-                      child: IqReferralCard(
-                        code: pass.code,
-                        onCopy: () => copyInviteCode(context, pass.code),
+                    if (code != null) ...[
+                      const SizedBox(height: IqSpace.s3),
+                      _CardPress(
+                        onTap: () => context.open(Routes.referrals),
+                        label: 'Referrals',
+                        child: IqReferralCard(
+                          code: code,
+                          onCopy: () => copyInviteCode(context, code),
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
         ),
@@ -138,12 +155,13 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
               icon: IqIcons.heart,
               onTap: () => context.open(Routes.moreSavedBriefs),
             ),
-          IqListRow(
-            label: 'Leaderboard',
-            showDescription: false,
-            icon: IqIcons.trophy,
-            onTap: () => context.open(Routes.pointsLeaderboard),
-          ),
+          if (extras)
+            IqListRow(
+              label: 'Leaderboard',
+              showDescription: false,
+              icon: IqIcons.trophy,
+              onTap: () => context.open(Routes.pointsLeaderboard),
+            ),
           IqListRow(
             label: 'Bank account',
             showDescription: false,
@@ -182,7 +200,7 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
             label: 'Clear cache',
             showDescription: false,
             icon: IqIcons.eraser,
-            onTap: cache == null ? null : () => _clearCache(cache),
+            onTap: cache.hasValue ? _clearCache : null,
           ),
           IqListRow(
             label: 'Sign out',
@@ -266,11 +284,15 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
 /// The summary and invite cards while the pass loads on the tab's first
 /// visit (spec 2.6): their two cards as tint blocks with the bars of the
 /// avatar, the name, the points and the code, pulsing on the screen's beat.
+/// Without [pointsAndReferrals], the summary card with the name alone.
 class _PassSkeleton extends StatelessWidget {
-  const _PassSkeleton();
+  const _PassSkeleton({required this.pointsAndReferrals});
 
-  static double get height =>
-      IqAchievementCard.size.height + IqSpace.s3 + IqReferralCard.size.height;
+  final bool pointsAndReferrals;
+
+  static double heightFor({required bool pointsAndReferrals}) =>
+      IqAchievementCard.size.height +
+      (pointsAndReferrals ? IqSpace.s3 + IqReferralCard.size.height : 0);
 
   @override
   Widget build(BuildContext context) {
@@ -319,15 +341,17 @@ class _PassSkeleton extends StatelessWidget {
           children: [
             card(IqAchievementCard.size, IqColors.tint, bar(opacity, 60, 60), [
               bar(opacity, 140, 14),
-              bar(opacity, 96, 12),
+              if (pointsAndReferrals) bar(opacity, 96, 12),
             ]),
-            const SizedBox(height: IqSpace.s3),
-            card(
-              IqReferralCard.size,
-              IqColors.accentSoft,
-              bar(opacity, 52, 52),
-              [bar(opacity, 180, 14), bar(opacity, 86, 12)],
-            ),
+            if (pointsAndReferrals) ...[
+              const SizedBox(height: IqSpace.s3),
+              card(
+                IqReferralCard.size,
+                IqColors.accentSoft,
+                bar(opacity, 52, 52),
+                [bar(opacity, 180, 14), bar(opacity, 86, 12)],
+              ),
+            ],
           ],
         ),
       ),
@@ -379,6 +403,6 @@ Future<void> confirmSignOut(BuildContext context, WidgetRef ref) async {
     cancelLabel: 'Stay signed in',
   );
   if (!out || !context.mounted) return;
-  await signOut(ref);
+  await forgetAccount(ref);
   if (context.mounted) context.go(Routes.landing);
 }

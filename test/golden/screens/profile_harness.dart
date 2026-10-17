@@ -30,8 +30,10 @@ class TestProfileService extends DemoProfileService {
   @override
   Future<void> saveDetails(
     AccountDetails details,
-    OnboardingProfile answers,
-  ) async {
+    OnboardingProfile answers, {
+    AccountDetails? before,
+    OnboardingProfile? answersBefore,
+  }) async {
     if (hold) {
       final held = _held = Completer<void>();
       await held.future;

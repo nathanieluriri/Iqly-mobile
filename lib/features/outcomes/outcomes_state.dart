@@ -83,12 +83,14 @@ class ResultData {
 final resultProvider = FutureProvider.autoDispose.family<ResultData?, String>(
   retry: (_, _) => null,
   (ref, id) async {
+    // Asked together, so a network that does not answer holds the page for
+    // one wait on the phone's copies, not one per read.
+    final outcomeRead = ref.watch(outcomesServiceProvider).outcome(id)
+      ..ignore();
+    final userRead = ref.watch(onboardingUserProvider.future)..ignore();
     final item = await ref.watch(submissionItemProvider(id).future);
     if (item == null || item.underReview) return null;
-    final (outcome, user) = await (
-      ref.watch(outcomesServiceProvider).outcome(id),
-      ref.watch(onboardingUserProvider.future),
-    ).wait;
+    final (outcome, user) = await (outcomeRead, userRead).wait;
     var next = const <Brief>[];
     if (item.status == SubmissionStatus.filteredOut) {
       next = await _nextBriefs(ref, item);

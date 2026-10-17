@@ -6,9 +6,15 @@ import '../../core/money.dart';
 /// The web form's floor: ₦1,000.
 const minimumWithdrawalKobo = 100000;
 
-/// The web rule: at least ₦1,000 and no more than is available.
+/// Under the floor, unless it is the whole withdrawable balance: contract 6
+/// lets that go whatever it is, so a remainder under ₦1,000 can always
+/// leave.
+bool belowMinimum(int kobo, int availableKobo) =>
+    kobo < minimumWithdrawalKobo && (kobo != availableKobo || kobo == 0);
+
+/// At least ₦1,000 or the whole balance, and no more than is available.
 bool validWithdrawal(int? kobo, int availableKobo) =>
-    kobo != null && kobo >= minimumWithdrawalKobo && kobo <= availableKobo;
+    kobo != null && !belowMinimum(kobo, availableKobo) && kobo <= availableKobo;
 
 /// Kobo from what the Amount field holds ("₦5,000.50", "5000"); null when
 /// it is empty or not an amount.

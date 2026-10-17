@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/deadline.dart';
+import '../../core/session.dart';
 import '../../data/drafts_data.dart';
 import '../../data/submit_data.dart';
 import '../../data/submit_service.dart';
@@ -179,8 +180,8 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
     _save(state.draft.copyWith(answers: answers));
   }
 
-  /// Takes what fits, as iqly.net does: five files at most, 10 MB each,
-  /// then sends each one up.
+  /// Takes what fits, as iqly.net does: five files at most, 10 MB each and
+  /// 30 MB together, then sends each one up.
   void addFiles(List<AttachmentFile> picked) {
     final files = [...state.files];
     final added = <AttachmentFile>[];
@@ -192,6 +193,11 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
       }
       if (file.bytes > SubmitLimits.fileBytes) {
         error = '${file.name} exceeds ${SubmitLimits.fileBytes ~/ _mb} MB.';
+        continue;
+      }
+      final total = files.fold(0, (sum, a) => sum + a.file.bytes);
+      if (total + file.bytes > SubmitLimits.totalBytes) {
+        error = 'Max ${SubmitLimits.totalBytes ~/ _mb} MB in total.';
         continue;
       }
       files.add(Attachment(file));
@@ -268,17 +274,40 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
       !state.uploading &&
       firstUnanswered(form, state.draft) == null;
 
+  void _goingUp(Set<AttachmentFile> files, double progress) {
+    if (!ref.mounted) return;
+    state = state.copyWith(
+      files: [
+        for (final a in state.files)
+          files.contains(a.file)
+              ? a.copyWith(
+                  status: AttachmentStatus.uploading,
+                  progress: progress,
+                )
+              : a,
+      ],
+    );
+  }
+
   /// Drops the draft once its answer is sent.
   Future<void> discard() =>
       ref.read(draftsProvider.notifier).discard([briefId]);
 
   /// Sends once every required answer is in. Null when something is missing
-  /// or a send is already on its way.
+  /// or a send is already on its way. A live send carries the files, so
+  /// their rows show them going up with it. An answer that lands once its
+  /// account is no longer signed in leaves the flow and the drafts be.
   Future<SubmitResult?> send(SubmitForm form) async {
     if (!form.hasQuestions && !_answerStepReady()) return null;
     if (!canSend(form)) return null;
+    final scope = ref.read(accountScopeProvider);
     state = state.copyWith(sending: true, failed: false);
     final draft = state.draft;
+    final files = [
+      for (final a in state.files)
+        if (a.status == AttachmentStatus.done) a.file,
+    ];
+    final going = files.toSet();
     final result = await ref
         .read(submitServiceProvider)
         .submit(
@@ -293,16 +322,23 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
                     a.trim(),
                 ],
             },
-            files: [
-              for (final a in state.files)
-                if (a.status == AttachmentStatus.done) a.file,
-            ],
+            files: files,
+            onProgress: (progress) => _goingUp(going, progress),
           ),
         );
-    if (!ref.mounted) return result;
+    if (!ref.mounted || !scope.open) return result;
     final receipt = result.receipt;
     if (receipt == null) {
-      state = state.copyWith(sending: false, failed: true);
+      state = state.copyWith(
+        sending: false,
+        failed: true,
+        files: [
+          for (final a in state.files)
+            a.status == AttachmentStatus.uploading && going.contains(a.file)
+                ? a.copyWith(status: AttachmentStatus.done, progress: 1)
+                : a,
+        ],
+      );
     } else {
       await discard();
       if (!ref.mounted) return result;
@@ -328,8 +364,7 @@ final submitOpeningProvider = FutureProvider.autoDispose
 
 /// Sign out and account deletion clear the autosaves earlier builds kept
 /// under the `submit.draft.` keys.
-Future<void> forgetSubmitDrafts(SharedPreferences prefs) async {
-  for (final key in prefs.getKeys().toList()) {
-    if (key.startsWith('submit.draft.')) await prefs.remove(key);
-  }
-}
+Future<void> forgetSubmitDrafts(SharedPreferences prefs) => Future.wait([
+  for (final key in prefs.getKeys())
+    if (key.startsWith('submit.draft.')) prefs.remove(key),
+]);

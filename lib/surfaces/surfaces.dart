@@ -8,13 +8,18 @@ import 'package:go_router/go_router.dart';
 import 'package:quick_actions/quick_actions.dart';
 import 'package:timezone/timezone.dart' as tz;
 
+import '../core/backend.dart';
+import '../core/deadline.dart';
 import '../core/deep_links.dart';
 import '../core/flags.dart';
 import '../core/navigation.dart';
+import '../core/session.dart';
 import '../data/demo_data.dart';
+import '../data/live/live_repository.dart';
 import '../data/models.dart';
 import '../data/notifications_data.dart';
 import '../data/polls_data.dart';
+import '../data/repository.dart';
 import '../theme/theme.dart';
 import 'live_activity.dart';
 import 'notification_content.dart';
@@ -122,6 +127,73 @@ class SurfaceInputs {
       feed.where((n) => n.entryId == entryId).firstOrNull?.id;
 }
 
+/// What the surfaces show this launch, for main.dart to start and publish
+/// them with in place of [SurfaceInputs.demo]. With briefs live the
+/// closing-soon widget reads the live briefs (the phone's last copy when
+/// the API does not answer) and, with submit live, Continue my draft opens
+/// the newest draft on the phone, or is not offered; a live launch that
+/// pauses them shows neither. [onPhone] reads only what the phone holds,
+/// without asking the API, so a launch link never waits for the network.
+/// Polls stay on the preview data.
+Future<SurfaceInputs> surfaceInputs(
+  Reader read,
+  DateTime now, {
+  bool onPhone = false,
+}) async {
+  final preview = SurfaceInputs.demo(now);
+  final mode = read(liveModeProvider);
+  if (mode.isPreview) return preview;
+  final repository = read(repositoryProvider);
+  var briefs = const <Brief>[];
+  if (mode.isLive(LiveFeature.briefs)) {
+    briefs =
+        await (onPhone && repository is LiveRepository
+                ? repository.keptBriefs()
+                : repository.briefs())
+            .catchError((Object _) => const <Brief>[]);
+  }
+  String? draft;
+  if (mode.isLive(LiveFeature.submit)) {
+    try {
+      draft = (await repository.drafts()).firstOrNull?.briefId;
+    } on Object {
+      draft = null;
+    }
+  }
+  return SurfaceInputs(
+    briefs: briefs,
+    polls: preview.polls,
+    withdrawals: preview.withdrawals,
+    feed: preview.feed,
+    now: now,
+    draftBriefId: draft,
+  );
+}
+
+/// Starts [surfaces] on what the phone holds, so a launch link opens at
+/// once, then publishes what the API answers whenever it comes: at launch,
+/// after each change of mode and when another account signs in. What was
+/// read for an account no longer signed in once it lands is not published.
+Future<void> startSurfaces(
+  Surfaces surfaces,
+  ProviderContainer container,
+) async {
+  final now = container.read(clockProvider);
+  Future<void> publish() async {
+    final scope = container.read(accountScopeProvider);
+    final inputs = await surfaceInputs(container.read, now());
+    if (scope.open) await surfaces.publish(inputs);
+  }
+
+  void publishLive() => unawaited(publish());
+  await surfaces.start(
+    await surfaceInputs(container.read, now(), onPhone: true),
+  );
+  if (!container.read(liveModeProvider).isPreview) publishLive();
+  container.listen(backendProvider, (_, _) => publishLive());
+  container.listen(accountProvider, (_, _) => publishLive());
+}
+
 /// Starts the OS surfaces from main.dart and routes their taps. Widget tests
 /// never construct it, so no plugin is touched under test.
 class Surfaces {
@@ -148,6 +220,7 @@ class Surfaces {
   final SurfaceLaunchQueue _queue;
 
   static const _smallIcon = 'ic_stat_iqly';
+  static const _sampleKey = 'sample';
   static const _pollCategory = 'poll';
 
   static bool get supported =>
@@ -250,14 +323,21 @@ class Surfaces {
   }
 
   /// Schedules Remind me for each of [briefs] and drops the reminders of
-  /// briefs no longer in it. Call with every brief that has Remind me on,
+  /// briefs no longer in it, but for those of the briefs [keep] names,
+  /// which stay as they are. Call with every brief that has Remind me on,
   /// as they stand now, so a moved close moves its reminder.
-  Future<void> syncCloseReminders(Iterable<Brief> briefs) async {
+  Future<void> syncCloseReminders(
+    Iterable<Brief> briefs, {
+    Set<String> keep = const {},
+  }) async {
     if (!supported) return;
     final now = DateTime.now();
-    final wanted = <int>{};
     final enabled =
         Flags.pushNotifications && _channelOn(SurfaceChannel.closingSoon);
+    final wanted = <int>{
+      if (enabled)
+        for (final id in keep) stableId('$closeReminderPrefix$id'),
+    };
     for (final brief in enabled ? briefs : const <Brief>[]) {
       final note = closeReminderNotification(brief);
       final deadline = brief.deadline;
@@ -284,7 +364,11 @@ class Surfaces {
     }
   }
 
-  /// Try notifications: a notification that plays only [sound].
+  static const _sampleLingers = Duration(minutes: 1);
+
+  /// Try notifications: a notification that plays only [sound]. Samples
+  /// share one slot and leave after a minute, so trying all six does not
+  /// bury real notifications on the lock screen.
   Future<void> playSample(IqSound sound) async {
     if (!supported) return;
     await _android?.createNotificationChannel(
@@ -297,7 +381,7 @@ class Surfaces {
       ),
     );
     await _notifications.show(
-      id: stableId(sound.sampleChannelId),
+      id: stableId(_sampleKey),
       title: '${sound.isSiren ? 'Siren' : 'Bing'}: ${sound.label}',
       body: sound.description,
       notificationDetails: NotificationDetails(
@@ -305,10 +389,11 @@ class Surfaces {
           sound.sampleChannelId,
           'Sound sample: ${sound.label}',
           icon: _smallIcon,
-          color: IqColors.brand,
+          color: _accent,
           importance: Importance.high,
           priority: Priority.high,
           sound: RawResourceAndroidNotificationSound(sound.resource),
+          timeoutAfter: _sampleLingers.inMilliseconds,
         ),
         iOS: DarwinNotificationDetails(
           sound: sound.iosFile,
@@ -348,7 +433,7 @@ class Surfaces {
         importance: _importance(channel),
         sound: RawResourceAndroidNotificationSound(channel.sound.resource),
         icon: _smallIcon,
-        color: IqColors.brand,
+        color: _accent,
         groupKey: note.group,
         subText: note.subtext,
         styleInformation: BigTextStyleInformation(note.body),
@@ -364,6 +449,7 @@ class Surfaces {
             ? NotificationVisibility.private
             : NotificationVisibility.public,
         when: countdownTo?.millisecondsSinceEpoch,
+        showWhen: note.progress == null,
         usesChronometer: countdownTo != null,
         chronometerCountDown: countdownTo != null,
         timeoutAfter:
@@ -393,6 +479,12 @@ class Surfaces {
       ),
     );
   }
+
+  /// Android fills the circle around the small icon with this and lets it
+  /// show through the icon's cut-outs. It keeps the stored colour across
+  /// theme switches and only adjusts it for contrast: the mark's orange
+  /// survives both shades, where brand purple came back lavender on dark.
+  static const _accent = IqColors.accent;
 
   static Importance _importance(SurfaceChannel channel) =>
       channel.urgent ? Importance.high : Importance.defaultImportance;

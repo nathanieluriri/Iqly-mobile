@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -223,6 +224,23 @@ void main() {
       (await auth.signIn(email: 'a@b.co', password: 'x')).failure,
       AuthFailure.offline,
     );
+  });
+
+  test('a TLS failure is offline too, never an error that escapes', () async {
+    final auth = LiveAuthService(
+      api: ApiClient(
+        tokens: MemoryTokenStore(),
+        client: MockClient(
+          (_) => throw const HandshakeException('WRONG_VERSION_NUMBER'),
+        ),
+      ),
+      social: _Social(),
+    );
+    expect(
+      (await auth.signIn(email: 'a@b.co', password: 'x')).failure,
+      AuthFailure.offline,
+    );
+    expect((await auth.lookUpEmail('a@b.co')).failure, AuthFailure.offline);
   });
 
   test('Apple sends its ID token, nonce and first-time name', () async {

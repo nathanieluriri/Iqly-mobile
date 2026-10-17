@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/session.dart';
 import 'activations_data.dart';
 
 /// An upload on its way: [progress] from 0 to 1, then the upload's [id].
@@ -279,6 +280,7 @@ class DemoActivationsService implements ActivationsService {
 }
 
 final activationsServiceProvider = Provider<ActivationsService>((ref) {
+  ref.watch(accountProvider);
   final service = DemoActivationsService();
   ref.onDispose(service.dispose);
   return service;

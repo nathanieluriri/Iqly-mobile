@@ -2,8 +2,13 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/backend.dart';
 import '../core/deadline.dart';
+import '../core/session.dart';
+import 'api_client.dart';
 import 'demo_data.dart';
+import 'live/live_repository.dart';
+import 'live/live_submit_service.dart';
 import 'models.dart';
 import 'repository.dart';
 import 'submit_data.dart';
@@ -32,7 +37,17 @@ class SubmitOpening {
   final String? submissionId;
 }
 
-enum SubmitFailure { blocked, offline, unknown }
+enum SubmitFailure {
+  blocked,
+  offline,
+  unknown,
+
+  /// The profile's date of birth is under 18 (403 UNDER_AGE).
+  underAge,
+
+  /// The account is closing, so it takes no writes (403 ACCOUNT_CLOSING).
+  closing,
+}
 
 class SubmitResult {
   const SubmitResult.sent(SubmitReceipt this.receipt)
@@ -179,20 +194,28 @@ class DemoSubmitService implements SubmitService {
 /// The system picker (file_picker). Without the plugin, as in tests and
 /// on a desktop build without it, it falls back to [fallback].
 class DeviceAttachmentPicker implements AttachmentPicker {
-  DeviceAttachmentPicker({AttachmentPicker? fallback})
+  DeviceAttachmentPicker({AttachmentPicker? fallback, this.extensions})
     : fallback = fallback ?? DemoAttachmentPicker();
 
   final AttachmentPicker fallback;
 
+  /// The kinds of file offered, by extension; null offers any file.
+  final List<String>? extensions;
+
   @override
   Future<List<AttachmentFile>> pick() async {
     try {
-      final files = await FilePicker.pickFiles();
+      final only = extensions;
+      final files = await FilePicker.pickFiles(
+        type: only == null ? FileType.any : FileType.custom,
+        allowedExtensions: only,
+      );
       return [
         for (final file in files)
           AttachmentFile(
             name: file.name,
             bytes: file.lengthSync() ?? await file.length() ?? 0,
+            read: file.readAsBytes,
           ),
       ];
     } on MissingPluginException {
@@ -241,19 +264,49 @@ class DemoAttachmentUploader implements AttachmentUploader {
   }
 }
 
-/// The demo writes into the same dataset the repository reads.
+/// Submit in a live launch that pauses it: a brief does not open and a
+/// send fails, before anything is sent or written into the sample data.
+class PausedSubmitService implements SubmitService {
+  const PausedSubmitService();
+
+  @override
+  Future<SubmitOpening> open(String briefId) =>
+      Future.error(const FeaturePaused(LiveFeature.submit));
+
+  @override
+  Future<SubmitResult> submit(SubmitRequest request) async =>
+      const SubmitResult.failure(SubmitFailure.unknown);
+}
+
+/// The API when submit is live, and a refusal while a live launch pauses
+/// it. The demo writes into the dataset the preview's repository reads.
 final submitServiceProvider = Provider<SubmitService>((ref) {
+  ref.watch(accountProvider);
+  final api = ref.watch(apiClientProvider);
+  final mode = ref.watch(liveModeProvider);
+  if (api != null && mode.isLive(LiveFeature.submit)) {
+    return LiveSubmitService(api, clock: ref.watch(clockProvider));
+  }
+  if (!mode.isPreview) return const PausedSubmitService();
   final repository = ref.watch(repositoryProvider);
   return DemoSubmitService(
-    repository is DemoRepository ? repository.data : DemoData(),
+    repository is DemoRepository
+        ? repository.data
+        : ref.watch(demoRepositoryProvider).data,
     clock: ref.watch(clockProvider),
   );
 });
 
+/// A live send takes images and PDFs only: the API refuses anything else.
 final attachmentPickerProvider = Provider<AttachmentPicker>(
-  (ref) => DeviceAttachmentPicker(),
+  (ref) => ref.watch(liveModeProvider).isPreview
+      ? DeviceAttachmentPicker()
+      : DeviceAttachmentPicker(extensions: LiveSubmitService.fileExtensions),
 );
 
+/// A live launch never runs the demo's upload.
 final attachmentUploaderProvider = Provider<AttachmentUploader>(
-  (ref) => DemoAttachmentUploader(),
+  (ref) => ref.watch(liveModeProvider).isPreview
+      ? DemoAttachmentUploader()
+      : const LiveAttachmentUploader(),
 );

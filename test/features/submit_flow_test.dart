@@ -529,6 +529,28 @@ void main() {
     expect(haptics, [_error]);
   });
 
+  testWidgets('B3: attachments stop at 30 MB together, as the API takes '
+      'them', (tester) async {
+    final picker = DemoAttachmentPicker();
+    await pumpApp(
+      tester,
+      Routes.submitTo('c5'),
+      repository: readyToSend(),
+      overrides: instantSubmit(picker: picker, uploader: ScriptedUploader()),
+    );
+    picker.next = const [
+      AttachmentFile(name: 'deck.pdf', bytes: 9 * 1024 * 1024),
+      AttachmentFile(name: 'photos.pdf', bytes: 9 * 1024 * 1024),
+      AttachmentFile(name: 'budget.pdf', bytes: 9 * 1024 * 1024),
+      AttachmentFile(name: 'too-much.pdf', bytes: 9 * 1024 * 1024),
+    ];
+    await _tap(tester, find.text('Attachments'));
+    expect(find.text('deck.pdf'), findsOneWidget);
+    expect(find.text('budget.pdf'), findsOneWidget);
+    expect(find.text('too-much.pdf'), findsNothing);
+    expect(find.text('Max 30 MB in total.'), findsOneWidget);
+  });
+
   testWidgets('B3: the answer stops at 5,000 characters', (tester) async {
     await pumpApp(
       tester,

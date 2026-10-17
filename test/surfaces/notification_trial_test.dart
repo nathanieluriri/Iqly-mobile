@@ -9,6 +9,7 @@ import 'package:iqly_mobile/surfaces/notification_content.dart';
 import 'package:iqly_mobile/surfaces/notification_sounds.dart';
 import 'package:iqly_mobile/surfaces/surface_samples.dart';
 import 'package:iqly_mobile/surfaces/surfaces.dart';
+import 'package:iqly_mobile/theme/theme.dart';
 
 const _plugin = MethodChannel('dexterous.com/flutter/local_notifications');
 
@@ -74,6 +75,14 @@ void main() {
   Map<String, Object?> details(MethodCall call) =>
       ((call.arguments as Map)['platformSpecifics'] as Map)
           .cast<String, Object?>();
+
+  int colorOf(MethodCall call) {
+    final d = details(call);
+    return (d['colorAlpha']! as int) << 24 |
+        (d['colorRed']! as int) << 16 |
+        (d['colorGreen']! as int) << 8 |
+        (d['colorBlue']! as int);
+  }
 
   group('the B18 and B19 examples on their sample records', () {
     final samples = SurfaceSamples(now);
@@ -247,5 +256,38 @@ void main() {
       'payouts_v2',
       'payouts_v2',
     ]);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
+  testWidgets('every notification asks for the mark\'s orange, whatever the '
+      'theme when it was posted', (tester) async {
+    AndroidFlutterLocalNotificationsPlugin.registerWith();
+    final samples = SurfaceSamples(DateTime.now());
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+    await tester.runAsync(() async {
+      await surfaces().show(samples.won);
+      await surfaces().payoutChanged(samples.payoutSteps.first, samples.inputs);
+      await surfaces().playSample(IqSound.bingIdea);
+    });
+    for (final call in shown) {
+      expect(colorOf(call), IqColors.accent.toARGB32());
+    }
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
+  testWidgets('a payout in progress shows no time, as B19 350:17527 has it; '
+      'sound samples share one slot', (tester) async {
+    AndroidFlutterLocalNotificationsPlugin.registerWith();
+    final samples = SurfaceSamples(DateTime.now());
+    await tester.runAsync(() async {
+      await surfaces().payoutChanged(samples.payoutSteps.first, samples.inputs);
+      await surfaces().show(samples.won);
+      await surfaces().playSample(IqSound.bingSpark);
+      await surfaces().playSample(IqSound.sirenWail);
+    });
+    expect(details(shown[0])['showWhen'], isFalse);
+    expect(details(shown[1])['showWhen'], isTrue);
+    final ids = [for (final c in shown.skip(2)) (c.arguments as Map)['id']];
+    expect(ids.toSet(), hasLength(1));
+    expect(details(shown[2])['timeoutAfter'], greaterThan(0));
   }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 }

@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/backend.dart';
 import '../../core/motion.dart';
 import '../../core/session.dart';
 import '../../core/transitions.dart';
@@ -83,6 +84,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       ..addListener(_onTick)
       ..forward();
     unawaited(ref.read(updatesProvider.notifier).check());
+    unawaited(ref.read(backendProvider.notifier).check());
   }
 
   Duration get _now => _timeline.total * _clock.value;
@@ -104,19 +106,23 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     _handedOff = true;
     ref.read(sharedPreferencesProvider).setBool(SplashScreen.litKey, true);
     final updates = ref.read(updatesProvider.notifier);
-    if (!updates.checking) {
+    final backend = ref.read(backendProvider.notifier);
+    if (!updates.checking && !backend.checking) {
       _leave();
       return;
     }
     // The settled splash holds up to 2 s past its own run for the version
-    // check, from the hand-off itself whatever frame crossed it; no answer
-    // by then opens the app as usual.
+    // and health checks, from the hand-off itself whatever frame crossed it;
+    // no answer by then opens the app as usual.
     _holding = true;
     _clock
       ..stop()
       ..value =
           _timeline.handoff.inMicroseconds / _timeline.total.inMicroseconds;
-    updates.settled(UpdatesNotifier.splashWait).then((_) {
+    Future.wait([
+      updates.settled(UpdatesNotifier.splashWait),
+      backend.settled(UpdatesNotifier.splashWait),
+    ]).then((_) {
       if (!mounted) return;
       _holding = false;
       _leave();
@@ -125,6 +131,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   }
 
   void _leave() {
+    unawaited(ref.read(backendProvider.notifier).lock());
     if (ref.read(updatesProvider.notifier).required) {
       _clock.stop();
       _landed = true;

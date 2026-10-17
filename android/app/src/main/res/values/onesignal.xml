@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- OneSignal builds the summary of a stacked push group itself, without
+     IqlyPushExtension, and takes its icon and colour from these names. -->
+<resources>
+    <item name="ic_stat_onesignal_default" type="drawable">@drawable/ic_stat_iqly</item>
+    <string name="onesignal_notification_accent_color" translatable="false">FFF58028</string>
+</resources>

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/session.dart';
 import '../../data/activations_data.dart';
 import '../../data/activations_service.dart';
 import '../../data/media_service.dart';
@@ -30,9 +31,9 @@ class ActivationsNotifier extends AsyncNotifier<List<Activation>> {
 
   void retry() => ref.invalidateSelf();
 
-  Future<void> start(String id) async => _land(await _service.start(id));
+  Future<void> start(String id) => _landing(_service.start(id));
 
-  Future<void> refresh(String id) async => _land(await _service.refresh(id));
+  Future<void> refresh(String id) => _landing(_service.refresh(id));
 
   Future<void> sendProof(
     String id, {
@@ -41,8 +42,8 @@ class ActivationsNotifier extends AsyncNotifier<List<Activation>> {
     required ProofVideo video,
     String phone = '',
     String note = '',
-  }) async => _land(
-    await _service.sendProof(
+  }) => _landing(
+    _service.sendProof(
       id,
       step: step,
       uploadId: uploadId,
@@ -51,6 +52,13 @@ class ActivationsNotifier extends AsyncNotifier<List<Activation>> {
       note: note,
     ),
   );
+
+  /// Lands [answer] while its account is still the one signed in.
+  Future<void> _landing(Future<Activation> answer) async {
+    final scope = ref.read(accountScopeProvider);
+    final activation = await answer;
+    if (scope.open) _land(activation);
+  }
 
   void _land(Activation activation) {
     final list = state.value;
@@ -65,12 +73,13 @@ class ActivationsNotifier extends AsyncNotifier<List<Activation>> {
   }
 
   Future<void> _credit(Activation activation) async {
+    final scope = ref.read(accountScopeProvider);
     try {
       await ref.read(walletProvider.future);
     } on Object {
       return;
     }
-    if (!ref.mounted) return;
+    if (!ref.mounted || !scope.open) return;
     ref
         .read(walletProvider.notifier)
         .credit(
@@ -161,6 +170,7 @@ class ProofDraftNotifier extends Notifier<ProofDraft> {
 
   @override
   ProofDraft build() {
+    ref.watch(accountProvider);
     ref.onDispose(() => _upload?.cancel());
     return const ProofDraft();
   }
@@ -168,10 +178,11 @@ class ProofDraftNotifier extends Notifier<ProofDraft> {
   /// Opens the picker; a recording over a limit is refused, any other
   /// starts uploading.
   Future<void> pick() async {
+    final scope = ref.read(accountScopeProvider);
     final video = await ref
         .read(mediaServiceProvider)
         .pickVideo(about: ref.read(activationProvider(id))?.business);
-    if (!ref.mounted || video == null) return;
+    if (!ref.mounted || !scope.open || video == null) return;
     if (video.refused) {
       state = state.copyWith(
         stage: ProofStage.refused,
