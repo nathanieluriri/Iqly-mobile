@@ -361,8 +361,9 @@ class SavedBank {
 
   /// The bank's upper-case name as a person reads it: "Adaeze Okafor".
   String get holder => accountName
+      .trim()
       .toLowerCase()
-      .split(' ')
+      .split(RegExp(r'\s+'))
       .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
       .join(' ');
 }

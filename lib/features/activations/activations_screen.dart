@@ -13,6 +13,7 @@ import '../../core/transitions.dart';
 import '../../data/activations_data.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
+import '../../ui/empty_state.dart';
 import '../../ui/banner.dart';
 import '../../ui/illustration.dart';
 import '../../ui/list_row.dart';
@@ -229,21 +230,13 @@ class _Empty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, box) => SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: box.maxHeight),
-          child: Center(
-            child: ActivationsEmpty(
-              figure: IqFigures.shrug,
-              title: 'No activations right now',
-              body: 'Check back soon.',
-              action: 'Browse briefs',
-              onAction: () => context.go(Routes.home, extra: NavDirection.back),
-            ),
-          ),
-        ),
+    return IqEmptyFill(
+      child: IqEmptyState(
+        figure: IqFigures.shrug,
+        title: 'No activations right now',
+        body: 'Check back soon.',
+        action: 'Browse briefs',
+        onAction: () => context.go(Routes.home, extra: NavDirection.back),
       ),
     );
   }

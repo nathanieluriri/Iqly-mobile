@@ -9,7 +9,9 @@ enum PatchPhase { idle, downloading, ready, failed }
 
 /// Shorebird patches for this release (Figma B · Patch, rules 1323:28306):
 /// checked at launch and on resume at most once an hour. A patch on its way
-/// shows Updating iQLY until it is on disk, then Update ready. A download that
+/// shows Updating iQLY until it is on disk, then Update applied, which only
+/// tells the person: the patch boots on the next open and the app never
+/// closes itself (owner, 17 Oct). A download that
 /// fails or takes over [giveUpAfter] shows Couldn't update, and the app stops
 /// asking until the next launch.
 class PatchesNotifier extends Notifier<PatchPhase> {
@@ -66,13 +68,12 @@ class PatchesNotifier extends Notifier<PatchPhase> {
     unawaited(check());
   }
 
-  /// Continue on Couldn't update: back to the app until the next launch.
+  /// Close on Update applied, or Continue on Couldn't update: back to the
+  /// app, asking no more until the next launch.
   void dismiss() {
     _gaveUp = true;
     state = PatchPhase.idle;
   }
-
-  Future<void> close() => ref.read(patchServiceProvider).close();
 }
 
 final patchesProvider = NotifierProvider<PatchesNotifier, PatchPhase>(

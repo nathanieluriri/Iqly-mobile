@@ -9,6 +9,7 @@ import '../../data/models.dart';
 import '../../theme/theme.dart';
 import '../../ui/button.dart';
 import '../../ui/chip.dart';
+import '../../ui/empty_state.dart';
 import '../../ui/segmented.dart';
 import '../../ui/text_link.dart';
 import '../../ui/top_bar.dart';
@@ -217,22 +218,26 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                   child: LensSlide(
                     index: _tab.index,
                     contentKey: (_filter.status, _filter.when),
-                    child: ListView(
-                      padding: EdgeInsets.fromLTRB(
-                        IqSpace.s4,
-                        IqSpace.s3,
-                        IqSpace.s4,
-                        MediaQuery.viewPaddingOf(context).bottom + IqSpace.s6,
-                      ),
-                      children: [
-                        if (data != null && rows.isEmpty)
-                          const ActivityCard(children: [NoActivity()]),
-                        if (week.isNotEmpty) group('This week', week),
-                        if (week.isNotEmpty && earlier.isNotEmpty)
-                          const SizedBox(height: IqSpace.s3),
-                        if (earlier.isNotEmpty) group('Earlier', earlier),
-                      ],
-                    ),
+                    child: data != null && rows.isEmpty
+                        ? IqEmptyFill(
+                            bottom: MediaQuery.viewPaddingOf(context).bottom,
+                            child: const NoActivity(),
+                          )
+                        : ListView(
+                            padding: EdgeInsets.fromLTRB(
+                              IqSpace.s4,
+                              IqSpace.s3,
+                              IqSpace.s4,
+                              MediaQuery.viewPaddingOf(context).bottom +
+                                  IqSpace.s6,
+                            ),
+                            children: [
+                              if (week.isNotEmpty) group('This week', week),
+                              if (week.isNotEmpty && earlier.isNotEmpty)
+                                const SizedBox(height: IqSpace.s3),
+                              if (earlier.isNotEmpty) group('Earlier', earlier),
+                            ],
+                          ),
                   ),
                 ),
               ],

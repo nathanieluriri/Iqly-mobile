@@ -39,8 +39,8 @@ Map<String, Object> signedInLive([Map<String, Object> more = const {}]) => {
 
 /// The real router at [location] on a live build as main.dart wires one:
 /// the app's own live repository and services on [api], a launch fixed to
-/// [mode] (everything live by default), main.dart's retry, 390 x 844 with
-/// animations off.
+/// [mode] (everything live by default), main.dart's retry and routes,
+/// 390 x 844 with animations off.
 Future<(ProviderContainer, GoRouter)> pumpLiveLaunch(
   WidgetTester tester,
   String location, {
@@ -58,9 +58,13 @@ Future<(ProviderContainer, GoRouter)> pumpLiveLaunch(
   addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
   SharedPreferences.setMockInitialValues(prefs ?? signedInLive());
   final shared = await SharedPreferences.getInstance();
-  final router = buildRouter(initialLocation: location);
+  late final ProviderContainer container;
+  final router = buildRouter(
+    initialLocation: location,
+    hidden: (path) => hiddenRoute(container.read, path),
+  );
   addTearDown(router.dispose);
-  final container = ProviderContainer(
+  container = ProviderContainer(
     retry: retryUnlessPaused,
     overrides: [
       sharedPreferencesProvider.overrideWithValue(shared),

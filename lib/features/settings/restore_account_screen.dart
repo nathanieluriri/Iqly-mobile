@@ -10,6 +10,7 @@ import '../../data/live/live_account.dart';
 import '../../data/profile_service.dart';
 import '../../router.dart';
 import '../../ui/button.dart';
+import '../profile/leaving.dart';
 import '../profile/profile_state.dart';
 import 'account_closing_screen.dart';
 
@@ -79,8 +80,12 @@ class _RestoreAccountScreenState extends ConsumerState<RestoreAccountScreen> {
   Future<void> _keepClosed() async {
     if (_restoring || _leaving) return;
     setState(() => _leaving = true);
-    await forgetAccount(ref, closed: true);
-    if (mounted) context.go(Routes.landing);
+    await leaveUnderLoader(
+      context,
+      label: 'Signing out',
+      work: () => forgetAccount(ref, closed: true),
+      to: Routes.landing,
+    );
   }
 
   @override

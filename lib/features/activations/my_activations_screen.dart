@@ -8,6 +8,7 @@ import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../data/activations_data.dart';
 import '../../theme/theme.dart';
+import '../../ui/empty_state.dart';
 import '../../ui/chip.dart';
 import '../../ui/illustration.dart';
 import '../../ui/top_bar.dart';
@@ -156,9 +157,8 @@ class _Nothing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SingleChildScrollView(
-      padding: EdgeInsets.symmetric(horizontal: IqSpace.s4),
-      child: ActivationsEmpty(
+    return const IqEmptyFill(
+      child: IqEmptyState(
         figure: IqFigures.shrug,
         title: 'Nothing to show yet',
       ),

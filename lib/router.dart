@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/session.dart';
 import 'core/transitions.dart';
 import 'core/updates.dart';
+import 'data/repository.dart';
 import 'features/avatar/avatar_routes.dart';
 import 'features/discover/discover_routes.dart';
 import 'features/drafts/drafts_routes.dart';
@@ -107,12 +109,25 @@ abstract final class Routes {
 final routerProvider = Provider<GoRouter>(
   (ref) => buildRouter(
     updateRequired: () => ref.read(updatesProvider.notifier).required,
+    hidden: (path) => hiddenRoute(ref.read, path),
   ),
 );
+
+/// Whether this launch hides [path]: a live launch has no polls or
+/// activations to open, only the preview's samples.
+bool hiddenRoute(Reader read, String path) {
+  bool under(String root) => path == root || path.startsWith('$root/');
+  return (!read(pollsShownProvider) && under(Routes.polls)) ||
+      (!read(activationsShownProvider) && under(Routes.activations));
+}
 
 GoRouter buildRouter({
   String initialLocation = Routes.splash,
   bool Function()? updateRequired,
+
+  /// A path this launch cannot show, such as the preview's polls in a live
+  /// launch; it lands on Discover instead.
+  bool Function(String path)? hidden,
 }) {
   final rootKey = GlobalKey<NavigatorState>();
   return GoRouter(
@@ -123,7 +138,8 @@ GoRouter buildRouter({
     redirect: (context, state) {
       final path = state.uri.path;
       if (path == Routes.update || path == Routes.splash) return null;
-      return updateRequired?.call() == true ? Routes.update : null;
+      if (updateRequired?.call() == true) return Routes.update;
+      return hidden?.call(path) == true ? Routes.home : null;
     },
     routes: [
       GoRoute(

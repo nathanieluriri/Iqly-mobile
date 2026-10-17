@@ -9,7 +9,7 @@ import '../../core/responsive.dart';
 import '../../data/models.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
-import '../../ui/button.dart';
+import '../../ui/empty_state.dart';
 import '../../ui/skeleton.dart';
 import '../../ui/vector.dart';
 import 'app_shell.dart';
@@ -184,9 +184,10 @@ class _SavedBriefsScreenState extends ConsumerState<SavedBriefsScreen> {
               ),
             ),
           rows == null || rows.isEmpty
-              ? const SliverToBoxAdapter(
-                  key: ValueKey('saved'),
-                  child: _Empty(),
+              ? IqSliverEmptyFill(
+                  key: const ValueKey('saved'),
+                  bottom: AppShell.contentInset(context),
+                  child: const _Empty(),
                 )
               : SliverList.list(
                   key: const ValueKey('saved'),
@@ -215,54 +216,31 @@ class _Empty extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(
-            height: 144,
-            child: Center(child: Arrive.illustration(child: _Bookmark96())),
-          ),
-          const SizedBox(height: IqSpace.s3),
-          Appear(
-            delay: IqDurations.stagger * 2,
-            child: Text(
-              'Nothing saved yet',
-              style: IqText.display.copyWith(color: IqColors.fg),
-            ),
-          ),
-          const SizedBox(height: IqSpace.s3),
-          Appear(
-            delay: IqDurations.stagger * 3,
-            child: Text(
-              'Tap the bookmark on any brief.',
-              style: IqText.body.copyWith(color: IqColors.fg2),
-            ),
-          ),
-          const SizedBox(height: IqSpace.s3),
-          IqButton(
-            label: 'Browse briefs',
-            showIcon: false,
-            width: double.infinity,
-            onTap: () => browseForYou(context, ref),
-          ),
-        ],
+    return IqEmptyState(
+      art: const SizedBox(
+        height: 144,
+        child: Center(child: Arrive.illustration(child: _Bookmark())),
       ),
+      title: 'Nothing saved yet',
+      body: 'Tap the bookmark on any brief.',
+      action: 'Browse briefs',
+      onAction: () => browseForYou(context, ref),
     );
   }
 }
 
 /// Exp/Icon/bookmark at 96 x 96 (250:13080), drawn from the node's own
 /// export: its vector keeps a 2 px stroke at this size, where the 24 pt
-/// icon scaled up would draw it four times as thick.
-class _Bookmark96 extends StatelessWidget {
-  const _Bookmark96();
+/// icon scaled up would draw it four times as thick. Sized to the vector
+/// so it centres under the words.
+class _Bookmark extends StatelessWidget {
+  const _Bookmark();
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox.square(
-      dimension: 96,
+    return const SizedBox(
+      width: 40,
+      height: 64,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
