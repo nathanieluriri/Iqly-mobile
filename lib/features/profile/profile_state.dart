@@ -1,11 +1,15 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/backend.dart';
 import '../../core/session.dart';
 import '../../data/api_client.dart';
 import '../../data/auth.dart';
+import '../../data/live/live_account.dart';
+import '../../data/local/local_providers.dart';
 import '../../data/models.dart';
 import '../../data/onboarding_service.dart';
 import '../../data/profile_service.dart';
@@ -30,7 +34,7 @@ final profileAnswersProvider = Provider<OnboardingProfile>((ref) {
   final ownPlace = draft.state != null;
   final merged = draft.copyWith(
     occupation: draft.occupation ?? user?.occupation,
-    state: draft.state ?? user?.state,
+    state: draft.state ?? _given(user?.state),
     city: ownPlace || draft.city.trim().isNotEmpty
         ? draft.city
         : user?.city ?? '',
@@ -40,30 +44,48 @@ final profileAnswersProvider = Provider<OnboardingProfile>((ref) {
           draft.occupation ?? user?.occupation,
           draft.education ?? user?.education,
         )
-        ? draft.university ?? user?.university
+        ? draft.university ?? _given(user?.university)
         : null,
     interests: ref.watch(feedInterestsProvider),
   );
   return OnboardingFlow.current.tidy(merged);
 });
 
+/// An account value, or null when the account has none.
+String? _given(String? value) =>
+    value == null || value.trim().isEmpty ? null : value;
+
 /// Phone, date of birth, gender and state of origin, kept on the device once
-/// loaded so edits survive a restart before they reach the account.
+/// loaded so edits survive a restart before they reach the account. While
+/// the profile runs live the account's copy wins, and the device's stands
+/// in only when the account cannot answer.
 class AccountDetailsNotifier extends AsyncNotifier<AccountDetails> {
   static const key = 'profile.details';
 
   @override
   Future<AccountDetails> build() async {
     final prefs = ref.watch(sharedPreferencesProvider);
+    AccountDetails? device;
     final raw = prefs.getString(key);
     if (raw != null) {
       try {
-        return AccountDetails.fromJson(jsonDecode(raw) as Map<String, Object?>);
+        device = AccountDetails.fromJson(
+          jsonDecode(raw) as Map<String, Object?>,
+        );
       } on FormatException {
         await prefs.remove(key);
       }
     }
-    return ref.read(profileServiceProvider).accountDetails();
+    final service = ref.read(profileServiceProvider);
+    if (ref.read(liveLinkProvider(LiveFeature.profile)) == null) {
+      return device ?? service.accountDetails();
+    }
+    try {
+      return await service.accountDetails();
+    } on Exception {
+      if (device != null) return device;
+      rethrow;
+    }
   }
 
   void edit(AccountDetails next) {
@@ -91,25 +113,25 @@ Future<void> saveProfile(
   OnboardingProfile Function(OnboardingProfile answers)? answers,
 }) async {
   final account = ref.read(accountDetailsProvider.notifier);
-  var current = await ref.read(accountDetailsProvider.future);
+  final before = await ref.read(accountDetailsProvider.future);
+  final answersBefore = ref.read(profileAnswersProvider);
+  var current = before;
   if (details != null) {
     current = details(current);
     account.edit(current);
   }
   if (answers != null) {
-    final next = answers(ref.read(profileAnswersProvider));
+    final next = answers(answersBefore);
     ref.read(onboardingDraftProvider.notifier).setProfile(next);
   }
   await ref
       .read(profileServiceProvider)
-      .saveDetails(current, ref.read(profileAnswersProvider));
-}
-
-/// Ends the session on the API (not awaited) and forgets the account on
-/// this device.
-Future<void> signOut(WidgetRef ref) async {
-  ref.read(profileServiceProvider).signOut().ignore();
-  await forgetAccount(ref);
+      .saveDetails(
+        current,
+        ref.read(profileAnswersProvider),
+        before: before,
+        answersBefore: answersBefore,
+      );
 }
 
 final profileBankProvider = FutureProvider<SavedBank?>(
@@ -134,12 +156,48 @@ String interestsLine(List<String> values) => [
         value,
 ].join(' · ');
 
-/// Forgets the account on this device: the session flags, the first-run
-/// answers and the cached details. Sign out and account deletion end here.
-Future<void> forgetAccount(WidgetRef ref) async {
+/// The one way out of the account: Sign out, Keep it closed and account
+/// deletion all end here. The outbox gets one short chance to send what it
+/// holds, the phone stops getting the account's pushes, the API ends the
+/// session, then the device forgets the account: the session flags, the
+/// first-run answers, the cached details, saved briefs and close reminders
+/// (their scheduled reminders too) and the person's rows in the local
+/// store. The drafts stay, as the Sign out sheet promises, unless the
+/// account is [closed]: then the device lets go first, nothing of the
+/// account stays, and nothing is left to send.
+Future<void> forgetAccount(WidgetRef ref, {bool closed = false}) async {
+  final userId = ref.read(sessionProvider).userId;
+  final outbox = ref.read(outboxProvider);
+  if (closed) {
+    // Closing ends the account's sessions on the API, so the calls below
+    // can answer 401; with the device already signed out, the session guard
+    // has no one to sign out under the closing screens.
+    await forgetSession(ref.read);
+  } else {
+    await outbox.kick().timeout(AuthTiming.lastSend, onTimeout: () {});
+  }
+  unawaited(outbox.stop());
   await ref.read(pushProvider)?.signingOut();
   await ref.read(authServiceProvider).signOut();
-  await forgetSession(ref.read);
+  if (!closed) await forgetSession(ref.read);
+  if (userId != null) {
+    final store = ref.read(localStoreProvider);
+    if (closed) {
+      await store.wipeUser(userId);
+    } else {
+      await store.deleteCache(userId);
+      await store.deleteOutbox(userId);
+    }
+  }
+  final prefs = ref.read(sharedPreferencesProvider);
+  await Future.wait([
+    prefs.remove(SavedBriefsNotifier.key),
+    prefs.remove(CloseRemindersNotifier.key),
+  ]);
+  ref
+    ..invalidate(savedBriefsProvider)
+    ..invalidate(closeRemindersProvider);
+  await ref.read(surfacesProvider)?.syncCloseReminders(const []);
 }
 
 /// The device's part of [forgetAccount], all there is to do once the API

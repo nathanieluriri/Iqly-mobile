@@ -1,6 +1,21 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/backend.dart';
+import '../core/deadline.dart';
+import 'live/live_account.dart';
+import 'live/live_onboarding_service.dart';
 import 'reference_data.dart';
+
+/// Contributors must be 18 or older (answer 10).
+const minimumAge = 18;
+
+/// Whether someone born on [born] is [minimumAge] or older on [today].
+bool isAdult(DateTime? born, [DateTime? today]) {
+  if (born == null) return false;
+  final now = today ?? DateTime.now();
+  final birthday = DateTime(born.year + minimumAge, born.month, born.day);
+  return !birthday.isAfter(DateTime(now.year, now.month, now.day));
+}
 
 /// What first run collects. Option fields hold the API values from
 /// [Reference]; state and university are stored by name, as the web profile
@@ -42,6 +57,34 @@ class OnboardingProfile {
 
   /// What "Other" means, typed when the Other sector is picked.
   final String otherSector;
+
+  /// Nothing answered yet.
+  bool get isEmpty =>
+      occupation == null &&
+      state == null &&
+      city.trim().isEmpty &&
+      education == null &&
+      university == null &&
+      interests.isEmpty &&
+      otherInterest.trim().isEmpty &&
+      dateOfBirth == null &&
+      phone.trim().isEmpty &&
+      sector == null &&
+      otherSector.trim().isEmpty;
+
+  /// The same answers with no date of birth.
+  OnboardingProfile withoutDateOfBirth() => OnboardingProfile(
+    occupation: occupation,
+    state: state,
+    city: city,
+    education: education,
+    university: university,
+    interests: interests,
+    otherInterest: otherInterest,
+    phone: phone,
+    sector: sector,
+    otherSector: otherSector,
+  );
 
   /// Keeps every field the change does not name, so an edit to one answer
   /// never drops another.
@@ -125,7 +168,8 @@ abstract class OnboardingService {
   /// goes on without them.
   static const briefsWait = Duration(seconds: 2);
 
-  Future<void> saveProfile(OnboardingProfile profile);
+  /// [skipped] when first run ended on Skip for now.
+  Future<void> saveProfile(OnboardingProfile profile, {bool skipped = false});
 }
 
 class DemoOnboardingService implements OnboardingService {
@@ -134,10 +178,13 @@ class DemoOnboardingService implements OnboardingService {
   final Duration delay;
 
   @override
-  Future<void> saveProfile(OnboardingProfile profile) =>
+  Future<void> saveProfile(OnboardingProfile profile, {bool skipped = false}) =>
       Future<void>.delayed(delay);
 }
 
-final onboardingServiceProvider = Provider<OnboardingService>(
-  (ref) => const DemoOnboardingService(),
-);
+/// The API's outbox while the profile runs live this launch, else the demo.
+final onboardingServiceProvider = Provider<OnboardingService>((ref) {
+  final link = ref.watch(liveLinkProvider(LiveFeature.profile));
+  if (link == null) return const DemoOnboardingService();
+  return LiveOnboardingService(link, clock: ref.watch(clockProvider));
+});

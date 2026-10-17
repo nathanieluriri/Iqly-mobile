@@ -46,18 +46,31 @@ Future<void>? _finishing;
 
 /// Ends first run (Finish or Skip for now on the last step, or the setup
 /// nudge once every step is answered): the answers go to the profile, the
-/// session stops offering the setup nudge, and the success haptic plays as
-/// the step hands off. Done follows only while a brief is open to start
-/// with (owner, 16 Oct); otherwise the notifications ask comes next.
-Future<void> finishOnboarding(BuildContext context, WidgetRef ref) =>
-    _finishing ??= _finish(context, ref).whenComplete(() => _finishing = null);
+/// session stops offering the setup nudge once they are safely on their way
+/// (queued, in a live build), and the success haptic plays as the step
+/// hands off. Done follows only while a brief is open to start with (owner,
+/// 16 Oct); otherwise the notifications ask comes next. [skipped] when it
+/// ends on Skip for now.
+Future<void> finishOnboarding(
+  BuildContext context,
+  WidgetRef ref, {
+  bool skipped = false,
+}) => _finishing ??= _finish(
+  context,
+  ref,
+  skipped: skipped,
+).whenComplete(() => _finishing = null);
 
-Future<void> _finish(BuildContext context, WidgetRef ref) async {
+Future<void> _finish(
+  BuildContext context,
+  WidgetRef ref, {
+  required bool skipped,
+}) async {
   final profile = ref.read(onboardingDraftProvider).profile;
   final session = ref.read(sessionProvider.notifier);
   ref
       .read(onboardingServiceProvider)
-      .saveProfile(profile)
+      .saveProfile(profile, skipped: skipped)
       .then((_) => session.setOnboardingDone(true))
       .ignore();
   var briefs = const <Brief>[];

@@ -130,23 +130,33 @@ class NotificationFeed {
 
 /// Each row worded from the live records: brief deadlines and spots, the
 /// ledger awards and rewards and the withdrawals the wallet holds now, so
-/// every figure foots to the wallet and Discover.
+/// every figure foots to the wallet and Discover. A row from the API brings
+/// what it reports with it, so none waits for those records or goes without
+/// them.
 final notificationFeedProvider = FutureProvider.autoDispose<NotificationFeed>(
   retry: (_, _) => null,
   (ref) async {
     final notes = await ref.watch(notificationsProvider.future);
-    final (briefs, wallet) = await (
-      ref.watch(repositoryProvider).briefs(),
-      ref.watch(walletProvider.future),
-    ).wait;
+    var briefs = const <Brief>[];
+    var ledger = const <LedgerEntry>[];
+    var withdrawals = const <Withdrawal>[];
+    if (notes.any((n) => n.facts == null)) {
+      final (all, wallet) = await (
+        ref.watch(repositoryProvider).briefs(),
+        ref.watch(walletProvider.future),
+      ).wait;
+      briefs = all;
+      ledger = wallet.ledger;
+      withdrawals = wallet.withdrawals;
+    }
     final now = ref.watch(clockProvider)();
     final items = [
       for (final note in notes)
         ?wordNotification(
           note,
           briefs: {for (final b in briefs) b.id: b},
-          awards: {for (final l in wallet.ledger) l.id: l},
-          withdrawals: {for (final w in wallet.withdrawals) w.id: w},
+          awards: {for (final l in ledger) l.id: l},
+          withdrawals: {for (final w in withdrawals) w.id: w},
           now: now,
         ),
     ];
@@ -167,8 +177,10 @@ final notificationFeedProvider = FutureProvider.autoDispose<NotificationFeed>(
 /// "3:06 pm".
 String _clock(DateTime at) => DateFormat('h:mm a').format(at).toLowerCase();
 
-/// The words of one row and its sub page, or null when what it points at is
-/// gone.
+/// The words of one row and its sub page, or null when what a demo row
+/// points at is gone. A row from the API is worded from what it embeds;
+/// the API's own title and body stand in where the app has no design or
+/// the row lacks what the design needs.
 NotificationItem? wordNotification(
   AppNotification note, {
   required Map<String, Brief> briefs,
@@ -194,6 +206,11 @@ NotificationItem? wordNotification(
         ? NotificationLink.push(notificationPath(note.id))
         : link,
   );
+
+  final facts = note.facts;
+  NotificationItem? said() => facts == null
+      ? null
+      : item(_kindOf(note), facts.title, facts.body, link: _linkOf(note));
 
   switch (note.event) {
     case NotificationEvent.closing:
@@ -236,20 +253,27 @@ NotificationItem? wordNotification(
       );
     case NotificationEvent.won:
       final award = awards[note.entryId];
-      if (award == null) return null;
-      final submission = award.submissionId;
       final brief = briefs[note.briefId];
-      final amount = naira(award.amountKobo);
-      final who = brief?.businessName ?? 'A business kept private';
+      final amountKobo = facts == null ? award?.amountKobo : facts.amountKobo;
+      if (amountKobo == null) return said();
+      final submission = facts == null
+          ? award?.submissionId
+          : facts.submissionId;
+      final title = facts == null ? brief?.title : facts.brief?.title;
+      final business = facts == null
+          ? brief?.businessName
+          : facts.brief?.businessName;
+      final amount = naira(amountKobo);
+      final who = business ?? 'A business kept private';
       return item(
         IqNotificationKind.result,
         'You won $amount',
-        brief?.title ?? '',
+        title ?? '',
         page: submission == null
             ? null
             : NotificationDetail(
                 body:
-                    '$who picked your answer to “${brief?.title ?? ''}”. '
+                    '$who picked your answer to “${title ?? ''}”. '
                     '$amount is in your wallet now.',
                 button: 'See the result',
                 link: NotificationLink.push(resultPath(submission)),
@@ -276,8 +300,10 @@ NotificationItem? wordNotification(
     case NotificationEvent.withdrawalRequested ||
         NotificationEvent.paidOut ||
         NotificationEvent.payoutFailed:
-      final withdrawal = withdrawals[note.entryId];
-      if (withdrawal == null) return null;
+      final withdrawal = facts == null
+          ? withdrawals[note.entryId]
+          : facts.withdrawal;
+      if (withdrawal == null) return said();
       final amount = naira(withdrawal.amountKobo);
       final to = withdrawal.destination ?? 'your bank';
       final open = NotificationLink.push(withdrawalPath(withdrawal.id));
@@ -331,5 +357,45 @@ NotificationItem? wordNotification(
           );
         }(),
       };
+    case NotificationEvent.resultsReady ||
+        NotificationEvent.deadlineExtended ||
+        NotificationEvent.other:
+      return said();
   }
+}
+
+/// The mark a row in the API's words wears: its event's, and for a type the
+/// app does not know, the wallet's when it is about money, else the clock's.
+IqNotificationKind _kindOf(AppNotification note) => switch (note.event) {
+  NotificationEvent.closing ||
+  NotificationEvent.deadlineExtended => IqNotificationKind.deadline,
+  NotificationEvent.spots => IqNotificationKind.spots,
+  NotificationEvent.won ||
+  NotificationEvent.resultsReady => IqNotificationKind.result,
+  NotificationEvent.rewardCredited ||
+  NotificationEvent.withdrawalRequested ||
+  NotificationEvent.paidOut ||
+  NotificationEvent.payoutFailed => IqNotificationKind.payout,
+  NotificationEvent.other =>
+    note.facts?.withdrawal != null || note.facts?.amountKobo != null
+        ? IqNotificationKind.payout
+        : IqNotificationKind.deadline,
+};
+
+/// Where a row in the API's words leads, as its push does: the brief it is
+/// about, else the withdrawal, else nowhere but read.
+NotificationLink? _linkOf(AppNotification note) {
+  final brief = note.briefId;
+  if (brief != null) return NotificationLink.push(Routes.brief(brief));
+  final withdrawal =
+      note.facts?.withdrawal?.id ??
+      switch (note.event) {
+        NotificationEvent.withdrawalRequested ||
+        NotificationEvent.paidOut ||
+        NotificationEvent.payoutFailed => note.entryId,
+        _ => null,
+      };
+  return withdrawal == null
+      ? null
+      : NotificationLink.push(withdrawalPath(withdrawal));
 }

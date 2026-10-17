@@ -230,13 +230,16 @@ class LiveAuthService implements AuthService {
   Future<AuthResult> _signedIn(ApiResponse res) async => AuthResult.success(
     newAccount: await _onboardingDue(),
     name: _nameIn(res.body) ?? await accountName(),
+    userId: _userIn(res.body, 'id'),
   );
 
   /// Better Auth answers sign-ins and sessions with the account as `user`.
-  static String? _nameIn(Map<String, dynamic> body) {
+  static String? _nameIn(Map<String, dynamic> body) => _userIn(body, 'name');
+
+  static String? _userIn(Map<String, dynamic> body, String field) {
     final user = body['user'];
-    final name = user is Map ? user['name'] : null;
-    return name is String && name.trim().isNotEmpty ? name.trim() : null;
+    final value = user is Map ? user[field] : null;
+    return value is String && value.trim().isNotEmpty ? value.trim() : null;
   }
 
   /// A new account has no contributor profile yet, or one with onboarding
