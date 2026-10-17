@@ -6,6 +6,8 @@
     <string name="widget_closing_soon_description">Briefs closing soon</string>
     <string name="widget_polls">polls open</string>
     <string name="widget_polls_description">Polls open</string>
+    <string name="widget_polls_empty">No open polls right now</string>
+    <string name="widget_closing_soon_empty">Nothing closing soon</string>
 
     <dimen name="widget_radius">22dp</dimen>
     <dimen name="widget_padding">14dp</dimen>

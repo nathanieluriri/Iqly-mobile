@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- assets/illustrations/megaphone.svg as a vector drawable, frame 3 of the widget loop. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="60dp"
+    android:height="48dp"
+    android:viewportWidth="200"
+    android:viewportHeight="160">
+    <path
+        android:pathData="M56.5 70L136.5 36V124L56.5 90M56.5 70V90M56.5 70C42.5 72 42.5 88 56.5 90M72.5 92L80.5 128L100.5 124L94.5 100"
+        android:strokeColor="@color/iq_brand"
+        android:strokeWidth="9"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <group android:translateX="1" android:translateY="0">
+        <path
+            android:pathData="M158 60L176 52M160 80H182M158 100L176 108"
+            android:strokeColor="@color/iq_accent"
+            android:strokeWidth="7"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeAlpha="0.45" />
+    </group>
+</vector>

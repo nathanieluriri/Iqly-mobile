@@ -16,22 +16,46 @@ struct PollsWidget: Widget {
 struct PollsView: View {
   let section: PollsSection?
 
+  // Before the first snapshot, or with nothing open, the illustration
+  // and its line stand in for a zero.
+  private var empty: String? {
+    guard let section else { return "No open polls right now" }
+    if let empty = section.empty { return empty }
+    return section.count == "0" ? "No open polls right now" : nil
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
       WidgetHeader()
       Spacer(minLength: 0)
-      Text(section?.count ?? "")
-        .font(IqWidgetFont.figure)
-        .tracking(-0.75)
-        .foregroundColor(IqColors.fg)
-      Text(section?.label ?? "polls open")
-        .font(IqWidgetFont.strong)
-        .foregroundColor(IqColors.fg)
-      if let line = section?.line {
-        Text(line)
-          .font(IqWidgetFont.meta)
-          .foregroundColor(IqColors.fg2)
-          .lineLimit(1)
+      HStack(alignment: .bottom, spacing: 6) {
+        if empty == nil {
+          Text(section?.count ?? "")
+            .font(IqWidgetFont.figure)
+            .tracking(-0.75)
+            .foregroundColor(IqColors.fg)
+        }
+        Image("WidgetPollsArt")
+          .resizable()
+          .scaledToFit()
+          .frame(width: 44, height: 35)
+          .accessibilityHidden(true)
+      }
+      if let empty {
+        Text(empty)
+          .font(IqWidgetFont.strong)
+          .foregroundColor(IqColors.fg)
+          .lineLimit(2)
+      } else {
+        Text(section?.label ?? "polls open")
+          .font(IqWidgetFont.strong)
+          .foregroundColor(IqColors.fg)
+        if let line = section?.line {
+          Text(line)
+            .font(IqWidgetFont.meta)
+            .foregroundColor(IqColors.fg2)
+            .lineLimit(1)
+        }
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)

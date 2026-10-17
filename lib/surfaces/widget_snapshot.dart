@@ -33,7 +33,9 @@ class WidgetBriefRow {
 }
 
 /// What the two home screen widgets (Exp/Widget Medium and Small, 347:16187,
-/// 350:17652) show. The native side draws it as is and never computes.
+/// 350:17652) show. The native side draws it as is and never computes; a
+/// section with `empty` draws its illustration and that line in place of
+/// the rows or the count.
 class WidgetSnapshot {
   const WidgetSnapshot({
     required this.closingSoon,
@@ -105,11 +107,13 @@ class WidgetSnapshot {
       'title': SurfaceCopy.closingSoon,
       'link': DeepLinks.uri(closingRoute).toString(),
       'rows': [for (final r in closingSoon) r.toJson()],
+      if (closingSoon.isEmpty) 'empty': SurfaceCopy.nothingClosingSoon,
     },
     'polls': {
       'count': '$pollsOpen',
       'label': pollsLabel,
       'line': ?pollsLine,
+      if (pollsOpen == 0) 'empty': SurfaceCopy.noOpenPolls,
       'link': DeepLinks.uri(pollsRoute).toString(),
     },
   };

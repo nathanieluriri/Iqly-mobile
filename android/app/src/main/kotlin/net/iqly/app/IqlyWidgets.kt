@@ -50,6 +50,14 @@ object IqlyWidgets {
         )
         views.setOnClickPendingIntent(R.id.widget_root, open(context, section.link(), 10))
         val items = section?.optJSONArray("rows")
+        val empty = items == null || items.length() == 0
+        views.setViewVisibility(R.id.closing_empty, if (empty) View.VISIBLE else View.GONE)
+        if (empty) {
+            views.setTextViewText(
+                R.id.closing_empty_line,
+                section.empty() ?: context.getString(R.string.widget_closing_soon_empty),
+            )
+        }
         rows.forEachIndexed { i, row ->
             val item = items?.optJSONObject(i)
             if (item == null) {
@@ -70,15 +78,28 @@ object IqlyWidgets {
         val views = RemoteViews(context.packageName, R.layout.widget_polls)
         val section = WidgetStore.current(context)?.optJSONObject("polls")
         views.setTextViewText(R.id.widget_header_trailing, "")
-        views.setTextViewText(R.id.polls_count, section?.optString("count").orEmpty())
+        val count = section?.optString("count").orEmpty()
+        // A snapshot from before empty states existed says only "0".
+        val empty = section.empty()
+            ?: context.getString(R.string.widget_polls_empty)
+                .takeIf { count.isEmpty() || count == "0" }
+        val filled = if (empty == null) View.VISIBLE else View.GONE
+        views.setViewVisibility(R.id.polls_count, filled)
+        views.setViewVisibility(R.id.polls_label, filled)
+        views.setViewVisibility(R.id.polls_empty, if (empty == null) View.GONE else View.VISIBLE)
+        empty?.let { views.setTextViewText(R.id.polls_empty, it) }
+        views.setTextViewText(R.id.polls_count, count)
         section?.optString("label")?.takeIf { it.isNotEmpty() }
             ?.let { views.setTextViewText(R.id.polls_label, it) }
-        val line = section?.optString("line").orEmpty()
+        val line = if (empty == null) section?.optString("line").orEmpty() else ""
         views.setTextViewText(R.id.polls_line, line)
         views.setViewVisibility(R.id.polls_line, if (line.isEmpty()) View.GONE else View.VISIBLE)
         views.setOnClickPendingIntent(R.id.widget_root, open(context, section.link(), 20))
         return views
     }
+
+    private fun JSONObject?.empty(): String? =
+        this?.optString("empty")?.takeIf { it.isNotEmpty() }
 
     private fun JSONObject?.link(): String? =
         this?.optString("link")?.takeIf { it.startsWith("${SurfacesChannel.SCHEME}:") }

@@ -35,6 +35,10 @@ abstract final class SurfaceCopy {
   static String closesIn(String business, String left) =>
       '$business closes in $left';
 
+  /// The empty widgets: the polls screen's empty title, and the briefs'.
+  static const noOpenPolls = 'No open polls right now';
+  static const nothingClosingSoon = 'Nothing closing soon';
+
   static const answerQuickPoll = 'Answer a quick poll';
   static const continueDraft = 'Continue my draft';
   static const mySubmissions = 'My submissions';

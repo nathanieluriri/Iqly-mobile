@@ -60,20 +60,24 @@ class _Poster {
 }
 
 /// Runs [load] once the route that holds [context] has finished arriving,
-/// so a recording never decodes under a push or a Hero flight.
+/// so a recording never decodes under a push or a Hero flight. A route's
+/// animation is only wired up after its first frame, so it is read then.
 void _whenSettled(BuildContext context, VoidCallback load) {
-  final animation = ModalRoute.of(context)?.animation;
-  if (animation == null || animation.isCompleted) {
-    load();
-    return;
-  }
-  void settled(AnimationStatus status) {
-    if (status != AnimationStatus.completed) return;
-    animation.removeStatusListener(settled);
-    load();
-  }
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!context.mounted) return;
+    final animation = ModalRoute.of(context)?.animation;
+    if (animation == null || animation.isCompleted) {
+      load();
+      return;
+    }
+    void settled(AnimationStatus status) {
+      if (status != AnimationStatus.completed) return;
+      animation.removeStatusListener(settled);
+      load();
+    }
 
-  animation.addStatusListener(settled);
+    animation.addStatusListener(settled);
+  });
 }
 
 /// The video filling its box like a cover photo.
@@ -283,7 +287,7 @@ class _IqRecordingPlayerState extends State<IqRecordingPlayer>
     final controller = _controller;
     if (!_ready || controller == null) return widget.placeholder;
     final value = controller.value;
-    return ColoredBox(
+    return Material(
       color: IqColors.brand,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -408,9 +412,7 @@ class _Controls extends StatelessWidget {
                 value: total == 0 ? 0 : at / total,
                 onChanged: total == 0
                     ? null
-                    : (share) => onSeek(
-                        Duration(milliseconds: (share * total).round()),
-                      ),
+                    : (share) => onSeek(value.duration * share),
                 semanticFormatterCallback: (_) =>
                     '${recordingTime(value.position)} of '
                     '${recordingTime(value.duration)}',
@@ -456,7 +458,7 @@ class _Button extends StatelessWidget {
       width: 44,
       height: 44,
       child: Center(
-        child: Opacity(opacity: pressed ? 0.6 : 1, child: child),
+        child: PressDim(pressed: pressed, child: child),
       ),
     ),
   );
