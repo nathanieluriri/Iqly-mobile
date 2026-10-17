@@ -60,6 +60,8 @@ class _InviteCodeScreenState extends ConsumerState<InviteCodeScreen> {
   @override
   void initState() {
     super.initState();
+    final unapplied = ref.read(unappliedInviteProvider);
+    if (unapplied != null) _code.text = unapplied.code;
     _code.addListener(_typing);
   }
 
@@ -90,6 +92,7 @@ class _InviteCodeScreenState extends ConsumerState<InviteCodeScreen> {
       _tried = _typed;
     });
     if (result.outcome == InviteCodeOutcome.applied) {
+      await ref.read(unappliedInviteProvider.notifier).clear();
       await IqHaptics.success.play();
     } else {
       await errorHaptic();

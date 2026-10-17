@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -41,6 +43,8 @@ class BankAccountSheet extends ConsumerStatefulWidget {
       'once it arrives.';
   static const notRemoved = 'Couldn’t remove the account. Try again.';
   static const notSwitched = 'Couldn’t switch the default. Try again.';
+  static const gone =
+      'That account is no longer saved. Here are the accounts you have now.';
 
   @override
   ConsumerState<BankAccountSheet> createState() => _BankAccountSheetState();
@@ -90,9 +94,13 @@ class _BankAccountSheetState extends ConsumerState<BankAccountSheet> {
       await ref.read(walletServiceProvider).setDefault(picked);
     } on Exception catch (error) {
       if (!mounted) return;
+      final gone = _gone(error);
       setState(() {
         _saving = false;
-        _error = error is ApiUnreachable
+        if (gone) _picked = null;
+        _error = gone
+            ? BankAccountSheet.gone
+            : error is ApiUnreachable
             ? EntryCopy.offline
             : BankAccountSheet.notSwitched;
       });
@@ -126,9 +134,12 @@ class _BankAccountSheetState extends ConsumerState<BankAccountSheet> {
       left = await ref.read(walletServiceProvider).removeAccount(account);
     } on Exception catch (error) {
       if (!mounted) return;
+      final gone = _gone(error);
       setState(() {
         _removing = false;
+        if (gone) _picked = null;
         _error = switch (error) {
+          _ when gone => BankAccountSheet.gone,
           ApiRefused(code: 'BANK_ACCOUNT_IN_USE') => BankAccountSheet.inUse,
           ApiUnreachable() => EntryCopy.offline,
           _ => BankAccountSheet.notRemoved,
@@ -144,6 +155,16 @@ class _BankAccountSheetState extends ConsumerState<BankAccountSheet> {
       _picked = null;
     });
     IqToast.show(context, 'Account removed');
+  }
+
+  /// An account another phone removed: the list reloads, so no stale id
+  /// is ever sent again.
+  bool _gone(Exception error) {
+    if (error is! ApiRefused || error.code != 'BANK_ACCOUNT_NOT_FOUND') {
+      return false;
+    }
+    unawaited(ref.read(walletProvider.notifier).refreshQuietly());
+    return true;
   }
 
   @override

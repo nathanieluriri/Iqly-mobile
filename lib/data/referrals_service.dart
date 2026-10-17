@@ -224,6 +224,11 @@ class LiveReferralsService implements ReferralsService {
 
   /// Asks only once typing pauses: a newer lookup makes this one answer
   /// null without asking.
+  /// The code an invite link brought, queued so it lands once the API
+  /// answers; a refusal is heard where the outbox reports it.
+  Future<void> queueApply(String code) =>
+      link.queue(AccountWrite.referralApply, {'code': code});
+
   @override
   Future<String?> inviterOf(String code) async {
     final lookup = ++_lookups;

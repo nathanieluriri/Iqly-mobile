@@ -187,6 +187,7 @@ Future<void> forgetAccount(WidgetRef ref, {bool closed = false}) async {
   if (!closed) await forgetSession(ref.read);
   if (closed && userId != null) {
     await ref.read(localStoreProvider).wipeUser(userId);
+    await ref.read(avatarProvider.notifier).wipe(userId);
   }
 }
 

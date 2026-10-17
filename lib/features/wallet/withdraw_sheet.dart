@@ -50,12 +50,12 @@ import 'wallet_state.dart';
 /// refuses until the profile has an adult date, so Date of birth opens; a
 /// closing account goes to Restore.
 class WithdrawSheet extends ConsumerStatefulWidget {
-  const WithdrawSheet({super.key, this.amountKobo, this.bankCode});
+  const WithdrawSheet({super.key, this.amountKobo, this.account});
 
   final int? amountKobo;
 
-  /// A saved account's bank to send to instead of the default.
-  final String? bankCode;
+  /// The saved account to send to, by its id (or key in the demo).
+  final String? account;
 
   @override
   ConsumerState<WithdrawSheet> createState() => _WithdrawSheetState();
@@ -127,10 +127,12 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
   SavedBank? _destination(WalletData? data) {
     final picked = _to;
     if (picked != null) return picked;
-    final code = widget.bankCode;
+    final wanted = widget.account;
     final accounts = data?.accounts ?? const <SavedBank>[];
-    if (code != null) {
-      final match = accounts.where((a) => a.bankCode == code).firstOrNull;
+    if (wanted != null) {
+      final match = accounts
+          .where((a) => a.id == wanted || a.key == wanted)
+          .firstOrNull;
       if (match != null) return match;
     }
     return data?.savedBank;
@@ -212,12 +214,14 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
         WalletFailure.closing when Flags.deleteAccount => _openClosing,
         _ => null,
       };
+      final gone = failure == WalletFailure.accountGone;
       setState(() {
         _sending = false;
         _failure = failure;
         _unsettled = result.unsettled;
+        if (gone) _to = null;
       });
-      if (result.unsettled) {
+      if (result.unsettled || gone) {
         unawaited(ref.read(walletProvider.notifier).refreshQuietly());
       }
       errorHaptic();
@@ -290,6 +294,8 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
                     (WalletFailure.offline, false) =>
                       'No connection. Nothing was sent.',
                     (WalletFailure.offline, true) => 'No connection.',
+                    (WalletFailure.accountGone, _) =>
+                      'That account is no longer saved. Nothing was sent.',
                     (_, false) => 'Couldn’t send. Nothing was sent.',
                     (_, true) => 'Couldn’t send.',
                   },

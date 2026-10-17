@@ -2,16 +2,20 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/session.dart';
 import '../../data/avatar_service.dart';
+import '../../data/live/live_account.dart';
 import '../../ui/avatar.dart';
 import '../profile/profile_state.dart';
 
 /// The person's avatar: what shows ([spec]), the last illustrated person
 /// (the editor starts from it, whatever shows) and the saved [photo], first
-/// in the picker's Avatars. [isDefault] while the person has not picked one.
+/// in the picker's Avatars. [isDefault] while the person has not picked one;
+/// not [known] while a live account has not said yet and nothing is kept
+/// for it, when a blank circle stands in rather than a guess.
 @immutable
 class AvatarState {
   const AvatarState({
@@ -19,37 +23,51 @@ class AvatarState {
     required this.look,
     this.photo,
     this.isDefault = false,
+    this.known = true,
   });
 
   final IqAvatarSpec spec;
   final IqAvatarLook look;
   final Uint8List? photo;
   final bool isDefault;
+  final bool known;
 }
 
-/// The avatar on this phone, and on the account while the avatar runs live
-/// (contract 10.1): the account's copy wins once it answers, and a pick
-/// queues for it, so the avatar follows the person through a sign out and
-/// onto another phone. The sample account is Person 1, as every Figma
-/// frame draws Adaeze; a new account starts on the preset the API defaults
-/// to for its id and gender.
+/// What shows while the account's avatar is not known yet: a plain circle.
+const awaitingAvatar = IqEmojiAvatar('', bg: 1);
+
+/// The avatar, kept on this phone for each account so the same account gets
+/// it back after a sign out, and on the account while the avatar runs live
+/// (contract 10.1): the account's copy wins once it answers (in `GET /me` or
+/// `GET /me/avatar`, asked again when the API is reachable again and on
+/// resume until it answers), and a pick queues for it, so it also follows
+/// the person onto another phone. The sample account is Person 1, as every
+/// Figma frame draws Adaeze; a new account starts on the preset the API
+/// defaults to for its id and gender.
 class AvatarNotifier extends Notifier<AvatarState> {
   static const _spec = 'avatar.spec';
   static const _look = 'avatar.look';
   static const _photo = 'avatar.photo';
   static const _default = 'avatar.default';
 
+  static String _account(String userId) => 'avatar.account.$userId';
+  static String _accountPhoto(String userId) => 'avatar.accountPhoto.$userId';
+
   /// Bumped by every local change, so an account answer that left before
   /// one never overwrites it.
   var _changes = 0;
+  var _synced = false;
+  Future<void>? _pulling;
 
   @override
   AvatarState build() {
     ref.watch(accountProvider);
     final prefs = ref.watch(sharedPreferencesProvider);
     final live = ref.watch(liveAvatarServiceProvider);
-    Map<String, Object?>? json(String key) {
-      final value = prefs.getString(key);
+    _synced = false;
+    _pulling = null;
+    final user = _userId;
+    Map<String, Object?>? decode(String? value) {
       if (value == null) return null;
       try {
         return (jsonDecode(value) as Map).cast<String, Object?>();
@@ -58,35 +76,114 @@ class AvatarNotifier extends Notifier<AvatarState> {
       }
     }
 
-    final photoData = prefs.getString(_photo);
+    final record =
+        (user == null ? null : decode(prefs.getString(_account(user)))) ??
+        {
+          if (prefs.getString(_spec) case final spec?) 'spec': decode(spec),
+          if (prefs.getString(_look) case final look?) 'look': decode(look),
+          if (prefs.getBool(_default) == true) 'default': true,
+        };
+    final photoData =
+        (user == null ? null : prefs.getString(_accountPhoto(user))) ??
+        prefs.getString(_photo);
     final photo = photoData == null ? null : base64Decode(photoData);
-    final look = switch (json(_look)) {
-      final record? => IqAvatarLook.fromJson(record),
-      null => null,
+    final look = switch (record['look']) {
+      final Map<String, Object?> json => IqAvatarLook.fromJson(json),
+      _ => null,
     };
-    final spec = switch (json(_spec)) {
-      final record? => IqAvatarSpec.fromJson(record, photo: photo),
-      null => null,
+    final spec = switch (record['spec']) {
+      final Map<String, Object?> json => IqAvatarSpec.fromJson(
+        json,
+        photo: photo,
+      ),
+      _ => null,
     };
-    if (live != null) {
-      final changes = _changes;
-      Future.microtask(() => _pull(live, changes, photo: photo));
-    }
+    if (live != null) _follow(live);
+    final kept = look != null || spec != null;
+    final gender = _gender;
+    final guess = live != null && !kept && gender == null;
     final saved =
         look ??
         (live == null
             ? IqAvatarPresets.person1
-            : defaultAvatarLook(_userId, _gender));
+            : defaultAvatarLook(user, gender));
     return AvatarState(
-      spec: spec ?? IqPersonAvatar(saved),
+      spec: guess ? awaitingAvatar : spec ?? IqPersonAvatar(saved),
       look: saved,
       photo: photo,
-      isDefault:
-          (look == null && spec == null) || (prefs.getBool(_default) ?? false),
+      isDefault: !kept || record['default'] == true,
+      known: !guess,
     );
   }
 
-  String? get _userId => ref.read(accountProvider);
+  /// Takes the account's avatar from `GET /me`, and asks `GET /me/avatar`
+  /// now, whenever the API is reachable again and on resume, until one
+  /// answers.
+  void _follow(LiveAvatarService live) {
+    ref.listen(meProvider, (_, next) {
+      final avatar = next.value?.avatar;
+      if (avatar != null) unawaited(_take(live, avatar));
+    });
+    final back = live.link.api.reachable.listen((_) => _retry(live));
+    final resumes = AppLifecycleListener(onResume: () => _retry(live));
+    ref.onDispose(() {
+      back.cancel();
+      resumes.dispose();
+    });
+    Future.microtask(() => _retry(live));
+  }
+
+  void _retry(LiveAvatarService live) {
+    if (_synced || !ref.mounted) return;
+    _pulling ??= _pull(live).whenComplete(() => _pulling = null);
+  }
+
+  Future<void> _pull(LiveAvatarService live) async {
+    final scope = ref.read(accountScopeProvider);
+    if (scope.userId == null) return;
+    final changes = _changes;
+    final AccountAvatar? account;
+    try {
+      account = await scope.guard(live.avatar(photo: state.photo));
+    } on Object catch (error) {
+      debugPrint('Avatar: account copy not read: $error');
+      return;
+    }
+    if (!ref.mounted || !scope.open || changes != _changes) return;
+    await _apply(live, account);
+  }
+
+  Future<void> _take(LiveAvatarService live, Map<String, dynamic> json) async {
+    final scope = ref.read(accountScopeProvider);
+    final changes = _changes;
+    final account = await live.answered(json, photo: state.photo);
+    if (!ref.mounted || !scope.open || changes != _changes) return;
+    await _apply(live, account);
+  }
+
+  /// One the account only defaults while the phone holds the person's own
+  /// pick takes that pick, as a pick made before the account kept avatars.
+  Future<void> _apply(LiveAvatarService live, AccountAvatar? account) async {
+    if (account == null) return;
+    _synced = true;
+    final held = state;
+    if (account.isDefault && held.known && !held.isDefault) {
+      await _upload(live, held.spec, held.look);
+      return;
+    }
+    state = AvatarState(
+      spec: account.spec,
+      look: account.look,
+      photo: held.photo,
+      isDefault: account.isDefault,
+    );
+    await _keep(account.spec, account.look, isDefault: account.isDefault);
+  }
+
+  String? get _userId => switch (ref.read(accountProvider)) {
+    final id? when id.isNotEmpty => id,
+    _ => null,
+  };
 
   /// The gender Your details last kept on this phone.
   String? get _gender {
@@ -102,39 +199,6 @@ class AvatarNotifier extends Notifier<AvatarState> {
     }
   }
 
-  /// The account's avatar replaces what shows. One the account only
-  /// defaults while the phone holds the person's own pick takes that pick,
-  /// as a pick made before the account kept avatars.
-  Future<void> _pull(
-    LiveAvatarService live,
-    int changes, {
-    Uint8List? photo,
-  }) async {
-    final scope = ref.read(accountScopeProvider);
-    if (scope.userId == null) return;
-    final AccountAvatar? account;
-    try {
-      account = await live.avatar(photo: photo);
-    } on Object catch (error) {
-      debugPrint('Avatar: account copy not read: $error');
-      return;
-    }
-    if (!ref.mounted || !scope.open || changes != _changes) return;
-    if (account == null) return;
-    final held = state;
-    if (account.isDefault && !held.isDefault) {
-      await _upload(live, held.spec, held.look);
-      return;
-    }
-    state = AvatarState(
-      spec: account.spec,
-      look: account.look,
-      photo: held.photo,
-      isDefault: account.isDefault,
-    );
-    await _keep(account.spec, account.look, isDefault: account.isDefault);
-  }
-
   Future<void> _upload(
     LiveAvatarService live,
     IqAvatarSpec spec,
@@ -147,12 +211,14 @@ class AvatarNotifier extends Notifier<AvatarState> {
     }
   }
 
+  /// Kept under the account's id, and as the phone's current avatar.
   Future<void> _keep(
     IqAvatarSpec spec,
     IqAvatarLook look, {
     bool isDefault = false,
   }) async {
     final prefs = ref.read(sharedPreferencesProvider);
+    final user = _userId;
     await prefs.setString(_spec, jsonEncode(spec.toJson()));
     await prefs.setString(_look, jsonEncode(look.toJson()));
     if (isDefault) {
@@ -162,6 +228,18 @@ class AvatarNotifier extends Notifier<AvatarState> {
     }
     if (spec is IqPhotoAvatar) {
       await prefs.setString(_photo, base64Encode(spec.bytes));
+    }
+    if (user == null) return;
+    await prefs.setString(
+      _account(user),
+      jsonEncode({
+        'spec': spec.toJson(),
+        'look': look.toJson(),
+        if (isDefault) 'default': true,
+      }),
+    );
+    if (spec is IqPhotoAvatar) {
+      await prefs.setString(_accountPhoto(user), base64Encode(spec.bytes));
     }
   }
 
@@ -196,18 +274,27 @@ class AvatarNotifier extends Notifier<AvatarState> {
   Future<void> genderKnown(String? gender) async {
     if (!state.isDefault) return;
     final look = defaultAvatarLook(_userId, gender);
-    if (state.spec == IqPersonAvatar(look)) return;
+    if (state.known && state.spec == IqPersonAvatar(look)) return;
     await startNewcomer(gender: gender);
   }
 
-  /// Forgets the avatar and the saved photo on this phone (sign out). The
-  /// account keeps its own copy for the next sign-in.
+  /// Sign out: the phone's current avatar goes, but each account's own
+  /// stays for its next sign-in, here or (while live) on the account.
   Future<void> forget() async {
     final prefs = ref.read(sharedPreferencesProvider);
     await prefs.remove(_spec);
     await prefs.remove(_look);
     await prefs.remove(_photo);
     await prefs.remove(_default);
+    ref.invalidateSelf();
+  }
+
+  /// Forgets [userId]'s avatar on this phone for good (the Live or Preview
+  /// switch, a closed account).
+  Future<void> wipe(String userId) async {
+    final prefs = ref.read(sharedPreferencesProvider);
+    await prefs.remove(_account(userId));
+    await prefs.remove(_accountPhoto(userId));
     ref.invalidateSelf();
   }
 }

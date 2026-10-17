@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/transitions.dart';
+import '../../data/live/live_repository.dart' show liveModeProvider;
 import '../../data/referrals_service.dart';
 import '../../data/share_service.dart';
 import '../../router.dart';
@@ -21,6 +22,7 @@ import '../../ui/toast.dart';
 import '../../ui/top_bar.dart';
 import '../discover/discover_state.dart';
 import '../more/more_widgets.dart';
+import 'invite_code_screen.dart';
 import 'referrals_state.dart';
 
 /// Puts the invite [code] on the clipboard and says so.
@@ -79,6 +81,7 @@ class _ReferralsScreenState extends ConsumerState<ReferralsScreen> {
     final codeOpen = ref.watch(inviteCodeOpenProvider).value ?? false;
     final code = referrals?.code ?? '';
     final rewards = ref.watch(referralRewardsProvider);
+    final unapplied = ref.watch(unappliedInviteProvider);
     return SubPage(
       title: 'Referrals',
       actionsPadding: const EdgeInsets.fromLTRB(
@@ -150,6 +153,14 @@ class _ReferralsScreenState extends ConsumerState<ReferralsScreen> {
               ],
             ),
           ),
+          if (unapplied != null) ...[
+            const SizedBox(height: IqSpace.s3),
+            Text(
+              'Your friend’s code ${unapplied.code} wasn’t added. '
+              '${InviteCodeScreen.errors[unapplied.outcome] ?? ''}',
+              style: IqText.small.copyWith(color: IqColors.err),
+            ),
+          ],
         ],
       ),
       actions: [
@@ -159,7 +170,7 @@ class _ReferralsScreenState extends ConsumerState<ReferralsScreen> {
           width: double.infinity,
           onTap: code.isEmpty ? null : () => showInviteSheet(context, code),
         ),
-        if (codeOpen)
+        if (codeOpen || unapplied != null)
           IqButton(
             label: 'Enter an invite code',
             kind: IqButtonKind.secondary,
@@ -226,6 +237,9 @@ class _InviteSheet extends ConsumerWidget {
       if (context.mounted) close();
     }
 
+    // The app has no share path on the phone yet: a live launch offers only
+    // what works, Copy link.
+    final canShare = ref.watch(liveModeProvider).isPreview;
     final inset = MediaQuery.viewPaddingOf(context).bottom;
     return Container(
       decoration: const BoxDecoration(
@@ -268,23 +282,25 @@ class _InviteSheet extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: IqSpace.s4),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 15),
-            child: Row(
-              children: [
-                for (final (kind, app) in const [
-                  (IqShareTargetKind.whatsapp, ShareApp.whatsapp),
-                  (IqShareTargetKind.instagram, ShareApp.instagram),
-                  (IqShareTargetKind.x, ShareApp.x),
-                  (IqShareTargetKind.telegram, ShareApp.telegram),
-                  (IqShareTargetKind.more, null),
-                ])
-                  IqShareTarget(kind: kind, onTap: () => share(app)),
-              ],
+          if (canShare) ...[
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 15),
+              child: Row(
+                children: [
+                  for (final (kind, app) in const [
+                    (IqShareTargetKind.whatsapp, ShareApp.whatsapp),
+                    (IqShareTargetKind.instagram, ShareApp.instagram),
+                    (IqShareTargetKind.x, ShareApp.x),
+                    (IqShareTargetKind.telegram, ShareApp.telegram),
+                    (IqShareTargetKind.more, null),
+                  ])
+                    IqShareTarget(kind: kind, onTap: () => share(app)),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: IqSpace.s4),
+            const SizedBox(height: IqSpace.s4),
+          ],
           Padding(
             padding: const EdgeInsets.fromLTRB(
               IqSpace.s4,
@@ -307,18 +323,20 @@ class _InviteSheet extends ConsumerWidget {
                     IqHaptics.success.play();
                     if (context.mounted) Navigator.of(context).pop(true);
                   },
+                  divider: canShare,
                 ),
-                IqListRow(
-                  label: 'Save image',
-                  showDescription: false,
-                  showChevron: false,
-                  icon: IqIcons.download,
-                  divider: false,
-                  onTap: () async {
-                    await service.saveInviteImage(code);
-                    if (context.mounted) close();
-                  },
-                ),
+                if (canShare)
+                  IqListRow(
+                    label: 'Save image',
+                    showDescription: false,
+                    showChevron: false,
+                    icon: IqIcons.download,
+                    divider: false,
+                    onTap: () async {
+                      await service.saveInviteImage(code);
+                      if (context.mounted) close();
+                    },
+                  ),
               ],
             ),
           ),

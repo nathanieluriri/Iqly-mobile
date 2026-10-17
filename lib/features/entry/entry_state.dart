@@ -11,11 +11,13 @@ import '../../data/auth.dart';
 import '../../data/invite.dart';
 import '../../data/live/live_account.dart';
 import '../../data/live/live_repository.dart' show liveModeProvider;
-import '../../data/referrals_service.dart' show referralsServiceProvider;
+import '../../data/referrals_service.dart'
+    show InviteCodeOutcome, LiveReferralsService, referralsServiceProvider;
 import '../../router.dart';
 import '../avatar/avatar_state.dart';
 import '../onboarding/onboarding_draft.dart';
 import '../profile/profile_state.dart';
+import '../referrals/referrals_state.dart';
 
 class EntryDraft {
   const EntryDraft({this.email = '', this.firstName = '', this.lastName = ''});
@@ -140,13 +142,29 @@ Future<SignInLanding> completeSignIn(
 bool _appliesInvites(WidgetRef ref) =>
     ref.read(liveModeProvider).isLive(LiveFeature.referrals);
 
-/// The code an invite link brought, added to the new account. The person
-/// can still add it on Referrals if this does not land.
+/// The code an invite link brought, queued for the new account so a
+/// connection that drops does not lose it. When it cannot even queue, it is
+/// kept as not added, and Referrals says so and offers it again.
 Future<void> _applyInvite(WidgetRef ref, String code) async {
+  final user = ref.read(sessionProvider).userId;
+  final service = ref.read(referralsServiceProvider);
   try {
-    await ref.read(referralsServiceProvider).applyCode(code);
+    if (service is LiveReferralsService && user != null) {
+      await service.queueApply(code);
+      return;
+    }
+    final result = await service.applyCode(code);
+    if (result.outcome == InviteCodeOutcome.applied || user == null) return;
+    await ref
+        .read(unappliedInviteProvider.notifier)
+        .keep(user, code, result.outcome);
   } on Object catch (error) {
     debugPrint('Invite code not added: $error');
+    if (user != null) {
+      await ref
+          .read(unappliedInviteProvider.notifier)
+          .keep(user, code, InviteCodeOutcome.unknown);
+    }
   }
 }
 

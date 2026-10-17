@@ -3,7 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/backend.dart';
 import 'package:iqly_mobile/core/session.dart';
+import 'package:iqly_mobile/data/api_client.dart';
 import 'package:iqly_mobile/data/avatar_service.dart';
+import 'package:iqly_mobile/data/live/live_account.dart';
+import 'package:iqly_mobile/data/wallet_service.dart';
+import 'package:iqly_mobile/features/referrals/referrals_state.dart';
+import 'package:iqly_mobile/ui/share_target.dart';
 import 'package:iqly_mobile/data/invite.dart';
 import 'package:iqly_mobile/data/local/local_providers.dart';
 import 'package:iqly_mobile/data/live/live_wallet_service.dart';
@@ -259,6 +264,90 @@ void main() {
         const IqBuddyAvatar(IqAvatarBuddyKind.bean),
       );
     });
+    testWidgets('GET /me carries the avatar when GET /me/avatar fails', (
+      tester,
+    ) async {
+      final api = _api()
+        ..data('GET', '/me', {
+          'id': 'u_1',
+          'name': 'Ada Obi',
+          'email': 'ada@example.com',
+          'status': 'active',
+          'avatar': _avatarJson(),
+        })
+        ..on('GET', '/me/avatar', (_) => refused(500, 'INTERNAL'));
+      final c = await _launch(
+        tester,
+        api,
+        Routes.more,
+        mode: _with({LiveFeature.avatar}),
+      );
+      c.read(meProvider);
+      await tester.pumpAndSettle();
+      expect(
+        c.read(avatarProvider).spec,
+        const IqBuddyAvatar(IqAvatarBuddyKind.moon),
+      );
+    });
+
+    testWidgets('unreachable at launch: a blank circle, never a guess; the '
+        'read goes again once the API answers again', (tester) async {
+      final api = _api()..data('GET', '/me/avatar', _avatarJson());
+      api.offline = true;
+      final c = await _launch(
+        tester,
+        api,
+        Routes.more,
+        mode: _with({LiveFeature.avatar}),
+      );
+      expect(c.read(avatarProvider).known, isFalse);
+      expect(c.read(avatarProvider).spec, awaitingAvatar);
+      api.offline = false;
+      await c.read(apiClientProvider)!.get('/notifications');
+      await tester.pumpAndSettle();
+      expect(c.read(avatarProvider).known, isTrue);
+      expect(
+        c.read(avatarProvider).spec,
+        const IqBuddyAvatar(IqAvatarBuddyKind.moon),
+      );
+    });
+
+    test('without the API feature each account keeps its own avatar '
+        'across a sign out; the switch and a close wipe it', () async {
+      SharedPreferences.setMockInitialValues({
+        'session.signedIn': true,
+        'session.userId': 'u_1',
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final c = ProviderContainer(
+        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      );
+      addTearDown(c.dispose);
+      await c
+          .read(avatarProvider.notifier)
+          .choose(const IqBuddyAvatar(IqAvatarBuddyKind.moon));
+      await c.read(avatarProvider.notifier).forget();
+      expect(
+        c.read(avatarProvider).spec,
+        const IqBuddyAvatar(IqAvatarBuddyKind.moon),
+      );
+      await c.read(sessionProvider.notifier).setUserId('u_2');
+      expect(
+        c.read(avatarProvider).spec,
+        isNot(const IqBuddyAvatar(IqAvatarBuddyKind.moon)),
+      );
+      await c.read(sessionProvider.notifier).setUserId('u_1');
+      expect(
+        c.read(avatarProvider).spec,
+        const IqBuddyAvatar(IqAvatarBuddyKind.moon),
+      );
+      await c.read(avatarProvider.notifier).forget();
+      await c.read(avatarProvider.notifier).wipe('u_1');
+      expect(
+        c.read(avatarProvider).spec,
+        const IqPersonAvatar(IqAvatarPresets.person1),
+      );
+    });
   });
 
   group('leaderboard', () {
@@ -463,6 +552,46 @@ void main() {
       }
     });
 
+    testWidgets('a link\'s code the account refuses after sign-up is kept '
+        'and shown on Referrals, and offered again', (tester) async {
+      final api = _api()
+        ..data('GET', '/me/referrals', referrals)
+        ..on(
+          'POST',
+          '/me/referrals/apply',
+          (_) => refused(409, 'INVITE_CODE_EXPIRED'),
+        );
+      final c = await _launch(
+        tester,
+        api,
+        Routes.referrals,
+        mode: _with({LiveFeature.referrals}),
+      );
+      c.read(accountSyncProvider);
+      final service = c.read(referralsServiceProvider) as LiveReferralsService;
+      await service.queueApply('CHIDI7');
+      await c.read(outboxProvider).kick();
+      await tester.pumpAndSettle();
+      expect(c.read(unappliedInviteProvider)?.code, 'CHIDI7');
+      expect(find.textContaining('CHIDI7 wasn’t added'), findsOneWidget);
+      expect(find.text('Enter an invite code'), findsOneWidget);
+    });
+
+    testWidgets('the live invite sheet offers only Copy link', (tester) async {
+      final api = _api()..data('GET', '/me/referrals', referrals);
+      await _launch(
+        tester,
+        api,
+        Routes.referrals,
+        mode: _with({LiveFeature.referrals}),
+      );
+      await tester.tap(find.text('Invite friends').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Copy link'), findsOneWidget);
+      expect(find.text('Save image'), findsNothing);
+      expect(find.byType(IqShareTarget), findsNothing);
+    });
+
     test('every apply refusal has an outcome', () {
       expect(
         inviteCodeOutcome('INVITE_CODE_INVALID'),
@@ -627,6 +756,62 @@ void main() {
       expect(find.text('Remove'), findsNothing);
       expect(find.text('Add a bank account'), findsOneWidget);
       expect(api.to('/wallet/bank-accounts'), isEmpty);
+    });
+
+    testWidgets('an account gone elsewhere: plain words and the list again', (
+      tester,
+    ) async {
+      final api = wallet()
+        ..on(
+          'DELETE',
+          '/wallet/bank-accounts/ba_2',
+          (_) => refused(404, 'BANK_ACCOUNT_NOT_FOUND'),
+        );
+      await _launch(
+        tester,
+        api,
+        Routes.wallet,
+        mode: _with({LiveFeature.bankAccounts}),
+      );
+      await openSheet(tester);
+      final reads = api.to('/wallet/bank-accounts', method: 'GET').length;
+      api.data('GET', '/wallet/bank-accounts', [
+        bankAccountJson({'isDefault': true}),
+      ]);
+      await tester.tap(find.text('Guaranty Trust Bank ••4321'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove account'));
+      await tester.pumpAndSettle();
+      expect(find.text(BankAccountSheet.gone), findsOneWidget);
+      expect(
+        api.to('/wallet/bank-accounts', method: 'GET').length,
+        greaterThan(reads),
+      );
+      expect(find.text('Guaranty Trust Bank ••4321'), findsNothing);
+    });
+
+    test('a withdrawal to an account gone elsewhere says so', () async {
+      final api = FakeApi()
+        ..on(
+          'POST',
+          '/wallet/withdrawals',
+          (_) => refused(404, 'BANK_ACCOUNT_NOT_FOUND'),
+        );
+      final result = await LiveWalletService(api.api(), bankAccounts: true)
+          .withdraw(
+            amountKobo: 500000,
+            account: const SavedBank(
+              id: 'ba_9',
+              bankCode: '058',
+              bankName: 'Guaranty Trust Bank',
+              accountName: 'ADAEZE OKAFOR',
+              accountNumber: '4321',
+            ),
+          );
+      expect(result.failure, WalletFailure.accountGone);
+      expect(result.unsettled, isFalse);
     });
 
     test('a withdrawal names the picked account by id only while the API '

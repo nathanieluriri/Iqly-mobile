@@ -12,8 +12,10 @@ import '../../data/live/live_account.dart';
 import '../../data/live/live_repository.dart';
 import '../../data/local/local_providers.dart';
 import '../../data/onboarding_service.dart';
+import '../../data/referrals_service.dart' show inviteCodeOutcome;
 import '../../router.dart';
 import '../onboarding/onboarding_draft.dart';
+import '../referrals/referrals_state.dart';
 
 /// Runs the account's writes in a live build. The outbox sends them for the
 /// signed-in person once the session knows the account (at launch and after
@@ -39,6 +41,16 @@ final accountSyncProvider = Provider<void>((ref) {
     live: mode.isLive,
     signedIn: signedIn,
     onFailed: (item, write, code) {
+      if (write == AccountWrite.referralApply && ref.mounted) {
+        final invite = item.payload['code'];
+        if (invite is String) {
+          unawaited(
+            ref
+                .read(unappliedInviteProvider.notifier)
+                .keep(item.userId, invite, inviteCodeOutcome(code)),
+          );
+        }
+      }
       if (write == AccountWrite.onboarding &&
           code == 'UNDER_AGE' &&
           signedIn(item.userId) &&
