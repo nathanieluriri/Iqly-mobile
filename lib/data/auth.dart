@@ -8,6 +8,14 @@ abstract final class AuthTiming {
   /// A new email code can go out once a minute.
   static const codeResendAfter = Duration(seconds: 60);
   static const countdownStep = Duration(seconds: 1);
+
+  /// Finishing a sign-in waits this long to hear whether the account is
+  /// closing; no answer by then goes on as usual, and the next launch asks
+  /// again.
+  static const closingCheck = Duration(seconds: 5);
+
+  /// Sign out gives the outbox this long to send what it holds.
+  static const lastSend = Duration(seconds: 3);
 }
 
 /// Why an auth call failed. The live API layer maps its codes onto these
@@ -34,17 +42,21 @@ enum AuthFailure {
 }
 
 class AuthResult {
-  const AuthResult.success({this.newAccount = false, this.name})
+  const AuthResult.success({this.newAccount = false, this.name, this.userId})
     : failure = null;
   const AuthResult.failure(AuthFailure this.failure)
     : newAccount = false,
-      name = null;
+      name = null,
+      userId = null;
 
   /// No account holds this email or Apple or Google identity yet.
   final bool newAccount;
 
   /// The account's full name as the API holds it, when the answer said.
   final String? name;
+
+  /// The account's id on the API, when the answer said.
+  final String? userId;
   final AuthFailure? failure;
 
   bool get ok => failure == null;

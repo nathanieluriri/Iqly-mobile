@@ -1,5 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/backend.dart';
+import 'live/live_account.dart';
+import 'live/live_profile_service.dart';
 import 'onboarding_service.dart';
 
 /// The profile fields first run does not ask: the phone number from sign-up,
@@ -60,22 +63,35 @@ class AccountDetails {
 }
 
 /// The switches on Notification preferences (Flags.notificationPreferences).
-enum NotificationTopic { closingSoon, results, payouts, newBriefs, polls }
+enum NotificationTopic {
+  closingSoon,
+  results,
+  payouts,
+  newBriefs,
+  polls;
 
-/// The account side of Profile: Your details, notification preferences,
-/// sign out and delete account. The demo answers after a short delay; the
-/// live API replaces it behind the same interface.
+  /// Every switch but Polls starts on (contract 3.3).
+  bool get onByDefault => this != polls;
+}
+
+/// The account side of Profile: Your details, notification preferences and
+/// delete account. The demo answers after a short delay; the live API
+/// replaces it behind the same interface.
 abstract class ProfileService {
   Future<AccountDetails> accountDetails();
 
   /// Your details: the account fields and the first-run answers together,
-  /// as the profile endpoint takes them.
-  Future<void> saveDetails(AccountDetails details, OnboardingProfile answers);
+  /// as the profile endpoint takes them. [before] and [answersBefore] are
+  /// what the edit started from, so only what changed goes to the account.
+  Future<void> saveDetails(
+    AccountDetails details,
+    OnboardingProfile answers, {
+    AccountDetails? before,
+    OnboardingProfile? answersBefore,
+  });
 
   Future<Map<NotificationTopic, bool>> notificationPreferences();
   Future<void> setNotificationPreference(NotificationTopic topic, bool on);
-
-  Future<void> signOut();
 
   /// Closes the account. Signing in within [undoWindow] reopens it.
   Future<void> deleteAccount();
@@ -111,10 +127,8 @@ class DemoProfileService implements ProfileService {
   );
   OnboardingProfile? answers;
   final preferences = {
-    for (final topic in NotificationTopic.values)
-      topic: topic != NotificationTopic.polls,
+    for (final topic in NotificationTopic.values) topic: topic.onByDefault,
   };
-  int signOuts = 0;
   int deletions = 0;
   int restores = 0;
 
@@ -127,8 +141,10 @@ class DemoProfileService implements ProfileService {
   @override
   Future<void> saveDetails(
     AccountDetails details,
-    OnboardingProfile answers,
-  ) async {
+    OnboardingProfile answers, {
+    AccountDetails? before,
+    OnboardingProfile? answersBefore,
+  }) async {
     await _wait();
     this.details = details;
     this.answers = answers;
@@ -148,12 +164,6 @@ class DemoProfileService implements ProfileService {
   }
 
   @override
-  Future<void> signOut() async {
-    await _wait();
-    signOuts++;
-  }
-
-  @override
   Future<void> deleteAccount() async {
     await _wait();
     deletions++;
@@ -166,6 +176,14 @@ class DemoProfileService implements ProfileService {
   }
 }
 
-final profileServiceProvider = Provider<ProfileService>(
-  (ref) => DemoProfileService(),
-);
+/// The API while the profile runs live this launch, with close and restore
+/// on it while the account does too; the demo otherwise.
+final profileServiceProvider = Provider<ProfileService>((ref) {
+  final link = ref.watch(liveLinkProvider(LiveFeature.profile));
+  if (link == null) return DemoProfileService();
+  final account = ref.watch(liveLinkProvider(LiveFeature.account));
+  return LiveProfileService(
+    link,
+    account: account == null ? null : LiveAccount(account),
+  );
+});

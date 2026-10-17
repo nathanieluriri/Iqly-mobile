@@ -24,6 +24,50 @@ enum NotificationEvent {
   /// A withdrawal failed or was reversed, so it is back in the balance
   /// (Kind=Payout).
   payoutFailed,
+
+  /// The business published its results (Kind=Result), in the API's words.
+  resultsReady,
+
+  /// A brief has more time (Kind=Deadline), in the API's words.
+  deadlineExtended,
+
+  /// A row the app has no design for, in the API's words.
+  other,
+}
+
+/// The brief a live feed row embeds; no business name while the brief
+/// keeps it private.
+class NotificationBrief {
+  const NotificationBrief({required this.id, this.title, this.businessName});
+
+  final String id;
+  final String? title;
+  final String? businessName;
+}
+
+/// What a live feed row says itself (contract 7): the API's type and words
+/// and the records it embeds, so the app can word the row without loading
+/// them.
+class NotificationFacts {
+  const NotificationFacts({
+    required this.type,
+    required this.title,
+    required this.body,
+    this.amountKobo,
+    this.submissionId,
+    this.brief,
+    this.withdrawal,
+  });
+
+  final String type;
+  final String title;
+  final String body;
+  final int? amountKobo;
+  final String? submissionId;
+  final NotificationBrief? brief;
+
+  /// As embedded: the amount, status, bank, last 4 digits and reference.
+  final Withdrawal? withdrawal;
 }
 
 /// One row of the feed as the API would send it: what happened, the brief
@@ -38,6 +82,7 @@ class AppNotification {
     this.briefId,
     this.entryId,
     this.unread = false,
+    this.facts,
   });
 
   final String id;
@@ -51,12 +96,16 @@ class AppNotification {
   final String? entryId;
   final bool unread;
 
+  /// What the API's feed row says itself; null for a demo row.
+  final NotificationFacts? facts;
+
   AppNotification read() => AppNotification(
     id: id,
     event: event,
     at: at,
     briefId: briefId,
     entryId: entryId,
+    facts: facts,
   );
 }
 

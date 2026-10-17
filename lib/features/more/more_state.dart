@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/cache_service.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
+import '../onboarding/onboarding_draft.dart';
 import '../referrals/referrals_state.dart';
 
 /// The build the footer names (B7 · More): "IQLY FOR IOS 1.4.2 (310)", and
@@ -49,7 +50,7 @@ class ContributorPass {
 final contributorPassProvider = FutureProvider<ContributorPass>((ref) async {
   final repo = ref.watch(repositoryProvider);
   final (user, points, board, referrals) = await (
-    repo.user(),
+    ref.watch(onboardingUserProvider.future),
     repo.points(),
     repo.pointsLeaderboard(),
     ref.watch(referralsProvider.future),

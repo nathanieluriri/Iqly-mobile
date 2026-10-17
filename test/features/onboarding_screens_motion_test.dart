@@ -40,7 +40,10 @@ double _ei(double t) => IqCurves.easeIn.transform(t);
 
 class _NoSave implements OnboardingService {
   @override
-  Future<void> saveProfile(OnboardingProfile profile) async {}
+  Future<void> saveProfile(
+    OnboardingProfile profile, {
+    bool skipped = false,
+  }) async {}
 }
 
 /// The app opened straight on [route], signed in with [draft] saved.

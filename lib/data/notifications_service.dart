@@ -1,5 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/backend.dart';
+import 'live/live_account.dart';
+import 'live/live_notifications_service.dart';
 import 'notifications_data.dart';
 import 'repository.dart';
 
@@ -59,6 +62,9 @@ class DemoNotificationsService implements NotificationsService {
   }
 }
 
-final notificationsServiceProvider = Provider<NotificationsService>(
-  (ref) => DemoNotificationsService(ref.watch(repositoryProvider)),
-);
+/// The API while notifications run live this launch, else the demo feed.
+final notificationsServiceProvider = Provider<NotificationsService>((ref) {
+  final link = ref.watch(liveLinkProvider(LiveFeature.notifications));
+  if (link != null) return LiveNotificationsService(link);
+  return DemoNotificationsService(ref.watch(repositoryProvider));
+});

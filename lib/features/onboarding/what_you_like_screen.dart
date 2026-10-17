@@ -48,7 +48,7 @@ class WhatYouLikeScreen extends ConsumerWidget {
       title: 'What are you into?',
       caption: interestsCaption,
       onBack: () => leaveToPrevious(context, ref, OnboardingStep.whatYouLike),
-      onSkip: () => finishOnboarding(context, ref),
+      onSkip: () => finishOnboarding(context, ref, skipped: true),
       onNext: () => finishOnboarding(context, ref),
       nextEnabled: OnboardingDraft.interestsComplete(profile),
       nextLabel: 'Finish',

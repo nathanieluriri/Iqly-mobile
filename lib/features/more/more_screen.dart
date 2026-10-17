@@ -379,6 +379,6 @@ Future<void> confirmSignOut(BuildContext context, WidgetRef ref) async {
     cancelLabel: 'Stay signed in',
   );
   if (!out || !context.mounted) return;
-  await signOut(ref);
+  await forgetAccount(ref);
   if (context.mounted) context.go(Routes.landing);
 }

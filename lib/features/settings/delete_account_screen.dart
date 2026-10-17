@@ -84,7 +84,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
       return;
     }
     final email = ref.read(onboardingUserProvider).value?.email;
-    await forgetAccount(ref);
+    await forgetAccount(ref, closed: true);
     if (mounted) context.go(Routes.accountClosing, extra: email);
   }
 
