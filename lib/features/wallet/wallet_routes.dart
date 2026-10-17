@@ -34,12 +34,13 @@ String activityPath([ActivityTab tab = ActivityTab.all]) =>
 String addBankPath(String bankCode) => '/wallet/add-bank?bank=$bankCode';
 
 /// The Withdraw sheet, prefilled for a retry: [amountKobo] in the amount
-/// field and [bankCode] as the destination.
-String withdrawLocation({int? amountKobo, String? bankCode}) => Uri(
+/// field and the saved account [account] names (its id, or its key in the
+/// demo) as the destination.
+String withdrawLocation({int? amountKobo, String? account}) => Uri(
   path: Routes.withdraw,
   queryParameters: {
     if (amountKobo != null) 'amount': '$amountKobo',
-    'bank': ?bankCode,
+    'account': ?account,
   },
 ).toString();
 
@@ -59,7 +60,7 @@ GoRoute walletTabRoute(GlobalKey<NavigatorState> rootKey) => GoRoute(
           state,
           WithdrawSheet(
             amountKobo: int.tryParse(query['amount'] ?? ''),
-            bankCode: query['bank'],
+            account: query['account'],
           ),
           scrim: IqScrim.sheet,
         );

@@ -12,6 +12,7 @@ import '../../data/auth.dart';
 import '../../data/local/local_providers.dart';
 import '../../data/reference_data.dart';
 import '../../router.dart';
+import '../avatar/avatar_state.dart';
 import '../../surfaces/push.dart';
 import '../onboarding/onboarding_sheets.dart';
 import '../outcomes/outcomes_state.dart';
@@ -71,6 +72,7 @@ Future<void> switchLaunchMode(
   final store = read(localStoreProvider);
   for (final user in users) {
     await store.wipeUser(user);
+    await read(avatarProvider.notifier).wipe(user);
   }
   await read(sharedPreferencesProvider).remove(celebratedKey);
   await read(backendProvider.notifier).force(preview: preview);

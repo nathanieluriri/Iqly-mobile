@@ -11,11 +11,13 @@ import '../../data/auth.dart';
 import '../../data/invite.dart';
 import '../../data/live/live_account.dart';
 import '../../data/live/live_repository.dart' show liveModeProvider;
-import '../../data/referrals_service.dart' show referralsServiceProvider;
+import '../../data/referrals_service.dart'
+    show InviteCodeOutcome, LiveReferralsService, referralsServiceProvider;
 import '../../router.dart';
 import '../avatar/avatar_state.dart';
 import '../onboarding/onboarding_draft.dart';
 import '../profile/profile_state.dart';
+import '../referrals/referrals_state.dart';
 
 class EntryDraft {
   const EntryDraft({this.email = '', this.firstName = '', this.lastName = ''});
@@ -51,18 +53,46 @@ final entryDraftProvider = NotifierProvider<EntryDraftNotifier, EntryDraft>(
 );
 
 /// The invite an invite link opened the app with, until sign up uses it or
-/// the person signs in instead (answer 22).
+/// the person signs in instead (answer 22). Kept on the phone, so an app
+/// closed before sign-up still has it.
 class PendingInviteNotifier extends Notifier<Invite?> {
-  @override
-  Invite? build() => null;
+  static const key = 'invite.pending';
 
-  /// Looks [code] up and keeps the invite when it is known.
-  Future<void> accept(String code) async {
-    final invite = await ref.read(inviteServiceProvider).lookUp(code);
-    if (invite != null) state = invite;
+  @override
+  Invite? build() {
+    final code = ref.read(sharedPreferencesProvider).getString(key);
+    return code == null ? null : Invite(code: code);
   }
 
-  void clear() => state = null;
+  /// Looks [code] up: dropped only when the API says no such code (404);
+  /// when it cannot be checked (offline, 429, 5xx) the code is kept.
+  Future<void> accept(String code) async {
+    final typed = code.trim().toUpperCase();
+    if (typed.isEmpty) return;
+    Invite? invite;
+    try {
+      invite = await ref.read(inviteServiceProvider).lookUp(typed);
+      if (invite == null) {
+        await _keep(null);
+        return;
+      }
+    } on Exception {
+      invite = Invite(code: typed);
+    }
+    await _keep(invite);
+  }
+
+  Future<void> _keep(Invite? invite) async {
+    state = invite;
+    final prefs = ref.read(sharedPreferencesProvider);
+    if (invite == null) {
+      await prefs.remove(key);
+    } else {
+      await prefs.setString(key, invite.code);
+    }
+  }
+
+  void clear() => unawaited(_keep(null));
 }
 
 final pendingInviteProvider = NotifierProvider<PendingInviteNotifier, Invite?>(
@@ -140,13 +170,29 @@ Future<SignInLanding> completeSignIn(
 bool _appliesInvites(WidgetRef ref) =>
     ref.read(liveModeProvider).isLive(LiveFeature.referrals);
 
-/// The code an invite link brought, added to the new account. The person
-/// can still add it on Referrals if this does not land.
+/// The code an invite link brought, queued for the new account so a
+/// connection that drops does not lose it. When it cannot even queue, it is
+/// kept as not added, and Referrals says so and offers it again.
 Future<void> _applyInvite(WidgetRef ref, String code) async {
+  final user = ref.read(sessionProvider).userId;
+  final service = ref.read(referralsServiceProvider);
   try {
-    await ref.read(referralsServiceProvider).applyCode(code);
+    if (service is LiveReferralsService && user != null) {
+      await service.queueApply(code);
+      return;
+    }
+    final result = await service.applyCode(code);
+    if (result.outcome == InviteCodeOutcome.applied || user == null) return;
+    await ref
+        .read(unappliedInviteProvider.notifier)
+        .keep(user, code, result.outcome);
   } on Object catch (error) {
     debugPrint('Invite code not added: $error');
+    if (user != null) {
+      await ref
+          .read(unappliedInviteProvider.notifier)
+          .keep(user, code, InviteCodeOutcome.unknown);
+    }
   }
 }
 

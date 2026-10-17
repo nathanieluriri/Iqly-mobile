@@ -137,6 +137,7 @@ class LiveWalletService implements WalletService {
       final again = await _request(held, resent: true);
       if (again.unsettled) return again;
       _unsettled = null;
+      if (again.failure == WalletFailure.accountGone) return again;
       if (again.withdrawal case final landed?) {
         return WithdrawResult.requested(landed, earlier: true);
       }
@@ -186,6 +187,7 @@ class LiveWalletService implements WalletService {
       'PROFILE_INCOMPLETE' => WalletFailure.profileIncomplete,
       'UNDER_AGE' => WalletFailure.underAge,
       'ACCOUNT_CLOSING' => WalletFailure.closing,
+      'BANK_ACCOUNT_NOT_FOUND' => WalletFailure.accountGone,
       _ => WalletFailure.unknown,
     });
   }

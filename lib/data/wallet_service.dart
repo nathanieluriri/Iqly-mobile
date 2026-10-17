@@ -29,6 +29,10 @@ enum WalletFailure {
 
   /// The account is closing, so it takes no writes (403 ACCOUNT_CLOSING).
   closing,
+
+  /// The saved account named is no longer saved (404
+  /// BANK_ACCOUNT_NOT_FOUND).
+  accountGone,
 }
 
 class VerifyResult {

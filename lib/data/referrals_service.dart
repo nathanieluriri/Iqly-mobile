@@ -222,6 +222,11 @@ class LiveReferralsService implements ReferralsService {
 
   var _lookups = 0;
 
+  /// The code an invite link brought, queued so it lands once the API
+  /// answers; a refusal is heard where the outbox reports it.
+  Future<void> queueApply(String code) =>
+      link.queue(AccountWrite.referralApply, {'code': code});
+
   /// Asks only once typing pauses: a newer lookup makes this one answer
   /// null without asking.
   @override
@@ -229,7 +234,11 @@ class LiveReferralsService implements ReferralsService {
     final lookup = ++_lookups;
     await Future<void>.delayed(ReferralsService.lookupPause);
     if (lookup != _lookups) return null;
-    return lookUpInviter(link.api, code);
+    try {
+      return await lookUpInviter(link.api, code);
+    } on Exception {
+      return null;
+    }
   }
 
   @override
@@ -253,16 +262,15 @@ InviteCodeOutcome inviteCodeOutcome(String? code) => switch (code) {
 };
 
 /// `GET /referrals/codes/:code`: who owns [code], or null when no one does
-/// or the API cannot say.
+/// (404 INVITE_CODE_INVALID). Throws [ApiUnreachable] or [ApiRefused] when
+/// the API cannot say.
 Future<String?> lookUpInviter(ApiClient api, String code) async {
   final typed = code.trim();
   if (typed.isEmpty) return null;
-  try {
-    final res = await api.get('/referrals/codes/${Uri.encodeComponent(typed)}');
-    return res.ok ? apiText(res.data['inviter']) : null;
-  } on ApiUnreachable {
-    return null;
-  }
+  final res = await api.get('/referrals/codes/${Uri.encodeComponent(typed)}');
+  if (res.code == 'INVITE_CODE_INVALID') return null;
+  if (!res.ok) throw ApiRefused.of(res);
+  return apiText(res.data['inviter']);
 }
 
 /// `GET /me/referrals`. A status the app does not know reads as joined.

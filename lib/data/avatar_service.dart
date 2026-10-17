@@ -38,6 +38,7 @@ class AccountAvatar {
     required this.spec,
     required this.look,
     required this.isDefault,
+    this.updatedAt,
   });
 
   /// [photo] stands in for a photo spec, which the API keeps without its
@@ -62,12 +63,14 @@ class AccountAvatar {
       spec: spec ?? IqPersonAvatar(shown),
       look: shown,
       isDefault: json['isDefault'] == true,
+      updatedAt: DateTime.tryParse('${json['updatedAt']}'),
     );
   }
 
   final IqAvatarSpec spec;
   final IqAvatarLook look;
   final bool isDefault;
+  final DateTime? updatedAt;
 }
 
 /// The `PUT /me/avatar` body.
@@ -84,8 +87,17 @@ class LiveAvatarService {
 
   final AccountLink link;
 
-  Future<AccountAvatar?> avatar({Uint8List? photo}) async {
-    final stored = await link.fetch('/me/avatar', AccountKeys.avatar);
+  Future<AccountAvatar?> avatar({Uint8List? photo}) async => answered(
+    await link.fetch('/me/avatar', AccountKeys.avatar),
+    photo: photo,
+  );
+
+  /// [stored] as an answer of `GET /me/avatar` or the `avatar` of `GET /me`
+  /// says it, a change still to go laid over it.
+  Future<AccountAvatar?> answered(
+    Map<String, dynamic> stored, {
+    Uint8List? photo,
+  }) async {
     final waiting = await link.waiting(AccountWrite.avatar);
     final json = waiting.isEmpty
         ? stored

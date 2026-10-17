@@ -94,6 +94,13 @@ enum AccountWrite {
     'avatar',
     AccountKeys.avatar,
   ),
+  referralApply(
+    LiveFeature.referrals,
+    'referrals.apply',
+    'POST',
+    '/me/referrals/apply',
+    'referrals:apply',
+  ),
   seen(
     LiveFeature.notifications,
     'notifications.seen',
@@ -329,6 +336,7 @@ class Me {
     this.closing = false,
     this.closesAt,
     this.profile,
+    this.avatar,
   });
 
   /// Any status but `closing` reads as active.
@@ -344,6 +352,10 @@ class Me {
       profile: profile is Map
           ? ContributorProfile.fromJson(profile.cast<String, dynamic>())
           : null,
+      avatar: switch (json['avatar']) {
+        final Map<dynamic, dynamic> avatar => avatar.cast<String, dynamic>(),
+        _ => null,
+      },
     );
   }
 
@@ -356,6 +368,10 @@ class Me {
   /// 30 days after the close was asked for.
   final DateTime? closesAt;
   final ContributorProfile? profile;
+
+  /// The account's avatar as `GET /me/avatar` answers it (contract 10.1),
+  /// null from an API without it.
+  final Map<String, dynamic>? avatar;
 
   /// The account as the screens read it: [name] split at its first space,
   /// the state of residence, and the interests by their labels.
