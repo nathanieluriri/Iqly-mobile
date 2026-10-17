@@ -14,7 +14,7 @@ class NotificationPreferencesNotifier
     extends AsyncNotifier<Map<NotificationTopic, bool>> {
   @override
   Future<Map<NotificationTopic, bool>> build() =>
-      ref.read(profileServiceProvider).notificationPreferences();
+      ref.watch(profileServiceProvider).notificationPreferences();
 
   /// False when the account refused it and the switch went back.
   Future<bool> set(NotificationTopic topic, bool on) async {

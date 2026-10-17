@@ -25,11 +25,12 @@ import '../golden/screens/app_harness.dart';
 import '../golden/screens/profile_harness.dart';
 
 /// The real router at [location] on an API that answers every call 401,
-/// with the session guard listening.
+/// with the session guard listening. [userId] names the account signed in.
 Future<(ProviderContainer, ApiClient, MemoryTokenStore)> _open(
   WidgetTester tester,
   String location, {
   bool signedIn = true,
+  String? userId,
 }) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
@@ -47,6 +48,9 @@ Future<(ProviderContainer, ApiClient, MemoryTokenStore)> _open(
         const AccountDetails(phone: '+234 801 234 5678'),
       ),
       'submit.draft.c5': '{}',
+      'avatar.spec': '{"kind":"photo"}',
+      'avatar.photo': base64Encode(List.filled(64, 7)),
+      'session.userId': ?userId,
     },
     SplashScreen.litKey: true,
     SavedBriefsNotifier.key: '[]',
@@ -90,8 +94,8 @@ Future<(ProviderContainer, ApiClient, MemoryTokenStore)> _open(
 }
 
 void main() {
-  testWidgets('a 401 to the session token signs the phone out to the '
-      'landing, as sign out does', (tester) async {
+  testWidgets('a 401 to a session no account id names signs the phone out '
+      'to the landing, as sign out does', (tester) async {
     final (container, api, tokens) = await _open(tester, Routes.terms);
     await tester.pumpAndSettle();
     expect(find.byType(LegalScreen), findsOneWidget);
@@ -109,6 +113,34 @@ void main() {
     expect(prefs.getString(AccountDetailsNotifier.key), isNull);
     expect(prefs.getString('onboarding.draft'), isNull);
     expect(prefs.getString('submit.draft.c5'), isNull);
+    expect(prefs.getString(SavedBriefsNotifier.key), isNull);
+    expect(session.lostUserId, isNull);
+  });
+
+  testWidgets('a 401 to an account\'s session keeps what only the phone '
+      'holds (the avatar, its photo, the first-run answers) and the rest of '
+      'the account for its next sign-in', (tester) async {
+    final (container, api, tokens) = await _open(
+      tester,
+      Routes.terms,
+      userId: 'u_1',
+    );
+    await tester.pumpAndSettle();
+
+    await api.get('/me');
+    await tester.pumpAndSettle();
+    expect(find.byType(LandingScreen), findsOneWidget);
+    final session = container.read(sessionProvider);
+    expect(session.signedIn, isFalse);
+    expect(session.userId, isNull);
+    expect(session.lostUserId, 'u_1');
+    expect(await tokens.read(), isNull);
+    final prefs = container.read(sharedPreferencesProvider);
+    expect(prefs.getString('avatar.spec'), '{"kind":"photo"}');
+    expect(prefs.getString('avatar.photo'), isNotNull);
+    expect(prefs.getString('onboarding.draft'), isNotNull);
+    expect(prefs.getString(AccountDetailsNotifier.key), isNotNull);
+    expect(prefs.getString('submit.draft.c5'), '{}');
     expect(prefs.getString(SavedBriefsNotifier.key), '[]');
   });
 

@@ -164,6 +164,7 @@ class OnboardingDraftNotifier extends Notifier<OnboardingDraft> {
 
   @override
   OnboardingDraft build() {
+    ref.watch(accountProvider);
     final raw = ref.watch(sharedPreferencesProvider).getString(_key);
     if (raw == null) return const OnboardingDraft();
     try {
@@ -332,6 +333,7 @@ final accountNameProvider = Provider<String?>((ref) {
 });
 
 final _askedNameProvider = FutureProvider<String?>((ref) async {
+  ref.watch(accountProvider);
   final name = await ref.read(authServiceProvider).accountName();
   if (name != null) await ref.read(sessionProvider.notifier).setName(name);
   return name;

@@ -1,15 +1,22 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/backend.dart';
+import 'package:iqly_mobile/core/deadline.dart';
 import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/data/api_client.dart';
 import 'package:iqly_mobile/data/live/live_account.dart';
+import 'package:iqly_mobile/data/local/local_providers.dart';
 import 'package:iqly_mobile/data/local/local_store.dart';
 import 'package:iqly_mobile/data/local/memory_local_store.dart';
 import 'package:iqly_mobile/data/local/outbox.dart';
+import 'package:iqly_mobile/data/onboarding_service.dart';
+import 'package:iqly_mobile/data/profile_service.dart';
+import 'package:iqly_mobile/features/profile/account_sync.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/live_api.dart';
+import '../../support/live_app.dart' show livePreferences;
 
 AccountLink _link(FakeApi api, {String? userId = 'u_1', LocalStore? store}) {
   final kept = store ?? MemoryLocalStore();
@@ -25,6 +32,7 @@ Future<ProviderContainer> _container(
   FakeApi api, {
   Backend? mode,
   Map<String, Object> prefs = const {'session.signedIn': true},
+  List<Override> overrides = const [],
 }) async {
   SharedPreferences.setMockInitialValues(prefs);
   final shared = await SharedPreferences.getInstance();
@@ -32,6 +40,7 @@ Future<ProviderContainer> _container(
     overrides: [
       sharedPreferencesProvider.overrideWithValue(shared),
       ...liveOverrides(api, mode: mode),
+      ...overrides,
     ],
   );
   addTearDown(container.dispose);
@@ -282,6 +291,137 @@ void main() {
       expect(retried!.status, OutboxStatus.pending);
       expect(retried.lastErrorCode, OutboxCodes.network);
       await outbox.stop();
+    });
+
+    test('a profile edit and a switch queued while the first-run answers '
+        'wait to retry go after them, and both land', () async {
+      var now = DateTime(2026, 10, 17, 9);
+      var profile = false;
+      var answers = 0;
+      final api = FakeApi({
+        'POST /me/onboarding': (_) {
+          if (++answers == 1) {
+            return refusal(
+              503,
+              'SERVICE_UNAVAILABLE',
+              headers: {'retry-after': '30'},
+            );
+          }
+          profile = true;
+          return answer(profileJson());
+        },
+        'PATCH /profiles/contributors/me': (call) => profile
+            ? answer(profileJson())
+            : refusal(404, 'CONTRIBUTOR_PROFILE_NOT_FOUND'),
+        'GET /me/notification-preferences': (_) => answer(livePreferences),
+        'PUT /me/notification-preferences': (call) => profile
+            ? answer(call.body)
+            : refusal(404, 'CONTRIBUTOR_PROFILE_NOT_FOUND'),
+      });
+      final store = MemoryLocalStore(clock: () => now);
+      final container = await _container(
+        api,
+        prefs: {'session.signedIn': true, 'session.userId': 'u_new'},
+        overrides: [
+          clockProvider.overrideWithValue(() => now),
+          localStoreProvider.overrideWithValue(store),
+        ],
+      );
+      container.read(accountSyncProvider);
+      final outbox = container.read(outboxProvider);
+      await outbox.kick();
+
+      await container
+          .read(onboardingServiceProvider)
+          .saveProfile(
+            const OnboardingProfile(
+              occupation: 'student',
+              state: 'Lagos',
+              city: 'Yaba',
+            ),
+          );
+      await outbox.kick();
+      final service = container.read(profileServiceProvider);
+      await service.saveDetails(
+        const AccountDetails(phone: '+2348035554410'),
+        const OnboardingProfile(),
+        before: const AccountDetails(),
+        answersBefore: const OnboardingProfile(),
+      );
+      await service.setNotificationPreference(NotificationTopic.polls, true);
+      await outbox.kick();
+      expect(api.calls.map((c) => c.route), [
+        'POST /me/onboarding',
+        'GET /me/notification-preferences',
+      ]);
+      now = now.add(const Duration(seconds: 31));
+      await outbox.kick();
+      expect(
+        [
+          for (final c in api.calls)
+            if (c.method != 'GET') c.route,
+        ],
+        [
+          'POST /me/onboarding',
+          'POST /me/onboarding',
+          'PATCH /profiles/contributors/me',
+          'PUT /me/notification-preferences',
+        ],
+      );
+      expect(api.to('PATCH /profiles/contributors/me').single.body, {
+        'phone': '+2348035554410',
+      });
+      expect(await store.outbox('u_new'), isEmpty);
+    });
+
+    test('edits wait for the answers still to go and fold while they wait; '
+        'an edit once they are done goes on its own', () async {
+      final store = MemoryLocalStore();
+      final link = _link(FakeApi(), store: store);
+      final onboarding = await link.outbox.enqueue(
+        'u_1',
+        kind: AccountWrite.onboarding.kind,
+        payload: {'skipped': false},
+        coalesceKey: AccountWrite.onboarding.coalesceKey,
+      );
+      Future<void> edit(Map<String, Object?> fields) => link.queue(
+        AccountWrite.profile,
+        fields,
+        merge: (older, newer) => {...older, ...newer},
+      );
+      await edit({'phone': '+2348035554410'});
+      await edit({'city': 'Yaba'});
+      await link.queue(AccountWrite.preferences, livePreferences);
+      await link.queue(AccountWrite.seen, {'until': '2026-10-17T09:00:00Z'});
+      final waiting = await store.outbox('u_1');
+      expect(
+        {for (final i in waiting) i.kind: i.dependsOn},
+        {
+          AccountWrite.onboarding.kind: null,
+          AccountWrite.profile.kind: onboarding.id,
+          AccountWrite.preferences.kind: onboarding.id,
+          AccountWrite.seen.kind: null,
+        },
+      );
+      expect(
+        waiting.firstWhere((i) => i.kind == AccountWrite.profile.kind).payload,
+        {'phone': '+2348035554410', 'city': 'Yaba'},
+      );
+
+      await store.markDone(onboarding.id);
+      await edit({'city': 'Ikeja'});
+      final edits = [
+        for (final i in await store.outbox('u_1'))
+          if (i.kind == AccountWrite.profile.kind) i,
+      ];
+      expect([for (final i in edits) i.dependsOn], [onboarding.id, null]);
+      expect(
+        [for (final i in edits) i.payload],
+        [
+          {'phone': '+2348035554410', 'city': 'Yaba'},
+          {'city': 'Ikeja'},
+        ],
+      );
     });
 
     test('with no account id a write goes straight to the API', () async {

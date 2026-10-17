@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/session.dart';
 import 'demo_data.dart';
 import 'drafts_data.dart';
 import 'live/live_repository.dart';
@@ -179,9 +180,10 @@ class DemoRepository implements IqlyRepository {
 
 /// The sample dataset at prototype pace: the app's repository in preview,
 /// and what the live repository answers for the features not live.
-final demoRepositoryProvider = Provider<DemoRepository>(
-  (ref) => DemoRepository(DemoData(), latency: DemoLatency.prototype),
-);
+final demoRepositoryProvider = Provider<DemoRepository>((ref) {
+  ref.watch(accountProvider);
+  return DemoRepository(DemoData(), latency: DemoLatency.prototype);
+});
 
 /// The app runs on the sample dataset at prototype pace; tests override it
 /// with a [DemoLatency.none] repository. A launch that runs anything live

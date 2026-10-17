@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
 import '../../core/deadline.dart';
+import '../../core/session.dart';
 import '../../data/live/live_repository.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
@@ -80,12 +81,16 @@ class MySubmissions {
       of(SubmissionsTab.winners).fold(0, (sum, i) => sum + (i.awardKobo ?? 0));
 }
 
-/// The submissions sent in this session, newest first. A send hands its
-/// receipt here, so My submissions and Submission detail have the new one
-/// at once instead of waiting for the next load to bring it back.
+/// The submissions the signed-in account sent in this session, newest
+/// first. A send hands its receipt here, so My submissions and Submission
+/// detail have the new one at once instead of waiting for the next load to
+/// bring it back.
 class SentSubmissionsNotifier extends Notifier<List<SubmissionItem>> {
   @override
-  List<SubmissionItem> build() => const [];
+  List<SubmissionItem> build() {
+    ref.watch(accountProvider);
+    return const [];
+  }
 
   void add(SubmissionItem item) => state = [
     item,
@@ -107,6 +112,7 @@ final sentSubmissionsProvider =
 class MySubmissionsNotifier extends AsyncNotifier<MySubmissions> {
   @override
   Future<MySubmissions> build() async {
+    ref.watch(accountProvider);
     ref.listen(sentSubmissionsProvider, (_, sent) {
       if (state case AsyncData(:final value)) {
         state = AsyncData(value.including(sent));

@@ -286,14 +286,21 @@ class Surfaces {
   }
 
   /// Schedules Remind me for each of [briefs] and drops the reminders of
-  /// briefs no longer in it. Call with every brief that has Remind me on,
+  /// briefs no longer in it, but for those of the briefs [keep] names,
+  /// which stay as they are. Call with every brief that has Remind me on,
   /// as they stand now, so a moved close moves its reminder.
-  Future<void> syncCloseReminders(Iterable<Brief> briefs) async {
+  Future<void> syncCloseReminders(
+    Iterable<Brief> briefs, {
+    Set<String> keep = const {},
+  }) async {
     if (!supported) return;
     final now = DateTime.now();
-    final wanted = <int>{};
     final enabled =
         Flags.pushNotifications && _channelOn(SurfaceChannel.closingSoon);
+    final wanted = <int>{
+      if (enabled)
+        for (final id in keep) stableId('$closeReminderPrefix$id'),
+    };
     for (final brief in enabled ? briefs : const <Brief>[]) {
       final note = closeReminderNotification(brief);
       final deadline = brief.deadline;

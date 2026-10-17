@@ -19,6 +19,7 @@ class SessionState {
     this.firstName,
     this.name,
     this.userId,
+    this.lostUserId,
   });
 
   final bool signedIn;
@@ -36,6 +37,11 @@ class SessionState {
   /// Null in preview and until the API has said.
   final String? userId;
 
+  /// The account whose session the API ended. What it keeps on this phone
+  /// waits for the next sign-in, which keeps it for that account and
+  /// forgets it for anyone else.
+  final String? lostUserId;
+
   SessionState copyWith({
     bool? signedIn,
     bool? onboardingDone,
@@ -47,6 +53,7 @@ class SessionState {
     firstName: firstName,
     name: name,
     userId: userId,
+    lostUserId: lostUserId,
   );
 }
 
@@ -57,6 +64,7 @@ class SessionNotifier extends Notifier<SessionState> {
   static const _firstName = 'session.firstName';
   static const _name = 'session.name';
   static const _userId = 'session.userId';
+  static const _lostUserId = 'session.lostUserId';
 
   @override
   SessionState build() {
@@ -68,8 +76,11 @@ class SessionNotifier extends Notifier<SessionState> {
       firstName: prefs.getString(_firstName),
       name: prefs.getString(_name),
       userId: prefs.getString(_userId),
+      lostUserId: prefs.getString(_lostUserId),
     );
   }
+
+  SharedPreferences get _prefs => ref.read(sharedPreferencesProvider);
 
   Future<void> setSignedIn(bool value) =>
       _set(_signedIn, value, state.copyWith(signedIn: value));
@@ -91,14 +102,9 @@ class SessionNotifier extends Notifier<SessionState> {
       firstName: first,
       name: full,
       userId: state.userId,
+      lostUserId: state.lostUserId,
     );
-    final prefs = ref.read(sharedPreferencesProvider);
-    await Future.wait([
-      full == null ? prefs.remove(_name) : prefs.setString(_name, full),
-      first == null
-          ? prefs.remove(_firstName)
-          : prefs.setString(_firstName, first),
-    ]);
+    await Future.wait([_keep(_name, full), _keep(_firstName, first)]);
   }
 
   Future<void> setUserId(String? value) async {
@@ -110,17 +116,74 @@ class SessionNotifier extends Notifier<SessionState> {
       firstName: state.firstName,
       name: state.name,
       userId: id,
+      lostUserId: state.lostUserId,
     );
-    final prefs = ref.read(sharedPreferencesProvider);
-    await (id == null ? prefs.remove(_userId) : prefs.setString(_userId, id));
+    await _keep(_userId, id);
   }
+
+  Future<void> setLostUserId(String? value) async {
+    state = SessionState(
+      signedIn: state.signedIn,
+      onboardingDone: state.onboardingDone,
+      firstTipSeen: state.firstTipSeen,
+      firstName: state.firstName,
+      name: state.name,
+      userId: state.userId,
+      lostUserId: value,
+    );
+    await _keep(_lostUserId, value);
+  }
+
+  /// The API ended the session: signed out in one step, with the account
+  /// noted as [SessionState.lostUserId] and the rest of the session kept
+  /// for its next sign-in.
+  Future<void> lose() async {
+    final lost = state.userId;
+    state = SessionState(
+      onboardingDone: state.onboardingDone,
+      firstTipSeen: state.firstTipSeen,
+      firstName: state.firstName,
+      name: state.name,
+      lostUserId: lost,
+    );
+    await Future.wait([
+      _prefs.setBool(_signedIn, false),
+      _keep(_userId, null),
+      _keep(_lostUserId, lost),
+    ]);
+  }
+
+  /// Signed out in one step, with nothing of any account kept.
+  Future<void> signOut() async {
+    state = const SessionState();
+    await Future.wait([
+      _prefs.setBool(_signedIn, false),
+      _prefs.setBool(_onboardingDone, false),
+      _prefs.setBool(_firstTipSeen, false),
+      for (final key in [_firstName, _name, _userId, _lostUserId])
+        _prefs.remove(key),
+    ]);
+  }
+
+  Future<void> _keep(String key, String? value) =>
+      value == null ? _prefs.remove(key) : _prefs.setString(key, value);
 
   Future<void> _set(String key, bool value, SessionState next) async {
     state = next;
-    await ref.read(sharedPreferencesProvider).setBool(key, value);
+    await _prefs.setBool(key, value);
   }
 }
 
 final sessionProvider = NotifierProvider<SessionNotifier, SessionState>(
   SessionNotifier.new,
+);
+
+/// Whose data the app holds: the signed-in account's id, '' while signed in
+/// before the API has given one, null while signed out. Everything that
+/// keeps one person's data watches it, so a sign-out drops that data and
+/// the next sign-in starts from nothing of anyone else's.
+final accountProvider = Provider<String?>(
+  (ref) => ref.watch(
+    sessionProvider.select((s) => s.signedIn ? s.userId ?? '' : null),
+  ),
 );

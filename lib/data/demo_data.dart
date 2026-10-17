@@ -262,6 +262,12 @@ class DemoData {
 
   static const closeReminderIds = ['c5'];
 
+  static final _briefIds = {for (final b in DemoData().briefs) b.id};
+
+  /// Whether [id] is one of the sample briefs, which are never the
+  /// person's own in a live launch.
+  static bool isSampleBrief(String id) => _briefIds.contains(id);
+
   /// The iQL points board (548:25018), the contributor's row from the pass.
   late final PointsBoard pointsBoard = PointsDemo.of(
     now,

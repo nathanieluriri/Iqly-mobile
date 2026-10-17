@@ -285,6 +285,50 @@ void main() {
     });
   });
 
+  group('notification preferences, two flips at once', () {
+    test('both reach the one PUT that goes', () async {
+      final s = _Service(
+        FakeApi({
+          _prefsGet: (_) => answer(_preferences),
+          _prefsPut: (call) => answer(call.body),
+        }),
+      );
+      await s.service.notificationPreferences();
+      await Future.wait([
+        s.service.setNotificationPreference(NotificationTopic.polls, true),
+        s.service.setNotificationPreference(NotificationTopic.payouts, false),
+      ]);
+      expect((await s.queued()).single.payload, {
+        ..._preferences,
+        'polls': true,
+        'payouts': false,
+      });
+    });
+
+    test('one the account refuses goes back, and the next flip starts from '
+        'what the account holds', () async {
+      final api = FakeApi({
+        _prefsGet: (_) => answer(_preferences),
+        _prefsPut: (_) => refusal(403, 'ACCOUNT_CLOSING'),
+      });
+      final link = AccountLink(
+        api: api.client,
+        store: MemoryLocalStore(),
+        outbox: Outbox(MemoryLocalStore()),
+        userId: () => null,
+      );
+      final service = LiveProfileService(link);
+      await service.notificationPreferences();
+      await expectLater(
+        service.setNotificationPreference(NotificationTopic.polls, true),
+        throwsA(isA<ApiRefused>()),
+      );
+      api.routes[_prefsPut] = (call) => answer(call.body);
+      await service.setNotificationPreference(NotificationTopic.payouts, false);
+      expect(api.to(_prefsPut).last.body, {..._preferences, 'payouts': false});
+    });
+  });
+
   group('delete account', () {
     test('closes online: nothing queues', () async {
       final s = _Service(

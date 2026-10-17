@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/backend.dart';
 import '../core/deadline.dart';
+import '../core/session.dart';
 import 'api_client.dart';
 import 'demo_data.dart';
 import 'live/live_repository.dart';
@@ -257,6 +258,7 @@ class DemoAttachmentUploader implements AttachmentUploader {
 /// repository reads, which in a live launch is the one the live repository
 /// answers its preview features from.
 final submitServiceProvider = Provider<SubmitService>((ref) {
+  ref.watch(accountProvider);
   final api = ref.watch(apiClientProvider);
   if (api != null && ref.watch(liveModeProvider).isLive(LiveFeature.submit)) {
     return LiveSubmitService(api, clock: ref.watch(clockProvider));

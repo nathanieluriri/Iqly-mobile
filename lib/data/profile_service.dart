@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/backend.dart';
+import '../core/session.dart';
 import 'live/live_account.dart';
 import 'live/live_profile_service.dart';
 import 'onboarding_service.dart';
@@ -179,6 +180,7 @@ class DemoProfileService implements ProfileService {
 /// The API while the profile runs live this launch, with close and restore
 /// on it while the account does too; the demo otherwise.
 final profileServiceProvider = Provider<ProfileService>((ref) {
+  ref.watch(accountProvider);
   final link = ref.watch(liveLinkProvider(LiveFeature.profile));
   if (link == null) return DemoProfileService();
   final account = ref.watch(liveLinkProvider(LiveFeature.account));

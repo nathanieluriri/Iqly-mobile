@@ -479,6 +479,26 @@ void main() {
         expect(forgot, ['preview']);
       });
 
+      test('are not cleared again by a live launch after a preview one, so '
+          'what was saved live stays', () async {
+        await launches([_all, Backend.preview, _all, Backend.preview, _all]);
+        expect(forgot, ['preview']);
+        expect(prefs.getBool(LiveBackendNotifier.previewClearedKey), isTrue);
+      });
+
+      test(
+        'are not cleared again after an update from a build that kept no '
+        'record of the clear, even when its first launch is preview',
+        () async {
+          await prefs.setStringList(
+            LiveBackendNotifier.launchedKey,
+            _all.names,
+          );
+          await launches([Backend.preview, _all]);
+          expect(forgot, isEmpty);
+        },
+      );
+
       test('stay when a live launch goes back to preview', () async {
         await launches([_all]);
         forgot.clear();
@@ -617,6 +637,7 @@ void main() {
         LiveBackendNotifier.decidedKey,
         LiveBackendNotifier.checkedAtKey,
         LiveBackendNotifier.launchedKey,
+        LiveBackendNotifier.previewClearedKey,
       });
       for (final MapEntry(:key, :value) in kept.entries) {
         expect(prefs.get(key), value, reason: key);

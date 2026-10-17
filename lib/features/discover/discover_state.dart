@@ -4,8 +4,11 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/backend.dart';
 import '../../core/deadline.dart';
 import '../../core/session.dart';
+import '../../data/demo_data.dart';
+import '../../data/live/live_repository.dart';
 import '../../data/models.dart';
 import '../../data/reference_data.dart';
 import '../../data/repository.dart';
@@ -360,9 +363,14 @@ List<Brief> _sorted(Iterable<Brief> briefs, int Function(Brief, Brief) by) {
   return [for (final e in indexed) e.value];
 }
 
+/// Whether this launch reads the briefs from the API, so a sample brief
+/// saved or reminded on a preview launch is never the person's.
+bool _liveBriefs(Ref ref) =>
+    ref.watch(liveModeProvider).isLive(LiveFeature.briefs);
+
 /// Saved briefs, newest save first, kept on the device in full so the Saved
 /// list and brief detail still open offline. Seeds from the account on
-/// first run.
+/// first run. A live launch drops the sample briefs a preview launch saved.
 class SavedBriefsNotifier extends AsyncNotifier<List<Brief>> {
   static const key = 'discover.savedBriefs';
 
@@ -370,12 +378,20 @@ class SavedBriefsNotifier extends AsyncNotifier<List<Brief>> {
   /// animates into the state it already had.
   @override
   FutureOr<List<Brief>> build() {
+    ref.watch(accountProvider);
     final raw = ref.watch(sharedPreferencesProvider).getString(key);
     if (raw != null) {
-      return [
+      final saved = [
         for (final item in jsonDecode(raw) as List<Object?>)
           Brief.fromJson((item! as Map).cast<String, Object?>()),
       ];
+      if (!_liveBriefs(ref)) return saved;
+      final own = [
+        for (final brief in saved)
+          if (!DemoData.isSampleBrief(brief.id)) brief,
+      ];
+      if (own.length != saved.length) unawaited(_persist(own));
+      return own;
     }
     return _seed();
   }
@@ -399,6 +415,12 @@ class SavedBriefsNotifier extends AsyncNotifier<List<Brief>> {
     await ref.read(repositoryProvider).setBriefSaved(brief.id, saved);
   }
 
+  /// Sign out: the phone keeps no saved brief of the account.
+  Future<void> forget() async {
+    await ref.read(sharedPreferencesProvider).remove(key);
+    ref.invalidateSelf();
+  }
+
   Future<void> _persist(List<Brief> briefs) => ref
       .read(sharedPreferencesProvider)
       .setString(key, jsonEncode([for (final b in briefs) b.toJson()]));
@@ -409,7 +431,8 @@ final savedBriefsProvider =
       SavedBriefsNotifier.new,
     );
 
-/// Briefs with a close reminder (an hour before close).
+/// Briefs with a close reminder (an hour before close). A live launch drops
+/// the reminders a preview launch set on sample briefs.
 class CloseRemindersNotifier extends AsyncNotifier<Set<String>> {
   static const key = 'discover.closeReminders';
 
@@ -417,9 +440,17 @@ class CloseRemindersNotifier extends AsyncNotifier<Set<String>> {
   /// in its state instead of switching into it.
   @override
   FutureOr<Set<String>> build() {
-    final stored = ref.watch(sharedPreferencesProvider).getStringList(key);
-    if (stored != null) return stored.toSet();
-    return _seed();
+    ref.watch(accountProvider);
+    final prefs = ref.watch(sharedPreferencesProvider);
+    final stored = prefs.getStringList(key);
+    if (stored == null) return _seed();
+    if (!_liveBriefs(ref)) return stored.toSet();
+    final own = [
+      for (final id in stored)
+        if (!DemoData.isSampleBrief(id)) id,
+    ];
+    if (own.length != stored.length) unawaited(prefs.setStringList(key, own));
+    return own.toSet();
   }
 
   Future<Set<String>> _seed() async {
@@ -437,16 +468,39 @@ class CloseRemindersNotifier extends AsyncNotifier<Set<String>> {
     await syncSurfaces();
   }
 
+  /// Sign out: no reminder of the account stays, scheduled or kept.
+  Future<void> forget() async {
+    await ref.read(sharedPreferencesProvider).remove(key);
+    ref.invalidateSelf();
+    await ref.read(surfacesProvider)?.syncCloseReminders(const []);
+  }
+
   /// Puts the phone's scheduled reminders in step with the switches and
-  /// each brief's current close.
+  /// each brief's current close. A brief this launch cannot read (no
+  /// answer and no copy on the phone, or a live brief in a preview launch)
+  /// keeps the reminder it has.
   Future<void> syncSurfaces() async {
     final surfaces = ref.read(surfacesProvider);
     if (surfaces == null) return;
     try {
       final ids = await future;
       final repository = ref.read(repositoryProvider);
-      final briefs = await Future.wait(ids.map(repository.brief));
-      await surfaces.syncCloseReminders(briefs.nonNulls);
+      final read = await Future.wait([
+        for (final id in ids)
+          repository
+              .brief(id)
+              .then<(String, Brief?)>(
+                (brief) => (id, brief),
+                onError: (Object _) => (id, null),
+              ),
+      ]);
+      await surfaces.syncCloseReminders(
+        [for (final (_, brief) in read) ?brief],
+        keep: {
+          for (final (id, brief) in read)
+            if (brief == null) id,
+        },
+      );
     } on Object catch (error) {
       debugPrint('Close reminders not scheduled: $error');
     }
