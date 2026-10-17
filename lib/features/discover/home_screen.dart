@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/deadline.dart';
+import '../../core/edge_haptics.dart';
 import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
@@ -127,7 +128,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         final armed = idle && over >= IqTravel.pullArm;
         if (armed && !_buzzed) {
           _buzzed = true;
-          IqHaptics.select.play();
+          if (!(PullsToRefresh.of(context)?.reachedTop ?? false)) {
+            IqHaptics.select.play();
+          }
         }
         _armed.value = armed;
       } else {

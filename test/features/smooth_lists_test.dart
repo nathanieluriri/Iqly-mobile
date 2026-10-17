@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/icon.dart';
+import 'package:iqly_mobile/ui/illustration.dart';
 import 'package:iqly_mobile/ui/list_row.dart';
 import 'package:iqly_mobile/ui/svg_precache.dart';
 
@@ -53,8 +54,9 @@ void main() {
         )
         .length;
     expect(shipped, greaterThan(100));
-    expect(cached, shipped);
-    expect(svg.cache.count, shipped);
+    final layers = IqIllustrations.values.length * 2;
+    expect(cached, shipped + layers);
+    expect(svg.cache.count, shipped + layers);
     expect(svg.cache.maximumSize, greaterThanOrEqualTo(shipped * 2));
     for (final icon in IqIcons.values) {
       final loader = SvgAssetLoader(icon.asset);
@@ -63,6 +65,15 @@ void main() {
         isA<SynchronousFuture<ByteData>>(),
         reason: icon.asset,
       );
+    }
+    for (final kind in IqIllustrations.values) {
+      for (final layer in kind.layers) {
+        expect(
+          layer.loadBytes(null),
+          isA<SynchronousFuture<ByteData>>(),
+          reason: kind.asset,
+        );
+      }
     }
   });
 }

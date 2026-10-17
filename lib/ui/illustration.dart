@@ -29,6 +29,12 @@ enum IqIllustrations {
 
   String get asset => 'assets/illustrations/$file.svg';
 
+  /// The ink and accent layers the entrance draws, each its own parse.
+  List<SvgAssetLoader> get layers => [
+    SvgAssetLoader(asset, colorMapper: const _Layer(IqColors.brand)),
+    SvgAssetLoader(asset, colorMapper: const _Layer(IqColors.accent)),
+  ];
+
   /// How the accent layer plays (MOTION-SPEC 5.29): brush sweeps wipe left
   /// to right over their own bounds, sparks and lines pop from their own
   /// centre, the Rocket's flame lights from its top edge. Rects are in the

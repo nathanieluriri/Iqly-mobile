@@ -260,23 +260,37 @@ void main() {
       expect(haptics, isEmpty);
     });
 
-    testWidgets('the start of a list that pulls to refresh is left to the '
-        'pull; its far end and its carousels still stop', (tester) async {
+    testWidgets('a list that pulls to refresh stops at its top too, and '
+        'notes it for the pull; a drag that starts at the top stays quiet', (
+      tester,
+    ) async {
       final haptics = _haptics(tester);
       await _pump(tester, PullsToRefresh(child: list()));
+      final gesture = PullsToRefresh.of(tester.element(find.byType(ListView)))!;
+      await tester.drag(find.byType(ListView), const Offset(0, 200));
+      await tester.pumpAndSettle();
+      expect(haptics, isEmpty);
+      expect(gesture.reachedTop, isFalse);
+
       await tester.fling(find.byType(ListView), const Offset(0, -300), 8000);
       await tester.pumpAndSettle();
       expect(haptics, [edge()]);
+      expect(gesture.reachedTop, isFalse);
       await tester.fling(find.byType(ListView), const Offset(0, 300), 8000);
       await tester.pumpAndSettle();
-      expect(haptics, [edge()]);
+      expect(haptics, [edge(), edge()]);
+      expect(gesture.reachedTop, isTrue);
+
+      await tester.drag(find.byType(ListView), const Offset(0, 100));
+      await tester.pumpAndSettle();
+      expect(gesture.reachedTop, isFalse);
 
       await _pump(tester, PullsToRefresh(child: list(axis: Axis.horizontal)));
       await tester.fling(find.byType(ListView), const Offset(-300, 0), 8000);
       await tester.pumpAndSettle();
       await tester.fling(find.byType(ListView), const Offset(300, 0), 8000);
       await tester.pumpAndSettle();
-      expect(haptics, [edge(), edge(), edge()]);
+      expect(haptics, [edge(), edge(), edge(), edge()]);
     });
 
     testWidgets('a list too short to scroll stays quiet', (tester) async {

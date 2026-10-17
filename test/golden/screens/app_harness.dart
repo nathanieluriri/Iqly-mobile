@@ -71,6 +71,7 @@ Future<ProviderContainer> pumpApp(
   List<Override> overrides = const [],
   bool settle = true,
   DateTime Function()? clock,
+  TransitionBuilder? builder,
 }) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
@@ -111,6 +112,7 @@ Future<ProviderContainer> pumpApp(
         theme: buildTheme(),
         debugShowCheckedModeBanner: false,
         routerConfig: router,
+        builder: builder,
       ),
     ),
   );
