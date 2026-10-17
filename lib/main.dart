@@ -14,8 +14,11 @@ import 'data/auth.dart';
 import 'data/device.dart';
 import 'data/live_auth.dart';
 import 'data/patches.dart';
+import 'data/profile_service.dart';
 import 'data/token_store.dart';
+import 'features/discover/discover_state.dart';
 import 'features/more/more_state.dart';
+import 'features/settings/settings_state.dart';
 import 'router.dart';
 import 'surfaces/surfaces.dart';
 
@@ -51,6 +54,11 @@ Future<void> main() async {
             Routes.wallet,
             Routes.more,
           },
+          channelOn: (channel) =>
+              ref.read(notificationPreferencesProvider).value?[NotificationTopic
+                  .values
+                  .byName(channel.name)] ??
+              true,
         ),
       ),
     ],
@@ -58,7 +66,17 @@ Future<void> main() async {
   runApp(
     UncontrolledProviderScope(container: container, child: const IqlyApp()),
   );
-  unawaited(
-    container.read(surfacesProvider)!.start(SurfaceInputs.demo(DateTime.now())),
+  unawaited(_startSurfaces(container));
+}
+
+Future<void> _startSurfaces(ProviderContainer container) async {
+  await container
+      .read(surfacesProvider)!
+      .start(SurfaceInputs.demo(DateTime.now()));
+  final reminders = container.read(closeRemindersProvider.notifier);
+  await reminders.syncSurfaces();
+  container.listen(
+    notificationPreferencesProvider,
+    (_, _) => unawaited(reminders.syncSurfaces()),
   );
 }

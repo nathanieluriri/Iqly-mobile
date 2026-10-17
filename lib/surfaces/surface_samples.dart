@@ -4,6 +4,7 @@ import '../data/demo_data.dart';
 import '../data/models.dart';
 import '../data/polls_data.dart';
 import 'notification_content.dart';
+import 'notification_sounds.dart';
 import 'surfaces.dart';
 
 /// The B18 and B19 examples on the sample records their frames show: the
@@ -55,6 +56,25 @@ class SurfaceSamples {
     final row = inputs.feed.firstWhere((n) => n.briefId == brief.id);
     return draftNotification(brief, now, notificationId: row.id)!;
   }
+
+  /// Remind me on the Sunline brief, as if it closed an hour from now.
+  SurfaceNotification get reminder {
+    final b = _data.briefs.firstWhere((b) => b.id == 'c5');
+    return closeReminderNotification(
+      Brief(
+        id: b.id,
+        title: b.title,
+        body: b.body,
+        tier: b.tier,
+        category: b.category,
+        rewardPoolKobo: b.rewardPoolKobo,
+        status: b.status,
+        deadline: now.add(closeReminderLead),
+        businessName: b.businessName,
+        createdAt: b.createdAt,
+      ),
+    )!;
+  }
 }
 
 /// What Try notifications does with a tap: its notification lands
@@ -83,6 +103,13 @@ class NotificationTrial {
   Future<void> won() => _land((s) => s.won);
 
   Future<void> draft() => _land((s) => s.draft);
+
+  Future<void> reminder() => _land((s) => s.reminder);
+
+  Future<void> sound(IqSound sound) async {
+    await Future<void>.delayed(landsAfter);
+    await _surfaces.playSample(sound);
+  }
 
   /// True when the phone has the widgets to draw them.
   Future<bool> widgets() => _surfaces.publish(SurfaceSamples(_clock()).inputs);

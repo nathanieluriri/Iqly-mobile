@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/data/device.dart';
 import 'package:iqly_mobile/features/more/try_notifications_screen.dart';
 import 'package:iqly_mobile/router.dart';
+import 'package:iqly_mobile/surfaces/notification_sounds.dart';
 import 'package:iqly_mobile/surfaces/surface_samples.dart';
 
 import '../golden/screens/more_harness.dart';
@@ -21,6 +22,12 @@ class _Trial implements NotificationTrial {
 
   @override
   Future<void> draft() async => calls.add('draft');
+
+  @override
+  Future<void> reminder() async => calls.add('reminder');
+
+  @override
+  Future<void> sound(IqSound sound) async => calls.add(sound.resource);
 
   @override
   Future<bool> widgets() async {
@@ -58,14 +65,27 @@ void main() {
       'New poll from Orchid Foods',
       'You won ₦12,500.00',
       'Your Sunline draft is waiting',
+      'Sunline closes in 1 hour',
     ]) {
       await tester.tap(find.text(label));
       await tester.pump();
       expect(find.text(TryNotificationsScreen.coming), findsOneWidget);
       await tester.pumpAndSettle();
     }
-    expect(trial.calls, ['payout', 'poll', 'won', 'draft']);
+    expect(trial.calls, ['payout', 'poll', 'won', 'draft', 'reminder']);
 
+    trial.calls.clear();
+    for (final sound in IqSound.values) {
+      final row = find.text(
+        '${sound.isSiren ? 'Siren' : 'Bing'}: ${sound.label}',
+      );
+      await tester.scrollUntilVisible(row, 200);
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+    }
+    expect(trial.calls, [for (final s in IqSound.values) s.resource]);
+
+    await tester.scrollUntilVisible(find.text('Refresh the widgets'), 200);
     await tester.tap(find.text('Refresh the widgets'));
     await tester.pump();
     expect(find.text(TryNotificationsScreen.refreshed), findsOneWidget);

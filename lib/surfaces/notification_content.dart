@@ -6,28 +6,76 @@ import '../core/money.dart';
 import '../data/models.dart';
 import '../data/polls_data.dart';
 import 'live_activity.dart';
+import 'notification_sounds.dart';
 import 'surface_copy.dart';
 import 'surface_format.dart';
 
 /// One per switch on Notification preferences (194:9932), so a person who
-/// turns a topic off can also mute it in the phone's settings. The Android
-/// channels are created natively from the same ids (NotificationChannels.kt).
+/// turns a topic off can also mute it in the phone's settings. Surfaces
+/// creates the Android channels from these at start; a remote push names
+/// the same ids. Android fixes a channel's importance and sound once made,
+/// so changing either means a new [version], and the old ids are deleted.
 enum SurfaceChannel {
   closingSoon(
     'closing_soon',
     'Brief closing soon',
     'A day before, and an hour before',
+    IqSound.sirenWhistle,
   ),
-  results('results', 'Results', 'When the business picks winners'),
-  payouts('payouts', 'Withdrawals', 'When money lands or fails'),
-  newBriefs('new_briefs', 'New briefs for you', 'At most once a day'),
-  polls('polls', 'Polls', 'When a poll opens');
+  results(
+    'results',
+    'Results',
+    'When the business picks winners',
+    IqSound.bingIdea,
+  ),
+  payouts(
+    'payouts',
+    'Withdrawals',
+    'When money lands or fails',
+    IqSound.bingSpark,
+  ),
+  newBriefs(
+    'new_briefs',
+    'New briefs for you',
+    'At most once a day',
+    IqSound.bingGlass,
+    urgent: false,
+  ),
+  polls(
+    'polls',
+    'Polls',
+    'When a poll opens',
+    IqSound.bingGlass,
+    urgent: false,
+  );
 
-  const SurfaceChannel(this.id, this.title, this.description);
+  const SurfaceChannel(
+    this.key,
+    this.title,
+    this.description,
+    this.sound, {
+    this.urgent = true,
+  });
 
-  final String id;
+  static const version = 2;
+
+  final String key;
   final String title;
   final String description;
+  final IqSound sound;
+
+  /// Urgent channels drop in as a banner; the others land in the shade.
+  final bool urgent;
+
+  String get id => '${key}_v$version';
+
+  /// Version 1 had no version in its ids.
+  static Iterable<String> get retired => [
+    for (final c in values) ...[
+      c.key,
+      for (var v = 2; v < version; v++) '${c.key}_v$v',
+    ],
+  ];
 }
 
 enum SurfaceNotificationKind { payout, result, deadline, poll }
@@ -83,9 +131,10 @@ class SurfaceNotification {
   final DateTime? countdownTo;
 
   int get id => stableId(key);
-  String get group => 'net.iqly.${channel.id}';
+  String get group => 'net.iqly.${channel.key}';
 
   String get payload => jsonEncode({
+    'key': key,
     'route': route,
     'actions': {
       for (final a in actions)
@@ -180,6 +229,35 @@ SurfaceNotification? draftNotification(
     route: DeepLinks.notification(notificationId),
     thumb: brandOfBrief(brief).slug,
     countdownTo: brief.deadline,
+  );
+}
+
+/// Remind me's "An hour before close".
+const closeReminderLead = Duration(hours: 1);
+
+const closeReminderPrefix = 'remind:';
+
+/// A Remind me reminder, posted [lead] before the close. Android counts the
+/// time left down to the close and lets it go when the brief closes.
+SurfaceNotification? closeReminderNotification(
+  Brief brief, {
+  Duration lead = closeReminderLead,
+}) {
+  final deadline = brief.deadline;
+  if (deadline == null || !brief.isLive) return null;
+  return SurfaceNotification(
+    key: '$closeReminderPrefix${brief.id}',
+    kind: SurfaceNotificationKind.deadline,
+    channel: SurfaceChannel.closingSoon,
+    title: SurfaceCopy.closesIn(
+      brief.businessName ?? brief.title,
+      leftLong(lead),
+    ),
+    body: brief.title,
+    subtext: SurfaceCopy.closingSoon,
+    route: DeepLinks.brief(brief.id),
+    thumb: brandOfBrief(brief).slug,
+    countdownTo: deadline,
   );
 }
 

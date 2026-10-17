@@ -6,6 +6,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:quick_actions/quick_actions.dart';
+import 'package:timezone/timezone.dart' as tz;
 
 import '../core/deep_links.dart';
 import '../core/flags.dart';
@@ -17,6 +18,7 @@ import '../data/polls_data.dart';
 import '../theme/theme.dart';
 import 'live_activity.dart';
 import 'notification_content.dart';
+import 'notification_sounds.dart';
 import 'shortcuts.dart';
 import 'surface_copy.dart';
 import 'surface_format.dart';
@@ -127,12 +129,14 @@ class Surfaces {
     required this.router,
     required this.signedIn,
     required Set<String> tabRoots,
+    bool Function(SurfaceChannel channel)? channelOn,
     SurfacesBridge? bridge,
     FlutterLocalNotificationsPlugin? notifications,
     QuickActions? quickActions,
   }) : _bridge = bridge ?? SurfacesBridge(),
        _notifications = notifications ?? FlutterLocalNotificationsPlugin(),
        _quickActions = quickActions ?? const QuickActions(),
+       _channelOn = channelOn ?? ((_) => true),
        _queue = SurfaceLaunchQueue(readyRoots: tabRoots);
 
   final GoRouter router;
@@ -140,6 +144,7 @@ class Surfaces {
   final SurfacesBridge _bridge;
   final FlutterLocalNotificationsPlugin _notifications;
   final QuickActions _quickActions;
+  final bool Function(SurfaceChannel channel) _channelOn;
   final SurfaceLaunchQueue _queue;
 
   static const _smallIcon = 'ic_stat_iqly';
@@ -150,15 +155,26 @@ class Surfaces {
       (defaultTargetPlatform == TargetPlatform.android ||
           defaultTargetPlatform == TargetPlatform.iOS);
 
+  /// Each step runs even when one before it fails, so a notification fault
+  /// cannot take the shortcuts and widgets down with it.
   Future<void> start(SurfaceInputs inputs) async {
     if (!supported) return;
     router.routerDelegate.addListener(_onNavigate);
     _bridge.onLink(_openLink);
-    await _initNotifications();
-    await _quickActions.initialize(_openLink);
+    await _guard('notifications', _initNotifications);
+    await _guard('shortcuts', () => _quickActions.initialize(_openLink));
     final link = await _bridge.takeLaunchLink();
     if (link != null) _openLink(link);
-    await publish(inputs);
+    await _guard('widgets', () => publish(inputs));
+  }
+
+  static Future<void> _guard(String what, Future<void> Function() step) async {
+    try {
+      await step();
+    } on Object catch (error, stack) {
+      debugPrint('Surfaces: $what failed: $error');
+      debugPrintStack(stackTrace: stack);
+    }
   }
 
   /// Refreshes the widgets and shortcuts; call when the data behind them
@@ -217,6 +233,98 @@ class Surfaces {
 
   Future<void> show(SurfaceNotification note) async {
     if (!supported || !Flags.pushNotifications) return;
+    if (!_channelOn(note.channel)) return;
+    await _notifications.show(
+      id: note.id,
+      title: note.title,
+      body: note.body,
+      payload: note.payload,
+      notificationDetails: await _details(note),
+    );
+  }
+
+  /// Schedules Remind me for each of [briefs] and drops the reminders of
+  /// briefs no longer in it. Call with every brief that has Remind me on,
+  /// as they stand now, so a moved close moves its reminder.
+  Future<void> syncCloseReminders(Iterable<Brief> briefs) async {
+    if (!supported) return;
+    final now = DateTime.now();
+    final wanted = <int>{};
+    final enabled =
+        Flags.pushNotifications && _channelOn(SurfaceChannel.closingSoon);
+    for (final brief in enabled ? briefs : const <Brief>[]) {
+      final note = closeReminderNotification(brief);
+      final deadline = brief.deadline;
+      if (note == null || deadline == null) continue;
+      final at = deadline.subtract(closeReminderLead);
+      if (!at.isAfter(now)) continue;
+      wanted.add(note.id);
+      await _notifications.zonedSchedule(
+        id: note.id,
+        title: note.title,
+        body: note.body,
+        payload: note.payload,
+        scheduledDate: tz.TZDateTime.from(at, tz.UTC),
+        notificationDetails: await _details(note, timeout: closeReminderLead),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      );
+    }
+    for (final pending in await _notifications.pendingNotificationRequests()) {
+      final reminder =
+          pending.payload?.contains('"key":"$closeReminderPrefix') ?? false;
+      if (reminder && !wanted.contains(pending.id)) {
+        await _notifications.cancel(id: pending.id);
+      }
+    }
+  }
+
+  /// Try notifications: a notification that plays only [sound].
+  Future<void> playSample(IqSound sound) async {
+    if (!supported) return;
+    await _android?.createNotificationChannel(
+      AndroidNotificationChannel(
+        sound.sampleChannelId,
+        'Sound sample: ${sound.label}',
+        description: sound.description,
+        importance: Importance.high,
+        sound: RawResourceAndroidNotificationSound(sound.resource),
+      ),
+    );
+    await _notifications.show(
+      id: stableId(sound.sampleChannelId),
+      title: '${sound.isSiren ? 'Siren' : 'Bing'}: ${sound.label}',
+      body: sound.description,
+      notificationDetails: NotificationDetails(
+        android: AndroidNotificationDetails(
+          sound.sampleChannelId,
+          'Sound sample: ${sound.label}',
+          icon: _smallIcon,
+          color: IqColors.brand,
+          importance: Importance.high,
+          priority: Priority.high,
+          sound: RawResourceAndroidNotificationSound(sound.resource),
+        ),
+        iOS: DarwinNotificationDetails(
+          sound: sound.iosFile,
+          presentAlert: true,
+          presentBanner: true,
+          presentSound: true,
+        ),
+      ),
+    );
+  }
+
+  AndroidFlutterLocalNotificationsPlugin? get _android => _notifications
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >();
+
+  /// [timeout] is how long a scheduled countdown stays up once posted;
+  /// shown at once, it runs to the close.
+  Future<NotificationDetails> _details(
+    SurfaceNotification note, {
+    Duration? timeout,
+  }) async {
     final countdownTo = note.countdownTo;
     final thumb = note.thumb;
     final largeIcon = thumb == null
@@ -225,61 +333,83 @@ class Surfaces {
             brandOfSlug(thumb),
             radius: SurfaceThumb.notificationRadius,
           );
-    await _notifications.show(
-      id: note.id,
-      title: note.title,
-      body: note.body,
-      payload: note.payload,
-      notificationDetails: NotificationDetails(
-        android: AndroidNotificationDetails(
-          note.channel.id,
-          note.channel.title,
-          channelDescription: note.channel.description,
-          icon: _smallIcon,
-          color: IqColors.brand,
-          groupKey: note.group,
-          subText: note.subtext,
-          styleInformation: BigTextStyleInformation(note.body),
-          largeIcon: largeIcon == null
-              ? null
-              : ByteArrayAndroidBitmap(largeIcon),
-          showProgress: note.progress != null,
-          maxProgress: note.progressMax,
-          progress: note.progress ?? 0,
-          ongoing: note.ongoing,
-          onlyAlertOnce: note.kind == SurfaceNotificationKind.payout,
-          priority: _priority(note.kind),
-          category: _category(note.kind),
-          visibility: _private(note.channel)
-              ? NotificationVisibility.private
-              : NotificationVisibility.public,
-          when: countdownTo?.millisecondsSinceEpoch,
-          usesChronometer: countdownTo != null,
-          chronometerCountDown: countdownTo != null,
-          timeoutAfter: countdownTo
-              ?.difference(DateTime.now())
-              .inMilliseconds
-              .clamp(0, 1 << 31),
-          actions: [
-            for (final a in note.actions)
-              AndroidNotificationAction(
-                a.id,
-                a.label,
-                showsUserInterface: a.route != null,
-              ),
-          ],
-        ),
-        iOS: DarwinNotificationDetails(
-          threadIdentifier: note.group,
-          categoryIdentifier: note.actions.isEmpty ? null : _pollCategory,
-          interruptionLevel: _interruption(note.kind),
-          presentAlert: true,
-          presentBanner: true,
-          presentList: true,
-          presentSound: true,
-        ),
+    final channel = note.channel;
+    return NotificationDetails(
+      android: AndroidNotificationDetails(
+        channel.id,
+        channel.title,
+        channelDescription: channel.description,
+        importance: _importance(channel),
+        sound: RawResourceAndroidNotificationSound(channel.sound.resource),
+        icon: _smallIcon,
+        color: IqColors.brand,
+        groupKey: note.group,
+        subText: note.subtext,
+        styleInformation: BigTextStyleInformation(note.body),
+        largeIcon: largeIcon == null ? null : ByteArrayAndroidBitmap(largeIcon),
+        showProgress: note.progress != null,
+        maxProgress: note.progressMax,
+        progress: note.progress ?? 0,
+        ongoing: note.ongoing,
+        onlyAlertOnce: note.kind == SurfaceNotificationKind.payout,
+        priority: _priority(note.kind),
+        category: _category(note.kind),
+        visibility: _private(channel)
+            ? NotificationVisibility.private
+            : NotificationVisibility.public,
+        when: countdownTo?.millisecondsSinceEpoch,
+        usesChronometer: countdownTo != null,
+        chronometerCountDown: countdownTo != null,
+        timeoutAfter:
+            timeout?.inMilliseconds ??
+            countdownTo
+                ?.difference(DateTime.now())
+                .inMilliseconds
+                .clamp(0, 1 << 31),
+        actions: [
+          for (final a in note.actions)
+            AndroidNotificationAction(
+              a.id,
+              a.label,
+              showsUserInterface: a.route != null,
+            ),
+        ],
+      ),
+      iOS: DarwinNotificationDetails(
+        threadIdentifier: note.group,
+        categoryIdentifier: note.actions.isEmpty ? null : _pollCategory,
+        interruptionLevel: _interruption(note.kind),
+        sound: channel.sound.iosFile,
+        presentAlert: true,
+        presentBanner: true,
+        presentList: true,
+        presentSound: true,
       ),
     );
+  }
+
+  static Importance _importance(SurfaceChannel channel) =>
+      channel.urgent ? Importance.high : Importance.defaultImportance;
+
+  Future<void> _createChannels() async {
+    final android = _android;
+    if (android == null) return;
+    for (final id in SurfaceChannel.retired) {
+      await android.deleteNotificationChannel(channelId: id);
+    }
+    for (final channel in SurfaceChannel.values) {
+      await android.createNotificationChannel(
+        AndroidNotificationChannel(
+          channel.id,
+          channel.title,
+          description: channel.description,
+          importance: _importance(channel),
+          sound: RawResourceAndroidNotificationSound(channel.sound.resource),
+          ledColor: IqColors.accent,
+          enableLights: true,
+        ),
+      );
+    }
   }
 
   /// Money and a closing draft break through Focus on iOS (Time Sensitive,
@@ -313,6 +443,7 @@ class Surfaces {
       channel == SurfaceChannel.payouts || channel == SurfaceChannel.results;
 
   Future<void> _initNotifications() async {
+    await _createChannels();
     await _notifications.initialize(
       settings: InitializationSettings(
         android: const AndroidInitializationSettings(_smallIcon),

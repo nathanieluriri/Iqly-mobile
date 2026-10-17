@@ -16,6 +16,12 @@
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
+		67C0ADC38B8C6BF19BBA2813 /* iqly_bing_spark.caf in Resources */ = {isa = PBXBuildFile; fileRef = FA6ABACFA43AA4FF83F3B733 /* iqly_bing_spark.caf */; };
+		D832C4DDC6BF6A679E7C7EE1 /* iqly_bing_idea.caf in Resources */ = {isa = PBXBuildFile; fileRef = 1D64F5F612CC7982E37CA46F /* iqly_bing_idea.caf */; };
+		8CADC1BD3576FFC5BA1B59A0 /* iqly_bing_glass.caf in Resources */ = {isa = PBXBuildFile; fileRef = 624D5AE4B50E110A8955E882 /* iqly_bing_glass.caf */; };
+		4C17F38CB67FA55F9A158E5C /* iqly_siren_whistle.caf in Resources */ = {isa = PBXBuildFile; fileRef = DD8BB50F3CDB41248A12C733 /* iqly_siren_whistle.caf */; };
+		7D7E72E93D0078DC88F26949 /* iqly_siren_wail.caf in Resources */ = {isa = PBXBuildFile; fileRef = 549D9F6DB6528A793665130C /* iqly_siren_wail.caf */; };
+		8F9DCD3C7C2158137FC177F9 /* iqly_siren_chirp.caf in Resources */ = {isa = PBXBuildFile; fileRef = BE855D0FA69BFEADB1C32E6E /* iqly_siren_chirp.caf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,6 +65,12 @@
 		97C146FD1CF9000F007C117D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		FA6ABACFA43AA4FF83F3B733 /* iqly_bing_spark.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = iqly_bing_spark.caf; sourceTree = "<group>"; };
+		1D64F5F612CC7982E37CA46F /* iqly_bing_idea.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = iqly_bing_idea.caf; sourceTree = "<group>"; };
+		624D5AE4B50E110A8955E882 /* iqly_bing_glass.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = iqly_bing_glass.caf; sourceTree = "<group>"; };
+		DD8BB50F3CDB41248A12C733 /* iqly_siren_whistle.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = iqly_siren_whistle.caf; sourceTree = "<group>"; };
+		549D9F6DB6528A793665130C /* iqly_siren_wail.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = iqly_siren_wail.caf; sourceTree = "<group>"; };
+		BE855D0FA69BFEADB1C32E6E /* iqly_siren_chirp.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = iqly_siren_chirp.caf; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -124,8 +136,22 @@
 				74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
 				7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
+				B1C6C94144878F3232FA56C1 /* Sounds */,
 			);
 			path = Runner;
+			sourceTree = "<group>";
+		};
+		B1C6C94144878F3232FA56C1 /* Sounds */ = {
+			isa = PBXGroup;
+			children = (
+				FA6ABACFA43AA4FF83F3B733 /* iqly_bing_spark.caf */,
+				1D64F5F612CC7982E37CA46F /* iqly_bing_idea.caf */,
+				624D5AE4B50E110A8955E882 /* iqly_bing_glass.caf */,
+				DD8BB50F3CDB41248A12C733 /* iqly_siren_whistle.caf */,
+				549D9F6DB6528A793665130C /* iqly_siren_wail.caf */,
+				BE855D0FA69BFEADB1C32E6E /* iqly_siren_chirp.caf */,
+			);
+			path = Sounds;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -229,6 +255,12 @@
 				3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */,
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
+				67C0ADC38B8C6BF19BBA2813 /* iqly_bing_spark.caf in Resources */,
+				D832C4DDC6BF6A679E7C7EE1 /* iqly_bing_idea.caf in Resources */,
+				8CADC1BD3576FFC5BA1B59A0 /* iqly_bing_glass.caf in Resources */,
+				4C17F38CB67FA55F9A158E5C /* iqly_siren_whistle.caf in Resources */,
+				7D7E72E93D0078DC88F26949 /* iqly_siren_wail.caf in Resources */,
+				8F9DCD3C7C2158137FC177F9 /* iqly_siren_chirp.caf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

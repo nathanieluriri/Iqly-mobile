@@ -15,6 +15,7 @@ import 'package:iqly_mobile/data/device.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
 import 'package:iqly_mobile/features/entry/landing_screen.dart';
+import 'package:iqly_mobile/features/entry/notifications_ask_screen.dart';
 import 'package:iqly_mobile/features/splash/splash_screen.dart';
 import 'package:iqly_mobile/features/splash/update_screen.dart';
 import 'package:iqly_mobile/router.dart';
@@ -284,8 +285,9 @@ void main() {
     Future<(ProviderContainer, DemoDeviceService)> pumpHome(
       WidgetTester tester, {
       bool firstTipSeen = true,
+      bool notificationsOn = true,
     }) async {
-      final device = DemoDeviceService();
+      final device = DemoDeviceService()..notificationsOn = notificationsOn;
       final container = await pumpApp(
         tester,
         Routes.home,
@@ -337,6 +339,18 @@ void main() {
     testWidgets('the first tip has its turn first', (tester) async {
       await pumpHome(tester, firstTipSeen: false);
       expect(find.text('A new version is available'), findsNothing);
+    });
+
+    testWidgets('a phone that never asked about notifications asks once, '
+        'before the offer', (tester) async {
+      final (container, _) = await pumpHome(tester, notificationsOn: false);
+      expect(find.byType(NotificationsAskScreen), findsOneWidget);
+      expect(find.text('A new version is available'), findsNothing);
+      expect(container.read(notificationsAskedProvider), isTrue);
+
+      await tester.tap(find.text('Not now'));
+      await tester.pumpAndSettle();
+      expect(find.byType(NotificationsAskScreen), findsNothing);
     });
   });
 }

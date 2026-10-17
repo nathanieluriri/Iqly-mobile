@@ -2,17 +2,6 @@
 <resources>
     <string name="app_name">iQLY</string>
 
-    <string name="channel_closing_soon">Brief closing soon</string>
-    <string name="channel_closing_soon_description">A day before, and an hour before</string>
-    <string name="channel_results">Results</string>
-    <string name="channel_results_description">When the business picks winners</string>
-    <string name="channel_payouts">Withdrawals</string>
-    <string name="channel_payouts_description">When money lands or fails</string>
-    <string name="channel_new_briefs">New briefs for you</string>
-    <string name="channel_new_briefs_description">At most once a day</string>
-    <string name="channel_polls">Polls</string>
-    <string name="channel_polls_description">When a poll opens</string>
-
     <string name="widget_closing_soon">Closing soon</string>
     <string name="widget_closing_soon_description">Briefs closing soon</string>
     <string name="widget_polls">polls open</string>

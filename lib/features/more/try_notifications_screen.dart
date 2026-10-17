@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/device.dart';
+import '../../surfaces/notification_sounds.dart';
 import '../../surfaces/surface_samples.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
@@ -19,13 +20,17 @@ import 'more_widgets.dart';
 /// screen can be checked; the payout then moves on to Sent and Arrived.
 /// Refresh the widgets republishes the home screen widgets from the sample
 /// data. When the phone does not let iQLY notify, the banner from 484:23502
-/// comes first.
+/// comes first. The Remind me row and the Sounds group are not in Figma:
+/// they try the timed close reminder and the candidate iQLY sounds.
 class TryNotificationsScreen extends ConsumerWidget {
   const TryNotificationsScreen({super.key});
 
   static const caption =
       'Each one lands 3 seconds after you tap, so you can lock the phone '
       'first.';
+  static const soundsCaption =
+      'Sounds. Each one plays on its own notification, so turn the ringer '
+      'on.';
   static const coming = 'Coming in 3 seconds';
   static const refreshed = 'Widgets refreshed';
   static const noWidgets = 'This build has no widgets yet';
@@ -77,7 +82,14 @@ class TryNotificationsScreen extends ConsumerWidget {
         'Counts down to the close',
         (NotificationTrial t) => t.draft(),
       ),
+      (
+        IqIcons.timer,
+        'Sunline closes in 1 hour',
+        'Remind me: counts down from an hour',
+        (NotificationTrial t) => t.reminder(),
+      ),
     ];
+    const sounds = IqSound.values;
 
     return SubPage(
       title: 'Try notifications',
@@ -104,6 +116,21 @@ class TryNotificationsScreen extends ConsumerWidget {
                   description: description,
                   divider: i < rows.length - 1,
                   onTap: () => land(post),
+                ),
+            ],
+          ),
+          const SizedBox(height: IqSpace.s4),
+          Text(soundsCaption, style: IqText.body.copyWith(color: IqColors.fg2)),
+          const SizedBox(height: IqSpace.s3),
+          RowGroup(
+            children: [
+              for (final (i, sound) in sounds.indexed)
+                IqListRow(
+                  icon: sound.isSiren ? IqIcons.zap : IqIcons.bell,
+                  label: '${sound.isSiren ? 'Siren' : 'Bing'}: ${sound.label}',
+                  description: sound.description,
+                  divider: i < sounds.length - 1,
+                  onTap: () => land((t) => t.sound(sound)),
                 ),
             ],
           ),
