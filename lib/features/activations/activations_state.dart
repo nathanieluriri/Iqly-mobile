@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/session.dart';
 import '../../data/activations_data.dart';
 import '../../data/activations_service.dart';
 import '../../data/media_service.dart';
@@ -161,6 +162,7 @@ class ProofDraftNotifier extends Notifier<ProofDraft> {
 
   @override
   ProofDraft build() {
+    ref.watch(accountProvider);
     ref.onDispose(() => _upload?.cancel());
     return const ProofDraft();
   }

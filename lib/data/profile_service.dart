@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/backend.dart';
+import '../core/session.dart';
 import 'live/live_account.dart';
 import 'live/live_profile_service.dart';
 import 'live/live_repository.dart';
@@ -213,6 +214,7 @@ class PausedProfileService implements ProfileService {
 /// The demo in a preview launch. In a live one the API, with close and
 /// restore on it while the account runs live too; a paused profile refuses.
 final profileServiceProvider = Provider<ProfileService>((ref) {
+  ref.watch(accountProvider);
   if (ref.watch(liveModeProvider).isPreview) return DemoProfileService();
   final link = ref.watch(liveLinkProvider(LiveFeature.profile));
   if (link == null) return const PausedProfileService();

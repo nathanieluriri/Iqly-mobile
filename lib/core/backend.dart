@@ -202,11 +202,15 @@ class LiveBackendNotifier extends BackendNotifier {
   /// The mode the last launch locked.
   static const launchedKey = 'backend.launched';
 
+  /// Set once the first launch to run anything live has cleared what the
+  /// preview left; a preview launch after it never brings the clear back.
+  static const previewClearedKey = 'backend.previewCleared';
+
   /// A resume asks again at most this often.
   static const resumeEvery = Duration(minutes: 15);
 
-  /// Clears the device stores a preview launch filled, on the first launch
-  /// that runs anything live.
+  /// Clears the device stores a preview launch filled, once per install, on
+  /// the first launch that runs anything live.
   final Future<void> Function(Ref ref) forgetPreview;
 
   Future<void>? _running;
@@ -263,7 +267,12 @@ class LiveBackendNotifier extends BackendNotifier {
   Future<void> lock() => _locking ??= _lock(state);
 
   Future<void> _lock(Backend mode) async {
-    if (_stored(launchedKey).isPreview && !mode.isPreview) {
+    // A build from before the record locked a launch live only once it had
+    // cleared.
+    var cleared =
+        (_prefs.getBool(previewClearedKey) ?? false) ||
+        !_stored(launchedKey).isPreview;
+    if (!cleared && !mode.isPreview) {
       try {
         await forgetPreview(ref);
       } catch (error) {
@@ -271,7 +280,9 @@ class LiveBackendNotifier extends BackendNotifier {
         debugPrint('Backend: preview records not cleared: $error');
         return;
       }
+      cleared = true;
     }
+    if (cleared) await _prefs.setBool(previewClearedKey, true);
     await _prefs.setStringList(launchedKey, mode.names);
   }
 

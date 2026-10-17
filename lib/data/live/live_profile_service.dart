@@ -187,15 +187,21 @@ class LiveProfileService implements ProfileService {
     return _preferences = preferencesFrom(waiting.lastOrNull ?? stored);
   }
 
+  /// The new map is kept before the write queues, so a second flip while
+  /// the first is still queuing builds on it.
   @override
   Future<void> setNotificationPreference(
     NotificationTopic topic,
     bool on,
   ) async {
     final current = _preferences ?? await notificationPreferences();
-    final next = {...current, topic: on};
-    await link.queue(AccountWrite.preferences, preferencesJson(next));
-    _preferences = next;
+    final next = _preferences = {...current, topic: on};
+    try {
+      await link.queue(AccountWrite.preferences, preferencesJson(next));
+    } catch (_) {
+      if (identical(_preferences, next)) _preferences = current;
+      rethrow;
+    }
   }
 
   @override

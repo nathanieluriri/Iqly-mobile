@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/session.dart';
 import '../../data/activations_data.dart';
 import '../../data/help_data.dart';
 import '../../data/help_service.dart';
@@ -124,6 +125,7 @@ class HelpTicketsNotifier extends Notifier<Map<String, HelpTicket>> {
 
   @override
   Map<String, HelpTicket> build() {
+    ref.watch(accountProvider);
     ref.onDispose(() {
       for (final watch in _watching.values) {
         watch.cancel();

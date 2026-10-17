@@ -223,7 +223,26 @@ class AccountLink {
       payload: payload,
       coalesceKey: write.coalesceKey,
       merge: merge,
+      dependsOn: await _after(user, write),
     );
+  }
+
+  /// A profile edit or a switch needs the contributor profile, which a new
+  /// account only has once its first-run answers land: while they wait to
+  /// go, the write waits for them.
+  Future<String?> _after(String user, AccountWrite write) async {
+    if (write != AccountWrite.profile && write != AccountWrite.preferences) {
+      return null;
+    }
+    return (await store.outbox(user))
+        .where(
+          (item) =>
+              item.kind == AccountWrite.onboarding.kind &&
+              (item.status == OutboxStatus.pending ||
+                  item.status == OutboxStatus.sending),
+        )
+        .lastOrNull
+        ?.id;
   }
 
   /// The payloads of [write] still to go, oldest first.
@@ -344,15 +363,19 @@ class LiveAccount {
   }
 }
 
-/// The link to the API in a live build, null in the preview.
+/// The link to the API in a live build, null in the preview. Made for each
+/// account, so an answer that lands after a sign-out is kept for the
+/// account that asked for it and never for whoever signs in next.
 final accountLinkProvider = Provider<AccountLink?>((ref) {
   final api = ref.watch(apiClientProvider);
   if (api == null) return null;
+  final account = ref.watch(accountProvider);
+  final userId = account == null || account.isEmpty ? null : account;
   return AccountLink(
     api: api,
     store: ref.watch(localStoreProvider),
     outbox: ref.watch(outboxProvider),
-    userId: () => ref.read(sessionProvider).userId,
+    userId: () => userId,
   );
 });
 

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/deadline.dart';
+import '../core/session.dart';
 import 'models.dart';
 import 'share_service.dart';
 
@@ -154,6 +155,7 @@ int referralEarnedKobo(List<LedgerEntry> ledger) => ledger
     .where((l) => l.earned && l.source == RewardSource.referral)
     .fold(0, (sum, l) => sum + l.amountKobo);
 
-final referralsServiceProvider = Provider<ReferralsService>(
-  (ref) => DemoReferralsService(now: ref.watch(clockProvider)()),
-);
+final referralsServiceProvider = Provider<ReferralsService>((ref) {
+  ref.watch(accountProvider);
+  return DemoReferralsService(now: ref.watch(clockProvider)());
+});

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/backend.dart';
+import '../core/session.dart';
 import 'live/live_account.dart';
 import 'live/live_notifications_service.dart';
 import 'live/live_repository.dart';
@@ -87,6 +88,7 @@ class PausedNotificationsService implements NotificationsService {
 /// The demo feed in a preview launch; in a live one the API, or nothing
 /// while notifications are paused.
 final notificationsServiceProvider = Provider<NotificationsService>((ref) {
+  ref.watch(accountProvider);
   final link = ref.watch(liveLinkProvider(LiveFeature.notifications));
   if (link != null) return LiveNotificationsService(link);
   if (!ref.watch(liveModeProvider).isPreview) {

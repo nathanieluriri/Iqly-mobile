@@ -76,8 +76,8 @@ class AccountDetailsNotifier extends AsyncNotifier<AccountDetails> {
         await prefs.remove(key);
       }
     }
-    final service = ref.read(profileServiceProvider);
-    if (ref.read(liveLinkProvider(LiveFeature.profile)) == null) {
+    final service = ref.watch(profileServiceProvider);
+    if (ref.watch(liveLinkProvider(LiveFeature.profile)) == null) {
       return device ?? service.accountDetails();
     }
     try {
@@ -159,12 +159,10 @@ String interestsLine(List<String> values) => [
 /// The one way out of the account: Sign out, Keep it closed and account
 /// deletion all end here. The outbox gets one short chance to send what it
 /// holds, the phone stops getting the account's pushes, the API ends the
-/// session, then the device forgets the account: the session flags, the
-/// first-run answers, the cached details, saved briefs and close reminders
-/// (their scheduled reminders too) and the person's rows in the local
-/// store. The drafts stay, as the Sign out sheet promises, unless the
-/// account is [closed]: then the device lets go first, nothing of the
-/// account stays, and nothing is left to send.
+/// session, then the device forgets the account ([forgetSession]). The
+/// drafts stay, as the Sign out sheet promises, unless the account is
+/// [closed]: then the device lets go first, nothing of the account stays,
+/// and nothing is left to send.
 Future<void> forgetAccount(WidgetRef ref, {bool closed = false}) async {
   final userId = ref.read(sessionProvider).userId;
   final outbox = ref.read(outboxProvider);
@@ -180,54 +178,55 @@ Future<void> forgetAccount(WidgetRef ref, {bool closed = false}) async {
   await ref.read(pushProvider)?.signingOut();
   await ref.read(authServiceProvider).signOut();
   if (!closed) await forgetSession(ref.read);
-  if (userId != null) {
-    final store = ref.read(localStoreProvider);
-    if (closed) {
-      await store.wipeUser(userId);
-    } else {
-      await store.deleteCache(userId);
-      await store.deleteOutbox(userId);
-    }
+  if (closed && userId != null) {
+    await ref.read(localStoreProvider).wipeUser(userId);
   }
-  final prefs = ref.read(sharedPreferencesProvider);
-  await Future.wait([
-    prefs.remove(SavedBriefsNotifier.key),
-    prefs.remove(CloseRemindersNotifier.key),
-  ]);
-  ref
-    ..invalidate(savedBriefsProvider)
-    ..invalidate(closeRemindersProvider);
-  await ref.read(surfacesProvider)?.syncCloseReminders(const []);
 }
 
 /// The device's part of [forgetAccount], all there is to do once the API
-/// has ended the session itself.
+/// has ended the session itself: the phone signs out and forgets what the
+/// account keeps on it, all but its drafts. That is the first-run answers,
+/// the cached details, the avatar, saved briefs and close reminders (their
+/// scheduled reminders too), the submit autosaves and the account's cache
+/// and outbox, for the account signed in or the one whose session was
+/// lost.
 Future<void> forgetSession(Reader read) async {
-  final session = read(sessionProvider.notifier);
+  final session = read(sessionProvider);
+  final userId = session.userId ?? session.lostUserId;
+  await read(sessionProvider.notifier).signOut();
   read(onboardingDraftProvider.notifier).clear();
   await forgetSubmitDrafts(read(sharedPreferencesProvider));
   await read(accountDetailsProvider.notifier).clear();
   await read(avatarProvider.notifier).forget();
-  await session.setFirstTipSeen(false);
-  await session.setOnboardingDone(false);
-  await session.setName(null);
-  await session.setUserId(null);
-  await session.setSignedIn(false);
+  await read(savedBriefsProvider.notifier).forget();
+  await read(closeRemindersProvider.notifier).forget();
+  if (userId != null) {
+    final store = read(localStoreProvider);
+    await store.deleteCache(userId);
+    await store.deleteOutbox(userId);
+  }
 }
 
 /// Signs the device out when the API answers 401 to the session token. The
-/// API has ended the session, so the device forgets the account the way
-/// sign out does without calling it again, and the landing takes over; on
-/// the splash, the hand-off finds the session signed out by itself.
+/// API has ended the session, not the person: the landing takes over, the
+/// outbox holds, and the cache, drafts, queued writes, avatar and first-run
+/// answers wait on the phone for the account's next sign-in. On the splash,
+/// the hand-off finds the session signed out by itself.
 final sessionGuardProvider = Provider<void>((ref) {
   final api = ref.watch(apiClientProvider);
   if (api == null) return;
   Future<void>? running;
   Future<void> lose() async {
     await api.tokens.clear();
-    if (!ref.read(sessionProvider).signedIn) return;
+    final session = ref.read(sessionProvider);
+    if (!session.signedIn) return;
     ref.read(pushProvider)?.sessionLost();
-    await forgetSession(ref.read);
+    if (session.userId == null) {
+      // Nothing names the account, so no sign-in could claim what it left.
+      await forgetSession(ref.read);
+    } else {
+      await ref.read(sessionProvider.notifier).lose();
+    }
     final router = ref.read(routerProvider);
     final path = router.routerDelegate.currentConfiguration.uri.path;
     if (path.isNotEmpty && path != Routes.splash) router.go(Routes.landing);

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/money.dart';
+import '../core/session.dart';
 import 'activations_data.dart';
 import 'demo_data.dart';
 import 'help_data.dart';
@@ -224,4 +225,7 @@ class DemoHelpService implements HelpService {
   }
 }
 
-final helpServiceProvider = Provider<HelpService>((ref) => DemoHelpService());
+final helpServiceProvider = Provider<HelpService>((ref) {
+  ref.watch(accountProvider);
+  return DemoHelpService();
+});

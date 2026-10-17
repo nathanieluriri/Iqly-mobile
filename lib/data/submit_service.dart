@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/backend.dart';
 import '../core/deadline.dart';
+import '../core/session.dart';
 import 'api_client.dart';
 import 'demo_data.dart';
 import 'live/live_repository.dart';
@@ -280,6 +281,7 @@ class PausedSubmitService implements SubmitService {
 /// The API when submit is live, and a refusal while a live launch pauses
 /// it. The demo writes into the dataset the preview's repository reads.
 final submitServiceProvider = Provider<SubmitService>((ref) {
+  ref.watch(accountProvider);
   final api = ref.watch(apiClientProvider);
   final mode = ref.watch(liveModeProvider);
   if (api != null && mode.isLive(LiveFeature.submit)) {
