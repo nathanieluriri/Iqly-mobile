@@ -17,6 +17,7 @@ import '../../ui/proof_tile.dart';
 import '../../ui/top_bar.dart';
 import '../../ui/video_preview.dart';
 import '../activations/activations_state.dart';
+import '../activations/activations_widgets.dart';
 import '../discover/discover_routes.dart';
 import 'help_routes.dart';
 import 'help_state.dart';
@@ -242,6 +243,9 @@ class _Recording extends StatelessWidget {
         name: recording.name,
         duration: recording.lengthLabel,
         meta: '${recording.sizeLabel} · uploaded, ready to send',
+        thumbnail: recording.source == null
+            ? null
+            : ProofFrame(source: recording.source),
         onRemove: onRemove,
       );
     } else {

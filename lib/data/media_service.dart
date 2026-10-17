@@ -56,6 +56,7 @@ class DeviceMediaService implements MediaService {
       return ProofVideo(
         name: file.name,
         bytes: file.lengthSync() ?? await file.length() ?? 0,
+        source: file.uri,
       );
     } on MissingPluginException {
       return fallback.pickVideo(about: about);

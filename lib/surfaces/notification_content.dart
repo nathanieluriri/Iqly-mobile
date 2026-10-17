@@ -69,6 +69,18 @@ enum SurfaceChannel {
 
   String get id => '${key}_v$version';
 
+  /// The same channel without vibration, posted to while Haptics is off.
+  /// Android fixes a channel's vibration once made, so it is a channel of
+  /// its own and [id] stays as it was.
+  String get quietId => '${id}_quiet';
+
+  /// "Results, no vibration", as Android's notification settings list it.
+  String get quietTitle => '$title, no vibration';
+
+  String idFor({required bool vibrate}) => vibrate ? id : quietId;
+
+  String titleFor({required bool vibrate}) => vibrate ? title : quietTitle;
+
   /// Version 1 had no version in its ids.
   static Iterable<String> get retired => [
     for (final c in values) ...[

@@ -47,13 +47,17 @@ void main() {
     );
   });
 
-  Surfaces surfaces({bool Function(SurfaceChannel)? channelOn}) => Surfaces(
+  Surfaces surfaces({
+    bool Function(SurfaceChannel)? channelOn,
+    bool vibrate = true,
+  }) => Surfaces(
     router: GoRouter(
       routes: [GoRoute(path: '/', builder: (_, _) => const SizedBox())],
     ),
     signedIn: () => true,
     tabRoots: const {'/'},
     channelOn: channelOn,
+    vibrate: () => vibrate,
   );
 
   Brief closingIn(String id, Duration left) {
@@ -256,6 +260,44 @@ void main() {
       'payouts_v2',
       'payouts_v2',
     ]);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
+  testWidgets('with Haptics off, notifications and samples go to quiet '
+      'channels that never vibrate, and the usual ids stay as they were', (
+    tester,
+  ) async {
+    AndroidFlutterLocalNotificationsPlugin.registerWith();
+    final samples = SurfaceSamples(DateTime.now());
+    await tester.runAsync(() async {
+      await surfaces().show(samples.won);
+      await surfaces(vibrate: false).show(samples.won);
+      await surfaces(vibrate: false).playSample(IqSound.bingIdea);
+    });
+    expect(details(shown[0])['channelId'], 'results_v2');
+    expect(details(shown[0])['enableVibration'], isTrue);
+    expect(details(shown[1])['channelId'], 'results_v2_quiet');
+    expect(details(shown[1])['channelName'], 'Results, no vibration');
+    expect(details(shown[1])['enableVibration'], isFalse);
+    expect(details(shown[2])['channelId'], 'sample_iqly_bing_idea_quiet');
+    expect(details(shown[2])['enableVibration'], isFalse);
+    final created = [
+      for (final c in calls)
+        if (c.method == 'createNotificationChannel')
+          (c.arguments as Map).cast<String, Object?>(),
+    ];
+    expect(created.single['id'], 'sample_iqly_bing_idea_quiet');
+    expect(created.single['enableVibration'], isFalse);
+    expect(
+      [for (final c in SurfaceChannel.values) c.id],
+      [
+        'closing_soon_v2',
+        'results_v2',
+        'payouts_v2',
+        'new_briefs_v2',
+        'polls_v2',
+      ],
+    );
+    expect(SurfaceChannel.retired, isNot(contains('results_v2_quiet')));
   }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 
   testWidgets('every notification asks for the mark\'s orange, whatever the '

@@ -151,4 +151,10 @@ Future<void> _startSurfaces(ProviderContainer container) async {
     notificationPreferencesProvider,
     (_, _) => unawaited(reminders.syncSurfaces()),
   );
+  // Reminders already scheduled carry their channel, so a Haptics change
+  // schedules them again on the matching one.
+  container.listen(
+    hapticsProvider,
+    (_, _) => unawaited(reminders.syncSurfaces()),
+  );
 }

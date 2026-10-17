@@ -8,6 +8,7 @@ import '../../ui/button.dart';
 import '../../ui/cover_with_logo.dart';
 import '../../ui/illustration.dart';
 import '../../ui/meta.dart';
+import '../../ui/recording_player.dart';
 import '../../ui/sample_logo.dart';
 import '../../ui/skeleton.dart';
 import 'activation_format.dart';
@@ -158,23 +159,37 @@ class _StateDissolveState extends State<StateDissolve>
 /// player.
 String proofHeroTag(String activationId) => 'activation-proof-$activationId';
 
-/// The recording's frame on ink. The demo has no video, so it draws the
-/// Exp/VideoPreview phone silhouette (88 x 170 with its 48 x 6 bar in a
-/// 200 tall thumbnail) scaled to the space it gets, which keeps it whole
-/// while it flies from the thumbnail to the player. The live version shows
-/// the first frame (video_player).
+/// The recording's frame on ink: its first frame when it has a [source],
+/// over the Exp/VideoPreview phone silhouette (88 x 170 with its 48 x 6 bar
+/// in a 200 tall thumbnail) scaled to the space it gets, which keeps it
+/// whole while it flies from the thumbnail to the player. The demo's
+/// recordings have no source and keep the silhouette.
 class ProofFrame extends StatelessWidget {
-  const ProofFrame({super.key});
+  const ProofFrame({super.key, this.source});
+
+  final Uri? source;
 
   static const double _thumbnail = 200;
 
   @override
   Widget build(BuildContext context) {
+    final source = this.source;
+    if (source == null) return const _Silhouette();
+    return IqRecordingPoster(source: source, placeholder: const _Silhouette());
+  }
+}
+
+class _Silhouette extends StatelessWidget {
+  const _Silhouette();
+
+  @override
+  Widget build(BuildContext context) {
+    const thumbnail = ProofFrame._thumbnail;
     return ColoredBox(
       color: IqColors.brand,
       child: LayoutBuilder(
         builder: (context, box) {
-          final s = box.maxHeight / _thumbnail;
+          final s = box.maxHeight / thumbnail;
           return Center(
             child: Container(
               width: 88 * s,

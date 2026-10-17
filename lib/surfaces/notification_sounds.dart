@@ -21,4 +21,8 @@ enum IqSound {
   /// The Try notifications channel that plays only this sound: Android ties
   /// a sound to its channel for good.
   String get sampleChannelId => 'sample_$resource';
+
+  /// The sample channel without vibration, while Haptics is off.
+  String sampleChannelIdFor({required bool vibrate}) =>
+      vibrate ? sampleChannelId : '${sampleChannelId}_quiet';
 }
