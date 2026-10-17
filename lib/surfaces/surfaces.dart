@@ -171,8 +171,8 @@ Future<SurfaceInputs> surfaceInputs(
 }
 
 /// Starts [surfaces] on what the phone holds, so a launch link opens at
-/// once, then publishes what the API answers whenever it comes: at launch
-/// and after each change of mode.
+/// once, then publishes what the API answers whenever it comes: at launch,
+/// after each change of mode and when another account signs in.
 Future<void> startSurfaces(
   Surfaces surfaces,
   ProviderContainer container,
@@ -185,6 +185,7 @@ Future<void> startSurfaces(
   );
   if (!container.read(liveModeProvider).isPreview) publishLive();
   container.listen(backendProvider, (_, _) => publishLive());
+  container.listen(accountProvider, (_, _) => publishLive());
 }
 
 /// Starts the OS surfaces from main.dart and routes their taps. Widget tests

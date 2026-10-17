@@ -41,13 +41,20 @@ final accountSyncProvider = Provider<void>((ref) {
   );
 });
 
-/// The outbox tries again whenever the app comes back to the foreground.
+/// The outbox tries again whenever the app comes back to the foreground,
+/// and sends what waits out a backoff as soon as the API answers again
+/// after the network was gone.
 final outboxOnResumeProvider = Provider<void>((ref) {
   final outbox = ref.watch(outboxProvider);
   final resumes = AppLifecycleListener(
     onResume: () => unawaited(outbox.kick()),
   );
   ref.onDispose(resumes.dispose);
+  final back = ref
+      .watch(apiClientProvider)
+      ?.reachable
+      .listen((_) => unawaited(outbox.networkBack()));
+  ref.onDispose(() => back?.cancel());
 });
 
 /// Only while the draft still holds the date that was sent.

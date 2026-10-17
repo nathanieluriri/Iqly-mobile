@@ -439,6 +439,30 @@ void main() {
     });
   });
 
+  test('reachable fires once when the API answers after no network', () async {
+    var offline = false;
+    final client = _client(
+      MockClient((_) async {
+        if (offline) throw http.ClientException('no route');
+        return _json(200, {'success': true, 'data': {}});
+      }),
+    );
+    var fired = 0;
+    final sub = client.reachable.listen((_) => fired++);
+    await client.get('/me');
+    await pumpEventQueue();
+    expect(fired, 0);
+    offline = true;
+    await expectLater(client.get('/me'), throwsA(isA<ApiUnreachable>()));
+    await expectLater(client.get('/me'), throwsA(isA<ApiUnreachable>()));
+    offline = false;
+    await client.get('/me');
+    await client.get('/me');
+    await pumpEventQueue();
+    expect(fired, 1);
+    await sub.cancel();
+  });
+
   test('no connection is unreachable', () async {
     final client = _client(
       MockClient((_) => throw http.ClientException('no route')),

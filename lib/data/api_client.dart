@@ -135,6 +135,8 @@ class ApiClient {
   final String platform;
   final http.Client _client;
   final _unauthorized = StreamController<void>.broadcast();
+  final _reachable = StreamController<void>.broadcast();
+  var _unreachable = false;
 
   /// `android`, `ios`, or Flutter's name for any other OS.
   static String get platformName => switch (defaultTargetPlatform) {
@@ -146,6 +148,10 @@ class ApiClient {
   /// holds: the session has ended on the server. Better Auth's own routes
   /// answer 401 for a wrong password too, so they never fire it.
   Stream<void> get unauthorized => _unauthorized.stream;
+
+  /// Fires when the API answers again after a request found no network,
+  /// which is the phone's surest sign that it is back online.
+  Stream<void> get reachable => _reachable.stream;
 
   Future<ApiResponse> get(String path) => send('GET', path);
 
@@ -260,11 +266,18 @@ class ApiClient {
             ]);
       response = await http.Response.fromStream(streamed).timeout(timeout);
     } on TimeoutException {
+      _unreachable = true;
       throw const ApiUnreachable();
     } on http.ClientException catch (error) {
+      _unreachable = true;
       throw ApiUnreachable(nothingSent: _beforeSending(error));
     } on IOException catch (error) {
+      _unreachable = true;
       throw ApiUnreachable(nothingSent: _beforeSending(error));
+    }
+    if (_unreachable) {
+      _unreachable = false;
+      _reachable.add(null);
     }
     // With requireSignature the API only accepts the signed token from this
     // header, never the raw one in a sign-in body.

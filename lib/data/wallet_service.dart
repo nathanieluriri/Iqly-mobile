@@ -264,11 +264,11 @@ class PausedWalletService implements WalletService {
 /// again for each signed-in person, so a withdrawal one of them left
 /// unsettled is never sent for another.
 final walletServiceProvider = Provider<WalletService>((ref) {
+  ref.watch(accountProvider);
   final api = ref.watch(apiClientProvider);
   final mode = ref.watch(liveModeProvider);
   if (api == null || mode.isPreview) return DemoWalletService();
   if (!mode.isLive(LiveFeature.wallet)) return const PausedWalletService();
-  ref.watch(sessionProvider.select((s) => (s.signedIn, s.userId)));
   return LiveWalletService(
     api,
     withdrawals: mode.isLive(LiveFeature.withdrawals),
