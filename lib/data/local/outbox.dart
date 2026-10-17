@@ -29,6 +29,10 @@ sealed class OutboxResult {
 
   /// The account is closing: the whole queue holds until [Outbox.resume].
   const factory OutboxResult.pauseForClosing() = OutboxPaused.closing;
+
+  /// The API wants a newer app: the whole queue holds until the updated app
+  /// starts it again.
+  const factory OutboxResult.pauseForUpgrade() = OutboxPaused.upgrade;
 }
 
 final class OutboxDone extends OutboxResult {
@@ -90,6 +94,8 @@ final class OutboxPaused extends OutboxResult {
 
   const OutboxPaused.closing() : pause = OutboxPause.closing;
 
+  const OutboxPaused.upgrade() : pause = OutboxPause.upgrade;
+
   final OutboxPause pause;
 
   @override
@@ -108,19 +114,23 @@ abstract final class OutboxCodes {
   /// No answer from the API: no connection, or it timed out.
   static const network = 'NETWORK_ERROR';
 
-  /// Still not sent a day after it was queued.
+  /// Still failing a day after its first failure.
   static const expired = 'OUTBOX_EXPIRED';
 
   /// The handler threw instead of answering.
   static const crashed = 'HANDLER_ERROR';
+
+  /// The handler had not answered within [Outbox.sendTimeout].
+  static const timedOut = 'HANDLER_TIMEOUT';
 }
 
 /// How an API answer lands in the outbox. No answer, a timeout, 5xx and 429
 /// are sent again ([retryAfter] first when the API gives one); 401 holds the
-/// queue for sign-in and 403 ACCOUNT_CLOSING until the account is restored;
-/// 409 SUBMISSION_DUPLICATE means an earlier send already landed; any other
-/// 4xx fails with its [code], and anything else is sent again. [serverRef]
-/// is the id the API answered, kept when the write is done.
+/// queue for sign-in, 403 ACCOUNT_CLOSING until the account is restored and
+/// 426 until the app is updated; 409 SUBMISSION_DUPLICATE means an earlier
+/// send already landed; any other 4xx fails with its [code], and anything
+/// else is sent again. [serverRef] is the id the API answered, kept when the
+/// write is done.
 OutboxResult outboxResultFor({
   required int status,
   String? code,
@@ -138,6 +148,7 @@ OutboxResult outboxResultFor({
     401 => const OutboxResult.pauseForSignIn(),
     403 when code == 'ACCOUNT_CLOSING' => const OutboxResult.pauseForClosing(),
     409 when code == 'SUBMISSION_DUPLICATE' => OutboxResult.done(serverRef),
+    426 => const OutboxResult.pauseForUpgrade(),
     408 || 429 || >= 500 => OutboxResult.retry(
       after: retryAfter,
       code: reason,
@@ -150,16 +161,18 @@ OutboxResult outboxResultFor({
 
 /// The wait after the [attempts]th send of an item failed: full jitter, a
 /// random duration up to 2 s after the first failure, doubling with each
-/// one after it, never more than 15 minutes.
+/// one after it, never more than [outboxLongestWait].
 Duration outboxRetryDelay(int attempts, Random random) {
   const first = Duration(seconds: 2);
-  const most = Duration(minutes: 15);
   final doublings = min(max(attempts - 1, 0), 20);
-  final ceiling = min(first.inMicroseconds << doublings, most.inMicroseconds);
+  final ceiling = min(
+    first.inMicroseconds << doublings,
+    outboxLongestWait.inMicroseconds,
+  );
   return Duration(microseconds: (random.nextDouble() * ceiling).floor());
 }
 
-enum OutboxPause { signIn, closing }
+enum OutboxPause { signIn, closing, upgrade }
 
 /// What screens show of the outbox.
 class OutboxState {
@@ -171,8 +184,8 @@ class OutboxState {
   /// Writes refused or given up on, oldest first.
   final List<OutboxItem> failed;
 
-  /// Why nothing goes out, while the queue waits for sign-in or for the
-  /// account to be restored.
+  /// Why nothing goes out, while the queue waits for sign-in, for the
+  /// account to be restored or for an app update.
   final OutboxPause? pause;
 }
 
@@ -184,15 +197,24 @@ class OutboxState {
 /// depend on it fail the same way. Signing out is [stop], then
 /// [LocalStore.wipeUser].
 class Outbox {
-  Outbox(this._store, {DateTime Function()? clock, Random? random})
-    : _clock = clock ?? DateTime.now,
-      _random = random ?? Random();
+  Outbox(
+    this._store, {
+    DateTime Function()? clock,
+    Random? random,
+    this.sendTimeout = const Duration(minutes: 2),
+  }) : _clock = clock ?? DateTime.now,
+       _random = random ?? Random();
 
-  /// Items still failing this long after they were queued give up.
+  /// Items still failing this long after their first failure give up. A
+  /// pause starts the count again.
   static const giveUpAfter = Duration(hours: 24);
 
   /// Done items stay this long, then go at the next launch.
   static const keepDone = Duration(days: 1);
+
+  /// How long a handler may take before its send counts as failed and the
+  /// queue moves on.
+  final Duration sendTimeout;
 
   final LocalStore _store;
   final DateTime Function() _clock;
@@ -205,9 +227,14 @@ class Outbox {
   Future<void>? _recovery;
   Future<void>? _run;
   var _again = false;
-  DateTime? _wake;
+  Duration? _wait;
   Timer? _timer;
+
+  // _generation tells a start still recovering that a later start or stop
+  // overtook it. _epoch also moves on resume: a send picked in an older
+  // epoch neither reaches its handler nor pauses the queue.
   var _generation = 0;
+  var _epoch = 0;
 
   OutboxState get state => _state;
 
@@ -263,11 +290,19 @@ class Outbox {
   }
 
   /// Runs [userId]'s queue, lifting any pause. The first start puts back in
-  /// line what a killed app left sending and drops old done items.
-  /// Completes once nothing more can go for now.
+  /// line what a killed app left sending and drops old done items; when that
+  /// fails, the next start tries again. Completes once nothing more can go
+  /// for now.
   Future<void> start(String userId) async {
     final generation = ++_generation;
-    await (_recovery ??= _recover());
+    _epoch++;
+    final recovery = _recovery ??= _recover();
+    try {
+      await recovery;
+    } catch (_) {
+      if (identical(_recovery, recovery)) _recovery = null;
+      rethrow;
+    }
     if (generation != _generation) return;
     _userId = userId;
     _pause = null;
@@ -280,8 +315,10 @@ class Outbox {
     await _store.pruneDone(_clock().subtract(keepDone));
   }
 
-  /// Lifts a pause, after sign-in or once the account is restored.
+  /// Lifts a pause, after sign-in or once the account is restored. A send
+  /// that began before this cannot pause the queue again.
   Future<void> resume() async {
+    _epoch++;
     if (_pause != null) {
       _pause = null;
       await _refresh();
@@ -301,15 +338,15 @@ class Outbox {
     return _run = _drain();
   }
 
-  /// Stops sending and keeps every item. Completes once an item on its way
-  /// has landed.
+  /// Stops sending and keeps every item. A send already on its way lands by
+  /// itself and does not hold this up.
   Future<void> stop() async {
     _generation++;
+    _epoch++;
     _userId = null;
     _pause = null;
     _timer?.cancel();
     _publish(const OutboxState());
-    await _run;
   }
 
   Future<void> dispose() async {
@@ -318,7 +355,7 @@ class Outbox {
   }
 
   Future<void> _drain() async {
-    _wake = null;
+    _wait = null;
     try {
       do {
         _again = false;
@@ -332,12 +369,17 @@ class Outbox {
     }
   }
 
+  bool _current(String userId, int epoch) =>
+      _userId == userId && _epoch == epoch;
+
   /// Sends one item, or fails one whose dependency failed. False when
   /// nothing can go now.
   Future<bool> _step() async {
     final userId = _userId;
+    final epoch = _epoch;
     if (userId == null || _pause != null) return false;
     final open = await _store.outbox(userId);
+    if (!_current(userId, epoch)) return true;
     final byId = {for (final item in open) item.id: item};
     for (final item in open) {
       final parent = byId[item.dependsOn];
@@ -353,13 +395,15 @@ class Outbox {
       }
     }
     final now = _clock();
-    for (final item in await _store.dueOutbox(userId, now)) {
+    final due = await _store.dueOutbox(userId, now);
+    if (!_current(userId, epoch)) return true;
+    for (final item in due) {
       if (_handlers.containsKey(item.kind) && !_waits(item, open, byId)) {
-        await _send(item);
+        await _send(item, epoch);
         return true;
       }
     }
-    _wake = _earliest(open, now);
+    _wait = _nextWait(open, now);
     return false;
   }
 
@@ -383,56 +427,74 @@ class Outbox {
       item.status == OutboxStatus.pending ||
       item.status == OutboxStatus.sending;
 
-  DateTime? _earliest(List<OutboxItem> open, DateTime now) {
-    DateTime? earliest;
+  /// How long until the first pending item may go, never longer than any
+  /// wait set for it, so a clock set back does not stall the timer.
+  Duration? _nextWait(List<OutboxItem> open, DateTime now) {
+    Duration? wait;
     for (final item in open) {
-      final at = item.nextAttemptAt;
-      if (item.status == OutboxStatus.pending &&
-          _handlers.containsKey(item.kind) &&
-          at.isAfter(now) &&
-          (earliest == null || at.isBefore(earliest))) {
-        earliest = at;
+      if (item.status != OutboxStatus.pending ||
+          !_handlers.containsKey(item.kind)) {
+        continue;
+      }
+      final until = item.dueAt(now).difference(now);
+      if (until > Duration.zero && (wait == null || until < wait)) {
+        wait = until;
       }
     }
-    return earliest;
+    return wait;
   }
 
-  Future<void> _send(OutboxItem due) async {
+  Future<void> _send(OutboxItem due, int epoch) async {
     final item = await _store.markSending(due.id);
     if (item == null) return;
+    if (!_current(item.userId, epoch)) {
+      await _store.markRetry(
+        item.id,
+        at: item.nextAttemptAt,
+        code: item.lastErrorCode,
+        message: item.lastErrorMessage,
+        retryAfter: item.retryAfter,
+        failingSince: item.failingSince,
+      );
+      return;
+    }
     OutboxResult result;
     try {
-      result = await _handlers[item.kind]!(item);
+      result = await _handlers[item.kind]!(item).timeout(sendTimeout);
+    } on TimeoutException {
+      result = const OutboxResult.retry(code: OutboxCodes.timedOut);
     } catch (error) {
       result = OutboxResult.retry(code: OutboxCodes.crashed, message: '$error');
     }
-    await _land(item, result);
+    await _land(item, result, epoch);
     await _refresh();
   }
 
-  Future<void> _land(OutboxItem item, OutboxResult result) async {
+  Future<void> _land(OutboxItem item, OutboxResult result, int epoch) async {
     final now = _clock();
     switch (result) {
       case OutboxDone(:final serverRef):
         await _store.markDone(item.id, serverRef: serverRef);
       case OutboxFail(:final code, :final message):
         await _store.markFailed(item.id, code: code, message: message);
-      case OutboxRetry(:final code, :final message)
-          when now.difference(item.createdAt) > giveUpAfter:
-        await _store.markFailed(
-          item.id,
-          code: OutboxCodes.expired,
-          message: message ?? code,
-        );
       case OutboxRetry(:final after, :final code, :final message):
-        final wait = after != null && after > Duration.zero
-            ? after
-            : outboxRetryDelay(item.attempts, _random);
+        final since = item.failingSince ?? now;
+        if (now.difference(since) > giveUpAfter) {
+          await _store.markFailed(
+            item.id,
+            code: OutboxCodes.expired,
+            message: message ?? code,
+          );
+          return;
+        }
+        final asked = after != null && after > Duration.zero ? after : null;
         await _store.markRetry(
           item.id,
-          at: now.add(wait),
+          at: now.add(asked ?? outboxRetryDelay(item.attempts, _random)),
           code: code,
           message: message,
+          retryAfter: asked,
+          failingSince: since,
         );
       case OutboxPaused(:final pause):
         await _store.markRetry(
@@ -441,9 +503,13 @@ class Outbox {
           code: switch (pause) {
             OutboxPause.signIn => 'UNAUTHORIZED',
             OutboxPause.closing => 'ACCOUNT_CLOSING',
+            OutboxPause.upgrade => 'UPGRADE_REQUIRED',
           },
         );
-        if (item.userId == _userId) _pause = pause;
+        if (_current(item.userId, epoch)) {
+          _pause = pause;
+          await _store.resetFailingSince(item.userId);
+        }
     }
   }
 
@@ -472,11 +538,8 @@ class Outbox {
   void _schedule() {
     _timer?.cancel();
     _timer = null;
-    final wake = _wake;
-    if (wake == null || _userId == null || _pause != null) return;
-    final wait = wake.difference(_clock());
-    _timer = Timer(wait.isNegative ? Duration.zero : wait, () {
-      unawaited(kick());
-    });
+    final wait = _wait;
+    if (wait == null || _userId == null || _pause != null) return;
+    _timer = Timer(wait, () => unawaited(kick()));
   }
 }

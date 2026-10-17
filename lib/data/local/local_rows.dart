@@ -18,6 +18,9 @@ abstract final class LocalRows {
   static DateTime timeOf(Object? value) =>
       DateTime.fromMicrosecondsSinceEpoch(value! as int);
 
+  static DateTime? timeOrNull(Object? value) =>
+      value == null ? null : timeOf(value);
+
   static Map<String, Object?> cacheRow(
     String userId,
     String key,
@@ -91,6 +94,8 @@ abstract final class LocalRows {
     'next_attempt_at': time(now),
     'last_error_code': null,
     'last_error_message': null,
+    'retry_after': null,
+    'failing_since': null,
     'server_ref': null,
     'created_at': time(now),
     'updated_at': time(now),
@@ -111,6 +116,11 @@ abstract final class LocalRows {
     nextAttemptAt: timeOf(row['next_attempt_at']),
     lastErrorCode: row['last_error_code'] as String?,
     lastErrorMessage: row['last_error_message'] as String?,
+    retryAfter: switch (row['retry_after']) {
+      final int micros => Duration(microseconds: micros),
+      _ => null,
+    },
+    failingSince: timeOrNull(row['failing_since']),
     serverRef: row['server_ref'] as String?,
     createdAt: timeOf(row['created_at']),
     updatedAt: timeOf(row['updated_at']),
@@ -120,9 +130,28 @@ abstract final class LocalRows {
   static Map<String, dynamic> payloadOf(String text) =>
       jsonDecode(text) as Map<String, dynamic>;
 
-  /// Whether a write naming [dependsOn] may fold into the pending [row].
-  static bool joins(Map<String, Object?> row, String? dependsOn) =>
-      dependsOn == null || dependsOn == row['depends_on'];
+  /// Whether a write naming [dependsOn] may fold into [row], the newest
+  /// unsent item with its key: only while that item has never been sent.
+  static bool folds(Map<String, Object?> row, String? dependsOn) =>
+      row['status'] == OutboxStatus.pending.name &&
+      row['attempts'] == 0 &&
+      (dependsOn == null || dependsOn == row['depends_on']);
+
+  /// The values [LocalStore.markRetry] writes.
+  static Map<String, Object?> retryRow({
+    required DateTime at,
+    required String? code,
+    required String? message,
+    required Duration? retryAfter,
+    required DateTime? failingSince,
+  }) => {
+    'status': OutboxStatus.pending.name,
+    'next_attempt_at': time(at),
+    'last_error_code': code,
+    'last_error_message': message,
+    'retry_after': retryAfter?.inMicroseconds,
+    'failing_since': failingSince == null ? null : time(failingSince),
+  };
 
   /// The payload text of a pending item after a newer write folds into it.
   static String coalesce(String older, String newer, OutboxMerge? merge) =>
