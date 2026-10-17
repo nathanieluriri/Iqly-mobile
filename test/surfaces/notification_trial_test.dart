@@ -229,4 +229,23 @@ void main() {
     expect(shown.map((c) => details(c)['channelId']), ['closing_soon_v2']);
     expect(calls.where((c) => c.method == 'zonedSchedule'), isEmpty);
   }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
+  testWidgets('Try notifications lands every sample, even a topic turned off '
+      'in preferences', (tester) async {
+    AndroidFlutterLocalNotificationsPlugin.registerWith();
+    final trial = NotificationTrial(
+      surfaces(channelOn: (_) => false),
+      clock: DateTime.now,
+    );
+    await tester.runAsync(() async {
+      await trial.poll();
+      await trial.payout();
+    });
+    expect(shown.map((c) => details(c)['channelId']), [
+      'polls_v2',
+      'payouts_v2',
+      'payouts_v2',
+      'payouts_v2',
+    ]);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 }

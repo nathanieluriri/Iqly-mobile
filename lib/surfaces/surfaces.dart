@@ -211,7 +211,11 @@ class Surfaces {
   /// The Wallet lane calls this when a withdrawal is asked for and on every
   /// status change: the Live Activity on iOS, the progress notification on
   /// Android, and on an iPhone whose build has no Live Activity yet.
-  Future<void> payoutChanged(Withdrawal w, SurfaceInputs inputs) async {
+  Future<void> payoutChanged(
+    Withdrawal w,
+    SurfaceInputs inputs, {
+    bool anyway = false,
+  }) async {
     if (!supported) return;
     final feedId = inputs.feedIdFor(w.id);
     final state = PayoutActivityState.of(w, notificationId: feedId);
@@ -228,12 +232,14 @@ class Surfaces {
       await _notifications.cancel(id: stableId('payout:${w.id}'));
       return;
     }
-    await show(note);
+    await show(note, anyway: anyway);
   }
 
-  Future<void> show(SurfaceNotification note) async {
+  /// [anyway] posts it even when its topic is off in Notification
+  /// preferences, as Try notifications does.
+  Future<void> show(SurfaceNotification note, {bool anyway = false}) async {
     if (!supported || !Flags.pushNotifications) return;
-    if (!_channelOn(note.channel)) return;
+    if (!anyway && !_channelOn(note.channel)) return;
     await _notifications.show(
       id: note.id,
       title: note.title,

@@ -79,7 +79,9 @@ class SurfaceSamples {
 
 /// What Try notifications does with a tap: its notification lands
 /// [landsAfter] later, so the phone can be locked first, and the payout
-/// then moves on to Sent and Arrived [stepEvery] apart.
+/// then moves on to Sent and Arrived [stepEvery] apart. Each one lands even
+/// when its topic is off in Notification preferences, as polls are by
+/// default.
 class NotificationTrial {
   NotificationTrial(this._surfaces, {DateTime Function()? clock})
     : _clock = clock ?? DateTime.now;
@@ -94,7 +96,7 @@ class NotificationTrial {
     final samples = SurfaceSamples(_clock());
     for (final (i, step) in samples.payoutSteps.indexed) {
       await Future<void>.delayed(i == 0 ? landsAfter : stepEvery);
-      await _surfaces.payoutChanged(step, samples.inputs);
+      await _surfaces.payoutChanged(step, samples.inputs, anyway: true);
     }
   }
 
@@ -116,7 +118,7 @@ class NotificationTrial {
 
   Future<void> _land(SurfaceNotification Function(SurfaceSamples) pick) async {
     await Future<void>.delayed(landsAfter);
-    await _surfaces.show(pick(SurfaceSamples(_clock())));
+    await _surfaces.show(pick(SurfaceSamples(_clock())), anyway: true);
   }
 }
 
