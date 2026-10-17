@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,8 +11,11 @@ import 'package:iqly_mobile/data/activations_data.dart';
 import 'package:iqly_mobile/data/activations_service.dart';
 import 'package:iqly_mobile/data/api_client.dart';
 import 'package:iqly_mobile/data/auth.dart';
-import 'package:iqly_mobile/data/help_service.dart' show supportShownProvider;
+import 'package:iqly_mobile/data/avatar_service.dart';
+import 'package:iqly_mobile/data/help_data.dart';
+import 'package:iqly_mobile/data/help_service.dart';
 import 'package:iqly_mobile/data/live/live_account.dart';
+import 'package:iqly_mobile/data/live/live_help_service.dart';
 import 'package:iqly_mobile/data/live/live_notifications_service.dart';
 import 'package:iqly_mobile/data/live/live_onboarding_service.dart';
 import 'package:iqly_mobile/data/live/live_outcomes_service.dart';
@@ -19,8 +23,10 @@ import 'package:iqly_mobile/data/live/live_profile_service.dart';
 import 'package:iqly_mobile/data/live/live_repository.dart';
 import 'package:iqly_mobile/data/live/live_submit_service.dart';
 import 'package:iqly_mobile/data/live/live_wallet_service.dart';
+import 'package:iqly_mobile/data/live/mappers.dart';
 import 'package:iqly_mobile/data/live_auth.dart';
 import 'package:iqly_mobile/data/local/local_providers.dart';
+import 'package:iqly_mobile/data/local/local_rows.dart';
 import 'package:iqly_mobile/data/local/memory_local_store.dart';
 import 'package:iqly_mobile/data/local/outbox.dart';
 import 'package:iqly_mobile/data/models.dart';
@@ -31,21 +37,27 @@ import 'package:iqly_mobile/data/outcomes_service.dart';
 import 'package:iqly_mobile/data/polls_data.dart';
 import 'package:iqly_mobile/data/polls_service.dart';
 import 'package:iqly_mobile/data/profile_service.dart';
+import 'package:iqly_mobile/data/referrals_service.dart';
 import 'package:iqly_mobile/data/repository.dart';
+import 'package:iqly_mobile/data/signed_in_files.dart';
 import 'package:iqly_mobile/data/submit_data.dart';
 import 'package:iqly_mobile/data/submit_service.dart';
+import 'package:iqly_mobile/data/support_files.dart';
 import 'package:iqly_mobile/data/token_store.dart';
 import 'package:iqly_mobile/data/wallet_service.dart';
 import 'package:iqly_mobile/features/activations/activations_routes.dart';
 import 'package:iqly_mobile/features/activations/activations_state.dart';
+import 'package:iqly_mobile/features/help/help_routes.dart';
 import 'package:iqly_mobile/features/notifications/notifications_state.dart';
 import 'package:iqly_mobile/features/polls/polls_routes.dart';
 import 'package:iqly_mobile/features/polls/polls_state.dart';
 import 'package:iqly_mobile/features/profile/account_sync.dart';
 import 'package:iqly_mobile/features/profile/profile_state.dart';
+import 'package:iqly_mobile/features/referrals/referrals_state.dart';
 import 'package:iqly_mobile/features/submissions/submissions_routes.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/surfaces/surfaces.dart';
+import 'package:iqly_mobile/ui/avatar.dart';
 import 'package:iqly_mobile/ui/recording_player.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -55,6 +67,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// testWidgets: the widget binding would stub out real HTTP.
 void main() {
   final base = Platform.environment['IQLY_E2E_API'];
+  // The features the server was started without (MOBILE_FEATURES_OFF), so
+  // the walk checks the app pauses them; IQLY_E2E_OFF names them the same
+  // way.
+  final off = {
+    for (final name in (Platform.environment['IQLY_E2E_OFF'] ?? '').split(','))
+      ?LiveFeature.values.asNameMap()[name.trim()],
+  };
+  bool on(LiveFeature feature) => !off.contains(feature);
+
+  // Contract 11 runs only with both of its features on.
+  final eleven = on(LiveFeature.polls) && on(LiveFeature.activations);
 
   group(
     'The live app on the API',
@@ -123,14 +146,7 @@ void main() {
 
       test('health turns every feature live for contract 1', () async {
         final report = await LiveHealthService(api).check();
-        // Support is not in this API's health yet; the app keeps it off.
-        final running = {
-          ...LiveFeature.values.where(
-            (f) =>
-                f != LiveFeature.support ||
-                report.features.contains(LiveFeature.support),
-          ),
-        };
+        final running = LiveFeature.values.toSet().difference(off);
         expect(report.ready, isTrue);
         expect(report.contract, Backend.contract);
         expect(report.features, running);
@@ -782,9 +798,10 @@ void main() {
           throwsA(isA<ApiRefused>().having((r) => r.code, 'code', code));
 
       /// A session of its own for [email], beside Ada's.
-      Future<ApiClient> signedIn(String email) async {
+      Future<ApiClient> signedIn(String email, {http.Client? via}) async {
         final other = ApiClient(
           tokens: MemoryTokenStore(),
+          client: via,
           baseUrl: base!,
           appVersion: '0.5.0+5',
           platform: 'android',
@@ -848,10 +865,15 @@ void main() {
       }
 
       ProofVideo recording(String name, List<int> bytes, {int? seconds}) {
-        final file = File('${files().path}/$name')..writeAsBytesSync(bytes);
+        // The API reads a recording's first bytes (an MP4 opens with its
+        // ftyp box), so each sample recording starts with one.
+        final media = name.endsWith('.mp4')
+            ? [0, 0, 0, 0x18, ...'ftypmp42'.codeUnits, ...bytes]
+            : bytes;
+        final file = File('${files().path}/$name')..writeAsBytesSync(media);
         return ProofVideo(
           name: name,
-          bytes: bytes.length,
+          bytes: media.length,
           length: seconds == null ? null : Duration(seconds: seconds),
           source: file.uri,
         );
@@ -865,6 +887,7 @@ void main() {
               .id!;
 
       test('polls and activations run live; their screens show', () async {
+        if (!eleven) return;
         owner = await signedIn(seed.ownerEmail);
         final mode = container.read(liveModeProvider);
         expect(mode.isLive(LiveFeature.polls), isTrue);
@@ -893,6 +916,7 @@ void main() {
       });
 
       test('polls: the list, one poll, a vote, and each refusal', () async {
+        if (!eleven) return;
         final service = container.read(pollsServiceProvider);
         final businesses = await service.businesses();
         expect(businesses.first.name, 'Harbour Telecom');
@@ -980,6 +1004,7 @@ void main() {
       });
 
       test('poll results reach the voters; the row opens the poll', () async {
+        if (!eleven) return;
         final polls = container.read(pollsProvider.notifier);
         expect(await polls.vote(seed.canSizePoll, 1), VoteOutcome.counted);
         await asOwner('POST', '/polls/owner/${seed.canSizePoll}/close');
@@ -1016,6 +1041,7 @@ void main() {
       });
 
       test('activations: every phase the API names, mine included', () async {
+        if (!eleven) return;
         final service = container.read(activationsServiceProvider);
         final all = await service.activations();
         final now = DateTime.now();
@@ -1064,6 +1090,7 @@ void main() {
       });
 
       test('start, and each refusal Start maps', () async {
+        if (!eleven) return;
         final service = container.read(activationsServiceProvider);
         final started = await service.start(seed.recipes);
         expect(started.phaseAt(DateTime.now()), ActivationPhase.started);
@@ -1147,6 +1174,7 @@ void main() {
       test(
         'proof: upload, drop, send, turned down, sent again, paid',
         () async {
+          if (!eleven) return;
           final service = container.read(activationsServiceProvider);
           final clip = List<int>.filled(4096, 7);
 
@@ -1213,8 +1241,14 @@ void main() {
             headers: Recordings.headersFor(sent.source!),
           );
           expect(player.statusCode, 200);
-          expect(player.bodyBytes, clip);
+          final sample = File.fromUri(video.source!).readAsBytesSync();
+          expect(player.bodyBytes, sample);
           expect((await http.get(sent.source!)).statusCode, isNot(200));
+          // Players open the copy downloaded once, never the stream.
+          final copy = await Recordings.fetchSignedIn!(sent.source!);
+          expect(copy.scheme, 'file');
+          expect(File.fromUri(copy).readAsBytesSync(), sample);
+          expect((await Recordings.fetchSignedIn!(sent.source!)), copy);
           final inUse = await api.delete(
             '/activations/${seed.account}/proof/uploads/$first',
           );
@@ -1306,6 +1340,7 @@ void main() {
       test(
         'a proof turned down after the close: nothing to record or send',
         () async {
+          if (!eleven) return;
           // Bob's proof for the order was turned down (the seed); then the
           // business closes it.
           final bob = LiveActivationsService(
@@ -1358,6 +1393,7 @@ void main() {
       );
 
       test('throttles offer Try again; early proof is not due', () async {
+        if (!eleven) return;
         final service = container.read(activationsServiceProvider);
         final video = recording('early.mp4', List<int>.filled(2048, 3));
         // Votes and starts are limited to 30 a minute each: past it, a vote
@@ -1426,6 +1462,527 @@ void main() {
         );
       }, timeout: const Timeout(Duration(minutes: 3)));
 
+      AccountLink linkOf(ApiClient other) {
+        final kept = MemoryLocalStore();
+        return AccountLink(
+          api: other,
+          store: kept,
+          outbox: Outbox(kept),
+          userId: () => null,
+        );
+      }
+
+      HelpAttachment file(String name, List<int> bytes, {Duration? length}) =>
+          HelpAttachment(
+            name: name,
+            bytes: bytes.length,
+            kind: supportTypeOf(name)!.kind,
+            mime: supportTypeOf(name)!.mime,
+            length: length,
+            read: () async => bytes,
+          );
+
+      Matcher refusedFor(HelpFailure failure) => throwsA(
+        isA<HelpRefused>().having((r) => r.failure, 'failure', failure),
+      );
+
+      late HelpTicket opened;
+
+      test('support: the inbox, a thread and its files, an open whose answer '
+          'was lost, a reply, support\'s answer and its feed row, read, '
+          'resolved and a report', () async {
+        final help = container.read(helpServiceProvider);
+        expect(container.read(supportShownProvider), on(LiveFeature.support));
+        if (!on(LiveFeature.support)) {
+          expect(help, isA<PausedHelpService>());
+          expect(await help.conversations(), isEmpty);
+          expect(await help.unread(), 0);
+          return;
+        }
+        expect(help, isA<LiveHelpService>());
+        final inbox = await help.conversations();
+        expect(inbox.map((t) => t.reference), ['IQ-HELP-2042', 'IQ-HELP-2041']);
+        final [report, chat] = inbox;
+        expect(report.status, HelpTicketStatus.open);
+        expect(report.subject, 'The app');
+        expect(chat.status, HelpTicketStatus.replied);
+        expect(chat.unread, isTrue);
+        expect(chat.messages.single.author, HelpAuthor.support);
+        expect(await help.unread(), 1);
+
+        final thread = await help.watch(chat.id).single;
+        expect(thread.subject, 'Withdrawal to Access Bank');
+        expect(thread.messages.map((m) => m.author), [
+          HelpAuthor.you,
+          HelpAuthor.support,
+        ]);
+        final picture =
+            (await help.watch(report.id).single).messages.single.attachment!;
+        expect(picture.kind, HelpAttachmentKind.image);
+        expect(picture.name, 'activity.png');
+        final served = await api.download(picture.url.toString());
+        expect(served.ok, isTrue);
+        expect(served.bytes, isNotEmpty);
+
+        await help.markRead(chat.id);
+        expect(await help.unread(), 0);
+
+        final steps = await help.upload(file('screen.png', _png)).toList();
+        expect(steps.last.done, isTrue);
+        final uploaded = steps.last.file;
+        expect(uploaded.id, isNotNull);
+        expect(uploaded.kind, HelpAttachmentKind.image);
+
+        final request = HelpRequest(
+          subject: 'Chat with iQLY support',
+          message: 'My balance looks wrong.',
+          attachment: uploaded,
+        );
+        client.loseNextAnswer('POST', '/support/tickets');
+        await expectLater(help.send(request), refusedFor(HelpFailure.offline));
+        opened = await help.send(request);
+        expect(opened.reference, matches(RegExp(r'^IQ-HELP-\d+$')));
+        expect(opened.status, HelpTicketStatus.open);
+        expect(opened.messages.single.attachment!.id, uploaded.id);
+        expect(
+          (await help.conversations()).where(
+            (t) => t.subject == 'Chat with iQLY support',
+          ),
+          hasLength(1),
+          reason: 'the retry carried the lost send\'s key',
+        );
+
+        final again = await help.reply(
+          opened.id,
+          'It shows ₦0.00.',
+          idempotencyKey: LocalRows.newId(),
+        );
+        expect(again.status, HelpTicketStatus.open);
+        expect(again.messages, hasLength(2));
+
+        final staff = await signedIn('support@example.com');
+        final answer = await staff.post(
+          '/admin/support/tickets/${opened.id}/reply',
+          {'message': 'Thanks, Ada. We are looking at it now.'},
+        );
+        expect(answer.ok, isTrue, reason: '${answer.status} ${answer.code}');
+        final answered = await help.watch(opened.id).single;
+        expect(answered.status, HelpTicketStatus.replied);
+        expect(answered.unread, isTrue);
+        expect(answered.messages.last.author, HelpAuthor.support);
+        expect(await help.unread(), 1);
+
+        final feed = await container
+            .read(notificationsServiceProvider)
+            .notifications();
+        final row = feed.firstWhere((n) => n.facts?.type == 'support');
+        expect(row.facts!.ticketId, opened.id);
+        expect(row.facts!.title, 'iQLY support replied');
+        final words = wordNotification(
+          row,
+          briefs: const {},
+          awards: const {},
+          withdrawals: const {},
+          now: DateTime.now(),
+        )!;
+        expect(words.link!.location, helpThreadPath(opened.id));
+
+        expect(
+          (await help.resolve(opened.id)).status,
+          HelpTicketStatus.resolved,
+        );
+        expect(
+          (await help.resolve(opened.id)).status,
+          HelpTicketStatus.resolved,
+          reason: 'resolving again changes nothing',
+        );
+
+        final sent = await help.report(
+          topic: 'Payments',
+          details: 'A payout is missing from Activity.',
+          screenshot: file('payout.png', _png),
+        );
+        expect(sent, matches(RegExp(r'^IQ-HELP-\d+$')));
+        final filed = (await help.conversations()).firstWhere(
+          (t) => t.reference == sent,
+        );
+        expect(filed.subject, 'Payments');
+        final filedThread = await help.watch(filed.id).single;
+        expect(filedThread.messages.single.attachment!.name, 'payout.png');
+      });
+
+      test('support refusals reach the app as its own words', () async {
+        if (!on(LiveFeature.support)) return;
+        final bob = await signedIn('bob@example.com');
+        final help = LiveHelpService(linkOf(bob), files: DeviceSupportFiles());
+        final mp4 = [
+          0,
+          0,
+          0,
+          0x18,
+          ...'ftypmp42'.codeUnits,
+          ...List.filled(64, 0),
+        ];
+        final m4a = [
+          0,
+          0,
+          0,
+          0x18,
+          ...'ftypM4A '.codeUnits,
+          ...List.filled(64, 0),
+        ];
+
+        await expectLater(
+          help.upload(file('zeros.mp4', List.filled(4096, 0))).last,
+          refusedFor(HelpFailure.fileType),
+        );
+        await expectLater(
+          help
+              .upload(
+                file('long.mp4', mp4, length: const Duration(seconds: 61)),
+              )
+              .last,
+          refusedFor(HelpFailure.tooLong),
+        );
+        await expectLater(
+          help
+              .upload(file('note.m4a', m4a, length: const Duration(minutes: 6)))
+              .last,
+          refusedFor(HelpFailure.tooLong),
+        );
+        await expectLater(
+          help
+              .upload(file('big.png', [..._png, ...List.filled(10500000, 0)]))
+              .last,
+          refusedFor(HelpFailure.tooLarge),
+        );
+
+        final dropped = (await help.upload(file('drop.png', _png)).last).file;
+        await help.discard(dropped);
+        await expectLater(
+          help.send(
+            HelpRequest(
+              subject: 'Chat with iQLY support',
+              message: 'With a file I took back.',
+              attachment: dropped,
+            ),
+          ),
+          refusedFor(HelpFailure.gone),
+        );
+        await expectLater(
+          help.send(
+            HelpRequest(
+              subject: 'Nowhere activation',
+              message: 'About an activation that is not there.',
+              activation: Activation(
+                id: '00000000-0000-4000-8000-000000000000',
+                business: 'Nowhere',
+                title: 'Nothing',
+                minutes: 1,
+                rewardKobo: 0,
+                closesAt: DateTime.now(),
+                spotsLeft: 0,
+                spotsTotal: 0,
+                steps: const [],
+                link: Uri.parse('https://iqly.net'),
+              ),
+            ),
+          ),
+          refusedFor(HelpFailure.gone),
+        );
+
+        HelpRefused? throttled;
+        for (var i = 0; i < 12 && throttled == null; i++) {
+          try {
+            await help.upload(file('again.png', _png)).last;
+          } on HelpRefused catch (refused) {
+            throttled = refused;
+          }
+        }
+        expect(throttled?.failure, HelpFailure.tooManyTries);
+      });
+
+      test('support files: a report sent again after a lost answer opens '
+          'one thread with one upload; a voice note and a video open threads '
+          'their owner alone can read', () async {
+        if (!on(LiveFeature.support)) return;
+        final losing = _LosingClient(http.Client());
+        final chidi = await signedIn('chidi@example.com', via: losing);
+        final help = LiveHelpService(
+          linkOf(chidi),
+          files: DeviceSupportFiles(),
+        );
+
+        final shot = file('payout.png', _png);
+        final key = LocalRows.newId();
+        losing.loseNextAnswer('POST', '/support/tickets');
+        await expectLater(
+          help.report(
+            topic: 'Payments',
+            details: 'A payout is missing here.',
+            screenshot: shot,
+            idempotencyKey: key,
+          ),
+          refusedFor(HelpFailure.offline),
+        );
+        final sent = await help.report(
+          topic: 'Payments',
+          details: 'A payout is missing here.',
+          screenshot: shot,
+          idempotencyKey: key,
+        );
+        final payments = (await help.conversations())
+            .where((t) => t.subject == 'Payments')
+            .toList();
+        expect(payments.map((t) => t.reference), [sent]);
+        final reported = await help.watch(payments.single.id).single;
+        expect(reported.messages.single.attachments, hasLength(1));
+
+        final m4a = [
+          0,
+          0,
+          0,
+          0x18,
+          ...'ftypM4A '.codeUnits,
+          ...List.filled(512, 0),
+        ];
+        final mp4 = [
+          0,
+          0,
+          0,
+          0x18,
+          ...'ftypmp42'.codeUnits,
+          ...List.filled(512, 0),
+        ];
+        final note =
+            (await help
+                    .upload(
+                      file(
+                        'voice.m4a',
+                        m4a,
+                        length: const Duration(seconds: 20),
+                      ),
+                    )
+                    .last)
+                .file;
+        expect(note.kind, HelpAttachmentKind.audio);
+        final voice = await help.send(
+          HelpRequest(
+            subject: 'Chat with iQLY support',
+            message: 'A voice note.',
+            attachment: note,
+            idempotencyKey: LocalRows.newId(),
+          ),
+        );
+        final heard = voice.messages.single.attachment!;
+        expect(heard.kind, HelpAttachmentKind.audio);
+        expect(heard.length, const Duration(seconds: 20));
+        expect(heard.lengthLabel, '0:20');
+
+        final clip =
+            (await help
+                    .upload(
+                      file(
+                        'clip.mp4',
+                        mp4,
+                        length: const Duration(seconds: 30),
+                      ),
+                    )
+                    .last)
+                .file;
+        final video = await help.send(
+          HelpRequest(
+            subject: 'Chat with iQLY support',
+            message: 'A recording.',
+            attachment: clip,
+            idempotencyKey: LocalRows.newId(),
+          ),
+        );
+        final seen = video.messages.single.attachment!;
+        expect(seen.kind, HelpAttachmentKind.video);
+        final mine = await chidi.download(seen.url.toString());
+        expect(mine.ok, isTrue);
+        expect(mine.bytes, mp4);
+
+        // Recordings play from a file downloaded once to the account's
+        // folder, never streamed.
+        final root = await Directory.systemTemp.createTemp('iqly-e2e-files');
+        addTearDown(() => root.delete(recursive: true));
+        final files = SignedInFiles(api: chidi, root: root);
+        final saved = await files.fetch(
+          userId: 'chidi',
+          id: seen.id!,
+          url: seen.url.toString(),
+          name: seen.name,
+        );
+        expect(await saved.readAsBytes(), mp4);
+        expect(
+          (await files.fetch(
+            userId: 'chidi',
+            id: seen.id!,
+            url: seen.url.toString(),
+            name: seen.name,
+          )).path,
+          saved.path,
+        );
+        await expectLater(
+          SignedInFiles(api: api, root: root).fetch(
+            userId: 'ada',
+            id: seen.id!,
+            url: seen.url.toString(),
+            name: seen.name,
+          ),
+          throwsA(isA<ApiRefused>().having((r) => r.status, 'status', 404)),
+        );
+        await files.forget('chidi');
+        expect(await Directory('${root.path}/chidi').exists(), isFalse);
+        expect(
+          (await api.download(seen.url.toString())).status,
+          404,
+          reason: 'another person cannot read it',
+        );
+      });
+
+      test('the business note on the entry and its result', () async {
+        expect(
+          container.read(businessNoteShownProvider),
+          on(LiveFeature.businessNote),
+        );
+        final won = (await repository().submissions()).singleWhere(
+          (s) => s.id == seed.wonId,
+        );
+        expect(won.note!.business, 'Sunline Foods');
+        expect(won.note!.body, startsWith('The bus stop detail sold it.'));
+        final others = (await repository().submissions()).where(
+          (s) => s.id != seed.wonId,
+        );
+        expect(others.every((s) => s.note == null), isTrue);
+        final result = await container
+            .read(outcomesServiceProvider)
+            .outcome(seed.wonId);
+        expect(result!.note!.body, won.note!.body);
+        expect(result.note!.sentAt, isNotNull);
+      });
+
+      test('referral rewards: the amounts, each reward and the person\'s own, '
+          'the ledger rows and the feed rows', () async {
+        await container.read(referralsProvider.future);
+        final terms = container.read(referralTermsProvider);
+        if (!on(LiveFeature.referralRewards)) {
+          expect(terms, isNull);
+          return;
+        }
+        expect(terms!.amountKobo, 50000);
+        expect(terms.inviteeAmountKobo, 50000);
+        expect(terms.inviterReward, '₦500');
+        expect(terms.earnedKobo, 0);
+
+        final mine = container.read(referralsServiceProvider);
+        final applied = await mine.applyCode(seed.referralCode);
+        expect(applied.outcome, InviteCodeOutcome.applied);
+        final joined = await mine.referrals();
+        expect(joined.invitedBy, 'Chidi E.');
+        expect(
+          joined.invitedByReward!.status,
+          ReferralRewardStatus.notEligible,
+          reason: 'Ada won before she added the code',
+        );
+
+        final chidi = await signedIn('chidi@example.com');
+        final inviter = await LiveReferralsService(
+          linkOf(chidi),
+          sharing: DemoReferralsService(),
+        ).referrals();
+        expect(inviter.invites.map((i) => i.name), ['Ada O.', 'Bob A.']);
+        final adaInvite = inviter.invites.first;
+        expect(adaInvite.status, InviteStatus.won);
+        expect(adaInvite.reward!.status, ReferralRewardStatus.notEligible);
+        final bobInvite = inviter.invites.last;
+        expect(bobInvite.name, 'Bob A.');
+        expect(bobInvite.status, InviteStatus.won);
+        expect(bobInvite.reward!.status, ReferralRewardStatus.paid);
+        expect(bobInvite.reward!.amountKobo, 50000);
+        expect(inviter.terms!.earnedKobo, 50000);
+        final chidiFeed = await LiveNotificationsService(linkOf(chidi))
+            .notifications();
+        final reward = chidiFeed.singleWhere(
+          (n) => n.facts?.type == 'referral_reward',
+        );
+        expect(reward.event, NotificationEvent.rewardCredited);
+        expect(reward.entryId, bobInvite.reward!.ledgerId);
+        final rewardWords = wordNotification(
+          reward,
+          briefs: const {},
+          awards: const {},
+          withdrawals: const {},
+          now: DateTime.now(),
+        )!;
+        expect(rewardWords.title, '₦500.00 added to your wallet');
+        expect(rewardWords.detail, startsWith('Bob A. won a first brief'));
+        expect(rewardWords.link!.location, Routes.referralHistory);
+
+        final bob = await signedIn('bob@example.com');
+        final invited = await LiveReferralsService(
+          linkOf(bob),
+          sharing: DemoReferralsService(),
+        ).referrals();
+        expect(invited.invitedBy, 'Chidi E.');
+        expect(invited.invitedByReward!.status, ReferralRewardStatus.paid);
+        expect(invited.invitedByReward!.amountKobo, 50000);
+        final rows = (await bob.get('/wallet/transactions?limit=100')).data;
+        final own = [
+          for (final item in rows['items'] as List) ?ledgerEntryFromJson(item),
+        ].singleWhere((l) => l.id == invited.invitedByReward!.ledgerId);
+        expect(own.source, RewardSource.referral);
+        expect(own.amountKobo, 50000);
+        expect(own.note, 'First win with Chidi E.\'s invite code');
+        expect(own.referred, 'Chidi E.');
+      });
+
+      test(
+        'avatar photo: up, replaced, read with the token, deleted',
+        () async {
+          final avatars = container.read(liveAvatarServiceProvider)!;
+          expect(avatars.photos, on(LiveFeature.avatarPhoto));
+          if (!on(LiveFeature.avatarPhoto)) return;
+
+          final first = (await avatars.uploadPhoto(_png))!;
+          expect(first.photoShown, isTrue);
+          expect(first.photoUrl, contains('/me/avatar/photo?v='));
+          expect(first.spec, IqPhotoAvatar(_png));
+          expect(await avatars.photo(first.photoUrl!), _png);
+
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+          final second = (await avatars.uploadPhoto(_otherPng))!;
+          expect(second.photoUrl, isNot(first.photoUrl));
+          expect(await avatars.photo(second.photoUrl!), _otherPng);
+          expect((await account().me()).avatar!['photoUrl'], second.photoUrl);
+
+          final gone = (await avatars.deletePhoto())!;
+          expect(gone.photoUrl, isNull);
+          expect(gone.photoShown, isFalse);
+          expect(gone.spec, isA<IqPersonAvatar>());
+          expect(await avatars.photo(second.photoUrl!), isNull);
+
+          final chidi = LiveAvatarService(
+            linkOf(await signedIn('chidi@example.com')),
+            photos: true,
+          );
+          Matcher refused(String code) =>
+              throwsA(isA<ApiRefused>().having((r) => r.code, 'code', code));
+          await expectLater(
+            chidi.uploadPhoto(Uint8List.fromList(utf8.encode('<html></html>'))),
+            refused('FILE_TYPE_NOT_ALLOWED'),
+          );
+          await expectLater(
+            chidi.uploadPhoto(
+              Uint8List.fromList([..._png, ...List.filled(2100000, 0)]),
+            ),
+            refused('FILE_TOO_LARGE'),
+          );
+        },
+      );
+
       test('close waits for an empty wallet; restore reopens', () async {
         final profile = container.read(profileServiceProvider);
         final wallet = container.read(walletServiceProvider);
@@ -1437,7 +1994,11 @@ void main() {
           refused('ACCOUNT_HAS_BALANCE'),
         );
         final left = (await repository().walletTotals())!.withdrawableKobo;
-        expect(left, 7500000 + 150000, reason: 'the activation reward is in');
+        expect(
+          left,
+          7500000 + (eleven ? 150000 : 0),
+          reason: 'the activation reward is in',
+        );
         final rest = await wallet.withdraw(amountKobo: left, account: payTo);
         expect(rest.ok, isTrue, reason: '${rest.failure}');
         await expectLater(
@@ -1467,14 +2028,24 @@ void main() {
         );
 
         // A vote or a Start while closing is turned down as closing.
-        expect(
-          await container.read(pollsProvider.notifier).vote(seed.kioskPoll, 1),
-          VoteOutcome.closing,
-        );
-        await expectLater(
-          container.read(activationsServiceProvider).start(seed.order),
-          refusedWith('ACCOUNT_CLOSING'),
-        );
+        if (eleven) {
+          expect(
+            await container
+                .read(pollsProvider.notifier)
+                .vote(seed.kioskPoll, 1),
+            VoteOutcome.closing,
+          );
+          await expectLater(
+            container.read(activationsServiceProvider).start(seed.order),
+            refusedWith('ACCOUNT_CLOSING'),
+          );
+        }
+        if (on(LiveFeature.support)) {
+          await expectLater(
+            container.read(helpServiceProvider).resolve(opened.id),
+            refusedFor(HelpFailure.closing),
+          );
+        }
 
         // A write while closing holds the queue until the account is back.
         await profile.setNotificationPreference(NotificationTopic.polls, true);
@@ -1511,11 +2082,11 @@ void main() {
     },
   );
 
-  final off = Platform.environment['IQLY_E2E_API_OFF'];
+  final offApi = Platform.environment['IQLY_E2E_API_OFF'];
 
   group(
     'Polls and activations switched off on the API',
-    skip: off == null
+    skip: offApi == null
         ? 'Set IQLY_E2E_API_OFF to a local API started with '
               'MOBILE_FEATURES_OFF=polls,activations to run'
         : false,
@@ -1527,7 +2098,7 @@ void main() {
         final api = ApiClient(
           tokens: MemoryTokenStore(),
           client: _Watching(http.Client(), asked),
-          baseUrl: off!,
+          baseUrl: offApi!,
           appVersion: '0.5.0+5',
           platform: 'android',
         );
@@ -1610,6 +2181,11 @@ final _png = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mP49eYSAAWcArlITY1UAAAAAElFTkSuQmCC',
 );
 
+/// A 2×2 PNG, another photo.
+final _otherPng = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP4n8YARAwQCgArFgWVjjyH6QAAAABJRU5ErkJggg==',
+);
+
 /// What POST /__local/seed answers: who and what the walk works with.
 class _Seed {
   _Seed(Map<String, dynamic> json)
@@ -1631,7 +2207,8 @@ class _Seed {
       account = _at(json, ['activations', 'account']),
       order = _at(json, ['activations', 'order']),
       paused = _at(json, ['activations', 'paused']),
-      closedActivation = _at(json, ['activations', 'closed']);
+      closedActivation = _at(json, ['activations', 'closed']),
+      referralCode = json['referralCode'] as String;
 
   final String password;
   final String contributorId;
@@ -1663,6 +2240,9 @@ class _Seed {
   final String order;
   final String paused;
   final String closedActivation;
+
+  /// Chidi's invite code, which Bob added before his first win.
+  final String referralCode;
 
   static String _at(Map<String, dynamic> json, List<String> path) {
     Object? value = json;

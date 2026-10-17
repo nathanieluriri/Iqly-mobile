@@ -55,6 +55,7 @@ class NotificationFacts {
     required this.body,
     this.amountKobo,
     this.submissionId,
+    this.ticketId,
     this.brief,
     this.withdrawal,
     this.pollId,
@@ -66,6 +67,9 @@ class NotificationFacts {
   final String body;
   final int? amountKobo;
   final String? submissionId;
+
+  /// The help thread support answered (`support` rows).
+  final String? ticketId;
   final NotificationBrief? brief;
 
   /// The poll or activation the row is about (contract 11).

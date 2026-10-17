@@ -109,6 +109,8 @@ void main() {
           LiveFeature.referrals,
           LiveFeature.support,
           LiveFeature.polls,
+          LiveFeature.businessNote,
+          LiveFeature.avatarPhoto,
         }),
       );
     });
@@ -218,6 +220,7 @@ void main() {
           LiveFeature.submissions,
           LiveFeature.notifications,
           LiveFeature.leaderboard,
+          LiveFeature.businessNote,
         }),
       );
     });
@@ -245,7 +248,36 @@ void main() {
         'support',
         'polls',
         'activations',
+        'referralRewards',
+        'avatarPhoto',
       ]);
+    });
+
+    test('support needs the profile, the note submissions, rewards '
+        'referrals and the wallet, and photos the avatar', () {
+      expect(LiveFeature.support.closure, {
+        LiveFeature.support,
+        LiveFeature.profile,
+      });
+      expect(LiveFeature.businessNote.closure, {
+        LiveFeature.businessNote,
+        LiveFeature.submissions,
+        LiveFeature.briefs,
+      });
+      expect(LiveFeature.referralRewards.closure, {
+        LiveFeature.referralRewards,
+        LiveFeature.referrals,
+        LiveFeature.wallet,
+        LiveFeature.profile,
+      });
+      expect(LiveFeature.avatarPhoto.closure, {
+        LiveFeature.avatarPhoto,
+        LiveFeature.avatar,
+        LiveFeature.profile,
+      });
+      final noReferrals = _decide(_health(off: {LiveFeature.referrals}));
+      expect(noReferrals.isLive(LiveFeature.referralRewards), isFalse);
+      expect(noReferrals.isLive(LiveFeature.wallet), isTrue);
     });
 
     test('avatar and referrals need the profile, saved accounts the '
@@ -477,6 +509,8 @@ void main() {
         'referrals',
         'support',
         'polls',
+        'businessNote',
+        'avatarPhoto',
       ]);
       expect(backend.checkedAt, now);
       await backend.lock();
@@ -491,6 +525,8 @@ void main() {
         'referrals',
         'support',
         'polls',
+        'businessNote',
+        'avatarPhoto',
       ]);
     });
 

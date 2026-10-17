@@ -2,14 +2,16 @@ import '../api_client.dart';
 import '../outcomes_data.dart';
 import '../outcomes_service.dart';
 import 'live_account.dart';
+import 'mappers.dart' show businessNoteFromJson;
 
 /// `GET /submissions/:id/outcome` as the Results screen reads it (contract
 /// 5). The leaders are the published winners without their entry titles,
 /// which the API keeps private, so each entry is empty; the person's own
 /// row is left out, since the screen builds it from their submission and
-/// award. There is no business note.
+/// award. The business's note comes with it (contract 12.2).
 Outcome outcomeFromJson(Map<String, dynamic> json, String submissionId) =>
     Outcome(
+      note: businessNoteFromJson(json['note']),
       submissionId: apiText(json['submissionId']) ?? submissionId,
       link: apiText(json['link']) ?? '',
       rank: apiInt(json['rank']),

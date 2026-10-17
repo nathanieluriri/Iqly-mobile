@@ -6,8 +6,11 @@ import '../core/session.dart';
 import 'activations_data.dart';
 import 'demo_data.dart';
 import 'help_data.dart';
+import 'live/live_account.dart';
+import 'live/live_help_service.dart';
 import 'live/live_repository.dart' show liveModeProvider;
 import 'models.dart';
+import 'support_files.dart';
 
 /// One step of a recording upload: the picked [file] and how far it is.
 class HelpUpload {
@@ -21,15 +24,62 @@ class HelpUpload {
   bool get done => progress >= 1;
 }
 
-/// Asking support for help. The live version picks the recording with
-/// image_picker (a screen recording from the gallery) and uploads it to the
-/// API; the thread updates come from the API by push or polling.
+/// Why support did not take something, as the screens word it.
+enum HelpFailure {
+  /// No answer, or one that says nothing of what happened.
+  offline,
+  tooManyTries,
+  closing,
+
+  /// The upload a send names is gone (or already sent), or the activation
+  /// it asks about.
+  gone,
+
+  /// An attachment the API refuses: over its size, over its length, or not
+  /// a picture, video or voice note.
+  tooLarge,
+  tooLong,
+  fileType,
+  unknown,
+}
+
+class HelpRefused implements Exception {
+  const HelpRefused(this.failure, [this.code]);
+
+  final HelpFailure failure;
+  final String? code;
+
+  bool get refusesFile =>
+      failure == HelpFailure.tooLarge ||
+      failure == HelpFailure.tooLong ||
+      failure == HelpFailure.fileType;
+
+  @override
+  String toString() =>
+      'HelpRefused(${failure.name}${code == null ? '' : ' $code'})';
+}
+
+/// Asking support for help. The live version picks the file with the
+/// phone's own picker and uploads it to the API; the thread updates come
+/// from the API by push or while the thread is open.
 abstract class HelpService {
   /// Picks a screen recording on the device and uploads it, reporting
   /// progress until it is done. Ends with nothing when the person cancels
   /// the picker. [about] names the business the request is about; the demo
   /// names its file after it.
-  Stream<HelpUpload> addRecording({String? about});
+  Stream<HelpUpload> addRecording({
+    String? about,
+    SupportSource source = SupportSource.photos,
+  });
+
+  /// Uploads [file] again, after an upload that did not go.
+  Stream<HelpUpload> upload(HelpAttachment file);
+
+  /// The person removed [file] before sending it.
+  Future<void> discard(HelpAttachment file);
+
+  /// The threads with a reply the person has not opened.
+  Future<int> unread();
 
   /// Sends [request] to support and opens its ticket.
   Future<HelpTicket> send(HelpRequest request);
@@ -37,8 +87,13 @@ abstract class HelpService {
   /// [ticketId] now and as support answers it: typing, then the reply.
   Stream<HelpTicket> watch(String ticketId);
 
-  /// Adds the person's [body] to [ticketId].
-  Future<HelpTicket> reply(String ticketId, String body);
+  /// Adds the person's [body] to [ticketId]. [idempotencyKey] stays the
+  /// same for a reply sent again after its answer was lost.
+  Future<HelpTicket> reply(
+    String ticketId,
+    String body, {
+    String? idempotencyKey,
+  });
 
   /// The person marks [ticketId] as resolved.
   Future<HelpTicket> resolve(String ticketId);
@@ -50,10 +105,12 @@ abstract class HelpService {
   Future<void> markRead(String ticketId);
 
   /// Sends a report (B21 · Report an issue) and returns its ticket number.
+  /// The same [screenshot] goes up once however often the report is sent.
   Future<String> report({
     required String topic,
     required String details,
-    String? screenshot,
+    HelpAttachment? screenshot,
+    String? idempotencyKey,
   });
 }
 
@@ -106,14 +163,25 @@ class DemoHelpService implements HelpService {
   HelpTicket _save(HelpTicket ticket) => _tickets[ticket.id] = ticket;
 
   @override
-  Stream<HelpUpload> addRecording({String? about}) async* {
-    final file = DemoHelp.recordingFor(about);
+  Stream<HelpUpload> addRecording({
+    String? about,
+    SupportSource source = SupportSource.photos,
+  }) => upload(DemoHelp.recordingFor(about));
+
+  @override
+  Stream<HelpUpload> upload(HelpAttachment file) async* {
     for (final progress in const [0.0, 0.25, 0.5, 0.75]) {
       yield HelpUpload(file, progress);
       await _wait(uploadStep);
     }
     yield HelpUpload(file, 1);
   }
+
+  @override
+  Future<void> discard(HelpAttachment file) async {}
+
+  @override
+  Future<int> unread() async => _tickets.values.where((t) => t.unread).length;
 
   @override
   Future<HelpTicket> send(HelpRequest request) async {
@@ -183,7 +251,11 @@ class DemoHelpService implements HelpService {
   }
 
   @override
-  Future<HelpTicket> reply(String ticketId, String body) async {
+  Future<HelpTicket> reply(
+    String ticketId,
+    String body, {
+    String? idempotencyKey,
+  }) async {
     await _wait(delay);
     final ticket = _ticket(ticketId);
     return _save(
@@ -213,10 +285,11 @@ class DemoHelpService implements HelpService {
   Future<String> report({
     required String topic,
     required String details,
-    String? screenshot,
+    HelpAttachment? screenshot,
+    String? idempotencyKey,
   }) async {
     await _wait(delay);
-    reports.add((topic: topic, details: details, screenshot: screenshot));
+    reports.add((topic: topic, details: details, screenshot: screenshot?.name));
     return 'IQ-HELP-${2040 + reports.length}';
   }
 
@@ -227,9 +300,14 @@ class DemoHelpService implements HelpService {
   }
 }
 
+/// The demo in a preview launch, the API while support runs live; a live
+/// launch without it reads and sends nothing.
 final helpServiceProvider = Provider<HelpService>((ref) {
   ref.watch(accountProvider);
-  return DemoHelpService();
+  if (ref.watch(liveModeProvider).isPreview) return DemoHelpService();
+  final link = ref.watch(liveLinkProvider(LiveFeature.support));
+  if (link == null) return const PausedHelpService();
+  return LiveHelpService(link, files: ref.watch(supportFilesProvider));
 });
 
 /// Whether the ways to reach support show this launch: always in the
@@ -238,3 +316,8 @@ final supportShownProvider = Provider<bool>((ref) {
   final mode = ref.watch(liveModeProvider);
   return mode.isPreview || mode.isLive(LiveFeature.support);
 });
+
+/// Whether the support inbox runs on the API this launch.
+final supportLiveProvider = Provider<bool>(
+  (ref) => ref.watch(liveModeProvider).isLive(LiveFeature.support),
+);

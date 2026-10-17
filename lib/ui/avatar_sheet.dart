@@ -19,6 +19,7 @@ class IqAvatarSheet extends StatelessWidget {
     this.onMakeYourOwn,
     this.onUsePhoto,
     this.onPick,
+    this.onRemovePhoto,
   });
 
   final IqAvatarSpec? current;
@@ -26,6 +27,10 @@ class IqAvatarSheet extends StatelessWidget {
   final VoidCallback? onMakeYourOwn;
   final VoidCallback? onUsePhoto;
   final ValueChanged<IqAvatarSpec>? onPick;
+
+  /// Not a Figma prop: holding the saved photo runs it, where the photo can
+  /// be removed.
+  final VoidCallback? onRemovePhoto;
 
   static const double radius = 28;
 
@@ -113,6 +118,7 @@ class IqAvatarSheet extends StatelessWidget {
                     state: state(spec),
                     semanticLabel: _label(spec, i),
                     onTap: onPick == null ? null : () => onPick!(spec),
+                    onLongPress: spec is IqPhotoAvatar ? onRemovePhoto : null,
                   ),
               ],
             ),

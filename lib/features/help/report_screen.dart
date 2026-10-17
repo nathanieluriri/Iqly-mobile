@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../data/help_data.dart';
 import '../../data/help_service.dart';
-import '../../data/media_service.dart';
+import '../../data/local/local_rows.dart';
+import '../../data/support_files.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
@@ -16,6 +18,8 @@ import '../../ui/icon.dart';
 import '../../ui/illustration.dart';
 import '../../ui/list_row.dart';
 import '../more/more_widgets.dart';
+import '../settings/restore_account_screen.dart';
+import 'help_state.dart';
 
 /// B21 · Report an issue (431:19647): what it is about, what happened and
 /// an optional screenshot from the phone's own picker; Send report opens
@@ -32,9 +36,15 @@ class ReportIssueScreen extends ConsumerStatefulWidget {
 class _ReportIssueScreenState extends ConsumerState<ReportIssueScreen> {
   final _details = TextEditingController();
   String _topic = ReportIssueScreen.topics.first;
-  String? _screenshot;
+  HelpAttachment? _screenshot;
   bool _sending = false;
   bool _failed = false;
+  HelpFailure? _failure;
+  HelpAttachmentKind? _refused;
+
+  /// The report's Idempotency-Key, kept until the API answers it for sure;
+  /// the screenshot goes up once whatever the retries.
+  String _key = LocalRows.newId();
 
   @override
   void initState() {
@@ -49,7 +59,7 @@ class _ReportIssueScreenState extends ConsumerState<ReportIssueScreen> {
   }
 
   Future<void> _pick() async {
-    final picked = await ref.read(mediaServiceProvider).pickImage();
+    final picked = await ref.read(supportFilesProvider).pickScreenshot();
     if (picked != null && mounted) setState(() => _screenshot = picked);
   }
 
@@ -67,14 +77,32 @@ class _ReportIssueScreenState extends ConsumerState<ReportIssueScreen> {
             topic: _topic,
             details: _details.text.trim(),
             screenshot: _screenshot,
+            idempotencyKey: _key,
           );
-    } on Exception {
+    } on Exception catch (error) {
       if (!mounted) return;
+      final failure = error is HelpRefused ? error.failure : null;
+      final upload =
+          error is HelpRefused &&
+          (error.refusesFile ||
+              error.code == 'SUPPORT_UPLOAD_NOT_FOUND' ||
+              error.code == 'SUPPORT_UPLOAD_IN_USE');
       setState(() {
         _sending = false;
         _failed = true;
+        _failure = failure;
+        _refused = error is HelpRefused && error.refusesFile
+            ? HelpAttachmentKind.image
+            : null;
+        if (upload) _screenshot = null;
+        if (failure != null && failure != HelpFailure.offline) {
+          _key = LocalRows.newId();
+        }
       });
       await errorHaptic();
+      if (failure == HelpFailure.closing && Flags.deleteAccount && mounted) {
+        await showClosingAccount(context, ref);
+      }
       return;
     }
     if (!mounted) return;
@@ -91,7 +119,16 @@ class _ReportIssueScreenState extends ConsumerState<ReportIssueScreen> {
         children: [
           IqBanner(
             kind: IqBannerKind.error,
-            title: 'Not sent. Check your connection.',
+            title: switch ((_failure, _refused)) {
+              (final failure?, final kind?) => () {
+                final words = helpRefusalWords(failure, kind);
+                return '${words.title}. ${words.hint}';
+              }(),
+              (final failure, _) => helpFailureText(
+                failure,
+                offline: 'Not sent. Check your connection.',
+              ),
+            },
             showAction: false,
             visible: _failed,
             margin: const EdgeInsets.only(bottom: IqSpace.s3),
@@ -126,7 +163,7 @@ class _ReportIssueScreenState extends ConsumerState<ReportIssueScreen> {
           ),
           const SizedBox(height: IqSpace.s2),
           IqListRow(
-            label: screenshot ?? 'Add a screenshot',
+            label: screenshot?.name ?? 'Add a screenshot',
             description: screenshot == null
                 ? 'Optional · PNG or JPG'
                 : 'Attached · tap to change',

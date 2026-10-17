@@ -24,6 +24,7 @@ class IqFaqSheet extends StatelessWidget {
     this.helpful,
     this.onHelpful,
     this.onChat,
+    this.showChat = true,
   });
 
   final String question;
@@ -33,6 +34,10 @@ class IqFaqSheet extends StatelessWidget {
   final bool? helpful;
   final ValueChanged<bool>? onHelpful;
   final VoidCallback? onChat;
+
+  /// Not a Figma prop: a launch with no support to chat to leaves the link
+  /// out.
+  final bool showChat;
 
   static const double radius = 24;
   static const double homeIndicator = 34;
@@ -101,31 +106,33 @@ class IqFaqSheet extends StatelessWidget {
                     _pick('No', false),
                   ],
                 ),
-                const SizedBox(height: IqSpace.s2p5),
-                IqPressable(
-                  onTap: onChat,
-                  semanticLabel: 'Still stuck? Chat with us',
-                  builder: (context, pressed) => PressDim(
-                    pressed: pressed,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Still stuck? Chat with us',
-                          style: IqText.smallStrong.copyWith(
+                if (showChat) ...[
+                  const SizedBox(height: IqSpace.s2p5),
+                  IqPressable(
+                    onTap: onChat,
+                    semanticLabel: 'Still stuck? Chat with us',
+                    builder: (context, pressed) => PressDim(
+                      pressed: pressed,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Still stuck? Chat with us',
+                            style: IqText.smallStrong.copyWith(
+                              color: IqColors.brand,
+                            ),
+                          ),
+                          const SizedBox(width: IqSpace.s1),
+                          const IqIcon(
+                            IqIcons.forward,
+                            size: 16,
                             color: IqColors.brand,
                           ),
-                        ),
-                        const SizedBox(width: IqSpace.s1),
-                        const IqIcon(
-                          IqIcons.forward,
-                          size: 16,
-                          color: IqColors.brand,
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
             ),
           ),

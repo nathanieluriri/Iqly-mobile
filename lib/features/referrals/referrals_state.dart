@@ -2,8 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/backend.dart';
 import '../../core/deadline.dart';
 import '../../core/session.dart';
+import '../../data/live/live_repository.dart' show liveModeProvider;
 import '../../data/models.dart';
 import '../../data/referrals_service.dart';
 import '../../data/repository.dart';
@@ -31,8 +33,21 @@ final referralsProvider = AsyncNotifierProvider<ReferralsNotifier, Referrals>(
   ReferralsNotifier.new,
 );
 
-/// The ₦500 referral rewards the wallet holds, "Earned" on Referral history.
+/// What referrals pay this launch: the preview's ₦500 each way, the API's
+/// amounts while it runs referral rewards (contract 12.3), else nothing, so
+/// no screen promises money a live launch does not pay.
+final referralTermsProvider = Provider<ReferralTerms?>((ref) {
+  final mode = ref.watch(liveModeProvider);
+  if (mode.isPreview) return ReferralTerms.demo;
+  if (!mode.isLive(LiveFeature.referralRewards)) return null;
+  return ref.watch(referralsProvider.select((r) => r.value?.terms));
+});
+
+/// The referral rewards the wallet holds, "Earned" on Referral history: the
+/// API's own count while it pays them, else the ledger's referral rows.
 final referralEarnedProvider = FutureProvider<int>((ref) async {
+  final earned = ref.watch(referralTermsProvider)?.earnedKobo;
+  if (earned != null) return earned;
   final wallet = await ref.watch(walletProvider.future);
   return referralEarnedKobo(wallet.ledger);
 });

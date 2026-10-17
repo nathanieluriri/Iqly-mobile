@@ -3,15 +3,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/flags.dart';
+import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../data/help_data.dart';
+import '../../data/help_service.dart';
+import '../../data/local/local_rows.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
+import '../../ui/banner.dart';
 import '../../ui/button.dart';
 import '../../ui/field.dart';
 import '../../ui/icon.dart';
 import '../../ui/list_row.dart';
 import '../more/more_widgets.dart';
+import '../settings/restore_account_screen.dart';
 import 'help_routes.dart';
 import 'help_state.dart';
 
@@ -40,12 +46,21 @@ class SupportScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tickets = ref.watch(conversationsProvider).value;
+    final loaded = ref.watch(conversationsProvider);
+    final tickets = loaded.value;
     return SubPage(
       title: 'Support',
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
         children: [
+          if (tickets == null && loaded.hasError && !loaded.isLoading)
+            IqBanner(
+              kind: IqBannerKind.error,
+              title: 'Couldn’t load. Check your connection.',
+              action: 'Try again',
+              onAction: () => ref.invalidate(conversationsProvider),
+              margin: const EdgeInsets.only(top: IqSpace.s2),
+            ),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: IqSpace.s2),
             child: Text(
@@ -92,6 +107,11 @@ class NewConversationScreen extends ConsumerStatefulWidget {
 class _NewConversationScreenState extends ConsumerState<NewConversationScreen> {
   final _message = TextEditingController();
   bool _sending = false;
+  bool _failed = false;
+  HelpFailure? _failure;
+
+  /// The open's Idempotency-Key, kept until the API answers it for sure.
+  String _key = LocalRows.newId();
 
   @override
   void initState() {
@@ -108,12 +128,38 @@ class _NewConversationScreenState extends ConsumerState<NewConversationScreen> {
   Future<void> _send() async {
     final body = _message.text.trim();
     if (body.isEmpty || _sending) return;
-    setState(() => _sending = true);
-    final ticket = await ref
-        .read(helpTicketsProvider.notifier)
-        .open(
-          HelpRequest(subject: NewConversationScreen.subject, message: body),
-        );
+    setState(() {
+      _sending = true;
+      _failed = false;
+    });
+    final HelpTicket ticket;
+    try {
+      ticket = await ref
+          .read(helpTicketsProvider.notifier)
+          .open(
+            HelpRequest(
+              subject: NewConversationScreen.subject,
+              message: body,
+              idempotencyKey: _key,
+            ),
+          );
+    } catch (error) {
+      if (!mounted) return;
+      final failure = error is HelpRefused ? error.failure : null;
+      setState(() {
+        _sending = false;
+        _failed = true;
+        _failure = failure;
+        if (failure != null && failure != HelpFailure.offline) {
+          _key = LocalRows.newId();
+        }
+      });
+      await errorHaptic();
+      if (failure == HelpFailure.closing && Flags.deleteAccount && mounted) {
+        await showClosingAccount(context, ref);
+      }
+      return;
+    }
     if (!mounted) return;
     context.pushReplacement(
       helpThreadPath(ticket.id),
@@ -128,6 +174,13 @@ class _NewConversationScreenState extends ConsumerState<NewConversationScreen> {
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
         children: [
+          IqBanner(
+            kind: IqBannerKind.error,
+            title: helpFailureText(_failure),
+            showAction: false,
+            visible: _failed,
+            margin: const EdgeInsets.only(top: IqSpace.s2),
+          ),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: IqSpace.s2),
             child: Text(

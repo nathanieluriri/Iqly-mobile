@@ -2,6 +2,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/transitions.dart';
 import '../../router.dart';
+import '../../data/help_data.dart';
+import 'help_attachment_screen.dart';
 import 'help_centre_screen.dart';
 import 'help_request_screen.dart';
 import 'help_thread_screen.dart';
@@ -24,7 +26,7 @@ String helpPath({String? about}) => about == null
 /// pages, every one a push from More. B10 Help: the request pushes from the
 /// proof-submitted screen, `?about=` naming the activation it asks about,
 /// and Send to support puts the thread in its place; every thread, from the
-/// inbox too, is /help/:id.
+/// inbox too, is /help/:id, and a file sent in it /help/:id/file.
 final helpRoutes = <RouteBase>[
   GoRoute(
     path: Routes.helpCentre,
@@ -87,6 +89,20 @@ final helpRoutes = <RouteBase>[
             },
           ),
         ),
+        routes: [
+          GoRoute(
+            path: 'file',
+            pageBuilder: (context, state) => pushPage(
+              state,
+              HelpAttachmentScreen(
+                file: switch (state.extra) {
+                  final HelpAttachment file => file,
+                  _ => null,
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     ],
   ),

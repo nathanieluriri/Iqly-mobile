@@ -57,7 +57,11 @@ void main() {
     };
   });
 
-  tearDown(() => Recordings.open = openRecording);
+  tearDown(() {
+    Recordings.open = openRecording;
+    Recordings.signedIn = null;
+    Recordings.fetchSignedIn = null;
+  });
 
   Future<void> pump(WidgetTester tester, Widget child) => tester.pumpWidget(
     MaterialApp(
@@ -170,5 +174,41 @@ void main() {
     expect(find.byType(VideoPlayer), findsNothing);
     expect(Recordings.posters, 0);
     expect(opened.single.disposed, isTrue);
+  });
+
+  testWidgets('a recording on the API plays and shows its frame from the '
+      'copy brought onto the phone, never streamed; others play where they '
+      'are', (tester) async {
+    final api = Uri.parse('https://api.test/activations/a_1/proof/file');
+    final copy = Uri.file('/data/files/u_1/proof.mp4');
+    final fetched = <Uri>[];
+    Recordings.signedIn = (base: 'https://api.test', token: 'session.signed');
+    Recordings.fetchSignedIn = (asked) async {
+      fetched.add(asked);
+      return copy;
+    };
+    await pump(
+      tester,
+      Column(
+        children: [
+          Expanded(child: IqRecordingPlayer(source: api)),
+          Expanded(
+            child: IqRecordingPoster(
+              source: api,
+              placeholder: const SizedBox.shrink(),
+            ),
+          ),
+          Expanded(child: IqRecordingPlayer(source: source)),
+        ],
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(fetched, [api, api]);
+    expect(
+      opened.map((o) => o.dataSource),
+      containsAll([copy.toString(), source.toString()]),
+    );
+    expect(opened.where((o) => o.dataSource == api.toString()), isEmpty);
   });
 }

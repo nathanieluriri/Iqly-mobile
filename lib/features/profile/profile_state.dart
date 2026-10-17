@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -15,6 +16,7 @@ import '../../data/onboarding_service.dart';
 import '../../data/profile_service.dart';
 import '../../data/reference_data.dart';
 import '../../data/repository.dart';
+import '../../data/signed_in_files.dart';
 import '../avatar/avatar_state.dart';
 import '../discover/discover_state.dart';
 import '../onboarding/onboarding_draft.dart';
@@ -195,9 +197,9 @@ Future<void> forgetAccount(WidgetRef ref, {bool closed = false}) async {
 /// has ended the session itself: the phone signs out and forgets what the
 /// account keeps on it, all but its drafts. That is the first-run answers,
 /// the cached details, the avatar, saved briefs and close reminders (their
-/// scheduled reminders too), the submit autosaves and the account's cache
-/// and outbox, for the account signed in or the one whose session was
-/// lost.
+/// scheduled reminders too), the submit autosaves, the account's cache and
+/// outbox and the files it downloaded, for the account signed in or the
+/// one whose session was lost.
 Future<void> forgetSession(Reader read) async {
   final session = read(sessionProvider);
   final userId = session.userId ?? session.lostUserId;
@@ -215,6 +217,11 @@ Future<void> forgetSession(Reader read) async {
     final store = read(localStoreProvider);
     await store.deleteCache(userId);
     await store.deleteOutbox(userId);
+    unawaited(
+      read(signedInFilesProvider)?.forget(userId).catchError((Object error) {
+        debugPrint('Sign out: downloaded files not deleted: $error');
+      }),
+    );
   }
 }
 

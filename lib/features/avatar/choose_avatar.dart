@@ -7,13 +7,16 @@ import 'package:go_router/go_router.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/transitions.dart';
+import '../../data/avatar_service.dart' show liveAvatarServiceProvider;
 import '../../data/photo_service.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/avatar.dart';
 import '../../ui/avatar_sheet.dart';
+import '../../ui/confirm_sheet.dart';
 import '../../ui/icon.dart';
 import '../../ui/list_row.dart';
+import '../../ui/toast.dart';
 import '../more/more_widgets.dart';
 import 'avatar_state.dart';
 
@@ -21,7 +24,9 @@ import 'avatar_state.dart';
 /// over More). A pick moves the ring, holds 150 ms and closes the sheet
 /// with the new avatar saved; Make your own closes it and opens the editor;
 /// Use a photo takes a photo through the circle crop, which goes back to
-/// the sheet until Use photo saves it. Tapping outside closes the sheet.
+/// the sheet until Use photo saves it. While photos go to the account
+/// (contract 12.4) holding the saved photo offers to remove it. Tapping
+/// outside closes the sheet.
 Future<void> chooseAvatar(BuildContext context) async {
   final edit = await Navigator.of(context).push<bool>(
     IqSheetRoute<bool>(
@@ -76,9 +81,29 @@ class _AvatarSheetBodyState extends ConsumerState<_AvatarSheetBody> {
     await _pick(IqPhotoAvatar(cropped));
   }
 
+  /// Online only: the photo goes from the account and from this phone.
+  Future<void> _removePhoto() async {
+    if (_closing) return;
+    final remove = await showIqConfirmSheet(
+      context,
+      title: 'Remove this photo?',
+      body: 'You will need to upload it again to use it.',
+      confirmLabel: 'Remove photo',
+    );
+    if (!remove || !mounted) return;
+    try {
+      await ref.read(avatarProvider.notifier).removePhoto();
+    } on Exception {
+      if (!mounted) return;
+      errorHaptic();
+      IqToast.show(context, 'Couldn’t send. Check your connection.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final avatar = ref.watch(avatarProvider);
+    final photos = ref.watch(liveAvatarServiceProvider)?.photos ?? false;
     final height = MediaQuery.sizeOf(context).height;
     return Material(
       type: MaterialType.transparency,
@@ -97,6 +122,7 @@ class _AvatarSheetBodyState extends ConsumerState<_AvatarSheetBody> {
               onMakeYourOwn: () => Navigator.of(context).pop(true),
               onUsePhoto: _usePhoto,
               onPick: _pick,
+              onRemovePhoto: photos ? _removePhoto : null,
             ),
           ),
         ),
