@@ -7,15 +7,30 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		03D6363FDF0F98DFC4123FED /* PlusJakartaSans-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = DE427C53871F04069FC7FABA /* PlusJakartaSans-Regular.ttf */; };
+		13ED6505627906FF35B8AA96 /* SurfaceShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9D7EEEFDFC48983A9AFE013 /* SurfaceShared.swift */; };
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
+		6C46083ECC43B974AE370D28 /* SurfaceShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9D7EEEFDFC48983A9AFE013 /* SurfaceShared.swift */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
+		776CDC0D2B98DB08DB28D67F /* IqlySurfacesBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 257A117E533F9E58E41EF1EA /* IqlySurfacesBundle.swift */; };
 		7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */; };
 		78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */; };
+		7F11B88E70D91EBC748600DB /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BC70FD040DAC15C0A25745DE /* Foundation.framework */; };
+		8225CC30E91B0FB1C48CBB38 /* IqlySurfaces.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 21AA8CAEB023869404DEBB48 /* IqlySurfaces.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		87978E4C23C25798E491F0AC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 07AF45D6CB8DE8BFF1EFAFEF /* Assets.xcassets */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
+		A1C25CF56A8D15162A88A34E /* SurfacesChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D31A4D610C262FFC74F9793B /* SurfacesChannel.swift */; };
+		A234526297BF20024B35742C /* ClosingSoonWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C4002DD80B1AC17EFBEA0AB /* ClosingSoonWidget.swift */; };
+		A67B47EAFCCB019ADA7CD511 /* PayoutLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72FB9D61C0A906EA77144BF5 /* PayoutLiveActivity.swift */; };
+		BB054D81A8B974605258536B /* IqColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE453D54AA93B01E462DE9D9 /* IqColors.swift */; };
+		C8E72888EA87E75A5BB5724D /* PollsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA23C7E002DF48B7C9E22375 /* PollsWidget.swift */; };
+		E8C2E55BE301EBF9004141F1 /* WidgetTimelineStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2F556B03140A86334C6A581 /* WidgetTimelineStore.swift */; };
+		EFAD5D91C96DD97898D71F25 /* PlusJakartaSans-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 52D7FEDDDA9D246E6319570B /* PlusJakartaSans-SemiBold.ttf */; };
+		F8AA9568B34B2DA013DB4187 /* BricolageGrotesque-30pt.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AF9DC89BD5E269802D66862C /* BricolageGrotesque-30pt.ttf */; };
 		67C0ADC38B8C6BF19BBA2813 /* iqly_bing_spark.caf in Resources */ = {isa = PBXBuildFile; fileRef = FA6ABACFA43AA4FF83F3B733 /* iqly_bing_spark.caf */; };
 		D832C4DDC6BF6A679E7C7EE1 /* iqly_bing_idea.caf in Resources */ = {isa = PBXBuildFile; fileRef = 1D64F5F612CC7982E37CA46F /* iqly_bing_idea.caf */; };
 		8CADC1BD3576FFC5BA1B59A0 /* iqly_bing_glass.caf in Resources */ = {isa = PBXBuildFile; fileRef = 624D5AE4B50E110A8955E882 /* iqly_bing_glass.caf */; };
@@ -25,6 +40,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		0929388ADB03140F9E05A9C2 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 97C146E61CF9000F007C117D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A1EA60008FA6418BC98262CD;
+			remoteInfo = IqlySurfaces;
+		};
 		331C8085294A63A400263BE5 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 97C146E61CF9000F007C117D /* Project object */;
@@ -35,6 +57,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		12D3C39E11E8E0000D996AEF /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				8225CC30E91B0FB1C48CBB38 /* IqlySurfaces.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		9705A1C41CF9048500538489 /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -48,11 +81,16 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		07AF45D6CB8DE8BFF1EFAFEF /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
+		21AA8CAEB023869404DEBB48 /* IqlySurfaces.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = IqlySurfaces.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		257A117E533F9E58E41EF1EA /* IqlySurfacesBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = IqlySurfacesBundle.swift; sourceTree = "<group>"; };
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		331C8081294A63A400263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
+		52D7FEDDDA9D246E6319570B /* PlusJakartaSans-SemiBold.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = "PlusJakartaSans-SemiBold.ttf"; sourceTree = "<group>"; };
+		72FB9D61C0A906EA77144BF5 /* PayoutLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PayoutLiveActivity.swift; sourceTree = "<group>"; };
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
@@ -65,6 +103,17 @@
 		97C146FD1CF9000F007C117D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		9C4002DD80B1AC17EFBEA0AB /* ClosingSoonWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ClosingSoonWidget.swift; sourceTree = "<group>"; };
+		A2F556B03140A86334C6A581 /* WidgetTimelineStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WidgetTimelineStore.swift; sourceTree = "<group>"; };
+		AA23C7E002DF48B7C9E22375 /* PollsWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PollsWidget.swift; sourceTree = "<group>"; };
+		AF9DC89BD5E269802D66862C /* BricolageGrotesque-30pt.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = "BricolageGrotesque-30pt.ttf"; sourceTree = "<group>"; };
+		BC70FD040DAC15C0A25745DE /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		C9D7EEEFDFC48983A9AFE013 /* SurfaceShared.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SurfaceShared.swift; sourceTree = "<group>"; };
+		D31A4D610C262FFC74F9793B /* SurfacesChannel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SurfacesChannel.swift; sourceTree = "<group>"; };
+		DE427C53871F04069FC7FABA /* PlusJakartaSans-Regular.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = "PlusJakartaSans-Regular.ttf"; sourceTree = "<group>"; };
+		E7F81D370A10AAA6C8F73146 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		EAF3A08FA2D6AD81CFA167F3 /* IqlySurfaces.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = IqlySurfaces.entitlements; sourceTree = "<group>"; };
+		EE453D54AA93B01E462DE9D9 /* IqColors.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = IqColors.swift; sourceTree = "<group>"; };
 		FA6ABACFA43AA4FF83F3B733 /* iqly_bing_spark.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = iqly_bing_spark.caf; sourceTree = "<group>"; };
 		1D64F5F612CC7982E37CA46F /* iqly_bing_idea.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = iqly_bing_idea.caf; sourceTree = "<group>"; };
 		624D5AE4B50E110A8955E882 /* iqly_bing_glass.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = iqly_bing_glass.caf; sourceTree = "<group>"; };
@@ -74,6 +123,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		306052243CF1E2B420BB7FA2 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7F11B88E70D91EBC748600DB /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		97C146EB1CF9000F007C117D /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -85,12 +142,58 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		109AAAF02B9B2A13F086E11A /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				B226D2A2B82021068B298D8F /* iOS */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		17B3F0A2B5C2D49AE17BE271 /* RunnerSurfaces */ = {
+			isa = PBXGroup;
+			children = (
+				D31A4D610C262FFC74F9793B /* SurfacesChannel.swift */,
+			);
+			name = RunnerSurfaces;
+			path = RunnerSurfaces;
+			sourceTree = "<group>";
+		};
 		331C8082294A63A400263BE5 /* RunnerTests */ = {
 			isa = PBXGroup;
 			children = (
 				331C807B294A618700263BE5 /* RunnerTests.swift */,
 			);
 			path = RunnerTests;
+			sourceTree = "<group>";
+		};
+		88E8B26E98341DFD407CCF07 /* IqlySurfaces */ = {
+			isa = PBXGroup;
+			children = (
+				BC131443A601CFD1C4D77F0F /* Shared */,
+				9C4002DD80B1AC17EFBEA0AB /* ClosingSoonWidget.swift */,
+				EE453D54AA93B01E462DE9D9 /* IqColors.swift */,
+				257A117E533F9E58E41EF1EA /* IqlySurfacesBundle.swift */,
+				72FB9D61C0A906EA77144BF5 /* PayoutLiveActivity.swift */,
+				AA23C7E002DF48B7C9E22375 /* PollsWidget.swift */,
+				A2F556B03140A86334C6A581 /* WidgetTimelineStore.swift */,
+				07AF45D6CB8DE8BFF1EFAFEF /* Assets.xcassets */,
+				E7F81D370A10AAA6C8F73146 /* Info.plist */,
+				EAF3A08FA2D6AD81CFA167F3 /* IqlySurfaces.entitlements */,
+			);
+			name = IqlySurfaces;
+			path = IqlySurfaces;
+			sourceTree = "<group>";
+		};
+		8A4F9C65D2F10C8CF9D88460 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				DE427C53871F04069FC7FABA /* PlusJakartaSans-Regular.ttf */,
+				52D7FEDDDA9D246E6319570B /* PlusJakartaSans-SemiBold.ttf */,
+				AF9DC89BD5E269802D66862C /* BricolageGrotesque-30pt.ttf */,
+			);
+			name = Fonts;
+			path = ../assets/fonts;
 			sourceTree = "<group>";
 		};
 		9740EEB11CF90186004384FC /* Flutter */ = {
@@ -112,6 +215,10 @@
 				97C146F01CF9000F007C117D /* Runner */,
 				97C146EF1CF9000F007C117D /* Products */,
 				331C8082294A63A400263BE5 /* RunnerTests */,
+				109AAAF02B9B2A13F086E11A /* Frameworks */,
+				88E8B26E98341DFD407CCF07 /* IqlySurfaces */,
+				8A4F9C65D2F10C8CF9D88460 /* Fonts */,
+				17B3F0A2B5C2D49AE17BE271 /* RunnerSurfaces */,
 			);
 			sourceTree = "<group>";
 		};
@@ -120,6 +227,7 @@
 			children = (
 				97C146EE1CF9000F007C117D /* Runner.app */,
 				331C8081294A63A400263BE5 /* RunnerTests.xctest */,
+				21AA8CAEB023869404DEBB48 /* IqlySurfaces.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -139,6 +247,23 @@
 				B1C6C94144878F3232FA56C1 /* Sounds */,
 			);
 			path = Runner;
+			sourceTree = "<group>";
+		};
+		B226D2A2B82021068B298D8F /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				BC70FD040DAC15C0A25745DE /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
+		BC131443A601CFD1C4D77F0F /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				C9D7EEEFDFC48983A9AFE013 /* SurfaceShared.swift */,
+			);
+			name = Shared;
+			path = Shared;
 			sourceTree = "<group>";
 		};
 		B1C6C94144878F3232FA56C1 /* Sounds */ = {
@@ -183,11 +308,13 @@
 				97C146EB1CF9000F007C117D /* Frameworks */,
 				97C146EC1CF9000F007C117D /* Resources */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
+				12D3C39E11E8E0000D996AEF /* Embed Foundation Extensions */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				29E0BF1DC71181DD2F8C7AE2 /* PBXTargetDependency */,
 			);
 			name = Runner;
 			packageProductDependencies = (
@@ -196,6 +323,23 @@
 			productName = Runner;
 			productReference = 97C146EE1CF9000F007C117D /* Runner.app */;
 			productType = "com.apple.product-type.application";
+		};
+		A1EA60008FA6418BC98262CD /* IqlySurfaces */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2DA9DB3FB6E1A0EA632D84A1 /* Build configuration list for PBXNativeTarget "IqlySurfaces" */;
+			buildPhases = (
+				4E49DA2FF3896C7CE110BB76 /* Sources */,
+				306052243CF1E2B420BB7FA2 /* Frameworks */,
+				91E630FFC208D02F4E636D50 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = IqlySurfaces;
+			productName = IqlySurfaces;
+			productReference = 21AA8CAEB023869404DEBB48 /* IqlySurfaces.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -227,7 +371,7 @@
 			);
 			mainGroup = 97C146E51CF9000F007C117D;
 			packageReferences = (
-				781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage" */,
+				781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "FlutterGeneratedPluginSwiftPackage" */,
 			);
 			productRefGroup = 97C146EF1CF9000F007C117D /* Products */;
 			projectDirPath = "";
@@ -235,6 +379,7 @@
 			targets = (
 				97C146ED1CF9000F007C117D /* Runner */,
 				331C8080294A63A400263BE5 /* RunnerTests */,
+				A1EA60008FA6418BC98262CD /* IqlySurfaces */,
 			);
 		};
 /* End PBXProject section */
@@ -244,6 +389,17 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		91E630FFC208D02F4E636D50 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				87978E4C23C25798E491F0AC /* Assets.xcassets in Resources */,
+				03D6363FDF0F98DFC4123FED /* PlusJakartaSans-Regular.ttf in Resources */,
+				EFAD5D91C96DD97898D71F25 /* PlusJakartaSans-SemiBold.ttf in Resources */,
+				F8AA9568B34B2DA013DB4187 /* BricolageGrotesque-30pt.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -309,6 +465,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		4E49DA2FF3896C7CE110BB76 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A234526297BF20024B35742C /* ClosingSoonWidget.swift in Sources */,
+				BB054D81A8B974605258536B /* IqColors.swift in Sources */,
+				776CDC0D2B98DB08DB28D67F /* IqlySurfacesBundle.swift in Sources */,
+				A67B47EAFCCB019ADA7CD511 /* PayoutLiveActivity.swift in Sources */,
+				C8E72888EA87E75A5BB5724D /* PollsWidget.swift in Sources */,
+				E8C2E55BE301EBF9004141F1 /* WidgetTimelineStore.swift in Sources */,
+				13ED6505627906FF35B8AA96 /* SurfaceShared.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		97C146EA1CF9000F007C117D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -316,12 +486,20 @@
 				74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
+				A1C25CF56A8D15162A88A34E /* SurfacesChannel.swift in Sources */,
+				6C46083ECC43B974AE370D28 /* SurfaceShared.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		29E0BF1DC71181DD2F8C7AE2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = IqlySurfaces;
+			target = A1EA60008FA6418BC98262CD /* IqlySurfaces */;
+			targetProxy = 0929388ADB03140F9E05A9C2 /* PBXContainerItemProxy */;
+		};
 		331C8086294A63A400263BE5 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 97C146ED1CF9000F007C117D /* Runner */;
@@ -349,6 +527,33 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
+		01C208945897C772F22C0908 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 7AFA3C8E1D35360C0083082E /* Release.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = "";
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = IqlySurfaces/IqlySurfaces.entitlements;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = IqlySurfaces/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = net.iqly.app.IqlySurfaces;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 		249021D3217E4FDB00AE95B9 /* Profile */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -408,6 +613,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
@@ -469,6 +675,32 @@
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Runner.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Runner";
 			};
 			name = Profile;
+		};
+		5DBEDC00CB59709A33DA328E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 9740EEB21CF90195004384FC /* Debug.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = "";
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = IqlySurfaces/IqlySurfaces.entitlements;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = IqlySurfaces/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = net.iqly.app.IqlySurfaces;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
 		};
 		97C147031CF9000F007C117D /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -589,6 +821,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
@@ -611,6 +844,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
@@ -626,9 +860,46 @@
 			};
 			name = Release;
 		};
+		DBC15E2765D115935C351DCA /* Profile */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 7AFA3C8E1D35360C0083082E /* Release.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = "";
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = IqlySurfaces/IqlySurfaces.entitlements;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = IqlySurfaces/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = net.iqly.app.IqlySurfaces;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Profile;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		2DA9DB3FB6E1A0EA632D84A1 /* Build configuration list for PBXNativeTarget "IqlySurfaces" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				01C208945897C772F22C0908 /* Release */,
+				5DBEDC00CB59709A33DA328E /* Debug */,
+				DBC15E2765D115935C351DCA /* Profile */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		331C8087294A63A400263BE5 /* Build configuration list for PBXNativeTarget "RunnerTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -662,7 +933,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage" */ = {
+		781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "FlutterGeneratedPluginSwiftPackage" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage;
 		};

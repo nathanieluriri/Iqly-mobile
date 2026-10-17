@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import UIKit
 
 // Decodes WidgetTimeline.toJson from lib/surfaces/widget_snapshot.dart.
@@ -27,6 +28,8 @@ struct BriefRow: Decodable, Identifiable {
   let meta: String
   let thumb: String
   let link: String
+  let closesAt: Double?
+  let live: String?
 }
 
 struct PollsSection: Decodable {
@@ -34,6 +37,33 @@ struct PollsSection: Decodable {
   let label: String
   let line: String?
   let link: String
+  let closesAt: Double?
+  let live: String?
+}
+
+// Briefs within a day of their close count down live (Figma 1340:28610):
+// the live text with the time ticking where "%s" stands. A closed brief
+// keeps nothing to count.
+enum LiveCountdown {
+  static func closes(_ closesAt: Double?) -> Date? {
+    closesAt.map { Date(timeIntervalSince1970: $0 / 1000) }
+  }
+
+  static func isOpen(_ closesAt: Double?, at now: Date = Date()) -> Bool {
+    guard let end = closes(closesAt) else { return true }
+    return end > now
+  }
+
+  static func text(_ live: String?, closesAt: Double?, fallback: String) -> Text {
+    let now = Date()
+    guard let live, live.contains("%s"), let end = closes(closesAt), end > now else {
+      return Text(fallback)
+    }
+    let parts = live.components(separatedBy: "%s")
+    let before = parts[0].replacingOccurrences(of: "%%", with: "%")
+    let after = parts.dropFirst().joined(separator: "%s").replacingOccurrences(of: "%%", with: "%")
+    return Text(before) + Text(timerInterval: now...end, countsDown: true) + Text(after)
+  }
 }
 
 enum WidgetTimelineStore {

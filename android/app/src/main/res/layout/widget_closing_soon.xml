@@ -47,6 +47,15 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
                 android:maxLines="1" />
+
+            <Chronometer
+                android:id="@+id/row_1_live"
+                style="@style/IqWidgetText.Meta"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:maxLines="1"
+                android:visibility="gone" />
         </LinearLayout>
     </LinearLayout>
 
@@ -88,6 +97,15 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
                 android:maxLines="1" />
+
+            <Chronometer
+                android:id="@+id/row_2_live"
+                style="@style/IqWidgetText.Meta"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:maxLines="1"
+                android:visibility="gone" />
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>

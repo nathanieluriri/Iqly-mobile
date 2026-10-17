@@ -24,11 +24,12 @@ struct PollsView: View {
         .font(IqWidgetFont.figure)
         .tracking(-0.75)
         .foregroundColor(IqColors.fg)
+        .modifier(NumberRoll(value: Double(section?.count ?? "") ?? 0))
       Text(section?.label ?? "polls open")
         .font(IqWidgetFont.strong)
         .foregroundColor(IqColors.fg)
-      if let line = section?.line {
-        Text(line)
+      if let section, let line = section.line, LiveCountdown.isOpen(section.closesAt) {
+        LiveCountdown.text(section.live, closesAt: section.closesAt, fallback: line)
           .font(IqWidgetFont.meta)
           .foregroundColor(IqColors.fg2)
           .lineLimit(1)
@@ -37,5 +38,18 @@ struct PollsView: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .widgetURL(section.flatMap { URL(string: $0.link) })
     .iqWidgetBackground()
+  }
+}
+
+// The count rolls to its new number when the timeline moves on (iOS 17).
+struct NumberRoll: ViewModifier {
+  let value: Double
+
+  func body(content: Content) -> some View {
+    if #available(iOSApplicationExtension 17.0, *) {
+      content.contentTransition(.numericText(value: value))
+    } else {
+      content
+    }
   }
 }

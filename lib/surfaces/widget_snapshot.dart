@@ -13,6 +13,8 @@ class WidgetBriefRow {
     required this.meta,
     required this.thumb,
     required this.route,
+    this.closesAt,
+    this.live,
   });
 
   final String id;
@@ -23,12 +25,20 @@ class WidgetBriefRow {
   final String thumb;
   final String route;
 
+  /// When the brief closes, for a row that counts down live (1340:28510).
+  final DateTime? closesAt;
+
+  /// [meta] with `%s` where the live countdown goes.
+  final String? live;
+
   Map<String, Object> toJson() => {
     'id': id,
     'title': title,
     'meta': meta,
     'thumb': thumb,
     'link': DeepLinks.uri(route).toString(),
+    'closesAt': ?closesAt?.millisecondsSinceEpoch,
+    'live': ?live,
   };
 }
 
@@ -42,6 +52,8 @@ class WidgetSnapshot {
     required this.pollsLine,
     required this.pollsRoute,
     required this.closingRoute,
+    this.pollsClosesAt,
+    this.pollsLive,
   });
 
   final List<WidgetBriefRow> closingSoon;
@@ -51,7 +63,17 @@ class WidgetSnapshot {
   final String pollsRoute;
   final String closingRoute;
 
+  /// The live version of [pollsLine], counting down to [pollsClosesAt].
+  final DateTime? pollsClosesAt;
+  final String? pollsLive;
+
+  /// Rows the Medium widget shows at once; Android turns to the next
+  /// [medium] every few seconds, up to [pages] of them (1340:28717).
   static const medium = 2;
+  static const pages = 2;
+
+  /// A brief closer than this to its close counts down live.
+  static const liveWithin = Duration(hours: 24);
 
   static WidgetSnapshot of({
     required List<Brief> briefs,
@@ -66,8 +88,9 @@ class WidgetSnapshot {
           left > Duration.zero &&
           left <= DeadlineRules.closingSoon;
     }).toList()..sort((a, b) => a.deadline!.compareTo(b.deadline!));
+    bool live(Brief b) => timeLeft(b.deadline, now)! < liveWithin;
     final rows = [
-      for (final b in closing.take(medium))
+      for (final b in closing.take(medium * pages))
         WidgetBriefRow(
           id: b.id,
           title: b.title,
@@ -77,12 +100,23 @@ class WidgetSnapshot {
           ),
           thumb: thumbName(brandOfBrief(b).slug),
           route: DeepLinks.brief(b.id),
+          closesAt: live(b) ? b.deadline : null,
+          live: live(b)
+              ? SurfaceCopy.briefMeta(
+                  '%s left',
+                  _literal(rewardPool(b.rewardPoolKobo)),
+                )
+              : null,
         ),
     ];
     final open = showPolls
         ? polls.fold<int>(0, (sum, p) => sum + p.unanswered)
         : 0;
     final first = closing.isEmpty ? null : closing.first;
+    final firstName = first == null
+        ? null
+        : first.businessName ?? brandOfBrief(first).label;
+    final firstLive = first != null && live(first);
     return WidgetSnapshot(
       closingSoon: rows,
       pollsOpen: open,
@@ -92,11 +126,15 @@ class WidgetSnapshot {
       pollsLine: first == null
           ? null
           : SurfaceCopy.closesIn(
-              first.businessName ?? brandOfBrief(first).label,
+              firstName!,
               leftShort(timeLeft(first.deadline, now)!),
             ),
       pollsRoute: DeepLinks.polls,
       closingRoute: DeepLinks.home,
+      pollsClosesAt: firstLive ? first.deadline : null,
+      pollsLive: firstLive
+          ? SurfaceCopy.closesIn(_literal(firstName!), '%s')
+          : null,
     );
   }
 
@@ -111,6 +149,8 @@ class WidgetSnapshot {
       'label': pollsLabel,
       'line': ?pollsLine,
       'link': DeepLinks.uri(pollsRoute).toString(),
+      'closesAt': ?pollsClosesAt?.millisecondsSinceEpoch,
+      'live': ?pollsLive,
     },
   };
 
@@ -118,6 +158,10 @@ class WidgetSnapshot {
 }
 
 String thumbName(String slug) => 'thumb_$slug.png';
+
+/// [text] inside a live format, where a bare `%` would read as a
+/// placeholder.
+String _literal(String text) => text.replaceAll('%', '%%');
 
 /// Hourly snapshots from [now], so "6h left" keeps counting down and a
 /// closed brief drops off while the app is not running. The native side
