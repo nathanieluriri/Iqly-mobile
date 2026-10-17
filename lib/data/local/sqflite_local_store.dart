@@ -241,6 +241,17 @@ class SqfliteLocalStore implements LocalStore {
           ),
         );
       }
+      if (coalesceKey != null) {
+        await txn.update(
+          LocalRows.outbox,
+          {
+            'last_error_code': outboxSupersededCode,
+            'updated_at': LocalRows.time(now),
+          },
+          where: 'user_id = ? AND coalesce_key = ? AND status = ?',
+          whereArgs: [userId, coalesceKey, _failed],
+        );
+      }
       for (final file in files) {
         await txn.insert(LocalRows.outboxFiles, LocalRows.fileRow(id, file));
       }

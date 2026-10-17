@@ -125,6 +125,9 @@ abstract final class OutboxCodes {
 
   /// The item this one depends on was discarded.
   static const discarded = 'DEPENDENCY_DISCARDED';
+
+  /// A newer write with the item's coalesce key was queued after it failed.
+  static const superseded = outboxSupersededCode;
 }
 
 /// How an API answer lands in the outbox. No answer, a timeout, 5xx and 429
@@ -301,14 +304,18 @@ class Outbox {
   /// Puts a failed item back in line, due now, with its run of failures
   /// ended, and with it the failed items it depends on, which go first.
   /// Answers whether it went back: an item that is not failed stays as it
-  /// is, and so does one whose dependency was discarded.
+  /// is, and so does one whose dependency was discarded or that a newer
+  /// write with its key superseded, or that depends on such an item.
   Future<bool> retry(String id) async {
     final chain = <OutboxItem>[];
     final seen = <String>{};
     for (String? next = id; next != null && seen.add(next);) {
       final item = await _store.outboxItem(next);
       if (item == null || item.status != OutboxStatus.failed) break;
-      if (item.lastErrorCode == OutboxCodes.discarded) return false;
+      if (item.lastErrorCode
+          case OutboxCodes.discarded || OutboxCodes.superseded) {
+        return false;
+      }
       chain.add(item);
       next = item.dependsOn;
     }

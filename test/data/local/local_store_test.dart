@@ -728,6 +728,102 @@ Future<void> main() async {
           expect(await labels('u1'), ['waiting', 'behind', 'other']);
         });
 
+        test('a newer write with a key supersedes the person\'s failed '
+            'items with it, keeping their files', () async {
+          Future<OutboxItem> failed(
+            String user,
+            String label, {
+            String? key,
+            List<OutboxFile> files = const [],
+          }) async {
+            final queued = await store.enqueue(
+              user,
+              kind: 'prefs',
+              payload: {'label': label},
+              coalesceKey: key,
+              files: files,
+            );
+            await store.markSending(queued.id);
+            await store.markFailed(
+              queued.id,
+              code: 'VALIDATION_ERROR',
+              message: 'Polls are off',
+            );
+            return queued;
+          }
+
+          final refused = await failed('u1', 'refused', key: 'prefs');
+          final withFile = await failed(
+            'u1',
+            'with file',
+            key: 'prefs',
+            files: const [_photo],
+          );
+          final keyless = await failed('u1', 'keyless');
+          final otherKey = await failed('u1', 'other key', key: 'profile');
+          final theirs = await failed('u2', 'theirs', key: 'prefs');
+          final done = await store.enqueue(
+            'u1',
+            kind: 'prefs',
+            payload: {'label': 'done'},
+            coalesceKey: 'prefs',
+          );
+          await store.markSending(done.id);
+          await store.markDone(done.id);
+          clock.advance(const Duration(minutes: 1));
+
+          await store.enqueue(
+            'u1',
+            kind: 'prefs',
+            payload: {'label': 'newer'},
+            coalesceKey: 'prefs',
+          );
+          await store.enqueue('u1', kind: 'prefs', payload: {'label': 'x'});
+          for (final old in [refused, withFile]) {
+            final superseded = await item(old.id);
+            expect(superseded.status, OutboxStatus.failed);
+            expect(superseded.lastErrorCode, outboxSupersededCode);
+            expect(superseded.lastErrorMessage, 'Polls are off');
+            expect(superseded.updatedAt, clock.now);
+          }
+          expect(
+            (await item(withFile.id)).files.single.localPath,
+            _photo.localPath,
+          );
+          expect(deleted.paths, isEmpty);
+          for (final kept in [keyless, otherKey, theirs]) {
+            expect((await item(kept.id)).lastErrorCode, 'VALIDATION_ERROR');
+          }
+          expect((await item(done.id)).status, OutboxStatus.done);
+          expect(outboxSupersededCode, 'SUPERSEDED');
+        });
+
+        test('a write folding into a waiting item supersedes the failed ones '
+            'with its key too', () async {
+          final waiting = await store.enqueue(
+            'u1',
+            kind: 'prefs',
+            payload: {'label': 'waiting'},
+            coalesceKey: 'prefs',
+          );
+          final refused = await store.enqueue(
+            'u1',
+            kind: 'prefs',
+            payload: {'label': 'refused'},
+            coalesceKey: 'prefs',
+            dependsOn: 'bank',
+          );
+          await store.markFailed(refused.id, code: 'VALIDATION_ERROR');
+          final folded = await store.enqueue(
+            'u1',
+            kind: 'prefs',
+            payload: {'label': 'newer'},
+            coalesceKey: 'prefs',
+          );
+          expect(folded.id, waiting.id);
+          expect((await item(refused.id)).lastErrorCode, outboxSupersededCode);
+        });
+
         test('discard leaves an item on its way or done', () async {
           final sending = await store.enqueue('u1', kind: 'note', payload: {});
           await store.markSending(sending.id);

@@ -820,6 +820,121 @@ Future<void> main() async {
         });
       });
 
+      group('a newer write with the key of a failed item', () {
+        Future<OutboxItem> prefs(String label, {String user = 'u1'}) =>
+            outbox.enqueue(
+              user,
+              kind: 'prefs',
+              payload: {'label': label},
+              coalesceKey: 'prefs',
+            );
+
+        setUp(() {
+          answer('prefs', [
+            outboxResultFor(status: 422, code: 'VALIDATION_ERROR'),
+            const OutboxResult.done(),
+          ]);
+        });
+
+        test('supersedes it once it lands, even after its done row is '
+            'purged', () async {
+          await outbox.start('u1');
+          final older = await prefs('old');
+          await pumpEventQueue();
+          expect((await stored(older)).status, OutboxStatus.failed);
+          final newer = await prefs('new');
+          await pumpEventQueue();
+          expect(sent, ['old', 'new']);
+          expect((await stored(newer)).status, OutboxStatus.done);
+          expect((await stored(older)).lastErrorCode, OutboxCodes.superseded);
+
+          expect(await outbox.retry(older.id), isFalse);
+          await outbox.kick();
+          expect(sent, ['old', 'new']);
+
+          await outbox.stop();
+          clock.advance(Outbox.keepDone + const Duration(hours: 1));
+          final relaunched = Outbox(
+            store,
+            clock: clock.call,
+            random: Random(9),
+          );
+          addTearDown(relaunched.dispose);
+          relaunched.register('prefs', (item) async {
+            sent.add(item.payload['label'] as String);
+            return const OutboxResult.done();
+          });
+          await relaunched.start('u1');
+          expect(await store.outboxItem(newer.id), isNull);
+          expect(await relaunched.retry(older.id), isFalse);
+          await relaunched.kick();
+          expect(sent, ['old', 'new']);
+          final kept = await stored(older);
+          expect(kept.status, OutboxStatus.failed);
+          expect(relaunched.state.failed.single.id, older.id);
+        });
+
+        test('supersedes it while the newer write still waits', () async {
+          await outbox.start('u1');
+          final older = await prefs('old');
+          await pumpEventQueue();
+          await outbox.stop();
+          final newer = await prefs('new');
+          expect((await stored(newer)).status, OutboxStatus.pending);
+          expect(await outbox.retry(older.id), isFalse);
+
+          await outbox.start('u1');
+          expect(sent, ['old', 'new']);
+          expect((await stored(older)).status, OutboxStatus.failed);
+        });
+
+        test('leaves it to try again when the write has another key, or is '
+            'another person\'s', () async {
+          await outbox.start('u1');
+          final older = await prefs('old');
+          await pumpEventQueue();
+          await outbox.stop();
+          await outbox.enqueue(
+            'u1',
+            kind: 'prefs',
+            payload: {'label': 'other key'},
+            coalesceKey: 'profile',
+          );
+          await prefs('theirs', user: 'u2');
+          await outbox.enqueue('u1', kind: 'prefs', payload: {'label': 'none'});
+          expect((await stored(older)).lastErrorCode, 'VALIDATION_ERROR');
+
+          await outbox.start('u1');
+          expect(await outbox.retry(older.id), isTrue);
+          await outbox.kick();
+          expect(sent, ['old', 'other key', 'none', 'old']);
+          expect((await stored(older)).status, OutboxStatus.done);
+        });
+
+        test('leaves what depends on it unable to try again', () async {
+          answer('note', [const OutboxResult.done()]);
+          await outbox.start('u1');
+          final older = await prefs('old');
+          final dependant = await outbox.enqueue(
+            'u1',
+            kind: 'note',
+            payload: {'label': 'after'},
+            dependsOn: older.id,
+          );
+          await pumpEventQueue();
+          expect((await stored(dependant)).lastErrorCode, 'VALIDATION_ERROR');
+          await prefs('new');
+          await pumpEventQueue();
+
+          expect(await outbox.retry(dependant.id), isFalse);
+          expect(await outbox.retry(older.id), isFalse);
+          await outbox.kick();
+          expect(sent, ['old', 'new']);
+          expect((await stored(dependant)).status, OutboxStatus.failed);
+          expect((await stored(older)).status, OutboxStatus.failed);
+        });
+      });
+
       group('a store that fails to record an answer', () {
         late GatedStore gated;
         late Outbox runner;
