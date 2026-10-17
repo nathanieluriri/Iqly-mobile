@@ -352,18 +352,18 @@ void main() {
         expect(result.failure, SubmitFailure.blocked, reason: key);
         expect(result.block, value, reason: key);
       }
-      for (final (status, code) in [
-        (403, 'UNDER_AGE'),
-        (403, 'ACCOUNT_CLOSING'),
-        (415, 'FILE_TYPE_NOT_ALLOWED'),
-        (413, 'FILE_TOO_LARGE'),
-        (400, 'SUBMISSION_SURVEY_INVALID'),
-        (422, 'VALIDATION_ERROR'),
-        (429, 'RATE_LIMITED'),
-        (500, 'INTERNAL'),
+      for (final (status, code, failure) in [
+        (403, 'UNDER_AGE', SubmitFailure.underAge),
+        (403, 'ACCOUNT_CLOSING', SubmitFailure.closing),
+        (415, 'FILE_TYPE_NOT_ALLOWED', SubmitFailure.unknown),
+        (413, 'FILE_TOO_LARGE', SubmitFailure.unknown),
+        (400, 'SUBMISSION_SURVEY_INVALID', SubmitFailure.unknown),
+        (422, 'VALIDATION_ERROR', SubmitFailure.unknown),
+        (429, 'RATE_LIMITED', SubmitFailure.unknown),
+        (500, 'INTERNAL', SubmitFailure.unknown),
       ]) {
         final result = await answering(refused(status, code));
-        expect(result.failure, SubmitFailure.unknown, reason: code);
+        expect(result.failure, failure, reason: code);
         expect(result.block, isNull, reason: code);
       }
       api.offline = true;
@@ -443,30 +443,36 @@ void main() {
       expect(progress, [1]);
     });
 
-    test('preview, or submit on preview: the demo, any file', () async {
-      for (final overrides in [
-        <Override>[],
+    test('preview: the demo, any file', () async {
+      final c = await container([]);
+      final demo = c.read(submitServiceProvider) as DemoSubmitService;
+      expect(
+        demo.data,
+        same((c.read(repositoryProvider) as DemoRepository).data),
+      );
+      final picker = c.read(attachmentPickerProvider) as DeviceAttachmentPicker;
+      expect(picker.extensions, isNull);
+      expect(c.read(attachmentUploaderProvider), isA<DemoAttachmentUploader>());
+    });
+
+    test('a live launch that pauses submit: no brief opens, no send goes, '
+        'nothing reaches the sample data', () async {
+      final c = await container(
         liveOverrides(api.api(), mode: Backend.of({LiveFeature.briefs})),
-      ]) {
-        final c = await container(overrides);
-        final demo = c.read(submitServiceProvider) as DemoSubmitService;
-        final repo = c.read(repositoryProvider);
-        expect(
-          demo.data,
-          same(
-            repo is DemoRepository
-                ? repo.data
-                : c.read(demoRepositoryProvider).data,
-          ),
-        );
-        final picker =
-            c.read(attachmentPickerProvider) as DeviceAttachmentPicker;
-        expect(picker.extensions, isNull);
-        expect(
-          c.read(attachmentUploaderProvider),
-          isA<DemoAttachmentUploader>(),
-        );
-      }
+      );
+      final paused = c.read(submitServiceProvider);
+      expect(paused, isA<PausedSubmitService>());
+      final demo = c.read(demoRepositoryProvider).data;
+      final before = demo.submissions.length;
+      final open = demo.briefs.firstWhere((b) => b.isLive).id;
+      await expectLater(paused.open(open), throwsA(isA<FeaturePaused>()));
+      final sent = await paused.submit(
+        SubmitRequest(briefId: open, title: 'Sunday', answer: 'Data.'),
+      );
+      expect(sent.failure, SubmitFailure.unknown);
+      expect(demo.submissions, hasLength(before));
+      expect(api.requests, isEmpty);
+      expect(c.read(attachmentUploaderProvider), isA<LiveAttachmentUploader>());
     });
   });
 }

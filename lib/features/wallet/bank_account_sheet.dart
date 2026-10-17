@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/backend.dart';
 import '../../core/money.dart';
 import '../../data/live/live_repository.dart';
 import '../../data/models.dart';
@@ -82,7 +81,7 @@ class _BankAccountSheetState extends ConsumerState<BankAccountSheet> {
         ? widget.picking!.accountNumber
         : _picked ?? data?.savedBank?.accountNumber;
     final pending = data?.totals.pendingWithdrawalsKobo ?? 0;
-    final live = ref.watch(liveModeProvider).isLive(LiveFeature.wallet);
+    final live = !ref.watch(liveModeProvider).isPreview;
     final pendingTo = live
         ? data?.withdrawals.where((w) => w.onHold).firstOrNull?.destination
         : data?.savedBank?.label;

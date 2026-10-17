@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show listEquals;
 
+import '../../core/backend.dart';
 import '../api_client.dart';
 import '../onboarding_service.dart';
 import '../profile_service.dart';
@@ -124,15 +125,13 @@ Map<String, Object?> preferencesJson(Map<NotificationTopic, bool> switches) => {
 /// and show at once, the server copy with the edits still to go laid over
 /// it. Close and restore are online only.
 class LiveProfileService implements ProfileService {
-  LiveProfileService(this.link, {this.account, ProfileService? preview})
-    : _preview = preview ?? DemoProfileService();
+  LiveProfileService(this.link, {this.account});
 
   final AccountLink link;
 
-  /// Null while `account` is not live this launch; close and restore then
-  /// stay on the preview.
+  /// Null while this launch pauses `account`: close and restore then refuse
+  /// with [FeaturePaused] before anything is sent.
   final LiveAccount? account;
-  final ProfileService _preview;
   Map<NotificationTopic, bool>? _preferences;
 
   /// A new account has no profile yet, so no details.
@@ -200,9 +199,12 @@ class LiveProfileService implements ProfileService {
   }
 
   @override
-  Future<void> deleteAccount() => account?.close() ?? _preview.deleteAccount();
+  Future<void> deleteAccount() =>
+      account?.close() ??
+      Future.error(const FeaturePaused(LiveFeature.account));
 
   @override
   Future<void> restoreAccount() =>
-      account?.restore() ?? _preview.restoreAccount();
+      account?.restore() ??
+      Future.error(const FeaturePaused(LiveFeature.account));
 }

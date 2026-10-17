@@ -36,7 +36,17 @@ class SubmitOpening {
   final String? submissionId;
 }
 
-enum SubmitFailure { blocked, offline, unknown }
+enum SubmitFailure {
+  blocked,
+  offline,
+  unknown,
+
+  /// The profile's date of birth is under 18 (403 UNDER_AGE).
+  underAge,
+
+  /// The account is closing, so it takes no writes (403 ACCOUNT_CLOSING).
+  closing,
+}
 
 class SubmitResult {
   const SubmitResult.sent(SubmitReceipt this.receipt)
@@ -253,14 +263,29 @@ class DemoAttachmentUploader implements AttachmentUploader {
   }
 }
 
-/// The API when submit is live. The demo writes into the same dataset the
-/// repository reads, which in a live launch is the one the live repository
-/// answers its preview features from.
+/// Submit in a live launch that pauses it: a brief does not open and a
+/// send fails, before anything is sent or written into the sample data.
+class PausedSubmitService implements SubmitService {
+  const PausedSubmitService();
+
+  @override
+  Future<SubmitOpening> open(String briefId) =>
+      Future.error(const FeaturePaused(LiveFeature.submit));
+
+  @override
+  Future<SubmitResult> submit(SubmitRequest request) async =>
+      const SubmitResult.failure(SubmitFailure.unknown);
+}
+
+/// The API when submit is live, and a refusal while a live launch pauses
+/// it. The demo writes into the dataset the preview's repository reads.
 final submitServiceProvider = Provider<SubmitService>((ref) {
   final api = ref.watch(apiClientProvider);
-  if (api != null && ref.watch(liveModeProvider).isLive(LiveFeature.submit)) {
+  final mode = ref.watch(liveModeProvider);
+  if (api != null && mode.isLive(LiveFeature.submit)) {
     return LiveSubmitService(api, clock: ref.watch(clockProvider));
   }
+  if (!mode.isPreview) return const PausedSubmitService();
   final repository = ref.watch(repositoryProvider);
   return DemoSubmitService(
     repository is DemoRepository
@@ -272,13 +297,14 @@ final submitServiceProvider = Provider<SubmitService>((ref) {
 
 /// A live send takes images and PDFs only: the API refuses anything else.
 final attachmentPickerProvider = Provider<AttachmentPicker>(
-  (ref) => ref.watch(liveModeProvider).isLive(LiveFeature.submit)
-      ? DeviceAttachmentPicker(extensions: LiveSubmitService.fileExtensions)
-      : DeviceAttachmentPicker(),
+  (ref) => ref.watch(liveModeProvider).isPreview
+      ? DeviceAttachmentPicker()
+      : DeviceAttachmentPicker(extensions: LiveSubmitService.fileExtensions),
 );
 
+/// A live launch never runs the demo's upload.
 final attachmentUploaderProvider = Provider<AttachmentUploader>(
-  (ref) => ref.watch(liveModeProvider).isLive(LiveFeature.submit)
-      ? const LiveAttachmentUploader()
-      : DemoAttachmentUploader(),
+  (ref) => ref.watch(liveModeProvider).isPreview
+      ? DemoAttachmentUploader()
+      : const LiveAttachmentUploader(),
 );

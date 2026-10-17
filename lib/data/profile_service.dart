@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/backend.dart';
 import 'live/live_account.dart';
 import 'live/live_profile_service.dart';
+import 'live/live_repository.dart';
 import 'onboarding_service.dart';
 
 /// The profile fields first run does not ask: the phone number from sign-up,
@@ -176,11 +177,45 @@ class DemoProfileService implements ProfileService {
   }
 }
 
-/// The API while the profile runs live this launch, with close and restore
-/// on it while the account does too; the demo otherwise.
+/// The profile a live launch pauses: every read fails and every write
+/// refuses, before anything is sent and without the demo's sample details.
+class PausedProfileService implements ProfileService {
+  const PausedProfileService();
+
+  static Future<Never> _paused() =>
+      Future.error(const FeaturePaused(LiveFeature.profile));
+
+  @override
+  Future<AccountDetails> accountDetails() => _paused();
+
+  @override
+  Future<void> saveDetails(
+    AccountDetails details,
+    OnboardingProfile answers, {
+    AccountDetails? before,
+    OnboardingProfile? answersBefore,
+  }) => _paused();
+
+  @override
+  Future<Map<NotificationTopic, bool>> notificationPreferences() => _paused();
+
+  @override
+  Future<void> setNotificationPreference(NotificationTopic topic, bool on) =>
+      _paused();
+
+  @override
+  Future<void> deleteAccount() => _paused();
+
+  @override
+  Future<void> restoreAccount() => _paused();
+}
+
+/// The demo in a preview launch. In a live one the API, with close and
+/// restore on it while the account runs live too; a paused profile refuses.
 final profileServiceProvider = Provider<ProfileService>((ref) {
+  if (ref.watch(liveModeProvider).isPreview) return DemoProfileService();
   final link = ref.watch(liveLinkProvider(LiveFeature.profile));
-  if (link == null) return DemoProfileService();
+  if (link == null) return const PausedProfileService();
   final account = ref.watch(liveLinkProvider(LiveFeature.account));
   return LiveProfileService(
     link,

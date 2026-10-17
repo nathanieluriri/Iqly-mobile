@@ -8,18 +8,16 @@ import 'mappers.dart';
 
 /// Bank checks, the payout account and withdrawals on the iQLY API
 /// (contract 6). Every call goes online and none is queued. Withdrawals run
-/// here only while that feature is live too; otherwise [demo] takes them,
-/// as it takes the PIN, which the API does not have.
+/// here only while that feature is live too; paused, they refuse before
+/// anything is sent. The API has no PIN, so none is asked.
 class LiveWalletService implements WalletService {
   LiveWalletService(
     this.api, {
-    required this.demo,
     this.withdrawals = true,
     this.pollEvery = const Duration(seconds: 5),
   });
 
   final ApiClient api;
-  final WalletService demo;
 
   /// Whether withdrawals run on the API.
   final bool withdrawals;
@@ -27,9 +25,10 @@ class LiveWalletService implements WalletService {
   /// How often a withdrawal on hold is asked after while it is watched.
   final Duration pollEvery;
 
-  /// The withdrawal still waiting for an answer, and the key its retries
-  /// carry.
-  ({int amountKobo, String account, String key})? _attempt;
+  /// The withdrawal whose answer never came: the API may hold it, so the
+  /// next request sends it again, with its own key and amount, before
+  /// anything new goes.
+  ({int amountKobo, String key})? _unsettled;
 
   @override
   Future<VerifyResult> verifyAccount({
@@ -75,43 +74,73 @@ class LiveWalletService implements WalletService {
   @override
   Future<void> setDefault(SavedBank account) async {}
 
-  /// A refusal (balance too low, profile incomplete, under 18, below the
-  /// minimum, too many tries) reads as unknown, which the sheet words as
-  /// "Couldn't send. Nothing was sent."
+  /// The API pays the saved account, so only the amount goes. An unsettled
+  /// request goes again first, whatever is asked now: the withdrawal it
+  /// made is the answer, and only a definite refusal lets the new one go,
+  /// under a new key. No date of birth, under 18 and a closing account keep
+  /// their reason; any other refusal reads as unknown, which the sheet
+  /// words as "Couldn't send. Nothing was sent."
   @override
   Future<WithdrawResult> withdraw({
     required int amountKobo,
     required SavedBank account,
   }) async {
     if (!withdrawals) {
-      return demo.withdraw(amountKobo: amountKobo, account: account);
+      return const WithdrawResult.failure(WalletFailure.unknown);
     }
-    final to = '${account.bankCode}:${account.accountNumber}';
-    final held = _attempt;
-    final key =
-        held != null && held.amountKobo == amountKobo && held.account == to
-        ? held.key
-        : LocalRows.newId();
-    _attempt = (amountKobo: amountKobo, account: to, key: key);
+    final held = _unsettled;
+    if (held != null) {
+      final again = await _request(held, resent: true);
+      if (again.unsettled) return again;
+      _unsettled = null;
+      if (again.withdrawal case final landed?) {
+        return WithdrawResult.requested(landed, earlier: true);
+      }
+    }
+    final attempt = (amountKobo: amountKobo, key: LocalRows.newId());
+    _unsettled = attempt;
+    final result = await _request(attempt, resent: false);
+    if (!result.unsettled) _unsettled = null;
+    return result;
+  }
+
+  Future<WithdrawResult> _request(
+    ({int amountKobo, String key}) attempt, {
+    required bool resent,
+  }) async {
     final ApiResponse res;
     try {
       res = await api.send(
         'POST',
         '/wallet/withdrawals',
-        body: {'amount': amountKobo},
-        idempotencyKey: key,
+        body: {'amount': attempt.amountKobo},
+        idempotencyKey: attempt.key,
       );
-    } on ApiUnreachable {
-      return const WithdrawResult.failure(WalletFailure.offline);
+    } on ApiUnreachable catch (error) {
+      // A send again that never left says nothing of the first one.
+      return WithdrawResult.failure(
+        WalletFailure.offline,
+        unsettled: resent || !error.nothingSent,
+      );
     }
-    if (!_mayHaveLanded(res.status)) _attempt = null;
     final withdrawal = res.ok ? withdrawalFromJson(res.body['data']) : null;
     if (withdrawal != null) return WithdrawResult.requested(withdrawal);
-    return const WithdrawResult.failure(WalletFailure.unknown);
+    if (res.ok || _mayHaveLanded(res.status)) {
+      return const WithdrawResult.failure(
+        WalletFailure.unknown,
+        unsettled: true,
+      );
+    }
+    return WithdrawResult.failure(switch (res.code) {
+      'PROFILE_INCOMPLETE' => WalletFailure.profileIncomplete,
+      'UNDER_AGE' => WalletFailure.underAge,
+      'ACCOUNT_CLOSING' => WalletFailure.closing,
+      _ => WalletFailure.unknown,
+    });
   }
 
   /// A timeout, a throttle or a server fault says nothing of whether the
-  /// request was stored, so its key stays for the retry.
+  /// request was stored.
   static bool _mayHaveLanded(int status) =>
       status == 408 || status == 429 || status >= 500;
 
@@ -120,7 +149,7 @@ class LiveWalletService implements WalletService {
   /// status, or when the listener goes.
   @override
   Stream<Withdrawal> watch(Withdrawal withdrawal) {
-    if (!withdrawals) return demo.watch(withdrawal);
+    if (!withdrawals) return Stream.value(withdrawal);
     late final StreamController<Withdrawal> changes;
     var current = withdrawal;
     var done = false;
@@ -180,6 +209,7 @@ class LiveWalletService implements WalletService {
       a.completedAt == b.completedAt &&
       a.failureReason == b.failureReason;
 
+  /// A live launch never asks for a PIN.
   @override
-  Future<bool> confirmPin(String pin) => demo.confirmPin(pin);
+  Future<bool> confirmPin(String pin) async => false;
 }

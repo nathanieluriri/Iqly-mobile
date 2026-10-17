@@ -145,9 +145,14 @@ class LiveSubmitService implements SubmitService {
       'SUBMISSION_DUPLICATE' => SubmitBlock.alreadySubmitted,
       _ => null,
     };
-    return block == null
-        ? const SubmitResult.failure(SubmitFailure.unknown)
-        : SubmitResult.failure(SubmitFailure.blocked, block: block);
+    if (block != null) {
+      return SubmitResult.failure(SubmitFailure.blocked, block: block);
+    }
+    return SubmitResult.failure(switch (res.code) {
+      'UNDER_AGE' => SubmitFailure.underAge,
+      'ACCOUNT_CLOSING' => SubmitFailure.closing,
+      _ => SubmitFailure.unknown,
+    });
   }
 
   /// A timeout, a throttle or a server fault says nothing of whether the

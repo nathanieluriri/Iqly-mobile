@@ -13,6 +13,8 @@ import '../local/local_store.dart';
 import '../models.dart';
 import '../points_data.dart';
 import '../repository.dart';
+import 'kept_reads.dart';
+import 'live_account.dart' show Me;
 import 'mappers.dart';
 
 /// What this launch runs on the API: health's decision, in a build that has
@@ -36,6 +38,7 @@ final liveRepositoryProvider = Provider<LiveRepository?>((ref) {
     mode: mode,
     demo: ref.watch(demoRepositoryProvider),
     userId: ref.watch(sessionProvider.select((s) => s.userId)),
+    name: () => ref.read(sessionProvider).name,
     clock: ref.watch(clockProvider),
   );
 });
@@ -51,10 +54,12 @@ abstract final class LiveCacheKeys {
   static const banks = '/banks';
 }
 
-/// Reads the iQLY API for each feature this launch runs live and answers
-/// the rest exactly as [demo] does. Every answer is kept in the local store
-/// under the signed-in person's id and served from there when the API
-/// cannot be reached, so the screens open offline on their last copy.
+/// Reads the iQLY API for each feature this launch runs live. A feature the
+/// launch pauses fails with [FeaturePaused]; [demo] answers only what has no
+/// API yet (iQL points, the points board, activations). Every answer is
+/// kept in the local store under the signed-in person's id and served from
+/// there when the API does not answer ([orKept]), so the screens open on
+/// their last copy.
 class LiveRepository implements IqlyRepository {
   LiveRepository({
     required this.api,
@@ -62,8 +67,10 @@ class LiveRepository implements IqlyRepository {
     required this.mode,
     required this.demo,
     this.userId,
+    String? Function()? name,
     DateTime Function()? clock,
-  }) : _clock = clock ?? DateTime.now;
+  }) : _name = name ?? (() => null),
+       _clock = clock ?? DateTime.now;
 
   final ApiClient api;
   final LocalStore store;
@@ -73,6 +80,7 @@ class LiveRepository implements IqlyRepository {
   /// Keys this person's rows in [store]; without one nothing is kept, and
   /// drafts last only as long as the screens hold them.
   final String? userId;
+  final String? Function() _name;
   final DateTime Function() _clock;
 
   static const briefsPerPage = 60;
@@ -88,11 +96,13 @@ class LiveRepository implements IqlyRepository {
 
   /// Every live brief, all pages. The feed and a refresh ask the API; a
   /// join or the next page answers from what this session loaded last.
-  /// Only a refresh fails when the API cannot be reached: the rest fall
-  /// back to the phone's last copy.
+  /// Only a refresh fails when the API does not answer: the rest fall back
+  /// to the phone's last copy.
   @override
   Future<List<Brief>> briefs({BriefsLoad load = BriefsLoad.any}) {
-    if (!mode.isLive(LiveFeature.briefs)) return demo.briefs(load: load);
+    if (!mode.isLive(LiveFeature.briefs)) {
+      return Future.error(const FeaturePaused(LiveFeature.briefs));
+    }
     final held = _briefs;
     if (held != null &&
         (load == BriefsLoad.any || load == BriefsLoad.nextPage)) {
@@ -133,29 +143,44 @@ class LiveRepository implements IqlyRepository {
     return items;
   }
 
-  /// From the API; offline, from the briefs this phone last loaded. Null
-  /// when neither has it, so brief detail can fall back to a saved copy.
+  /// From the API; when it does not answer, from the briefs this phone
+  /// last loaded. Null when neither has it, so brief detail can fall back
+  /// to a saved copy.
   @override
   Future<Brief?> brief(String id) async {
-    if (!mode.isLive(LiveFeature.briefs)) return demo.brief(id);
-    final ApiResponse res;
+    _requireLive(LiveFeature.briefs);
+    final fetching = api
+        .get('/challenges/${Uri.encodeComponent(id)}')
+        .then((res) => res.status == 404 ? null : briefFromJson(_data(res)));
     try {
-      res = await api.get('/challenges/${Uri.encodeComponent(id)}');
-    } on ApiUnreachable {
-      final known =
-          _briefs ??
-          rowsOf((await _kept(LiveCacheKeys.briefs))?.json, briefFromJson);
-      return known.where((b) => b.id == id).firstOrNull;
+      return await orKept(fetching, _knownBrief(id));
+    } on Object catch (error) {
+      if (unanswered(error)) return null;
+      rethrow;
     }
-    if (res.status == 404) return null;
-    return briefFromJson(_data(res));
+  }
+
+  Future<({Brief? copy})?> _knownBrief(String id) async {
+    final known =
+        _briefs ??
+        rowsOf((await _kept(LiveCacheKeys.briefs))?.json, briefFromJson);
+    final brief = known.where((b) => b.id == id).firstOrNull;
+    return brief == null ? null : (copy: brief);
+  }
+
+  /// The briefs this phone holds now, without asking the API: what this
+  /// session loaded, else the last copy kept.
+  Future<List<Brief>> keptBriefs() async {
+    _requireLive(LiveFeature.briefs);
+    return _briefs ??
+        rowsOf((await _kept(LiveCacheKeys.briefs))?.json, briefFromJson);
   }
 
   /// Every page of the person's submissions, each with its brief and award
   /// as the API embeds them.
   @override
   Future<List<Submission>> submissions() async {
-    if (!mode.isLive(LiveFeature.submissions)) return demo.submissions();
+    _requireLive(LiveFeature.submissions);
     final items = await _read(
       LiveCacheKeys.submissions,
       () => _pages('/submissions/mine'),
@@ -167,7 +192,7 @@ class LiveRepository implements IqlyRepository {
   /// instead of answering the phone's last copy.
   @override
   Future<List<LedgerEntry>> ledger({bool allowCache = true}) async {
-    if (!mode.isLive(LiveFeature.wallet)) return demo.ledger();
+    _requireLive(LiveFeature.wallet);
     final items = await _read(
       LiveCacheKeys.ledger,
       () => _pages('/wallet/transactions'),
@@ -178,7 +203,7 @@ class LiveRepository implements IqlyRepository {
 
   @override
   Future<List<Withdrawal>> withdrawals({bool allowCache = true}) async {
-    if (!mode.isLive(LiveFeature.withdrawals)) return demo.withdrawals();
+    _requireLive(LiveFeature.withdrawals);
     final items = await _read(
       LiveCacheKeys.withdrawals,
       () => _pages('/wallet/withdrawals'),
@@ -190,35 +215,31 @@ class LiveRepository implements IqlyRepository {
   /// The banks change rarely: a day-old copy is answered without asking.
   @override
   Future<List<Bank>> banks() async {
-    if (!mode.isLive(LiveFeature.wallet)) return demo.banks();
+    _requireLive(LiveFeature.wallet);
     final kept = await _kept(LiveCacheKeys.banks);
     if (kept != null &&
         _clock().difference(kept.fetchedAt).abs() < banksKeptFor) {
       return rowsOf(kept.json, bankFromJson);
     }
-    final List<Object?> list;
-    try {
-      final res = await api.get('/banks?currency=NGN');
+    final fetching = api.get('/banks?currency=NGN').then<Object?>((res) async {
       if (!res.ok) throw ApiRefused(res.status, res.code);
-      list = res.list;
-    } on ApiUnreachable {
-      if (kept == null) rethrow;
-      return rowsOf(kept.json, bankFromJson);
-    }
-    await _keep(LiveCacheKeys.banks, list);
+      await _keep(LiveCacheKeys.banks, res.list);
+      return res.list;
+    });
+    final list = await orKept(
+      fetching,
+      Future.value(kept == null ? null : (copy: kept.json)),
+    );
     return rowsOf(list, bankFromJson);
   }
 
   @override
-  Future<SavedBank?> savedBank() async {
-    if (!mode.isLive(LiveFeature.wallet)) return demo.savedBank();
-    return (await savedBanks()).firstOrNull;
-  }
+  Future<SavedBank?> savedBank() async => (await savedBanks()).firstOrNull;
 
   /// The API keeps one payout account, so this is it or nothing.
   @override
   Future<List<SavedBank>> savedBanks({bool allowCache = true}) async {
-    if (!mode.isLive(LiveFeature.wallet)) return demo.savedBanks();
+    _requireLive(LiveFeature.wallet);
     final account = await _read(
       LiveCacheKeys.bankAccount,
       () async => _payload(await api.get('/wallet/bank-account')),
@@ -227,10 +248,9 @@ class LiveRepository implements IqlyRepository {
     return [?savedBankFromJson(account)];
   }
 
-  /// The wallet's figures as the API reports them (`GET /wallet`). Null
-  /// while the wallet is not live: the demo adds them up from its rows.
+  /// The wallet's figures as the API reports them (`GET /wallet`).
   Future<WalletTotals?> walletTotals({bool allowCache = true}) async {
-    if (!mode.isLive(LiveFeature.wallet)) return null;
+    _requireLive(LiveFeature.wallet);
     final wallet = await _read(
       LiveCacheKeys.wallet,
       () async => _payload(await api.get('/wallet')),
@@ -239,18 +259,17 @@ class LiveRepository implements IqlyRepository {
     return walletTotalsFromJson(wallet);
   }
 
-  /// Live drafts stay on this phone, in the store under the person's id, so
-  /// they outlast a restart.
+  /// Drafts never reach the API: in a live launch they stay on this phone,
+  /// in the store under the person's id, so they outlast a restart and the
+  /// preview's samples never show as the person's own.
   @override
   Future<List<Draft>> drafts() async {
-    if (!mode.isLive(LiveFeature.submit)) return demo.drafts();
     final id = userId;
     return id == null ? const [] : store.drafts(id);
   }
 
   @override
   Future<void> saveDraft(Draft draft) async {
-    if (!mode.isLive(LiveFeature.submit)) return demo.saveDraft(draft);
     final id = userId;
     if (id == null) return;
     try {
@@ -262,7 +281,6 @@ class LiveRepository implements IqlyRepository {
 
   @override
   Future<void> discardDrafts(Iterable<String> briefIds) async {
-    if (!mode.isLive(LiveFeature.submit)) return demo.discardDrafts(briefIds);
     final id = userId;
     if (id != null) await store.deleteDrafts(id, briefIds);
   }
@@ -282,11 +300,16 @@ class LiveRepository implements IqlyRepository {
   @override
   Future<void> setCloseReminder(String id, bool on) async {}
 
+  /// Read only while the profile is paused, when nothing but the name the
+  /// session holds is known (`GET /me` answers the rest while it is live).
   @override
-  Future<User> user() => demo.user();
+  Future<User> user() async =>
+      Me(id: '', name: _name() ?? '', email: '').toUser();
 
+  /// The bell counts from the live feed; while notifications are paused
+  /// there is nothing to count.
   @override
-  Future<int> unreadNotifications() => demo.unreadNotifications();
+  Future<int> unreadNotifications() async => 0;
 
   @override
   Future<int> points() => demo.points();
@@ -315,8 +338,8 @@ class LiveRepository implements IqlyRepository {
     return items;
   }
 
-  /// [fetch] from the API, kept for next time; when the API cannot be
-  /// reached, the copy kept last time. Reads of the same answer at the same
+  /// [fetch] from the API, kept for next time; when it does not answer, the
+  /// copy kept last time ([orKept]). Reads of the same answer at the same
   /// time share one fetch.
   Future<Object?> _read(
     String key,
@@ -334,18 +357,21 @@ class LiveRepository implements IqlyRepository {
     String key,
     Future<Object?> Function() fetch, {
     required bool allowCache,
-  }) async {
-    final Object? json;
-    try {
-      json = await fetch();
-    } on ApiUnreachable {
-      if (!allowCache) rethrow;
-      final kept = await _kept(key);
-      if (kept == null) rethrow;
-      return kept.json;
-    }
-    await _keep(key, json);
-    return json;
+  }) {
+    final fetching = fetch().then((json) async {
+      await _keep(key, json);
+      return json;
+    });
+    if (!allowCache) return fetching;
+    return orKept(fetching, _kept(key).then(_copyOf));
+  }
+
+  static ({Object? copy})? _copyOf(CacheEntry? kept) =>
+      kept == null ? null : (copy: kept.json);
+
+  /// A paused feature fails its reads rather than answer the preview data.
+  void _requireLive(LiveFeature feature) {
+    if (!mode.isLive(feature)) throw FeaturePaused(feature);
   }
 
   Future<CacheEntry?> _kept(String key) async {

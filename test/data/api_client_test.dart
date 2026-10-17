@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/foundation.dart';
@@ -447,5 +448,91 @@ void main() {
       client.multipart('/submissions/challenges/c1', fields: {'a': '1'}),
       throwsA(isA<ApiUnreachable>()),
     );
+  });
+
+  group('every transport failure is unreachable', () {
+    Matcher unreachable({required bool nothingSent}) => throwsA(
+      isA<ApiUnreachable>().having(
+        (e) => e.nothingSent,
+        'nothingSent',
+        nothingSent,
+      ),
+    );
+
+    Future<void> failing(Object error, {required bool nothingSent}) async {
+      final client = _client(MockClient((_) async => throw error));
+      await expectLater(
+        client.get('/challenges/browse'),
+        unreachable(nothingSent: nothingSent),
+        reason: '$error',
+      );
+      await expectLater(
+        client.multipart('/submissions/challenges/c1', fields: {'a': '1'}),
+        unreachable(nothingSent: nothingSent),
+        reason: '$error',
+      );
+    }
+
+    test(
+      'TLS: a captive portal, a proxy that intercepts, a wrong clock',
+      () async {
+        await failing(
+          const HandshakeException('WRONG_VERSION_NUMBER'),
+          nothingSent: true,
+        );
+        await failing(
+          const CertificateException('CERTIFICATE_VERIFY_FAILED'),
+          nothingSent: false,
+        );
+        await failing(const TlsException('bad record mac'), nothingSent: false);
+      },
+    );
+
+    test('a lookup or a connection that failed sent nothing', () async {
+      await failing(
+        const SocketException("Failed host lookup: 'api.iqly.net'"),
+        nothingSent: true,
+      );
+      await failing(
+        const SocketException(
+          'Connection failed',
+          osError: OSError('Connection refused', 111),
+        ),
+        nothingSent: true,
+      );
+    });
+
+    test('a connection lost on the way may have sent the request', () async {
+      await failing(
+        const SocketException(
+          'Connection reset by peer',
+          osError: OSError('Connection reset by peer', 104),
+        ),
+        nothingSent: false,
+      );
+      await failing(
+        const HttpException('Connection closed before full header'),
+        nothingSent: false,
+      );
+      await failing(
+        http.ClientException('Connection closed before full header'),
+        nothingSent: false,
+      );
+    });
+
+    test('a timeout may have sent the request', () {
+      fakeAsync((async) {
+        Object? error;
+        _client(MockClient((_) => Completer<http.Response>().future))
+            .get('/me')
+            .catchError((Object e) {
+              error = e;
+              return const ApiResponse(0, {});
+            });
+        async.elapse(const Duration(seconds: 20));
+        expect(error, isA<ApiUnreachable>());
+        expect((error! as ApiUnreachable).nothingSent, isFalse);
+      });
+    });
   });
 }

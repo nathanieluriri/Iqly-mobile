@@ -55,7 +55,7 @@ class AccountClosingScreen extends ConsumerWidget {
 /// The Account closing and Restore layout: the Caller figure, a display
 /// title and a line, centred around the middle of the screen, over a
 /// Primary and a Ghost button. [failed] slides the error banner in at the
-/// top.
+/// top, saying [failedTitle].
 class ClosingLayout extends StatelessWidget {
   const ClosingLayout({
     super.key,
@@ -64,6 +64,7 @@ class ClosingLayout extends StatelessWidget {
     required this.primary,
     required this.ghost,
     this.failed = false,
+    this.failedTitle = failedText,
   });
 
   final String title;
@@ -71,6 +72,7 @@ class ClosingLayout extends StatelessWidget {
   final Widget primary;
   final Widget ghost;
   final bool failed;
+  final String failedTitle;
 
   /// The app's words when an action does not go through.
   static const failedText = 'Couldn’t send. Check your connection.';
@@ -90,7 +92,7 @@ class ClosingLayout extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
                   child: IqBanner(
                     kind: IqBannerKind.error,
-                    title: failedText,
+                    title: failedTitle,
                     showAction: false,
                     visible: failed,
                     margin: const EdgeInsets.only(top: IqSpace.s3),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/backend.dart';
 import 'live/live_account.dart';
 import 'live/live_notifications_service.dart';
+import 'live/live_repository.dart';
 import 'notifications_data.dart';
 import 'repository.dart';
 
@@ -62,9 +63,34 @@ class DemoNotificationsService implements NotificationsService {
   }
 }
 
-/// The API while notifications run live this launch, else the demo feed.
+/// Notifications a live launch pauses: the feed fails, the bell has
+/// nothing to count, and no mark is sent.
+class PausedNotificationsService implements NotificationsService {
+  const PausedNotificationsService();
+
+  static Future<Never> _paused() =>
+      Future.error(const FeaturePaused(LiveFeature.notifications));
+
+  @override
+  Future<List<AppNotification>> notifications() => _paused();
+
+  @override
+  Future<int> unseen() async => 0;
+
+  @override
+  Future<void> markSeen() => _paused();
+
+  @override
+  Future<void> markRead(String id) => _paused();
+}
+
+/// The demo feed in a preview launch; in a live one the API, or nothing
+/// while notifications are paused.
 final notificationsServiceProvider = Provider<NotificationsService>((ref) {
   final link = ref.watch(liveLinkProvider(LiveFeature.notifications));
   if (link != null) return LiveNotificationsService(link);
+  if (!ref.watch(liveModeProvider).isPreview) {
+    return const PausedNotificationsService();
+  }
   return DemoNotificationsService(ref.watch(repositoryProvider));
 });

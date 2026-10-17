@@ -32,22 +32,28 @@ final buildInfoProvider = FutureProvider<BuildInfo>(
 
 /// What the summary card on More and the header of Your profile show: the
 /// name, the iQL points, this month's place on the points board (null when
-/// the board has not ranked them) and the invite code.
+/// the board has not ranked them) and the invite code. A live launch has
+/// the name alone ([pointsAndReferralsProvider]).
 class ContributorPass {
   const ContributorPass({
     required this.user,
-    required this.points,
-    required this.rank,
-    required this.code,
+    this.points,
+    this.rank,
+    this.code,
   });
 
   final User user;
-  final int points;
+  final int? points;
   final int? rank;
-  final String code;
+  final String? code;
 }
 
 final contributorPassProvider = FutureProvider<ContributorPass>((ref) async {
+  if (!ref.watch(pointsAndReferralsProvider)) {
+    return ContributorPass(
+      user: await ref.watch(onboardingUserProvider.future),
+    );
+  }
   final repo = ref.watch(repositoryProvider);
   final (user, points, board, referrals) = await (
     ref.watch(onboardingUserProvider.future),

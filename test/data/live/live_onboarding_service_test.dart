@@ -139,7 +139,8 @@ void main() {
     });
   });
 
-  test('onboardingServiceProvider goes live with the profile only', () async {
+  test('onboardingServiceProvider goes live with the profile only; a live '
+      'launch that pauses it refuses', () async {
     SharedPreferences.setMockInitialValues(const {});
     final prefs = await SharedPreferences.getInstance();
     ProviderContainer container({Backend? mode}) {
@@ -157,10 +158,12 @@ void main() {
       container().read(onboardingServiceProvider),
       isA<DemoOnboardingService>(),
     );
-    expect(
-      container(mode: Backend.of(const {LiveFeature.briefs}))
-          .read(onboardingServiceProvider),
-      isA<DemoOnboardingService>(),
+    final paused = container(mode: Backend.of(const {LiveFeature.briefs}))
+        .read(onboardingServiceProvider);
+    expect(paused, isA<PausedOnboardingService>());
+    await expectLater(
+      paused.saveProfile(_student),
+      throwsA(isA<FeaturePaused>()),
     );
     expect(
       container(mode: allLive).read(onboardingServiceProvider),

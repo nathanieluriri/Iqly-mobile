@@ -32,15 +32,19 @@ Future<void> main() async {
     demo = DemoRepository(DemoData(now: clock.now));
   });
 
-  LiveRepository repository({Backend? mode, String? userId = 'u_1'}) =>
-      LiveRepository(
-        api: api.api(),
-        store: store,
-        mode: mode ?? allLive,
-        demo: demo,
-        userId: userId,
-        clock: clock.call,
-      );
+  LiveRepository repository({
+    Backend? mode,
+    String? userId = 'u_1',
+    String? name,
+  }) => LiveRepository(
+    api: api.api(),
+    store: store,
+    mode: mode ?? allLive,
+    demo: demo,
+    userId: userId,
+    name: () => name,
+    clock: clock.call,
+  );
 
   /// Three pages of briefs: 60, 60, then 5.
   void browse({int pages = 3}) => api.on('GET', '/challenges/browse', (r) {
@@ -132,14 +136,36 @@ Future<void> main() async {
       expect(api.to('/challenges/browse'), hasLength(1));
     });
 
-    test('a refused answer fails, whatever is kept', () async {
+    test('a definite refusal fails, whatever is kept', () async {
       browse(pages: 1);
       await repository().briefs();
-      api.on('GET', '/challenges/browse', (_) => refused(500, 'INTERNAL'));
+      api.on('GET', '/challenges/browse', (_) => refused(403, 'FORBIDDEN'));
       await expectLater(
         repository().briefs(load: BriefsLoad.feed),
         throwsA(isA<ApiRefused>()),
       );
+    });
+
+    test('a fault or a throttle answers what is kept', () async {
+      browse(pages: 1);
+      await repository().briefs();
+      for (final status in [500, 503, 429, 408]) {
+        api.on('GET', '/challenges/browse', (_) => refused(status, 'NO'));
+        expect(
+          await repository().briefs(load: BriefsLoad.feed),
+          hasLength(5),
+          reason: '$status',
+        );
+      }
+    });
+
+    test('the briefs the phone holds, without asking', () async {
+      browse(pages: 1);
+      await repository().briefs();
+      final before = api.requests.length;
+      expect(await repository().keptBriefs(), hasLength(5));
+      expect(await repository(userId: 'u_2').keptBriefs(), isEmpty);
+      expect(api.requests, hasLength(before));
     });
 
     test('one brief from the API; offline from the kept list', () async {
@@ -250,10 +276,10 @@ Future<void> main() async {
       expect(totals.totalEarnedKobo, 6500000);
       expect(totals.pendingWithdrawalsKobo, 1000000);
       expect(totals.withdrawableKobo, 1500000);
-      expect(
-        await repository(mode: Backend.of({LiveFeature.briefs})).walletTotals(),
-        isNull,
-        reason: 'a wallet on preview data adds its own up',
+      await expectLater(
+        repository(mode: Backend.of({LiveFeature.briefs})).walletTotals(),
+        throwsA(isA<FeaturePaused>()),
+        reason: 'a paused wallet has no figures, the demo\'s least of all',
       );
     });
 
@@ -287,43 +313,57 @@ Future<void> main() async {
     });
   });
 
-  group('features not live answer from the demo, exactly as today', () {
-    test('briefs live, the wallet and submissions on preview data', () async {
+  group('features a live launch pauses fail; none answers the demo', () {
+    Matcher paused(LiveFeature feature) => throwsA(
+      isA<FeaturePaused>().having((e) => e.feature, 'feature', feature),
+    );
+
+    test('briefs live, the wallet and submissions paused', () async {
       browse(pages: 1);
       final repo = repository(mode: Backend.of({LiveFeature.briefs}));
       expect(await repo.briefs(), hasLength(5));
-      expect(await repo.submissions(), same(demo.data.submissions));
-      expect(await repo.ledger(), same(demo.data.ledger));
-      expect(await repo.withdrawals(), same(demo.data.withdrawals));
-      expect(await repo.banks(), DemoData.banks);
-      expect(await repo.savedBank(), same(DemoData.savedBank));
-      expect(await repo.savedBanks(), DemoData.savedBanks);
-      expect(await repo.drafts(), hasLength(demo.data.drafts.length));
+      await expectLater(repo.submissions(), paused(LiveFeature.submissions));
+      await expectLater(repo.ledger(), paused(LiveFeature.wallet));
+      await expectLater(repo.withdrawals(), paused(LiveFeature.withdrawals));
+      await expectLater(repo.banks(), paused(LiveFeature.wallet));
+      await expectLater(repo.savedBank(), paused(LiveFeature.wallet));
+      await expectLater(repo.savedBanks(), paused(LiveFeature.wallet));
+      expect(await repo.drafts(), isEmpty, reason: 'none of the demo\'s');
       expect(api.requests.map((r) => r.url.path).toSet(), {
         '/challenges/browse',
       });
     });
 
-    test('the wallet live, withdrawals on preview data', () async {
+    test('the wallet live, withdrawals and briefs paused', () async {
       api.data('GET', '/wallet/transactions', page([transactionJson()]));
       final repo = repository(
         mode: Backend.of({LiveFeature.profile, LiveFeature.wallet}),
       );
       expect(await repo.ledger(), hasLength(1));
-      expect(await repo.withdrawals(), same(demo.data.withdrawals));
-      expect(await repo.briefs(), same(demo.data.briefs));
+      await expectLater(repo.withdrawals(), paused(LiveFeature.withdrawals));
+      await expectLater(repo.briefs(), paused(LiveFeature.briefs));
+      await expectLater(repo.brief('c1'), paused(LiveFeature.briefs));
+      await expectLater(repo.keptBriefs(), paused(LiveFeature.briefs));
+      expect(api.to('/wallet/withdrawals'), isEmpty);
+      expect(api.to('/challenges/browse'), isEmpty);
     });
 
-    test('points, activations, the bell and the user stay preview', () async {
-      final repo = repository();
+    test('points and activations stay preview; the bell and the user are '
+        'never the demo\'s', () async {
+      final repo = repository(name: 'Ada Obi');
       expect(await repo.points(), DemoData.points);
       expect(await repo.activationsSummary(), same(DemoData.activations));
-      expect(await repo.unreadNotifications(), DemoData.unreadNotifications);
-      expect(await repo.user(), same(DemoData.user));
       expect(
         (await repo.pointsLeaderboard()).month,
         (await demo.pointsLeaderboard()).month,
       );
+      expect(await repo.unreadNotifications(), 0);
+      final user = await repo.user();
+      expect(user.name, 'Ada Obi');
+      expect(user.email, isEmpty);
+      expect(user.state, isEmpty);
+      expect(user.interests, isEmpty);
+      expect((await repository().user()).firstName, isEmpty);
       expect(api.requests, isEmpty);
     });
 
@@ -396,11 +436,13 @@ Future<void> main() async {
       expect(await store.drafts('u_1'), isEmpty);
     });
 
-    test('submit on preview keeps the demo drafts', () async {
+    test('a paused submit keeps the person\'s drafts on the phone, never '
+        'in the demo', () async {
       final repo = repository(mode: Backend.of({LiveFeature.briefs}));
       await repo.saveDraft(draft);
-      expect(await store.drafts('u_1'), isEmpty);
-      expect(demo.data.drafts.any((d) => d.briefId == 'c_1'), isTrue);
+      expect(await store.drafts('u_1'), hasLength(1));
+      expect(demo.data.drafts.any((d) => d.briefId == 'c_1'), isFalse);
+      expect([for (final d in await repo.drafts()) d.briefId], ['c_1']);
     });
   });
 

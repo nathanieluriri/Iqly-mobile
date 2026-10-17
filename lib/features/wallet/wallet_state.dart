@@ -92,13 +92,19 @@ class WalletNotifier extends AsyncNotifier<WalletData> {
   bool _live(LiveFeature feature) => ref.read(liveModeProvider).isLive(feature);
 
   /// Without [allowCache] a live wallet fails rather than answer the
-  /// phone's last copy, which may be older than what is on screen.
+  /// phone's last copy, which may be older than what is on screen. Paused
+  /// withdrawals leave a live wallet without withdrawal rows.
   Future<WalletData> _load({bool allowCache = true}) async {
     final repo = ref.watch(repositoryProvider);
+    if (ref.read(liveModeProvider).isPaused(LiveFeature.wallet)) {
+      throw const FeaturePaused(LiveFeature.wallet);
+    }
     if (repo is LiveRepository && repo.mode.isLive(LiveFeature.wallet)) {
       final (ledger, withdrawals, accounts, banks, reported) = await (
         repo.ledger(allowCache: allowCache),
-        repo.withdrawals(allowCache: allowCache),
+        repo.mode.isLive(LiveFeature.withdrawals)
+            ? repo.withdrawals(allowCache: allowCache)
+            : Future.value(const <Withdrawal>[]),
         repo.savedBanks(allowCache: allowCache),
         repo.banks().catchError((Object _) => const <Bank>[]),
         repo.walletTotals(allowCache: allowCache),
@@ -192,16 +198,19 @@ class WalletNotifier extends AsyncNotifier<WalletData> {
     );
   }
 
-  /// A withdrawal the API just accepted: it goes on hold.
+  /// A withdrawal the API just accepted: it goes on hold. One a reload has
+  /// already brought in stays as the API reported it.
   void add(Withdrawal withdrawal) => _edit(
-    (data) => data.copyWith(
-      withdrawals: [withdrawal, ...data.withdrawals],
-      reported: _moved(
-        data,
-        pending: withdrawal.amountKobo,
-        withdrawable: -withdrawal.amountKobo,
-      ),
-    ),
+    (data) => data.withdrawal(withdrawal.id) != null
+        ? data
+        : data.copyWith(
+            withdrawals: [withdrawal, ...data.withdrawals],
+            reported: _moved(
+              data,
+              pending: withdrawal.amountKobo,
+              withdrawable: -withdrawal.amountKobo,
+            ),
+          ),
   );
 
   /// A newer copy of a withdrawal. Arriving moves it from on hold to a
@@ -291,12 +300,14 @@ final walletProvider = AsyncNotifierProvider<WalletNotifier, WalletData>(
 /// The brief each winning submission answered, by submission id, to name
 /// the business and the brief on reward rows. Only the wallet pages read
 /// it, so Home's payout row does not load submissions. Live entries carry
-/// their brief, closed or not.
+/// their brief, closed or not; paused, the rows name none.
 final rewardBriefsProvider = FutureProvider<Map<String, Brief>>((ref) async {
   final repo = ref.watch(repositoryProvider);
-  if (ref.watch(liveModeProvider).isLive(LiveFeature.submissions)) {
+  final mode = ref.watch(liveModeProvider);
+  if (mode.isLive(LiveFeature.submissions)) {
     return {for (final s in await repo.submissions()) s.id: ?s.brief};
   }
+  if (mode.isPaused(LiveFeature.submissions)) return const {};
   final (submissions, briefs) = await (repo.submissions(), repo.briefs()).wait;
   final byId = {for (final b in briefs) b.id: b};
   return {for (final s in submissions) s.id: ?byId[s.briefId]};

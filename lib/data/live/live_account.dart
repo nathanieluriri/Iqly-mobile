@@ -10,6 +10,7 @@ import '../local/local_store.dart';
 import '../local/outbox.dart';
 import '../models.dart';
 import '../reference_data.dart';
+import 'kept_reads.dart';
 import 'live_profile_service.dart';
 
 /// A UTC time from the API in the phone's time zone, or null.
@@ -176,21 +177,19 @@ class AccountLink {
   final Outbox outbox;
   final String? Function() userId;
 
-  /// GET [path]'s payload, kept under [key]. With no answer from the API it
-  /// answers what was kept last, and rethrows when nothing was. A refusal
-  /// throws [ApiRefused].
-  Future<Map<String, dynamic>> fetch(String path, String key) async {
-    final ApiResponse res;
-    try {
-      res = await api.get(path);
-    } on ApiUnreachable {
-      final kept = await this.kept(key);
-      if (kept != null) return kept;
-      rethrow;
-    }
-    if (!res.ok) throw ApiRefused.of(res);
-    await keep(key, res.data);
-    return res.data;
+  /// GET [path]'s payload, kept under [key]. When the API does not answer
+  /// ([orKept]) it answers what was kept last, and fails as the API did
+  /// when nothing was. A refusal throws [ApiRefused].
+  Future<Map<String, dynamic>> fetch(String path, String key) {
+    final fetching = api.get(path).then((res) async {
+      if (!res.ok) throw ApiRefused.of(res);
+      await keep(key, res.data);
+      return res.data;
+    });
+    return orKept(
+      fetching,
+      kept(key).then((json) => json == null ? null : (copy: json)),
+    );
   }
 
   Future<Map<String, dynamic>?> kept(String key) async {

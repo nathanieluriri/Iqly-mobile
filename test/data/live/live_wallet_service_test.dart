@@ -1,16 +1,20 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:iqly_mobile/core/backend.dart';
+import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/data/api_client.dart';
 import 'package:iqly_mobile/data/live/live_wallet_service.dart';
 import 'package:iqly_mobile/data/live/mappers.dart';
 import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/wallet_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'live_data_fixtures.dart';
 
@@ -23,13 +27,11 @@ const _account = SavedBank(
 
 void main() {
   late FakeApi api;
-  late DemoWalletService demo;
   late LiveWalletService service;
 
   setUp(() {
     api = FakeApi();
-    demo = DemoWalletService(delay: Duration.zero, payoutStep: null);
-    service = LiveWalletService(api.api(), demo: demo);
+    service = LiveWalletService(api.api());
   });
 
   group('bank checks', () {
@@ -119,7 +121,6 @@ void main() {
     test('with one account the default never changes', () async {
       await service.setDefault(_account);
       expect(api.requests, isEmpty);
-      expect(demo.defaults, isEmpty);
     });
   });
 
@@ -138,7 +139,7 @@ void main() {
       expect(w.status, WithdrawalStatus.pending);
       expect(w.reference, 'IQ-WD-261017-K7QM');
       expect(w.destination, 'Access Bank ••6789');
-      expect(demo.requests, isEmpty);
+      expect(result.earlier, isFalse);
     });
 
     test('a retry of the same request keeps its key', () async {
@@ -166,44 +167,46 @@ void main() {
       expect(api.requests.last.headers['idempotency-key'], isNot(keys.first));
     });
 
-    test('a different amount is a new request', () async {
-      api.offline = true;
+    test('after a refusal, a different amount is a new request', () async {
+      api.on('POST', '/wallet/withdrawals', (_) => refused(400, 'TOO_LOW'));
       await service.withdraw(amountKobo: 1000000, account: _account);
       await service.withdraw(amountKobo: 500000, account: _account);
       expect(
         api.requests.first.headers['idempotency-key'],
         isNot(api.requests.last.headers['idempotency-key']),
       );
+      expect(jsonDecode(api.requests.last.body), {'amount': 500000});
     });
 
-    test('every refusal reads as unknown, no connection as offline', () async {
-      for (final (status, code) in [
-        (409, 'WALLET_INSUFFICIENT_BALANCE'),
-        (409, 'PROFILE_INCOMPLETE'),
-        (403, 'UNDER_AGE'),
-        (400, 'WITHDRAWAL_BELOW_MINIMUM'),
-        (409, 'WITHDRAWAL_NO_BANK_ACCOUNT'),
-        (403, 'ACCOUNT_CLOSING'),
+    test('a refusal the person can act on keeps its reason; any other reads '
+        'as unknown, no connection as offline', () async {
+      for (final (status, code, failure) in [
+        (409, 'WALLET_INSUFFICIENT_BALANCE', WalletFailure.unknown),
+        (409, 'PROFILE_INCOMPLETE', WalletFailure.profileIncomplete),
+        (403, 'UNDER_AGE', WalletFailure.underAge),
+        (400, 'WITHDRAWAL_BELOW_MINIMUM', WalletFailure.unknown),
+        (409, 'WITHDRAWAL_NO_BANK_ACCOUNT', WalletFailure.unknown),
+        (403, 'ACCOUNT_CLOSING', WalletFailure.closing),
       ]) {
         api.on('POST', '/wallet/withdrawals', (_) => refused(status, code));
         final result = await service.withdraw(
           amountKobo: 1000000,
           account: _account,
         );
-        expect(result.failure, WalletFailure.unknown, reason: code);
+        expect(result.failure, failure, reason: code);
+        expect(result.unsettled, isFalse, reason: code);
       }
       api.on(
         'POST',
         '/wallet/withdrawals',
         (_) => refused(429, 'RATE_LIMITED', 'Slow down', {'retry-after': '30'}),
       );
-      expect(
-        (await service.withdraw(
-          amountKobo: 1000000,
-          account: _account,
-        )).failure,
-        WalletFailure.unknown,
+      final throttled = await service.withdraw(
+        amountKobo: 1000000,
+        account: _account,
       );
+      expect(throttled.failure, WalletFailure.unknown);
+      expect(throttled.unsettled, isTrue);
       api.offline = true;
       expect(
         (await service.withdraw(
@@ -214,21 +217,176 @@ void main() {
       );
     });
 
-    test('with withdrawals on preview data the demo takes them', () async {
-      final wallet = LiveWalletService(
-        api.api(),
-        demo: demo,
-        withdrawals: false,
-      );
+    test('paused withdrawals refuse before anything is sent', () async {
+      final wallet = LiveWalletService(api.api(), withdrawals: false);
       final result = await wallet.withdraw(
         amountKobo: 1000000,
         account: _account,
       );
-      expect(result.ok, isTrue);
-      expect(demo.requests.single.amountKobo, 1000000);
+      expect(result.failure, WalletFailure.unknown);
+      expect(result.unsettled, isFalse);
       expect(api.requests, isEmpty);
-      expect(await wallet.confirmPin('1234'), isTrue);
-      expect(demo.pins, ['1234']);
+      expect(await wallet.confirmPin('1234'), isFalse);
+      final pending = withdrawalFromJson(withdrawalJson())!;
+      expect(await wallet.watch(pending).toList(), [pending]);
+      expect(api.requests, isEmpty);
+    });
+  });
+
+  group('a withdrawal whose answer was lost', () {
+    /// Contract 6 for one person: a key answers the row it made (200) or
+    /// makes one (201), and the balance falls with each. [then] says what
+    /// happens to each request in turn after the row is made or found: null
+    /// answers it, anything else is thrown in place of the answer.
+    late Map<String, Map<String, Object?>> made;
+    late List<Object? Function(http.Request request)> then;
+
+    setUp(() {
+      made = {};
+      then = [];
+      api.on('POST', '/wallet/withdrawals', (r) {
+        final key = r.headers['idempotency-key']!;
+        final amount = (jsonDecode(r.body) as Map)['amount'] as int;
+        final step = then.isEmpty ? null : then.removeAt(0);
+        final before = step?.call(r);
+        if (before is http.Response) return before;
+        if (before is SocketException) throw before;
+        final known = made.containsKey(key);
+        final row = made[key] ??= withdrawalJson({
+          'id': 'w_${made.length + 1}',
+          'amount': amount,
+        });
+        if (before != null) throw before;
+        return ok(row, status: known ? 200 : 201);
+      });
+    });
+
+    Object? lost(http.Request _) =>
+        http.ClientException('Connection closed before full header');
+
+    List<String?> keys() => [
+      for (final r in api.requests) r.headers['idempotency-key'],
+    ];
+
+    List<Object?> amounts() => [
+      for (final r in api.requests) (jsonDecode(r.body) as Map)['amount'],
+    ];
+
+    test('stays unsettled, and the next request, whatever its amount, sends '
+        'it again first: what it made is the answer', () async {
+      then.add(lost);
+      final first = await service.withdraw(
+        amountKobo: 500000,
+        account: _account,
+      );
+      expect(first.failure, WalletFailure.offline);
+      expect(first.unsettled, isTrue);
+      expect(made, hasLength(1), reason: 'the API kept it');
+
+      final second = await service.withdraw(
+        amountKobo: 600000,
+        account: _account,
+      );
+      expect(second.withdrawal!.id, 'w_1');
+      expect(second.withdrawal!.amountKobo, 500000);
+      expect(second.earlier, isTrue);
+      expect(made, hasLength(1), reason: 'the new amount was not sent');
+      expect(keys().toSet(), hasLength(1));
+      expect(amounts(), [500000, 500000]);
+
+      final third = await service.withdraw(
+        amountKobo: 600000,
+        account: _account,
+      );
+      expect(third.earlier, isFalse);
+      expect(made, hasLength(2));
+      expect(keys().last, isNot(keys().first));
+      expect(amounts().last, 600000);
+    });
+
+    test('a definite refusal of it lets the new amount go, under a new '
+        'key', () async {
+      then
+        ..add((_) => refused(503, 'SERVICE_UNAVAILABLE'))
+        ..add((_) => refused(409, 'WALLET_INSUFFICIENT_BALANCE'));
+      final first = await service.withdraw(
+        amountKobo: 500000,
+        account: _account,
+      );
+      expect(first.failure, WalletFailure.unknown);
+      expect(first.unsettled, isTrue);
+      final second = await service.withdraw(
+        amountKobo: 600000,
+        account: _account,
+      );
+      expect(second.withdrawal!.amountKobo, 600000);
+      expect(second.earlier, isFalse);
+      expect(amounts(), [500000, 500000, 600000]);
+      expect(keys()[0], keys()[1]);
+      expect(keys()[2], isNot(keys()[0]));
+    });
+
+    test('no answer again refuses again and sends nothing new', () async {
+      then
+        ..add(lost)
+        ..add(lost)
+        ..add(
+          (_) => const SocketException(
+            'Connection failed',
+            osError: OSError('Connection refused', 111),
+          ),
+        );
+      for (var i = 0; i < 3; i++) {
+        final result = await service.withdraw(
+          amountKobo: 600000 + i,
+          account: _account,
+        );
+        expect(result.ok, isFalse);
+        expect(result.unsettled, isTrue, reason: 'attempt $i');
+      }
+      expect(amounts(), [600000, 600000, 600000]);
+      expect(keys().toSet(), hasLength(1));
+    });
+
+    test('408, 429 and server faults leave it unsettled', () async {
+      for (final status in [408, 429, 500, 502, 503]) {
+        final wallet = LiveWalletService(api.api());
+        then.add((_) => refused(status, 'NO'));
+        final result = await wallet.withdraw(
+          amountKobo: 500000,
+          account: _account,
+        );
+        expect(result.unsettled, isTrue, reason: '$status');
+      }
+    });
+
+    test('a lookup or a connection that failed before sending settles it: '
+        'nothing was sent, and the next amount is a new request', () async {
+      for (final failed in [
+        const SocketException(
+          'Connection failed',
+          osError: OSError('Connection refused', 111),
+        ),
+        const SocketException("Failed host lookup: 'api.iqly.net'"),
+      ]) {
+        api.requests.clear();
+        then.add((_) => failed);
+        final first = await service.withdraw(
+          amountKobo: 500000,
+          account: _account,
+        );
+        expect(first.failure, WalletFailure.offline);
+        expect(first.unsettled, isFalse);
+        expect(made, isEmpty);
+        final second = await service.withdraw(
+          amountKobo: 600000,
+          account: _account,
+        );
+        expect(second.withdrawal!.amountKobo, 600000);
+        expect(amounts(), [500000, 600000]);
+        expect(keys().toSet(), hasLength(2));
+        made.clear();
+      }
     });
   });
 
@@ -330,11 +488,57 @@ void main() {
   });
 
   group('the provider', () {
+    late SharedPreferences prefs;
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({
+        'session.signedIn': true,
+        'session.userId': 'u_1',
+      });
+      prefs = await SharedPreferences.getInstance();
+    });
+
     ProviderContainer container(List<Override> overrides) {
-      final c = ProviderContainer(overrides: overrides);
+      final c = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          ...overrides,
+        ],
+      );
       addTearDown(c.dispose);
       return c;
     }
+
+    test(
+      'a withdrawal left unsettled never goes for the next person',
+      () async {
+        api.on(
+          'POST',
+          '/wallet/withdrawals',
+          (_) => throw http.ClientException('Connection closed'),
+        );
+        final c = container(liveOverrides(api.api()));
+        final first = await c
+            .read(walletServiceProvider)
+            .withdraw(amountKobo: 500000, account: _account);
+        expect(first.unsettled, isTrue);
+        final session = c.read(sessionProvider.notifier);
+        await session.setSignedIn(false);
+        await session.setUserId(null);
+        await session.setUserId('u_2');
+        await session.setSignedIn(true);
+        api.data('POST', '/wallet/withdrawals', withdrawalJson(), status: 201);
+        final next = await c
+            .read(walletServiceProvider)
+            .withdraw(amountKobo: 600000, account: _account);
+        expect(next.earlier, isFalse);
+        expect(jsonDecode(api.requests.last.body), {'amount': 600000});
+        expect(
+          api.requests.last.headers['idempotency-key'],
+          isNot(api.requests.first.headers['idempotency-key']),
+        );
+      },
+    );
 
     test('the wallet live takes the API; withdrawals as they are', () {
       final both = container(liveOverrides(api.api()));
@@ -354,17 +558,33 @@ void main() {
       );
     });
 
-    test('preview, or the wallet on preview, keeps the demo', () {
+    test('preview keeps the demo; a live launch that pauses the wallet '
+        'refuses', () async {
       expect(
         container([]).read(walletServiceProvider),
         isA<DemoWalletService>(),
       );
+      final paused = container(
+        liveOverrides(api.api(), mode: Backend.of({LiveFeature.briefs})),
+      ).read(walletServiceProvider);
+      expect(paused, isA<PausedWalletService>());
       expect(
-        container(
-          liveOverrides(api.api(), mode: Backend.of({LiveFeature.briefs})),
-        ).read(walletServiceProvider),
-        isA<DemoWalletService>(),
+        (await paused.withdraw(amountKobo: 1000000, account: _account)).failure,
+        WalletFailure.unknown,
       );
+      expect(
+        (await paused.verifyAccount(
+          bankCode: '044',
+          accountNumber: '0123',
+        )).failure,
+        WalletFailure.unknown,
+      );
+      await expectLater(
+        paused.addAccount(_account),
+        throwsA(isA<FeaturePaused>()),
+      );
+      expect(await paused.confirmPin('1234'), isFalse);
+      expect(api.requests, isEmpty);
     });
   });
 }

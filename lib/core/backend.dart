@@ -91,8 +91,28 @@ class LiveHealthService implements HealthService {
 /// Null in the preview build, which never asks.
 final healthServiceProvider = Provider<HealthService?>((ref) => null);
 
-/// The features this launch runs on the API; everything else stays on the
-/// preview data.
+/// A contract 1 feature that a live launch does not run: health switched it
+/// off, or something it needs. Its reads fail and its actions refuse, so no
+/// preview data ever stands in for the person's own.
+class FeaturePaused implements Exception {
+  const FeaturePaused(this.feature);
+
+  final LiveFeature feature;
+
+  @override
+  String toString() => 'FeaturePaused(${feature.name})';
+}
+
+/// Riverpod's own retry, except for a paused feature: it stays paused for
+/// the whole launch, so asking again cannot help.
+Duration? retryUnlessPaused(int retryCount, Object error) =>
+    error is FeaturePaused
+    ? null
+    : ProviderContainer.defaultRetry(retryCount, error);
+
+/// The features this launch runs on the API. A launch that runs none is a
+/// preview launch, on the preview data everywhere; in a live launch every
+/// feature not live is paused.
 @immutable
 class Backend {
   const Backend(this.live);
@@ -123,6 +143,9 @@ class Backend {
   bool isLive(LiveFeature feature) => live.contains(feature);
 
   bool get isPreview => live.isEmpty;
+
+  /// Not live in a live launch.
+  bool isPaused(LiveFeature feature) => !isPreview && !isLive(feature);
 
   /// The live features' names, in the contract's order.
   List<String> get names => [

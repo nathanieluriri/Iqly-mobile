@@ -22,7 +22,8 @@ import 'business_art.dart';
 import 'discover_state.dart';
 
 /// Exp/TopBar Home: "Discover", the gift and the bell with the unread
-/// count. [giftShine] runs the gift's one shine.
+/// count. [giftShine] runs the gift's one shine. The gift opens Referrals,
+/// which a live launch does not have yet, so there it goes.
 class DiscoverTopBar extends ConsumerWidget {
   const DiscoverTopBar({super.key, this.giftShine = false});
 
@@ -36,7 +37,7 @@ class DiscoverTopBar extends ConsumerWidget {
       count: '$unread',
       showCount: unread > 0,
       showWallet: false,
-      showGift: true,
+      showGift: ref.watch(pointsAndReferralsProvider),
       giftTwinkle: giftShine,
       onGift: () => context.open(Routes.referrals),
       onBell: () => context.open(Routes.notifications),

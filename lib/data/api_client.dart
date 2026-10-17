@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -57,10 +58,26 @@ class ApiResponse {
   }
 }
 
-/// No answer from the API: no connection, or it timed out.
+/// No answer from the API: no connection, a timeout, or the connection
+/// failing on the way.
 class ApiUnreachable implements Exception {
-  const ApiUnreachable();
+  const ApiUnreachable({this.nothingSent = false});
+
+  /// The lookup, the connection or its TLS handshake failed before the
+  /// request went out, so the API cannot have it.
+  final bool nothingSent;
+
+  @override
+  String toString() =>
+      nothingSent ? 'ApiUnreachable(nothing sent)' : 'ApiUnreachable';
 }
+
+/// Whether [error] leaves a read without an answer to trust: no answer at
+/// all, or a timeout, a throttle or a fault on the API's side.
+bool unanswered(Object error) =>
+    error is ApiUnreachable ||
+    error is ApiRefused &&
+        (error.status == 408 || error.status == 429 || error.status >= 500);
 
 /// An answer the API refused, with its status, code and message.
 class ApiRefused implements Exception {
@@ -244,8 +261,10 @@ class ApiClient {
       response = await http.Response.fromStream(streamed).timeout(timeout);
     } on TimeoutException {
       throw const ApiUnreachable();
-    } on http.ClientException {
-      throw const ApiUnreachable();
+    } on http.ClientException catch (error) {
+      throw ApiUnreachable(nothingSent: _beforeSending(error));
+    } on IOException catch (error) {
+      throw ApiUnreachable(nothingSent: _beforeSending(error));
     }
     // With requireSignature the API only accepts the signed token from this
     // header, never the raw one in a sign-in body.
@@ -263,6 +282,17 @@ class ApiClient {
       headers: response.headers,
     );
   }
+
+  /// dart:io names a failed lookup and a failed connect this way, and a TLS
+  /// handshake runs before any of the request is written; every other
+  /// failure may come after the API has the request.
+  static bool _beforeSending(Object error) => switch (error) {
+    HandshakeException() => true,
+    SocketException(:final message) =>
+      message.startsWith('Failed host lookup') ||
+          message.startsWith('Connection failed'),
+    _ => false,
+  };
 
   /// A file read out in small pieces, so progress follows the connection
   /// rather than leaping to the end with one write.
