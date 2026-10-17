@@ -78,4 +78,7 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    // Matches onesignal_flutter's native SDK, for IqlyPushExtension.
+    implementation("com.onesignal:core:5.10.2")
+    implementation("com.onesignal:notifications:5.10.2")
 }

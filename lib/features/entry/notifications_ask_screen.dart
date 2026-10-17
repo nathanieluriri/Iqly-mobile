@@ -3,12 +3,34 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
+import '../../core/session.dart';
 import '../../core/transitions.dart';
 import '../../data/device.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/illustration.dart';
 import 'entry_widgets.dart';
+
+/// Whether this phone has shown [NotificationsAskScreen]. Discover offers
+/// it once to anyone who reached the app another way (a sign-in, or
+/// onboarding before the screen asked) while the phone does not let iQLY
+/// notify.
+class NotificationsAskedNotifier extends Notifier<bool> {
+  static const _key = 'notifications.asked';
+
+  @override
+  bool build() => ref.watch(sharedPreferencesProvider).getBool(_key) ?? false;
+
+  Future<void> mark() async {
+    state = true;
+    await ref.read(sharedPreferencesProvider).setBool(_key, true);
+  }
+}
+
+final notificationsAskedProvider =
+    NotifierProvider<NotificationsAskedNotifier, bool>(
+      NotificationsAskedNotifier.new,
+    );
 
 /// B0 Notifications (227:11263), reached from onboarding Done. Turn on asks
 /// the phone, whose own prompt is 484:23576 (answer 25); either answer, and
@@ -27,6 +49,14 @@ class NotificationsAskScreen extends ConsumerStatefulWidget {
 class _NotificationsAskScreenState
     extends ConsumerState<NotificationsAskScreen> {
   bool _asking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(notificationsAskedProvider.notifier).mark();
+    });
+  }
 
   /// Figma keeps the hidden step mark's 44 pt slot over the title.
   static const double _stepSlot = 44;

@@ -7,6 +7,7 @@ import 'package:iqly_mobile/data/polls_data.dart';
 import 'package:iqly_mobile/features/settings/notification_preferences_screen.dart';
 import 'package:iqly_mobile/data/profile_service.dart';
 import 'package:iqly_mobile/surfaces/notification_content.dart';
+import 'package:iqly_mobile/surfaces/notification_sounds.dart';
 import 'package:iqly_mobile/surfaces/surfaces.dart';
 
 void main() {
@@ -105,7 +106,7 @@ void main() {
     expect(SurfaceNotification.routeFor(null), isNull);
   });
 
-  test('channels match Notification preferences and Android', () {
+  test('channels match Notification preferences, and their sounds ship', () {
     final topics = {
       SurfaceChannel.closingSoon: NotificationTopic.closingSoon,
       SurfaceChannel.results: NotificationTopic.results,
@@ -113,26 +114,27 @@ void main() {
       SurfaceChannel.newBriefs: NotificationTopic.newBriefs,
       SurfaceChannel.polls: NotificationTopic.polls,
     };
-    final strings = File('android/app/src/main/res/values/surfaces.xml')
-        .readAsStringSync();
-    final kotlin = File(
-      'android/app/src/main/kotlin/net/iqly/app/NotificationChannels.kt',
-    ).readAsStringSync();
     for (final channel in SurfaceChannel.values) {
       final (title, description) = notificationCopy[topics[channel]]!;
       expect(channel.title, title);
       expect(channel.description, description);
+      expect(NotificationTopic.values.byName(channel.name), topics[channel]);
+      expect(SurfaceChannel.retired, isNot(contains(channel.id)));
+    }
+    final keep = File('android/app/src/main/res/raw/keep.xml')
+        .readAsStringSync();
+    final xcode = File('ios/Runner.xcodeproj/project.pbxproj')
+        .readAsStringSync();
+    expect(keep, contains('@raw/iqly_*'));
+    expect(keep, contains('@drawable/ic_stat_iqly'));
+    for (final sound in IqSound.values) {
+      expect(sound.resource, startsWith('iqly_'));
       expect(
-        strings,
-        contains('<string name="channel_${channel.id}">$title</string>'),
+        File('android/app/src/main/res/raw/${sound.resource}.ogg').existsSync(),
+        isTrue,
       );
-      expect(
-        strings,
-        contains(
-          '<string name="channel_${channel.id}_description">$description</string>',
-        ),
-      );
-      expect(kotlin, contains('Triple("${channel.id}"'));
+      expect(File('ios/Runner/Sounds/${sound.iosFile}').existsSync(), isTrue);
+      expect(xcode, contains('${sound.iosFile} in Resources'));
     }
   });
 }

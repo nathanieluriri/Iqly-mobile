@@ -59,11 +59,15 @@ class PlatformDeviceService implements DeviceService {
   PlatformDeviceService({
     FlutterLocalNotificationsPlugin? notifications,
     DeviceService? rest,
+    this.onNotificationsAllowed,
   }) : _notifications = notifications ?? FlutterLocalNotificationsPlugin(),
        _rest = rest ?? DemoDeviceService();
 
   final FlutterLocalNotificationsPlugin _notifications;
   final DeviceService _rest;
+
+  /// Runs when the phone's prompt says yes, so push can subscribe.
+  final Future<void> Function()? onNotificationsAllowed;
 
   AndroidFlutterLocalNotificationsPlugin? get _android => _notifications
       .resolvePlatformSpecificImplementation<
@@ -81,6 +85,12 @@ class PlatformDeviceService implements DeviceService {
 
   @override
   Future<bool> requestNotificationPermission() async {
+    final allowed = await _requestNotificationPermission();
+    if (allowed) await onNotificationsAllowed?.call();
+    return allowed;
+  }
+
+  Future<bool> _requestNotificationPermission() async {
     final android = _android;
     if (android != null) {
       return await android.requestNotificationsPermission() ?? false;

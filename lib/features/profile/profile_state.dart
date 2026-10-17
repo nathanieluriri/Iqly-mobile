@@ -16,6 +16,7 @@ import '../onboarding/onboarding_draft.dart';
 import '../onboarding/onboarding_flow.dart';
 import '../onboarding/what_you_like_screen.dart';
 import '../submit/submit_state.dart';
+import '../../surfaces/push.dart';
 
 /// The first-run answers Your details shows and edits: the onboarding draft,
 /// with the account's own values where first run left a gap (skipped, or a
@@ -134,6 +135,7 @@ String interestsLine(List<String> values) => [
 /// answers and the cached details. Sign out and account deletion end here.
 Future<void> forgetAccount(WidgetRef ref) async {
   final session = ref.read(sessionProvider.notifier);
+  await ref.read(pushProvider)?.signingOut();
   await ref.read(authServiceProvider).signOut();
   ref.read(onboardingDraftProvider.notifier).clear();
   await forgetSubmitDrafts(ref.read(sharedPreferencesProvider));

@@ -7,6 +7,7 @@ import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
+import '../../data/device.dart';
 import '../../data/models.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -301,9 +302,17 @@ class _Body extends ConsumerWidget {
                     state: reminders.contains(brief.id)
                         ? IqSwitchState.on
                         : IqSwitchState.off,
-                    onChanged: (state) => ref
-                        .read(closeRemindersProvider.notifier)
-                        .setReminder(brief.id, state == IqSwitchState.on),
+                    onChanged: (state) async {
+                      final on = state == IqSwitchState.on;
+                      await ref
+                          .read(closeRemindersProvider.notifier)
+                          .setReminder(brief.id, on);
+                      if (on) {
+                        await ref
+                            .read(deviceServiceProvider)
+                            .requestNotificationPermission();
+                      }
+                    },
                   ),
                 ),
               ),
