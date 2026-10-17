@@ -38,6 +38,7 @@ class AccountAvatar {
     required this.spec,
     required this.look,
     required this.isDefault,
+    this.updatedAt,
   });
 
   /// [photo] stands in for a photo spec, which the API keeps without its
@@ -62,12 +63,14 @@ class AccountAvatar {
       spec: spec ?? IqPersonAvatar(shown),
       look: shown,
       isDefault: json['isDefault'] == true,
+      updatedAt: DateTime.tryParse('${json['updatedAt']}'),
     );
   }
 
   final IqAvatarSpec spec;
   final IqAvatarLook look;
   final bool isDefault;
+  final DateTime? updatedAt;
 }
 
 /// The `PUT /me/avatar` body.

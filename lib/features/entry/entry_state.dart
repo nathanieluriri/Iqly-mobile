@@ -53,18 +53,46 @@ final entryDraftProvider = NotifierProvider<EntryDraftNotifier, EntryDraft>(
 );
 
 /// The invite an invite link opened the app with, until sign up uses it or
-/// the person signs in instead (answer 22).
+/// the person signs in instead (answer 22). Kept on the phone, so an app
+/// closed before sign-up still has it.
 class PendingInviteNotifier extends Notifier<Invite?> {
-  @override
-  Invite? build() => null;
+  static const key = 'invite.pending';
 
-  /// Looks [code] up and keeps the invite when it is known.
-  Future<void> accept(String code) async {
-    final invite = await ref.read(inviteServiceProvider).lookUp(code);
-    if (invite != null) state = invite;
+  @override
+  Invite? build() {
+    final code = ref.read(sharedPreferencesProvider).getString(key);
+    return code == null ? null : Invite(code: code);
   }
 
-  void clear() => state = null;
+  /// Looks [code] up: dropped only when the API says no such code (404);
+  /// when it cannot be checked (offline, 429, 5xx) the code is kept.
+  Future<void> accept(String code) async {
+    final typed = code.trim().toUpperCase();
+    if (typed.isEmpty) return;
+    Invite? invite;
+    try {
+      invite = await ref.read(inviteServiceProvider).lookUp(typed);
+      if (invite == null) {
+        await _keep(null);
+        return;
+      }
+    } on Exception {
+      invite = Invite(code: typed);
+    }
+    await _keep(invite);
+  }
+
+  Future<void> _keep(Invite? invite) async {
+    state = invite;
+    final prefs = ref.read(sharedPreferencesProvider);
+    if (invite == null) {
+      await prefs.remove(key);
+    } else {
+      await prefs.setString(key, invite.code);
+    }
+  }
+
+  void clear() => unawaited(_keep(null));
 }
 
 final pendingInviteProvider = NotifierProvider<PendingInviteNotifier, Invite?>(

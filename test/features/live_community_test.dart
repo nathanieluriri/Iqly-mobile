@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,6 +18,7 @@ import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/profile_service.dart';
 import 'package:iqly_mobile/data/referrals_service.dart';
 import 'package:iqly_mobile/features/avatar/avatar_state.dart';
+import 'package:iqly_mobile/features/entry/entry_state.dart';
 import 'package:iqly_mobile/features/profile/account_sync.dart';
 import 'package:iqly_mobile/features/profile/profile_state.dart';
 import 'package:iqly_mobile/features/wallet/bank_account_sheet.dart';
@@ -312,6 +315,76 @@ void main() {
       );
     });
 
+    test('0.4.0+4\'s phone-wide avatar becomes the signed-in account\'s '
+        'pick, and outlasts the sign out', () async {
+      SharedPreferences.setMockInitialValues({
+        'session.signedIn': true,
+        'session.userId': 'u_1',
+        'avatar.spec': '{"kind":"buddy","buddy":"Moon"}',
+        'avatar.look': jsonEncode(IqAvatarPresets.person2.toJson()),
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final c = ProviderContainer(
+        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      );
+      addTearDown(c.dispose);
+      expect(c.read(avatarProvider).isDefault, isFalse);
+      expect(prefs.getString('avatar.account.u_1'), isNotNull);
+      await c.read(avatarProvider.notifier).forget();
+      expect(
+        c.read(avatarProvider).spec,
+        const IqBuddyAvatar(IqAvatarBuddyKind.moon),
+      );
+    });
+
+    for (final (pickedAt, wins) in [
+      ('2026-10-10T10:00:00.000Z', true),
+      ('2026-09-01T10:00:00.000Z', false),
+    ]) {
+      testWidgets('a pick ${wins ? 'newer' : 'older'} than the account\'s '
+          'avatar ${wins ? 'wins and goes up' : 'gives way'}', (tester) async {
+        final api = _api()
+          ..data('GET', '/me/avatar', _avatarJson())
+          ..on('PUT', '/me/avatar', (_) => ok(_avatarJson()));
+        final c = await _launch(
+          tester,
+          api,
+          Routes.more,
+          mode: _with({LiveFeature.avatar}),
+          prefs: {
+            'avatar.account.u_1': jsonEncode({
+              'spec': {'kind': 'buddy', 'buddy': 'Bean'},
+              'look': IqAvatarPresets.person3.toJson(),
+              'pickedAt': pickedAt,
+            }),
+          },
+        );
+        c.read(accountSyncProvider);
+        await c.read(outboxProvider).kick();
+        await tester.pumpAndSettle();
+        expect(
+          c.read(avatarProvider).spec,
+          wins
+              ? const IqBuddyAvatar(IqAvatarBuddyKind.bean)
+              : const IqBuddyAvatar(IqAvatarBuddyKind.moon),
+        );
+        expect(api.to('/me/avatar', method: 'PUT'), hasLength(wins ? 1 : 0));
+      });
+    }
+
+    testWidgets('a failed first read with the gender known still shows the '
+        'blank circle, not a gender default', (tester) async {
+      final api = _api()..on('GET', '/me/avatar', (_) => refused(500, 'X'));
+      final c = await _launch(
+        tester,
+        api,
+        Routes.more,
+        mode: _with({LiveFeature.avatar}),
+        prefs: {'profile.details': '{"gender":"female"}'},
+      );
+      expect(c.read(avatarProvider).spec, awaitingAvatar);
+    });
+
     test('without the API feature each account keeps its own avatar '
         'across a sign out; the switch and a close wipe it', () async {
       SharedPreferences.setMockInitialValues({
@@ -546,8 +619,12 @@ void main() {
           ],
         );
         addTearDown(c.dispose);
-        final invite = await c.read(inviteServiceProvider).lookUp('chidi7');
-        expect(invite?.inviterName, on ? 'Chidi A.' : null);
+        final lookUp = c.read(inviteServiceProvider).lookUp('chidi7');
+        if (on) {
+          expect((await lookUp)?.inviterName, 'Chidi A.');
+        } else {
+          await expectLater(lookUp, throwsA(isA<FeaturePaused>()));
+        }
         expect(api.requests, hasLength(on ? 1 : 0));
       }
     });
@@ -590,6 +667,46 @@ void main() {
       expect(find.text('Copy link'), findsOneWidget);
       expect(find.text('Save image'), findsNothing);
       expect(find.byType(IqShareTarget), findsNothing);
+    });
+
+    test('a link\'s code is kept unless the API says it does not exist, '
+        'and outlasts an app kill', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final api = FakeApi()
+        ..on(
+          'GET',
+          '/referrals/codes/BUSY1',
+          (_) => refused(503, 'UNAVAILABLE'),
+        )
+        ..on(
+          'GET',
+          '/referrals/codes/NOPE1',
+          (_) => refused(404, 'INVITE_CODE_INVALID'),
+        );
+      ProviderContainer launch() {
+        final c = ProviderContainer(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            ...liveOverrides(api.api(), mode: _with({LiveFeature.referrals})),
+          ],
+        );
+        addTearDown(c.dispose);
+        return c;
+      }
+
+      var c = launch();
+      await c.read(pendingInviteProvider.notifier).accept('busy1');
+      expect(c.read(pendingInviteProvider)?.code, 'BUSY1');
+      api.offline = true;
+      await c.read(pendingInviteProvider.notifier).accept('busy1');
+      expect(c.read(pendingInviteProvider)?.code, 'BUSY1');
+      c = launch();
+      expect(c.read(pendingInviteProvider)?.code, 'BUSY1', reason: 'killed');
+      api.offline = false;
+      await c.read(pendingInviteProvider.notifier).accept('nope1');
+      expect(c.read(pendingInviteProvider), isNull);
+      expect(launch().read(pendingInviteProvider), isNull);
     });
 
     test('every apply refusal has an outcome', () {

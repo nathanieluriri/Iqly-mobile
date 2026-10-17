@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/deadline.dart';
 import '../../core/session.dart';
 import '../../data/avatar_service.dart';
 import '../../data/live/live_account.dart';
@@ -24,6 +25,7 @@ class AvatarState {
     this.photo,
     this.isDefault = false,
     this.known = true,
+    this.pickedAt,
   });
 
   final IqAvatarSpec spec;
@@ -31,6 +33,9 @@ class AvatarState {
   final Uint8List? photo;
   final bool isDefault;
   final bool known;
+
+  /// When the person picked it, or when the account last saved it.
+  final DateTime? pickedAt;
 }
 
 /// What shows while the account's avatar is not known yet: a plain circle.
@@ -76,13 +81,22 @@ class AvatarNotifier extends Notifier<AvatarState> {
       }
     }
 
-    final record =
-        (user == null ? null : decode(prefs.getString(_account(user)))) ??
-        {
-          if (prefs.getString(_spec) case final spec?) 'spec': decode(spec),
-          if (prefs.getString(_look) case final look?) 'look': decode(look),
-          if (prefs.getBool(_default) == true) 'default': true,
-        };
+    final legacy = {
+      if (prefs.getString(_spec) case final spec?) 'spec': decode(spec),
+      if (prefs.getString(_look) case final look?) 'look': decode(look),
+      if (prefs.getBool(_default) == true) 'default': true,
+    };
+    var record = user == null ? null : decode(prefs.getString(_account(user)));
+    if (record == null && user != null && legacy.isNotEmpty) {
+      // The phone-wide avatar 0.4.0+4 kept is the signed-in account's pick.
+      record = legacy;
+      unawaited(prefs.setString(_account(user), jsonEncode(legacy)));
+      final photo = prefs.getString(_photo);
+      if (photo != null) {
+        unawaited(prefs.setString(_accountPhoto(user), photo));
+      }
+    }
+    record ??= legacy;
     final photoData =
         (user == null ? null : prefs.getString(_accountPhoto(user))) ??
         prefs.getString(_photo);
@@ -100,19 +114,19 @@ class AvatarNotifier extends Notifier<AvatarState> {
     };
     if (live != null) _follow(live);
     final kept = look != null || spec != null;
-    final gender = _gender;
-    final guess = live != null && !kept && gender == null;
+    final awaiting = live != null && !kept;
     final saved =
         look ??
         (live == null
             ? IqAvatarPresets.person1
-            : defaultAvatarLook(user, gender));
+            : defaultAvatarLook(user, _gender));
     return AvatarState(
-      spec: guess ? awaitingAvatar : spec ?? IqPersonAvatar(saved),
+      spec: awaiting ? awaitingAvatar : spec ?? IqPersonAvatar(saved),
       look: saved,
       photo: photo,
       isDefault: !kept || record['default'] == true,
-      known: !guess,
+      known: !awaiting,
+      pickedAt: DateTime.tryParse('${record['pickedAt']}'),
     );
   }
 
@@ -161,13 +175,20 @@ class AvatarNotifier extends Notifier<AvatarState> {
     await _apply(live, account);
   }
 
-  /// One the account only defaults while the phone holds the person's own
-  /// pick takes that pick, as a pick made before the account kept avatars.
+  /// The newest pick wins: a pick on the phone newer than the account's
+  /// avatar, or any pick while the account only has its default (one made
+  /// before the account kept avatars), goes up instead.
   Future<void> _apply(LiveAvatarService live, AccountAvatar? account) async {
     if (account == null) return;
     _synced = true;
     final held = state;
-    if (account.isDefault && held.known && !held.isDefault) {
+    final picked = held.pickedAt;
+    final updated = account.updatedAt;
+    final newer =
+        picked != null && (updated == null || picked.isAfter(updated));
+    if (held.known &&
+        !held.isDefault &&
+        (account.isDefault || (newer && held.spec != account.spec))) {
       await _upload(live, held.spec, held.look);
       return;
     }
@@ -176,8 +197,14 @@ class AvatarNotifier extends Notifier<AvatarState> {
       look: account.look,
       photo: held.photo,
       isDefault: account.isDefault,
+      pickedAt: updated,
     );
-    await _keep(account.spec, account.look, isDefault: account.isDefault);
+    await _keep(
+      account.spec,
+      account.look,
+      isDefault: account.isDefault,
+      pickedAt: updated,
+    );
   }
 
   String? get _userId => switch (ref.read(accountProvider)) {
@@ -216,6 +243,7 @@ class AvatarNotifier extends Notifier<AvatarState> {
     IqAvatarSpec spec,
     IqAvatarLook look, {
     bool isDefault = false,
+    DateTime? pickedAt,
   }) async {
     final prefs = ref.read(sharedPreferencesProvider);
     final user = _userId;
@@ -236,6 +264,7 @@ class AvatarNotifier extends Notifier<AvatarState> {
         'spec': spec.toJson(),
         'look': look.toJson(),
         if (isDefault) 'default': true,
+        if (pickedAt != null) 'pickedAt': pickedAt.toUtc().toIso8601String(),
       }),
     );
     if (spec is IqPhotoAvatar) {
@@ -250,8 +279,9 @@ class AvatarNotifier extends Notifier<AvatarState> {
     _changes++;
     final look = spec is IqPersonAvatar ? spec.look : state.look;
     final photo = spec is IqPhotoAvatar ? spec.bytes : state.photo;
-    state = AvatarState(spec: spec, look: look, photo: photo);
-    await _keep(spec, look);
+    final now = ref.read(clockProvider)();
+    state = AvatarState(spec: spec, look: look, photo: photo, pickedAt: now);
+    await _keep(spec, look, pickedAt: now);
     final live = ref.read(liveAvatarServiceProvider);
     if (live != null) await _upload(live, spec, look);
   }
@@ -272,7 +302,10 @@ class AvatarNotifier extends Notifier<AvatarState> {
   /// A gender is known now: an avatar the person has not picked moves to
   /// the preset the API defaults to for it.
   Future<void> genderKnown(String? gender) async {
-    if (!state.isDefault) return;
+    // A live account says its own default; a guess would only stand in.
+    if (!state.isDefault || ref.read(liveAvatarServiceProvider) != null) {
+      return;
+    }
     final look = defaultAvatarLook(_userId, gender);
     if (state.known && state.spec == IqPersonAvatar(look)) return;
     await startNewcomer(gender: gender);
