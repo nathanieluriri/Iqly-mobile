@@ -6,17 +6,20 @@ enum HelpTicketStatus { open, replied, resolved }
 
 enum HelpAuthor { you, support }
 
-/// A screen recording sent with a message.
+/// A screen recording sent with a message. [source] is where it plays from;
+/// the demo's recordings have none.
 class HelpAttachment {
   const HelpAttachment({
     required this.name,
     required this.length,
     required this.bytes,
+    this.source,
   });
 
   final String name;
   final Duration length;
   final int bytes;
+  final Uri? source;
 
   /// "0:31".
   String get lengthLabel =>

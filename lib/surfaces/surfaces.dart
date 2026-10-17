@@ -12,6 +12,7 @@ import '../core/backend.dart';
 import '../core/deadline.dart';
 import '../core/deep_links.dart';
 import '../core/flags.dart';
+import '../core/motion.dart';
 import '../core/navigation.dart';
 import '../core/session.dart';
 import '../data/demo_data.dart';
@@ -207,6 +208,7 @@ class Surfaces {
     required this.signedIn,
     required Set<String> tabRoots,
     bool Function(SurfaceChannel channel)? channelOn,
+    bool Function()? vibrate,
     SurfacesBridge? bridge,
     FlutterLocalNotificationsPlugin? notifications,
     QuickActions? quickActions,
@@ -214,6 +216,7 @@ class Surfaces {
        _notifications = notifications ?? FlutterLocalNotificationsPlugin(),
        _quickActions = quickActions ?? const QuickActions(),
        _channelOn = channelOn ?? ((_) => true),
+       _vibrate = vibrate ?? (() => IqHaptics.enabled),
        _queue = SurfaceLaunchQueue(readyRoots: tabRoots);
 
   final GoRouter router;
@@ -222,6 +225,10 @@ class Surfaces {
   final FlutterLocalNotificationsPlugin _notifications;
   final QuickActions _quickActions;
   final bool Function(SurfaceChannel channel) _channelOn;
+
+  /// The Haptics switch: while it is off, notifications go to the quiet
+  /// twin of their channel, which never vibrates.
+  final bool Function() _vibrate;
   final SurfaceLaunchQueue _queue;
 
   static const _smallIcon = 'ic_stat_iqly';
@@ -376,13 +383,19 @@ class Surfaces {
   /// bury real notifications on the lock screen.
   Future<void> playSample(IqSound sound) async {
     if (!supported) return;
+    final vibrate = _vibrate();
+    final channelId = sound.sampleChannelIdFor(vibrate: vibrate);
+    final channelName = vibrate
+        ? 'Sound sample: ${sound.label}'
+        : 'Sound sample: ${sound.label}, no vibration';
     await _android?.createNotificationChannel(
       AndroidNotificationChannel(
-        sound.sampleChannelId,
-        'Sound sample: ${sound.label}',
+        channelId,
+        channelName,
         description: sound.description,
         importance: Importance.high,
         sound: RawResourceAndroidNotificationSound(sound.resource),
+        enableVibration: vibrate,
       ),
     );
     await _notifications.show(
@@ -391,13 +404,14 @@ class Surfaces {
       body: sound.description,
       notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
-          sound.sampleChannelId,
-          'Sound sample: ${sound.label}',
+          channelId,
+          channelName,
           icon: _smallIcon,
           color: _accent,
           importance: Importance.high,
           priority: Priority.high,
           sound: RawResourceAndroidNotificationSound(sound.resource),
+          enableVibration: vibrate,
           timeoutAfter: _sampleLingers.inMilliseconds,
         ),
         iOS: DarwinNotificationDetails(
@@ -430,13 +444,15 @@ class Surfaces {
             radius: SurfaceThumb.notificationRadius,
           );
     final channel = note.channel;
+    final vibrate = _vibrate();
     return NotificationDetails(
       android: AndroidNotificationDetails(
-        channel.id,
-        channel.title,
+        channel.idFor(vibrate: vibrate),
+        channel.titleFor(vibrate: vibrate),
         channelDescription: channel.description,
         importance: _importance(channel),
         sound: RawResourceAndroidNotificationSound(channel.sound.resource),
+        enableVibration: vibrate,
         icon: _smallIcon,
         color: _accent,
         groupKey: note.group,
@@ -501,17 +517,20 @@ class Surfaces {
       await android.deleteNotificationChannel(channelId: id);
     }
     for (final channel in SurfaceChannel.values) {
-      await android.createNotificationChannel(
-        AndroidNotificationChannel(
-          channel.id,
-          channel.title,
-          description: channel.description,
-          importance: _importance(channel),
-          sound: RawResourceAndroidNotificationSound(channel.sound.resource),
-          ledColor: IqColors.accent,
-          enableLights: true,
-        ),
-      );
+      for (final vibrate in const [true, false]) {
+        await android.createNotificationChannel(
+          AndroidNotificationChannel(
+            channel.idFor(vibrate: vibrate),
+            channel.titleFor(vibrate: vibrate),
+            description: channel.description,
+            importance: _importance(channel),
+            sound: RawResourceAndroidNotificationSound(channel.sound.resource),
+            enableVibration: vibrate,
+            ledColor: IqColors.accent,
+            enableLights: true,
+          ),
+        );
+      }
     }
   }
 

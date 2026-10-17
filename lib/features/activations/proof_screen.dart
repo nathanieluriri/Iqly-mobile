@@ -372,7 +372,7 @@ class _ProofSlot extends StatelessWidget {
       duration: length == null ? '' : videoLength(length),
       meta: meta,
       progress: draft.progress,
-      thumbnail: const ProofFrame(),
+      thumbnail: ProofFrame(source: video.source),
       heroTag: heroTag,
       onPlay: onPlay,
       onRemove: onRemove,

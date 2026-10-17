@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/responsive.dart';
 import '../../theme/theme.dart';
+import '../../ui/recording_player.dart';
 import '../../ui/top_bar.dart';
 import 'activation_format.dart';
 import 'activations_routes.dart';
@@ -15,8 +16,9 @@ import 'activations_widgets.dart';
 /// sticker: its frame flies out of the thumbnail with the push (Hero,
 /// MOTION-SPEC §4.4; heroes are off under reduced motion). There is no
 /// Figma frame for it: the page reuses the Your proof title and the
-/// polaroid's caption. The live version plays the recording here with
-/// video_player; the demo has no video, so it shows the frame.
+/// polaroid's caption. A recording with a source plays here in place
+/// (IqRecordingPlayer) once the push has landed, over the flown frame; the
+/// demo's recordings have none and keep the frame.
 class ProofPlayerScreen extends ConsumerWidget {
   const ProofPlayerScreen({super.key, required this.id});
 
@@ -47,11 +49,21 @@ class ProofPlayerScreen extends ConsumerWidget {
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
-                    child: Hero(
-                      tag: proofHeroTag(id),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(IqRadius.xl2),
-                        child: const ProofFrame(),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(IqRadius.xl2),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Hero(
+                            tag: proofHeroTag(id),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(IqRadius.xl2),
+                              child: ProofFrame(source: video?.source),
+                            ),
+                          ),
+                          if (video?.source case final source?)
+                            IqRecordingPlayer(source: source),
+                        ],
                       ),
                     ),
                   ),

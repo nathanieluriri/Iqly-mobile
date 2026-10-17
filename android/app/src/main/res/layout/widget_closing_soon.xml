@@ -90,4 +90,57 @@
                 android:maxLines="1" />
         </LinearLayout>
     </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/closing_empty"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <ViewFlipper
+            android:id="@+id/closing_art"
+            android:layout_width="70dp"
+            android:layout_height="56dp"
+            android:autoStart="true"
+            android:flipInterval="1200"
+            android:importantForAccessibility="no"
+            android:inAnimation="@anim/widget_art_in"
+            android:outAnimation="@anim/widget_art_out">
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:importantForAccessibility="no"
+                android:scaleType="fitCenter"
+                android:src="@drawable/widget_art_briefs_1" />
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:importantForAccessibility="no"
+                android:scaleType="fitCenter"
+                android:src="@drawable/widget_art_briefs_2" />
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:importantForAccessibility="no"
+                android:scaleType="fitCenter"
+                android:src="@drawable/widget_art_briefs_3" />
+        </ViewFlipper>
+
+        <TextView
+            android:id="@+id/closing_empty_line"
+            style="@style/IqWidgetText.Strong"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:text="@string/widget_closing_soon_empty" />
+    </LinearLayout>
 </LinearLayout>
