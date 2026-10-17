@@ -8,6 +8,7 @@ import 'core/edge_haptics.dart';
 import 'core/patches.dart';
 import 'core/updates.dart';
 import 'data/live/live_repository.dart';
+import 'features/activations/activations_state.dart';
 import 'features/splash/patch_dialog.dart';
 import 'features/submissions/submissions_state.dart';
 import 'router.dart';
@@ -34,6 +35,9 @@ class _IqlyAppState extends ConsumerState<IqlyApp> {
         if (!ref.read(liveModeProvider).isPreview &&
             ref.exists(mySubmissionsProvider)) {
           ref.read(mySubmissionsProvider.notifier).refreshQuietly();
+        }
+        if (ref.exists(activationsProvider)) {
+          ref.read(activationsProvider.notifier).refreshQuietly().ignore();
         }
       },
     );

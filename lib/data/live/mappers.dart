@@ -268,6 +268,7 @@ LedgerEntry? ledgerEntryFromJson(Object? json) {
       'referral' => RewardSource.referral,
       _ => null,
     },
+    activationId: _text(j['activationId']),
   );
 }
 

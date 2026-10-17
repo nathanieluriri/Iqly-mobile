@@ -39,8 +39,9 @@ Map<String, Object> signedInLive([Map<String, Object> more = const {}]) => {
 
 /// The real router at [location] on a live build as main.dart wires one:
 /// the app's own live repository and services on [api], a launch fixed to
-/// [mode] (everything live by default), main.dart's retry and routes,
-/// 390 x 844 with animations off.
+/// [mode] (0.4.0's features by default), main.dart's retry and routes,
+/// 390 x 844 with animations off. Activations are the demo's unless [mode]
+/// runs them live.
 Future<(ProviderContainer, GoRouter)> pumpLiveLaunch(
   WidgetTester tester,
   String location, {
@@ -83,13 +84,14 @@ Future<(ProviderContainer, GoRouter)> pumpLiveLaunch(
       demoRepositoryProvider.overrideWithValue(
         DemoRepository(DemoData(now: launchNow)),
       ),
-      activationsServiceProvider.overrideWithValue(
-        DemoActivationsService(
-          clock: () => launchNow,
-          load: Duration.zero,
-          delay: Duration.zero,
+      if (!(mode ?? Backend.of(firstFeatures)).isLive(LiveFeature.activations))
+        activationsServiceProvider.overrideWithValue(
+          DemoActivationsService(
+            clock: () => launchNow,
+            load: Duration.zero,
+            delay: Duration.zero,
+          ),
         ),
-      ),
       ...overrides,
     ],
   );

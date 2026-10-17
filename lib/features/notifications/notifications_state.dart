@@ -15,8 +15,12 @@ import '../../data/referrals_service.dart' show referralsShownProvider;
 import '../../data/repository.dart';
 import '../../router.dart';
 import '../../ui/notification.dart';
+import '../activations/activations_routes.dart' show activationPath;
+import '../activations/activations_state.dart';
 import '../help/help_routes.dart' show helpThreadPath;
 import '../help/help_state.dart';
+import '../polls/polls_routes.dart' show quickPollsFor;
+import '../polls/polls_state.dart';
 import '../submissions/submissions_routes.dart';
 import '../submissions/submissions_state.dart';
 import '../wallet/wallet_routes.dart';
@@ -71,8 +75,8 @@ final notificationsProvider =
     );
 
 /// A push landed with iQLY open: the bell, the feed, My submissions, the
-/// support badge and any open help thread read again behind what they
-/// show, whichever of them this run has loaded.
+/// polls, the activations, the support badge and any open help thread read
+/// again behind what they show, whichever of them this run has loaded.
 void readAgainOnPush(Ref ref) {
   ref.invalidate(unreadNotificationsProvider);
   ref.invalidate(supportUnreadProvider);
@@ -84,6 +88,12 @@ void readAgainOnPush(Ref ref) {
   }
   if (ref.exists(mySubmissionsProvider)) {
     ref.read(mySubmissionsProvider.notifier).refreshQuietly();
+  }
+  if (ref.exists(pollsProvider)) {
+    ref.read(pollsProvider.notifier).refreshQuietly().ignore();
+  }
+  if (ref.exists(activationsProvider)) {
+    ref.read(activationsProvider.notifier).refreshQuietly().ignore();
   }
 }
 
@@ -191,6 +201,8 @@ final notificationFeedProvider = FutureProvider.autoDispose<NotificationFeed>(
     final now = ref.watch(clockProvider)();
     final support = ref.watch(supportShownProvider);
     final referrals = ref.watch(referralsShownProvider);
+    final polls = ref.watch(pollsShownProvider);
+    final activations = ref.watch(activationsShownProvider);
     final items = [
       for (final note in notes)
         ?wordNotification(
@@ -201,6 +213,8 @@ final notificationFeedProvider = FutureProvider.autoDispose<NotificationFeed>(
           now: now,
           support: support,
           referrals: referrals,
+          polls: polls,
+          activations: activations,
         ),
     ];
     bool today(NotificationItem item) => DateUtils.isSameDay(item.note.at, now);
@@ -223,9 +237,10 @@ String _clock(DateTime at) => DateFormat('h:mm a').format(at).toLowerCase();
 /// The words of one row and its sub page, or null when what a demo row
 /// points at is gone. A row from the API is worded from what it embeds;
 /// the API's own title and body stand in where the app has no design or
-/// the row lacks what the design needs. A support reply opens its thread
-/// and a referral reward Referral history, as their pushes do, while the
-/// launch shows them ([support], [referrals]).
+/// the row lacks what the design needs. A support reply opens its thread,
+/// a referral reward Referral history and a poll or activation row its poll
+/// or activation, as their pushes do, only while the launch shows them
+/// ([support], [referrals], [polls], [activations]).
 NotificationItem? wordNotification(
   AppNotification note, {
   required Map<String, Brief> briefs,
@@ -234,6 +249,8 @@ NotificationItem? wordNotification(
   required DateTime now,
   bool support = true,
   bool referrals = true,
+  bool polls = false,
+  bool activations = false,
 }) {
   final when = timeAgoShort(note.at, now).replaceFirst(' ago', '');
   NotificationItem item(
@@ -261,7 +278,12 @@ NotificationItem? wordNotification(
           _kindOf(note),
           facts.title,
           facts.body,
-          link: _linkOf(note, support: support),
+          link: _linkOf(
+            note,
+            support: support,
+            polls: polls,
+            activations: activations,
+          ),
         );
 
   switch (note.event) {
@@ -444,15 +466,30 @@ IqNotificationKind _kindOf(AppNotification note) => switch (note.event) {
 };
 
 /// Where a row in the API's words leads, as its push does: the help thread
-/// support answered, the brief it is about, else the withdrawal, else
-/// nowhere but read.
-NotificationLink? _linkOf(AppNotification note, {required bool support}) {
+/// support answered, the brief it is about, else the activation or the
+/// poll's business, else the withdrawal, else nowhere but read.
+NotificationLink? _linkOf(
+  AppNotification note, {
+  required bool support,
+  required bool polls,
+  required bool activations,
+}) {
   final ticket = note.facts?.ticketId;
   if (ticket != null) {
     return support ? NotificationLink.push(helpThreadPath(ticket)) : null;
   }
   final brief = note.briefId;
   if (brief != null) return NotificationLink.push(Routes.brief(brief));
+  final activation = note.facts?.activationId;
+  if (activation != null) {
+    return activations
+        ? NotificationLink.push(activationPath(activation))
+        : null;
+  }
+  final poll = note.facts?.pollId;
+  if (poll != null) {
+    return polls ? NotificationLink.push(quickPollsFor(poll)) : null;
+  }
   final withdrawal =
       note.facts?.withdrawal?.id ??
       switch (note.event) {

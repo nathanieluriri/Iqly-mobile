@@ -16,6 +16,7 @@ abstract final class DeepLinks {
   static const submitPattern = '/briefs/:id/submit';
   static const withdrawalPattern = '/wallet/withdrawals/:id';
   static const notificationPattern = '/notifications/:id';
+  static const activationPattern = '/activations/:id';
 
   /// What the section 12 pushes open: a help thread support answered, and
   /// Referrals or Referral history for a referral reward.
@@ -28,6 +29,7 @@ abstract final class DeepLinks {
   static String submit(String briefId) => '/briefs/$briefId/submit';
   static String withdrawal(String id) => '/wallet/withdrawals/$id';
   static String notification(String id) => '/notifications/$id';
+  static String activation(String id) => '/activations/$id';
   static String helpThread(String ticketId) => '/help/$ticketId';
 
   static const patterns = [
@@ -39,6 +41,7 @@ abstract final class DeepLinks {
     submitPattern,
     withdrawalPattern,
     notificationPattern,
+    activationPattern,
     helpThreadPattern,
     referrals,
     referralHistory,

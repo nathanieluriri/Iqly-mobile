@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/backend.dart';
 import '../../data/device.dart';
+import '../../data/live/live_repository.dart' show liveModeProvider;
 import '../../surfaces/notification_sounds.dart';
 import '../../surfaces/surface_samples.dart';
 import '../../data/repository.dart';
@@ -81,7 +82,9 @@ class TryNotificationsScreen extends ConsumerWidget {
         'Requested, then Sent, then Arrived',
         (NotificationTrial t) => t.payout(),
       ),
-      if (ref.watch(pollsShownProvider))
+      // The sample poll's business is the preview's alone.
+      if (ref.watch(pollsShownProvider) &&
+          ref.watch(liveModeProvider).isPreview)
         (
           IqIcons.polls,
           'New poll from Orchid Foods',

@@ -204,16 +204,19 @@ final leaderboardShownProvider = Provider<bool>((ref) {
   return mode.isPreview || mode.isLive(LiveFeature.leaderboard);
 });
 
-/// Quick polls and activations have no API in contract 1 either, so a live
-/// launch hides every way into them, never showing the preview's samples.
-/// A preview launch keeps them behind their flags.
-final pollsShownProvider = Provider<bool>(
-  (ref) => Flags.polls && ref.watch(liveModeProvider).isPreview,
-);
+/// Quick polls and activations, behind their flags: the preview's samples,
+/// or the API's while it runs them (contract 11). A live launch without
+/// them hides every way in, never showing the preview's samples.
+final pollsShownProvider = Provider<bool>((ref) {
+  final mode = ref.watch(liveModeProvider);
+  return Flags.polls && (mode.isPreview || mode.isLive(LiveFeature.polls));
+});
 
-final activationsShownProvider = Provider<bool>(
-  (ref) => Flags.activations && ref.watch(liveModeProvider).isPreview,
-);
+final activationsShownProvider = Provider<bool>((ref) {
+  final mode = ref.watch(liveModeProvider);
+  return Flags.activations &&
+      (mode.isPreview || mode.isLive(LiveFeature.activations));
+});
 
 /// The bell's unread count, shared by every tab's top bar. It clears once
 /// the feed has been seen.

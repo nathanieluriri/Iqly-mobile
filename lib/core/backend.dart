@@ -25,6 +25,8 @@ enum LiveFeature {
   leaderboard,
   referrals,
   support,
+  polls,
+  activations,
   businessNote,
   referralRewards,
   avatarPhoto;
@@ -38,7 +40,9 @@ enum LiveFeature {
     LiveFeature.account => const {LiveFeature.profile, LiveFeature.wallet},
     LiveFeature.avatar ||
     LiveFeature.referrals ||
-    LiveFeature.support => const {LiveFeature.profile},
+    LiveFeature.support ||
+    LiveFeature.polls => const {LiveFeature.profile},
+    LiveFeature.activations => const {LiveFeature.profile, LiveFeature.wallet},
     LiveFeature.bankAccounts => const {LiveFeature.wallet},
     LiveFeature.leaderboard ||
     LiveFeature.businessNote => const {LiveFeature.submissions},
