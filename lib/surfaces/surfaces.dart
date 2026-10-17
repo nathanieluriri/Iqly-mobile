@@ -148,6 +148,7 @@ class Surfaces {
   final SurfaceLaunchQueue _queue;
 
   static const _smallIcon = 'ic_stat_iqly';
+  static const _sampleKey = 'sample';
   static const _pollCategory = 'poll';
 
   static bool get supported =>
@@ -284,7 +285,11 @@ class Surfaces {
     }
   }
 
-  /// Try notifications: a notification that plays only [sound].
+  static const _sampleLingers = Duration(minutes: 1);
+
+  /// Try notifications: a notification that plays only [sound]. Samples
+  /// share one slot and leave after a minute, so trying all six does not
+  /// bury real notifications on the lock screen.
   Future<void> playSample(IqSound sound) async {
     if (!supported) return;
     await _android?.createNotificationChannel(
@@ -297,7 +302,7 @@ class Surfaces {
       ),
     );
     await _notifications.show(
-      id: stableId(sound.sampleChannelId),
+      id: stableId(_sampleKey),
       title: '${sound.isSiren ? 'Siren' : 'Bing'}: ${sound.label}',
       body: sound.description,
       notificationDetails: NotificationDetails(
@@ -305,10 +310,11 @@ class Surfaces {
           sound.sampleChannelId,
           'Sound sample: ${sound.label}',
           icon: _smallIcon,
-          color: IqColors.brand,
+          color: _accent,
           importance: Importance.high,
           priority: Priority.high,
           sound: RawResourceAndroidNotificationSound(sound.resource),
+          timeoutAfter: _sampleLingers.inMilliseconds,
         ),
         iOS: DarwinNotificationDetails(
           sound: sound.iosFile,
@@ -348,7 +354,7 @@ class Surfaces {
         importance: _importance(channel),
         sound: RawResourceAndroidNotificationSound(channel.sound.resource),
         icon: _smallIcon,
-        color: IqColors.brand,
+        color: _accent,
         groupKey: note.group,
         subText: note.subtext,
         styleInformation: BigTextStyleInformation(note.body),
@@ -364,6 +370,7 @@ class Surfaces {
             ? NotificationVisibility.private
             : NotificationVisibility.public,
         when: countdownTo?.millisecondsSinceEpoch,
+        showWhen: note.progress == null,
         usesChronometer: countdownTo != null,
         chronometerCountDown: countdownTo != null,
         timeoutAfter:
@@ -393,6 +400,12 @@ class Surfaces {
       ),
     );
   }
+
+  /// Android fills the circle around the small icon with this and lets it
+  /// show through the icon's cut-outs. It keeps the stored colour across
+  /// theme switches and only adjusts it for contrast: the mark's orange
+  /// survives both shades, where brand purple came back lavender on dark.
+  static const _accent = IqColors.accent;
 
   static Importance _importance(SurfaceChannel channel) =>
       channel.urgent ? Importance.high : Importance.defaultImportance;
