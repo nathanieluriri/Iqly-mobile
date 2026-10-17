@@ -713,19 +713,20 @@ class _OptionEditState extends ConsumerState<_OptionEdit> {
             const SizedBox(height: IqSpace.s2),
           ],
           Expanded(
-            child: ListView(
+            child: ListView.builder(
               padding: EdgeInsets.zero,
-              children: [
-                for (final option in options)
-                  IqOptionRow(
-                    label: option.label,
-                    showNote: false,
-                    state: option.value == _picked
-                        ? IqOptionRowState.selected
-                        : IqOptionRowState.standard,
-                    onTap: () => setState(() => _choice = option.value),
-                  ),
-              ],
+              itemCount: options.length,
+              itemBuilder: (context, i) {
+                final option = options[i];
+                return IqOptionRow(
+                  label: option.label,
+                  showNote: false,
+                  state: option.value == _picked
+                      ? IqOptionRowState.selected
+                      : IqOptionRowState.standard,
+                  onTap: () => setState(() => _choice = option.value),
+                );
+              },
             ),
           ),
         ],

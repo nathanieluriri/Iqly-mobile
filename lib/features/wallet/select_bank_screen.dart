@@ -89,26 +89,17 @@ class _SelectBankScreenState extends ConsumerState<SelectBankScreen> {
                     ),
                   ),
                   Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(
-                        IqSpace.s4,
-                        IqSpace.s4,
-                        IqSpace.s4,
-                        IqSpace.s4,
-                      ),
+                    child: CustomScrollView(
                       keyboardDismissBehavior:
                           ScrollViewKeyboardDismissBehavior.onDrag,
-                      child: Container(
-                        clipBehavior: Clip.antiAlias,
-                        decoration: BoxDecoration(
-                          color: IqColors.card,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: IqColors.line),
-                        ),
-                        child: Column(
-                          children: [
-                            for (final (i, bank) in banks.indexed)
-                              StaggerItem(
+                      slivers: [
+                        SliverPadding(
+                          padding: const EdgeInsets.all(IqSpace.s4),
+                          sliver: _BankCard(
+                            count: banks.length,
+                            row: (i) {
+                              final bank = banks[i];
+                              return StaggerItem(
                                 index: i + 1,
                                 child: IqListRow(
                                   key: ValueKey(bank.code),
@@ -121,15 +112,59 @@ class _SelectBankScreenState extends ConsumerState<SelectBankScreen> {
                                   divider: i < banks.length - 1,
                                   onTap: () => _pick(bank),
                                 ),
-                              ),
-                          ],
+                              );
+                            },
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The banks in one hairline card, built as they scroll into view: the
+/// list runs to hundreds of banks, and building them all with the page
+/// stuttered its push.
+class _BankCard extends StatelessWidget {
+  const _BankCard({required this.count, required this.row});
+
+  final int count;
+  final Widget Function(int i) row;
+
+  static const double radius = 16;
+
+  @override
+  Widget build(BuildContext context) {
+    final corners = BorderRadius.circular(radius);
+    return DecoratedSliver(
+      decoration: BoxDecoration(color: IqColors.card, borderRadius: corners),
+      sliver: DecoratedSliver(
+        position: DecorationPosition.foreground,
+        decoration: BoxDecoration(
+          borderRadius: corners,
+          border: Border.all(color: IqColors.line),
+        ),
+        // A Container's border insets its child; this card's does too.
+        sliver: SliverPadding(
+          padding: const EdgeInsets.all(1),
+          sliver: SliverList.builder(
+            itemCount: count,
+            itemBuilder: (context, i) => i > 0 && i < count - 1
+                ? row(i)
+                : ClipRRect(
+                    borderRadius: BorderRadius.vertical(
+                      top: i == 0 ? corners.topLeft : Radius.zero,
+                      bottom: i == count - 1 ? corners.bottomLeft : Radius.zero,
+                    ),
+                    child: row(i),
+                  ),
           ),
         ),
       ),

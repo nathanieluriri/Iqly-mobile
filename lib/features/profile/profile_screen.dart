@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/flags.dart';
+import '../../core/haptics.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../data/repository.dart';
@@ -11,6 +12,8 @@ import '../../ui/avatar.dart';
 import '../../ui/icon.dart';
 import '../../ui/list_row.dart';
 import '../../ui/pressable.dart';
+import '../../ui/setting_row.dart';
+import '../../ui/switch.dart';
 import '../avatar/avatar_state.dart';
 import '../avatar/choose_avatar.dart';
 import '../more/more_screen.dart';
@@ -23,7 +26,8 @@ import '../referrals/referrals_screen.dart';
 /// with its pencil (both open Choose your avatar), the name and the invite
 /// code with copy, then one card: Invite friends, Your details,
 /// Notification preferences (Flags.notificationPreferences) and Sign out,
-/// which asks on the Sign out? sheet first. No email and no wins.
+/// which asks on the Sign out? sheet first. No email and no wins. Under it,
+/// the Haptics switch, kept on this phone only (not in Figma).
 ///
 /// A live launch has no referrals yet ([pointsAndReferralsProvider]): the
 /// invite code line and Invite friends go, and the name sits alone under
@@ -167,6 +171,23 @@ class ProfileScreen extends ConsumerWidget {
                 showDescription: false,
                 icon: IqIcons.logout,
                 onTap: () => confirmSignOut(context, ref),
+              ),
+            ],
+          ),
+          const SizedBox(height: IqSpace.s3),
+          RowGroup(
+            outlined: true,
+            children: [
+              IqSettingRow(
+                label: 'Haptics',
+                description: 'Vibration on taps, tabs and list ends',
+                divider: false,
+                state: ref.watch(hapticsProvider)
+                    ? IqSwitchState.on
+                    : IqSwitchState.off,
+                onChanged: (state) => ref
+                    .read(hapticsProvider.notifier)
+                    .set(state == IqSwitchState.on),
               ),
             ],
           ),

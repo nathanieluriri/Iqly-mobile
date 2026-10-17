@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/core/motion.dart';
 import 'package:iqly_mobile/ui/dock.dart';
 
 import 'golden.dart';
@@ -37,6 +38,7 @@ void main() {
     await tester.tap(find.text('More'));
     await tester.pump();
     expect(taps, [IqDockActive.more]);
+    await tester.pump(IqHaptics.tabFollow);
   });
 
   testWidgets('the bar is full width with a hairline on top, no radius', (
@@ -91,5 +93,6 @@ void main() {
     await tester.pump();
     expect(active, IqDockActive.wallet);
     expect(tester.hasRunningAnimations, isFalse);
+    await tester.pump(IqHaptics.tabFollow);
   });
 }

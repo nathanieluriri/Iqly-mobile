@@ -455,7 +455,7 @@ void main() {
       expect(tester.hasRunningAnimations, isFalse);
     });
 
-    testWidgets('a tab change ticks once', (tester) async {
+    testWidgets('a tab change plays one long heavy stop', (tester) async {
       final haptics = recordHaptics(tester);
       var active = IqDockActive.discover;
       await tester.pumpWidget(
@@ -474,9 +474,14 @@ void main() {
       );
       await tester.tap(find.text('Wallet'));
       await tester.pumpAndSettle();
+      await tester.pump(IqHaptics.tabFollow);
       await tester.tap(find.text('Wallet'));
       await tester.pumpAndSettle();
-      expect(haptics, ['HapticFeedbackType.lightImpact']);
+      await tester.pump(IqHaptics.tabFollow);
+      expect(haptics, [
+        'HapticFeedbackType.heavyImpact',
+        'HapticFeedbackType.heavyImpact',
+      ]);
     });
   });
 

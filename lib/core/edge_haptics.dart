@@ -2,11 +2,14 @@ import 'package:flutter/widgets.dart';
 
 import 'motion.dart';
 
-/// Plays [IqHaptics.edge] once when a drag pushes a list past either end, on
-/// clamping (Android) and bouncing (iOS) physics alike, except the start of
-/// a list under [PullsToRefresh], where the pull has its own click. A flick
-/// that coasts into an end stays quiet, and so do lists too short to scroll
-/// and wheels (they tick on their own).
+/// Plays [IqHaptics.edge] once on the frame a scroll the person drives (a
+/// drag, or the fling it lets go into) reaches the top or bottom of a list,
+/// on clamping (Android) and bouncing (iOS) physics alike. Pushing on past
+/// the end plays nothing, and the end plays again only once the list has
+/// left it. Reaching the top of a list under [PullsToRefresh] plays too and
+/// is noted there, so a pull armed in the same gesture keeps quiet.
+/// Lists too short to scroll, programmatic scrolls and wheels (they tick on
+/// their own) stay quiet.
 class EdgeHaptics extends StatefulWidget {
   const EdgeHaptics({super.key, required this.child});
 
@@ -17,40 +20,43 @@ class EdgeHaptics extends StatefulWidget {
 }
 
 class _EdgeHapticsState extends State<EdgeHaptics> {
-  bool _armed = false;
+  // Keyed by each scrollable's context, since nested lists report here too.
+  final _at = <BuildContext, _End?>{};
 
   bool _onScroll(ScrollNotification n) {
     final metrics = n.metrics;
-    if (metrics is FixedExtentMetrics) return false;
+    final key = n.context;
+    if (metrics is FixedExtentMetrics || key == null) return false;
     if (n is ScrollStartNotification) {
-      _armed = n.dragDetails != null;
-    } else if (n is ScrollEndNotification) {
-      _armed = false;
-    } else if (_armed && metrics.maxScrollExtent > metrics.minScrollExtent) {
-      final end = _pushedPast(n);
-      if (end == _End.far || (end == _End.start && !_pullsToRefresh(n))) {
-        _armed = false;
-        IqHaptics.edge.play();
+      if (n.dragDetails != null) {
+        _at[key] = _edgeOf(metrics);
+        _pull(n)?.reachedTop = false;
+      } else {
+        _at.remove(key);
       }
+    } else if (n is ScrollEndNotification) {
+      _at.remove(key);
+    } else if (n is ScrollUpdateNotification && _at.containsKey(key)) {
+      final was = _at[key];
+      final now = _edgeOf(metrics);
+      _at[key] = now;
+      if (now == null || now == was) return false;
+      if (metrics.maxScrollExtent <= metrics.minScrollExtent) return false;
+      if (now == _End.start) _pull(n)?.reachedTop = true;
+      IqHaptics.edge.play();
     }
     return false;
   }
 
-  static _End? _pushedPast(ScrollNotification n) {
-    if (n is OverscrollNotification) {
-      if (n.dragDetails == null || n.overscroll == 0) return null;
-      return n.overscroll > 0 ? _End.far : _End.start;
-    }
-    if (n is ScrollUpdateNotification && n.dragDetails != null) {
-      if (n.metrics.pixels > n.metrics.maxScrollExtent) return _End.far;
-      if (n.metrics.pixels < n.metrics.minScrollExtent) return _End.start;
-    }
+  static _End? _edgeOf(ScrollMetrics m) {
+    const tolerance = 0.5;
+    if (m.pixels >= m.maxScrollExtent - tolerance) return _End.far;
+    if (m.pixels <= m.minScrollExtent + tolerance) return _End.start;
     return null;
   }
 
-  static bool _pullsToRefresh(ScrollNotification n) =>
-      n.metrics.axis == Axis.vertical &&
-      n.context?.findAncestorWidgetOfExactType<PullsToRefresh>() != null;
+  static PullGesture? _pull(ScrollNotification n) =>
+      n.metrics.axis == Axis.vertical ? PullsToRefresh.of(n.context!) : null;
 
   @override
   Widget build(BuildContext context) =>
@@ -62,13 +68,41 @@ class _EdgeHapticsState extends State<EdgeHaptics> {
 
 enum _End { start, far }
 
-/// Marks a vertical list whose start pulls to refresh, so [EdgeHaptics]
-/// leaves that end to the pull's own click.
-class PullsToRefresh extends StatelessWidget {
+/// What [EdgeHaptics] noted of the drag in progress on a list that pulls to
+/// refresh.
+class PullGesture {
+  /// The drag (or its fling) reached the top and played the edge stop, so
+  /// the pull's own click would be a second buzz for one gesture.
+  bool reachedTop = false;
+}
+
+/// Marks a vertical list whose start pulls to refresh, and shares its
+/// [PullGesture] between [EdgeHaptics] and the pull.
+class PullsToRefresh extends StatefulWidget {
   const PullsToRefresh({super.key, required this.child});
 
   final Widget child;
 
+  static PullGesture? of(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_PullScope>()?.gesture;
+
   @override
-  Widget build(BuildContext context) => child;
+  State<PullsToRefresh> createState() => _PullsToRefreshState();
+}
+
+class _PullsToRefreshState extends State<PullsToRefresh> {
+  final _gesture = PullGesture();
+
+  @override
+  Widget build(BuildContext context) =>
+      _PullScope(gesture: _gesture, child: widget.child);
+}
+
+class _PullScope extends InheritedWidget {
+  const _PullScope({required this.gesture, required super.child});
+
+  final PullGesture gesture;
+
+  @override
+  bool updateShouldNotify(_PullScope old) => gesture != old.gesture;
 }

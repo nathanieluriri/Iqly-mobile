@@ -152,6 +152,7 @@ void main() {
     expect(find.byType(SkeletonSubmissionCard), findsNothing);
     expect(_arrived(tester, 0), 1);
     expect(repository.loads, hasLength(1));
+    await tester.pump(IqHaptics.tabFollow);
   });
 
   testWidgets('a quiet refresh keeps the cards on screen', (tester) async {

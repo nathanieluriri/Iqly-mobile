@@ -311,6 +311,63 @@ void main() {
       return c;
     }
 
+    group('forced from Try notifications', () {
+      test('a forced preview wins over a ready API on this launch and the '
+          'next, while health still keeps its answer', () async {
+        final c = launch();
+        final backend = c.read(backendProvider.notifier);
+        await backend.check();
+        await backend.lock();
+        expect(c.read(backendProvider), _all);
+
+        await backend.force(preview: true);
+        expect(c.read(backendProvider), Backend.preview);
+        expect(prefs.getString(LiveBackendNotifier.forcedKey), 'preview');
+        await backend.check();
+        expect(c.read(backendProvider), Backend.preview);
+        await backend.lock();
+        expect(prefs.getStringList(LiveBackendNotifier.launchedKey), isEmpty);
+        expect(prefs.getStringList(LiveBackendNotifier.decidedKey), _all.names);
+
+        final next = launch();
+        expect(next.read(backendProvider), Backend.preview);
+        await next.read(backendProvider.notifier).check();
+        expect(next.read(backendProvider), Backend.preview);
+        expect(next.read(backendProvider.notifier).forcedPreview, isTrue);
+      });
+
+      test('switching back to live hands the mode to health, which still '
+          'needs the API ready', () async {
+        final c = launch();
+        final backend = c.read(backendProvider.notifier);
+        await backend.force(preview: true);
+        await backend.lock();
+
+        health.answer = () async => _report(_health(ready: false));
+        await backend.force(preview: false);
+        expect(prefs.getString(LiveBackendNotifier.forcedKey), isNull);
+        await backend.check();
+        expect(c.read(backendProvider), Backend.preview);
+
+        health.answer = () async => _report(_health());
+        await backend.check();
+        expect(c.read(backendProvider), _all);
+        await backend.lock();
+        expect(
+          prefs.getStringList(LiveBackendNotifier.launchedKey),
+          _all.names,
+        );
+      });
+
+      test('the preview build cannot be forced', () async {
+        final c = ProviderContainer(
+          overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+        );
+        addTearDown(c.dispose);
+        expect(c.read(backendProvider.notifier).canForce, isFalse);
+      });
+    });
+
     test('with nothing kept and no answer, it is preview', () async {
       health.answer = () => Future.error(const ApiUnreachable());
       final c = launch();
