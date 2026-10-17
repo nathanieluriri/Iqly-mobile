@@ -4,6 +4,7 @@ import '../core/backend.dart';
 import '../core/deadline.dart';
 import 'live/live_account.dart';
 import 'live/live_onboarding_service.dart';
+import 'live/live_repository.dart';
 import 'reference_data.dart';
 
 /// Contributors must be 18 or older (answer 10).
@@ -182,9 +183,23 @@ class DemoOnboardingService implements OnboardingService {
       Future<void>.delayed(delay);
 }
 
-/// The API's outbox while the profile runs live this launch, else the demo.
+/// First run in a live launch that pauses the profile: the answers stay on
+/// the phone, in the draft, and nothing pretends they reached the account.
+class PausedOnboardingService implements OnboardingService {
+  const PausedOnboardingService();
+
+  @override
+  Future<void> saveProfile(OnboardingProfile profile, {bool skipped = false}) =>
+      Future.error(const FeaturePaused(LiveFeature.profile));
+}
+
+/// The demo in a preview launch; in a live one the API's outbox, or a
+/// refusal while the profile is paused.
 final onboardingServiceProvider = Provider<OnboardingService>((ref) {
+  if (ref.watch(liveModeProvider).isPreview) {
+    return const DemoOnboardingService();
+  }
   final link = ref.watch(liveLinkProvider(LiveFeature.profile));
-  if (link == null) return const DemoOnboardingService();
+  if (link == null) return const PausedOnboardingService();
   return LiveOnboardingService(link, clock: ref.watch(clockProvider));
 });

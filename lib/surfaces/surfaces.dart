@@ -9,6 +9,7 @@ import 'package:quick_actions/quick_actions.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import '../core/backend.dart';
+import '../core/deadline.dart';
 import '../core/deep_links.dart';
 import '../core/flags.dart';
 import '../core/navigation.dart';
@@ -129,17 +130,29 @@ class SurfaceInputs {
 /// What the surfaces show this launch, for main.dart to start and publish
 /// them with in place of [SurfaceInputs.demo]. With briefs live the
 /// closing-soon widget reads the live briefs (the phone's last copy when
-/// offline) and, with submit live, Continue my draft opens the newest draft
-/// on the phone, or is not offered. Polls stay on the preview data.
-Future<SurfaceInputs> surfaceInputs(Reader read, DateTime now) async {
+/// the API does not answer) and, with submit live, Continue my draft opens
+/// the newest draft on the phone, or is not offered; a live launch that
+/// pauses them shows neither. [onPhone] reads only what the phone holds,
+/// without asking the API, so a launch link never waits for the network.
+/// Polls stay on the preview data.
+Future<SurfaceInputs> surfaceInputs(
+  Reader read,
+  DateTime now, {
+  bool onPhone = false,
+}) async {
   final preview = SurfaceInputs.demo(now);
   final mode = read(liveModeProvider);
-  if (!mode.isLive(LiveFeature.briefs)) return preview;
+  if (mode.isPreview) return preview;
   final repository = read(repositoryProvider);
-  final briefs = await repository.briefs().catchError(
-    (Object _) => const <Brief>[],
-  );
-  var draft = preview.draftBriefId;
+  var briefs = const <Brief>[];
+  if (mode.isLive(LiveFeature.briefs)) {
+    briefs =
+        await (onPhone && repository is LiveRepository
+                ? repository.keptBriefs()
+                : repository.briefs())
+            .catchError((Object _) => const <Brief>[]);
+  }
+  String? draft;
   if (mode.isLive(LiveFeature.submit)) {
     try {
       draft = (await repository.drafts()).firstOrNull?.briefId;
@@ -155,6 +168,23 @@ Future<SurfaceInputs> surfaceInputs(Reader read, DateTime now) async {
     now: now,
     draftBriefId: draft,
   );
+}
+
+/// Starts [surfaces] on what the phone holds, so a launch link opens at
+/// once, then publishes what the API answers whenever it comes: at launch
+/// and after each change of mode.
+Future<void> startSurfaces(
+  Surfaces surfaces,
+  ProviderContainer container,
+) async {
+  final now = container.read(clockProvider);
+  void publishLive() =>
+      unawaited(surfaceInputs(container.read, now()).then(surfaces.publish));
+  await surfaces.start(
+    await surfaceInputs(container.read, now(), onPhone: true),
+  );
+  if (!container.read(liveModeProvider).isPreview) publishLive();
+  container.listen(backendProvider, (_, _) => publishLive());
 }
 
 /// Starts the OS surfaces from main.dart and routes their taps. Widget tests

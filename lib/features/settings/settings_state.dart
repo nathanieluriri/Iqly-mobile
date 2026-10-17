@@ -41,10 +41,15 @@ final notificationPreferencesProvider =
     >(NotificationPreferencesNotifier.new);
 
 /// What Delete account weighs: the available balance to withdraw first and
-/// what is already on its way (walletTotals, as on the web).
+/// what is already on its way (walletTotals, as on the web). A paused
+/// wallet has no figures to weigh.
 final accountWalletProvider = FutureProvider<WalletTotals>((ref) async {
-  if (ref.watch(liveModeProvider).isLive(LiveFeature.wallet)) {
+  final mode = ref.watch(liveModeProvider);
+  if (mode.isLive(LiveFeature.wallet)) {
     return (await ref.watch(walletProvider.future)).totals;
+  }
+  if (mode.isPaused(LiveFeature.wallet)) {
+    throw const FeaturePaused(LiveFeature.wallet);
   }
   final repo = ref.watch(repositoryProvider);
   final (ledger, withdrawals) = await (repo.ledger(), repo.withdrawals()).wait;

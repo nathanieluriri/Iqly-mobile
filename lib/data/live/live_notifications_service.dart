@@ -4,6 +4,7 @@ import '../api_client.dart';
 import '../models.dart';
 import '../notifications_data.dart';
 import '../notifications_service.dart';
+import 'kept_reads.dart';
 import 'live_account.dart';
 
 /// A `GET /notifications` row as the app's notification (contract 7):
@@ -135,28 +136,34 @@ class LiveNotificationsService implements NotificationsService {
     return rows;
   }
 
-  /// Every page up to [cap] rows, kept as one.
-  Future<Map<String, dynamic>> _feed() async {
+  /// Every page up to [cap] rows, kept as one; the copy kept last when the
+  /// API does not answer ([orKept]).
+  Future<Map<String, dynamic>> _feed() {
+    final fetching = _pages().then((feed) async {
+      await link.keep(AccountKeys.notifications, feed);
+      return feed;
+    });
+    return orKept(
+      fetching,
+      link
+          .kept(AccountKeys.notifications)
+          .then((kept) => kept == null ? null : (copy: kept)),
+    );
+  }
+
+  Future<Map<String, dynamic>> _pages() async {
     final items = <Object?>[];
     int? unseen;
     String? cursor;
-    try {
-      do {
-        final page = await _page(cap - items.length, cursor);
-        unseen ??= apiInt(page['unseen']);
-        final rows = _items(page);
-        if (rows.isEmpty) break;
-        items.addAll(rows);
-        cursor = apiText(page['nextCursor']);
-      } while (cursor != null && items.length < cap);
-    } on ApiUnreachable {
-      final kept = await link.kept(AccountKeys.notifications);
-      if (kept != null) return kept;
-      rethrow;
-    }
-    final feed = {'items': items.take(cap).toList(), 'unseen': unseen ?? 0};
-    await link.keep(AccountKeys.notifications, feed);
-    return feed;
+    do {
+      final page = await _page(cap - items.length, cursor);
+      unseen ??= apiInt(page['unseen']);
+      final rows = _items(page);
+      if (rows.isEmpty) break;
+      items.addAll(rows);
+      cursor = apiText(page['nextCursor']);
+    } while (cursor != null && items.length < cap);
+    return {'items': items.take(cap).toList(), 'unseen': unseen ?? 0};
   }
 
   Future<Map<String, dynamic>> _page(int limit, String? cursor) async {

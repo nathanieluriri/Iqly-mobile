@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
@@ -17,6 +18,9 @@ import '../../ui/button.dart';
 import '../../ui/top_bar.dart';
 import '../discover/discover_state.dart';
 import '../drafts/drafts_state.dart';
+import '../profile/profile_routes.dart';
+import '../profile/your_details_screen.dart';
+import '../settings/restore_account_screen.dart';
 import '../submissions/submissions_routes.dart';
 import '../submissions/submissions_state.dart';
 import 'brief_sheet.dart';
@@ -36,6 +40,10 @@ import 'submit_widgets.dart';
 /// Back pops to whichever page opened it, and from the questions it returns
 /// to the answer. Every word is saved as it is typed, so leaving never asks
 /// (owner, 16 Oct): the draft waits in Drafts.
+///
+/// A send the API refuses for a date of birth under 18 opens Date of birth,
+/// and one from a closing account goes to Restore; the frames have no state
+/// for either.
 class SubmitScreen extends ConsumerWidget {
   const SubmitScreen({super.key, required this.briefId});
 
@@ -197,8 +205,14 @@ class _FlowState extends ConsumerState<_Flow> {
       return;
     }
     IqHaptics.error.play();
-    if (result.failure == SubmitFailure.blocked) {
-      ref.invalidate(submitOpeningProvider(_id));
+    switch (result.failure) {
+      case SubmitFailure.blocked:
+        ref.invalidate(submitOpeningProvider(_id));
+      case SubmitFailure.underAge:
+        await context.open<void>(editDetailPath(DetailField.dateOfBirth));
+      case SubmitFailure.closing when Flags.deleteAccount:
+        await showClosingAccount(context, ref);
+      default:
     }
   }
 

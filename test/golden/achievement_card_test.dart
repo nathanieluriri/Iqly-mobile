@@ -14,4 +14,13 @@ void main() {
       size: IqAchievementCard.size,
     );
   });
+
+  testWidgets('achievement_card name only', (tester) async {
+    await expectComponentGolden(
+      tester,
+      'achievement_card_name_only',
+      const IqAchievementCard(points: '', rank: ''),
+      size: IqAchievementCard.size,
+    );
+  });
 }

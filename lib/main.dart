@@ -41,6 +41,7 @@ Future<void> main() async {
   final store = ApiConfig.liveAuth ? await _openStore() : null;
   late final ProviderContainer container;
   container = ProviderContainer(
+    retry: retryUnlessPaused,
     overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
       deviceServiceProvider.overrideWithValue(
@@ -131,14 +132,7 @@ void _startAccount(ProviderContainer container) {
 }
 
 Future<void> _startSurfaces(ProviderContainer container) async {
-  final surfaces = container.read(surfacesProvider)!;
-  await surfaces.start(await surfaceInputs(container.read, DateTime.now()));
-  container.listen(
-    backendProvider,
-    (_, _) => unawaited(
-      surfaceInputs(container.read, DateTime.now()).then(surfaces.publish),
-    ),
-  );
+  await startSurfaces(container.read(surfacesProvider)!, container);
   final push = container.read(pushProvider);
   if (push != null) {
     await push.start();

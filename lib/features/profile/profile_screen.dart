@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
+import '../../data/repository.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/avatar.dart';
@@ -23,6 +24,10 @@ import '../referrals/referrals_screen.dart';
 /// code with copy, then one card: Invite friends, Your details,
 /// Notification preferences (Flags.notificationPreferences) and Sign out,
 /// which asks on the Sign out? sheet first. No email and no wins.
+///
+/// A live launch has no referrals yet ([pointsAndReferralsProvider]): the
+/// invite code line and Invite friends go, and the name sits alone under
+/// the avatar (no frame draws it).
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
@@ -31,6 +36,8 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pass = ref.watch(contributorPassProvider).value;
+    final referrals = ref.watch(pointsAndReferralsProvider);
+    final code = pass?.code;
     final avatar = ref.watch(avatarProvider.select((a) => a.spec));
     return SubPage(
       title: 'Your profile',
@@ -83,7 +90,9 @@ class ProfileScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: IqSpace.s2p5),
                 SizedBox(
-                  height: 52,
+                  height: referrals
+                      ? 52
+                      : IqText.title.fontSize! * IqText.title.height!,
                   child: pass == null
                       ? null
                       : Column(
@@ -95,32 +104,34 @@ class ProfileScreen extends ConsumerWidget {
                               textAlign: TextAlign.center,
                               style: IqText.title.copyWith(color: IqColors.fg),
                             ),
-                            const SizedBox(height: IqSpace.s1p5),
-                            IqPressable(
-                              onTap: () => copyInviteCode(context, pass.code),
-                              semanticLabel: 'Copy invite code ${pass.code}',
-                              haptic: IqHaptics.select,
-                              builder: (context, pressed) => PressDim(
-                                pressed: pressed,
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      'Invite code: ${pass.code}',
-                                      style: IqText.body.copyWith(
-                                        color: IqColors.fg2,
+                            if (code != null) ...[
+                              const SizedBox(height: IqSpace.s1p5),
+                              IqPressable(
+                                onTap: () => copyInviteCode(context, code),
+                                semanticLabel: 'Copy invite code $code',
+                                haptic: IqHaptics.select,
+                                builder: (context, pressed) => PressDim(
+                                  pressed: pressed,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        'Invite code: $code',
+                                        style: IqText.body.copyWith(
+                                          color: IqColors.fg2,
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(width: IqSpace.s2),
-                                    const IqIcon(
-                                      IqIcons.copy,
-                                      size: 20,
-                                      color: IqColors.brand,
-                                    ),
-                                  ],
+                                      const SizedBox(width: IqSpace.s2),
+                                      const IqIcon(
+                                        IqIcons.copy,
+                                        size: 20,
+                                        color: IqColors.brand,
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
+                            ],
                           ],
                         ),
                 ),
@@ -131,12 +142,13 @@ class ProfileScreen extends ConsumerWidget {
           RowGroup(
             outlined: true,
             children: [
-              IqListRow(
-                label: 'Invite friends',
-                description: '₦500 when a friend wins a brief',
-                icon: IqIcons.gift,
-                onTap: () => context.open(Routes.referrals),
-              ),
+              if (referrals)
+                IqListRow(
+                  label: 'Invite friends',
+                  description: '₦500 when a friend wins a brief',
+                  icon: IqIcons.gift,
+                  onTap: () => context.open(Routes.referrals),
+                ),
               IqListRow(
                 label: 'Your details',
                 description: 'Phone, date of birth, interests',

@@ -268,13 +268,18 @@ void main() {
       expect(briefs['s_1']!.businessName, 'Orchid Foods');
     });
 
-    test('withdrawals on preview data leave the API figures alone', () async {
+    test('paused withdrawals leave no rows, none of the demo\'s, and the '
+        'API figures as they are', () async {
+      final api = _liveWallet();
       final c = await _container(
-        _liveWallet(),
+        api,
         mode: Backend.of({LiveFeature.profile, LiveFeature.wallet}),
       );
       final data = await c.read(walletProvider.future);
-      expect(data.withdrawals, hasLength(DemoData().withdrawals.length));
+      expect(data.withdrawals, isEmpty);
+      expect(data.activity.map((a) => a.key), ['t_1']);
+      expect(naira(data.totals.withdrawableKobo), '₦15,000.00');
+      expect(api.to('/wallet/withdrawals'), isEmpty);
       c.read(walletProvider.notifier).add(_requested());
       expect(
         c.read(walletProvider).value!.totals.withdrawableKobo,

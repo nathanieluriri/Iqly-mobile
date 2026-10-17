@@ -191,6 +191,13 @@ final repositoryProvider = Provider<IqlyRepository>(
       ref.watch(liveRepositoryProvider) ?? ref.watch(demoRepositoryProvider),
 );
 
+/// iQL points, the points board and referrals have no API in contract 1,
+/// so a live launch leaves them out rather than show the preview's as the
+/// person's own: their rows and cards go and the rest closes up.
+final pointsAndReferralsProvider = Provider<bool>(
+  (ref) => ref.watch(liveModeProvider).isPreview,
+);
+
 /// The bell's unread count, shared by every tab's top bar. It clears once
 /// the feed has been seen.
 final unreadNotificationsProvider = FutureProvider<int>(

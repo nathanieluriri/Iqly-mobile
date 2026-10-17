@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/backend.dart';
 import '../../core/deadline.dart';
 import '../../core/motion.dart';
 import '../../data/onboarding_service.dart';
@@ -55,7 +56,9 @@ class EditDetailScreen extends StatelessWidget {
 }
 
 /// The Edit page frame: [body] over the Save bar. [onSave] runs with Save
-/// loading; when it throws, the error banner shows and the page stays.
+/// loading; when it throws, the error banner shows and the page stays. A
+/// live launch that pauses the profile refuses the save without trying, so
+/// the banner keeps its first sentence only (no frame for it).
 class _EditPage extends StatefulWidget {
   const _EditPage({
     required this.title,
@@ -70,6 +73,7 @@ class _EditPage extends StatefulWidget {
   final bool canSave;
 
   static const failedText = 'Not saved. Check your connection.';
+  static const pausedText = 'Not saved.';
 
   @override
   State<_EditPage> createState() => _EditPageState();
@@ -78,6 +82,7 @@ class _EditPage extends StatefulWidget {
 class _EditPageState extends State<_EditPage> {
   bool _saving = false;
   bool _failed = false;
+  bool _paused = false;
 
   Future<void> _save() async {
     if (_saving) return;
@@ -89,11 +94,12 @@ class _EditPageState extends State<_EditPage> {
     bool done;
     try {
       done = await widget.onSave();
-    } on Exception {
+    } on Exception catch (error) {
       if (!mounted) return;
       setState(() {
         _saving = false;
         _failed = true;
+        _paused = error is FeaturePaused;
       });
       errorHaptic();
       return;
@@ -114,7 +120,7 @@ class _EditPageState extends State<_EditPage> {
             padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
             child: IqBanner(
               kind: IqBannerKind.error,
-              title: _EditPage.failedText,
+              title: _paused ? _EditPage.pausedText : _EditPage.failedText,
               showAction: false,
               visible: _failed,
               margin: const EdgeInsets.only(bottom: IqSpace.s3),

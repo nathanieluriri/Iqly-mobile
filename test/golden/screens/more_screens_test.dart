@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iqly_mobile/data/device.dart';
 import 'package:iqly_mobile/data/referrals_service.dart';
+import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/profile/profile_routes.dart';
 import 'package:iqly_mobile/features/profile/your_details_screen.dart';
 import 'package:iqly_mobile/features/referrals/referrals_state.dart';
@@ -39,6 +40,16 @@ void main() {
     testWidgets('428:18424 More', (tester) async {
       await pumpMore(tester, Routes.more);
       await moreGolden(tester, 'more');
+    }, variant: ios);
+
+    testWidgets('More in a live launch: no points, rank, invite card or '
+        'Leaderboard yet', (tester) async {
+      await pumpMore(
+        tester,
+        Routes.more,
+        overrides: [pointsAndReferralsProvider.overrideWithValue(false)],
+      );
+      await moreGolden(tester, 'more_live');
     }, variant: ios);
 
     testWidgets('428:18663 More, scrolled', (tester) async {
@@ -96,6 +107,16 @@ void main() {
     testWidgets('40:24 Your profile', (tester) async {
       await pumpMore(tester, Routes.profile);
       await moreGolden(tester, 'your_profile');
+    });
+
+    testWidgets('Your profile in a live launch: no invite code or Invite '
+        'friends yet', (tester) async {
+      await pumpMore(
+        tester,
+        Routes.profile,
+        overrides: [pointsAndReferralsProvider.overrideWithValue(false)],
+      );
+      await moreGolden(tester, 'your_profile_live');
     });
 
     testWidgets('40:141 Your details', (tester) async {

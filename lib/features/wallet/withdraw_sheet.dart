@@ -1,8 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/backend.dart';
+import '../../core/flags.dart';
 import '../../core/money.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
@@ -18,6 +20,9 @@ import '../../ui/field.dart';
 import '../../ui/highlight.dart';
 import '../../ui/top_bar.dart';
 import '../entry/entry_widgets.dart' show EntryInput;
+import '../profile/profile_routes.dart';
+import '../profile/your_details_screen.dart';
+import '../settings/restore_account_screen.dart';
 import 'bank_account_sheet.dart';
 import 'pin_sheet.dart';
 import 'wallet_format.dart';
@@ -32,8 +37,16 @@ import 'wallet_state.dart';
 /// destination (answer 5). Withdraw confirms with the phone's own check
 /// when it has one, otherwise the iQLY PIN (answer 4, 483:22222); then the
 /// button sends, the sheet drops and Withdrawal pending pushes. The live API
-/// has no PIN yet (nor does the web), so a live withdrawal goes straight to
-/// the request.
+/// has no PIN yet (nor does the web), so a live launch goes straight to the
+/// request, which a paused feature refuses.
+///
+/// A request whose answer was lost may have reached the API, so its banner
+/// keeps only the first sentence ("No connection.", "Couldn't send.": the
+/// frames have no state for it), the wallet reloads behind it, and the next
+/// Withdraw sends that request again first; a withdrawal it made opens its
+/// tracker. Asked without a date of birth, or with one under 18, the API
+/// refuses until the profile has an adult date, so Date of birth opens; a
+/// closing account goes to Restore.
 class WithdrawSheet extends ConsumerStatefulWidget {
   const WithdrawSheet({super.key, this.amountKobo, this.bankCode});
 
@@ -55,10 +68,16 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
   bool _sending = false;
   bool _covered = false;
   WalletFailure? _failure;
+  bool _unsettled = false;
+
+  /// What the amount reads as. Tidying it as the field lets go, or moving
+  /// the caret, is not an edit, so a refusal that lands first stays shown.
+  int? _kobo;
 
   @override
   void initState() {
     super.initState();
+    _kobo = parseNaira(_amount.controller.text);
     _amount.focus.addListener(_onAmountFocus);
     _amount.controller.addListener(_onAmountEdit);
   }
@@ -78,10 +97,14 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
   }
 
   void _onAmountEdit() {
+    final kobo = parseNaira(_amount.controller.text);
+    if (kobo == _kobo) return;
+    _kobo = kobo;
     if (_belowShown || _failure != null) {
       setState(() {
         _belowShown = false;
         _failure = null;
+        _unsettled = false;
       });
     }
   }
@@ -136,7 +159,7 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
     }
     if (kobo > available) return;
     FocusScope.of(context).unfocus();
-    if (ref.read(liveModeProvider).isLive(LiveFeature.withdrawals)) {
+    if (!ref.read(liveModeProvider).isPreview) {
       await _send(kobo, to);
       return;
     }
@@ -168,6 +191,7 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
     setState(() {
       _sending = true;
       _failure = null;
+      _unsettled = false;
     });
     final result = await ref
         .read(walletServiceProvider)
@@ -175,11 +199,23 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
     if (!mounted) return;
     final withdrawal = result.withdrawal;
     if (withdrawal == null) {
+      final failure = result.failure;
+      final fix = switch (failure) {
+        WalletFailure.profileIncomplete ||
+        WalletFailure.underAge => _openDateOfBirth,
+        WalletFailure.closing when Flags.deleteAccount => _openClosing,
+        _ => null,
+      };
       setState(() {
         _sending = false;
-        _failure = result.failure;
+        _failure = failure;
+        _unsettled = result.unsettled;
       });
+      if (result.unsettled) {
+        unawaited(ref.read(walletProvider.notifier).refreshQuietly());
+      }
       errorHaptic();
+      await fix?.call();
       return;
     }
     ref.read(walletProvider.notifier).add(withdrawal);
@@ -191,9 +227,19 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
     if (!reduced && sheet != null) await sheet.completed;
     IqHaptics.success.play();
     if (router.state.uri == under) {
-      router.open(withdrawalPendingPath(withdrawal.id));
+      router.open(
+        result.earlier
+            ? withdrawalPath(withdrawal.id)
+            : withdrawalPendingPath(withdrawal.id),
+      );
     }
   }
+
+  Future<void> _openDateOfBirth() async {
+    await context.open<void>(editDetailPath(DetailField.dateOfBirth));
+  }
+
+  Future<void> _openClosing() => showClosingAccount(context, ref);
 
   void _retry() {
     final data = ref.read(walletProvider).value;
@@ -234,9 +280,13 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
               if (failure != null)
                 IqBanner(
                   kind: IqBannerKind.error,
-                  title: failure == WalletFailure.offline
-                      ? 'No connection. Nothing was sent.'
-                      : 'Couldn’t send. Nothing was sent.',
+                  title: switch ((failure, _unsettled)) {
+                    (WalletFailure.offline, false) =>
+                      'No connection. Nothing was sent.',
+                    (WalletFailure.offline, true) => 'No connection.',
+                    (_, false) => 'Couldn’t send. Nothing was sent.',
+                    (_, true) => 'Couldn’t send.',
+                  },
                   action: 'Try again',
                   onAction: _retry,
                 ),

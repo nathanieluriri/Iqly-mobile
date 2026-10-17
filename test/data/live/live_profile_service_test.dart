@@ -39,7 +39,6 @@ class _Service {
     service = LiveProfileService(
       link,
       account: accountLive ? LiveAccount(link) : null,
-      preview: DemoProfileService(delay: Duration.zero),
     );
     registerAccountWrites(outbox, api.client, store);
   }
@@ -312,12 +311,25 @@ void main() {
       }
     });
 
-    test('while account is not live, close and restore stay on the '
-        'preview', () async {
+    test('while the account is paused, close and restore refuse before '
+        'anything is sent', () async {
       final s = _Service(FakeApi(), accountLive: false);
-      await s.service.deleteAccount();
-      await s.service.restoreAccount();
+      await expectLater(
+        s.service.deleteAccount(),
+        throwsA(
+          isA<FeaturePaused>().having(
+            (e) => e.feature,
+            'feature',
+            LiveFeature.account,
+          ),
+        ),
+      );
+      await expectLater(
+        s.service.restoreAccount(),
+        throwsA(isA<FeaturePaused>()),
+      );
       expect(s.api.calls, isEmpty);
+      expect(await s.queued(), isEmpty);
     });
   });
 
@@ -345,6 +357,28 @@ void main() {
         isA<DemoProfileService>(),
       );
       expect(await pick(mode: allLive), isA<DemoProfileService>());
+    });
+
+    test('a live launch that pauses the profile refuses every read and '
+        'write, with none of the demo\'s details', () async {
+      final paused = await pick(
+        api: FakeApi().client,
+        mode: Backend.of(const {LiveFeature.briefs}),
+      );
+      expect(paused, isA<PausedProfileService>());
+      for (final call in <Future<Object?> Function()>[
+        paused.accountDetails,
+        paused.notificationPreferences,
+        () => paused.setNotificationPreference(NotificationTopic.polls, true),
+        () => paused.saveDetails(
+          const AccountDetails(),
+          const OnboardingProfile(),
+        ),
+        paused.deleteAccount,
+        paused.restoreAccount,
+      ]) {
+        await expectLater(call(), throwsA(isA<FeaturePaused>()));
+      }
     });
 
     test('goes live with the profile, closing live with the account', () async {

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../core/backend.dart';
+import '../core/session.dart';
 import 'api_client.dart';
 import 'demo_data.dart';
 import 'live/live_repository.dart';
@@ -19,6 +20,15 @@ enum WalletFailure {
   unverified,
   offline,
   unknown,
+
+  /// No date of birth on the profile yet (409 PROFILE_INCOMPLETE).
+  profileIncomplete,
+
+  /// The profile's date of birth is under 18 (403 UNDER_AGE).
+  underAge,
+
+  /// The account is closing, so it takes no writes (403 ACCOUNT_CLOSING).
+  closing,
 }
 
 class VerifyResult {
@@ -32,11 +42,27 @@ class VerifyResult {
 }
 
 class WithdrawResult {
-  const WithdrawResult.requested(Withdrawal this.withdrawal) : failure = null;
-  const WithdrawResult.failure(WalletFailure this.failure) : withdrawal = null;
+  const WithdrawResult.requested(
+    Withdrawal this.withdrawal, {
+    this.earlier = false,
+  }) : failure = null,
+       unsettled = false;
+  const WithdrawResult.failure(
+    WalletFailure this.failure, {
+    this.unsettled = false,
+  }) : withdrawal = null,
+       earlier = false;
 
   final Withdrawal? withdrawal;
   final WalletFailure? failure;
+
+  /// The request may have reached the API and no answer says whether it
+  /// was kept, so it is not known to have failed.
+  final bool unsettled;
+
+  /// [withdrawal] is the one an earlier request made, whose answer was
+  /// lost; the amount asked for now was not sent.
+  final bool earlier;
 
   bool get ok => failure == null;
 }
@@ -201,16 +227,50 @@ class DemoWalletService implements WalletService {
   }
 }
 
-/// The API when the wallet is live, withdrawals too when they are.
+/// A wallet a live launch pauses: every call refuses before any step of
+/// the demo's, and nothing reaches the API.
+class PausedWalletService implements WalletService {
+  const PausedWalletService();
+
+  @override
+  Future<VerifyResult> verifyAccount({
+    required String bankCode,
+    required String accountNumber,
+  }) async => const VerifyResult.failure(WalletFailure.unknown);
+
+  @override
+  Future<WithdrawResult> withdraw({
+    required int amountKobo,
+    required SavedBank account,
+  }) async => const WithdrawResult.failure(WalletFailure.unknown);
+
+  @override
+  Stream<Withdrawal> watch(Withdrawal withdrawal) => Stream.value(withdrawal);
+
+  @override
+  Future<bool> confirmPin(String pin) async => false;
+
+  @override
+  Future<SavedBank> addAccount(SavedBank account) =>
+      Future.error(const FeaturePaused(LiveFeature.wallet));
+
+  @override
+  Future<void> setDefault(SavedBank account) =>
+      Future.error(const FeaturePaused(LiveFeature.wallet));
+}
+
+/// The demo in a preview launch. In a live one the API runs the wallet,
+/// and withdrawals while they are live too; a paused wallet refuses. Made
+/// again for each signed-in person, so a withdrawal one of them left
+/// unsettled is never sent for another.
 final walletServiceProvider = Provider<WalletService>((ref) {
   final api = ref.watch(apiClientProvider);
   final mode = ref.watch(liveModeProvider);
-  if (api == null || !mode.isLive(LiveFeature.wallet)) {
-    return DemoWalletService();
-  }
+  if (api == null || mode.isPreview) return DemoWalletService();
+  if (!mode.isLive(LiveFeature.wallet)) return const PausedWalletService();
+  ref.watch(sessionProvider.select((s) => (s.signedIn, s.userId)));
   return LiveWalletService(
     api,
-    demo: DemoWalletService(),
     withdrawals: mode.isLive(LiveFeature.withdrawals),
   );
 });
