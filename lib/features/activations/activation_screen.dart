@@ -21,6 +21,7 @@ import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/brief_hero.dart';
 import '../../ui/button.dart';
+import '../../ui/empty_state.dart';
 import '../../ui/illustration.dart';
 import '../../ui/meta.dart';
 import '../../ui/pressable.dart';
@@ -93,10 +94,24 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
   @override
   void initState() {
     super.initState();
-    ref
+    _load();
+  }
+
+  /// Why the activation could not be shown, once asking has settled.
+  ActivationMissing? _missing;
+
+  /// Reads the activation behind what shows; one opened from a link or a
+  /// notification that the list did not hold lands, or says why not.
+  Future<void> _load() async {
+    final missing = await ref
         .read(activationsProvider.notifier)
-        .refreshOneQuietly(widget.id)
-        .ignore();
+        .load(widget.id);
+    if (mounted) setState(() => _missing = missing);
+  }
+
+  void _loadAgain() {
+    setState(() => _missing = null);
+    _load();
   }
 
   @override
@@ -107,6 +122,12 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
   }
 
   void _onChange(Activation? before, Activation? after) {
+    if (after != null &&
+        !identical(before, after) &&
+        !after.paused &&
+        _unstartable == _Unstartable.paused) {
+      setState(() => _unstartable = null);
+    }
     if (before == null || after == null) return;
     final now = ref.read(clockProvider)();
     if (after.phaseAt(now) == ActivationPhase.credited &&
@@ -232,7 +253,34 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
     final _Layout? layout;
     if (activation == null) {
       layout = null;
-      page = _Page(title: 'Activation', onBack: _back, body: const SizedBox());
+      page = _Page(
+        title: 'Activation',
+        onBack: _back,
+        body: switch (_missing) {
+          ActivationMissing.gone => IqEmptyFill(
+            child: IqEmptyState(
+              figure: IqFigures.shrug,
+              title: 'This activation has ended',
+              action: 'Find another activation',
+              onAction: () =>
+                  context.go(Routes.activations, extra: NavDirection.back),
+            ),
+          ),
+          ActivationMissing.unreachable => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: IqBanner(
+                kind: IqBannerKind.error,
+                title: "Couldn't load. Check your connection.",
+                action: 'Try again',
+                onAction: _loadAgain,
+              ),
+            ),
+          ),
+          null => const SizedBox(),
+        },
+      );
     } else {
       final phase = activation.phaseAt(now);
       _watchWindow(activation, now);

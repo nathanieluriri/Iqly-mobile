@@ -1079,6 +1079,25 @@ void main() {
         final paused = await service.refresh(seed.paused);
         expect(paused.paused, isTrue);
         expect(paused.phaseAt(DateTime.now()), ActivationPhase.offer);
+
+        // Opened from a link: one not in the list lands; one the API has
+        // not reads as gone, for good.
+        final list = container.read(activationsProvider.notifier);
+        await container.read(activationsProvider.future);
+        expect(await list.load(seed.paused), isNull);
+        expect(container.read(activationProvider(seed.paused))?.paused, isTrue);
+        expect(
+          await list.load('00000000-0000-4000-8000-000000000000'),
+          ActivationMissing.gone,
+        );
+        // Resumed by the business: the next read says live again.
+        await asOwner('POST', '/activations/owner/${seed.paused}/resume');
+        await list.refreshOneQuietly(seed.paused);
+        expect(
+          container.read(activationProvider(seed.paused))?.paused,
+          isFalse,
+        );
+        await asOwner('POST', '/activations/owner/${seed.paused}/pause');
         await expectLater(
           service.start('00000000-0000-4000-8000-000000000000'),
           refusedWith('ACTIVATION_NOT_FOUND'),
@@ -1242,6 +1261,11 @@ void main() {
           await expectLater(
             service.upload(seed.account, recording('p.mp4', clip)).last,
             refusedWith('ACTIVATION_COMPLETION_PAID'),
+          );
+          expect(
+            ProofRefusal.fromCode('ACTIVATION_COMPLETION_PAID'),
+            ProofRefusal.paid,
+            reason: 'paid meanwhile reads as the reward, not as ended',
           );
 
           final reward = (await repository().ledger()).singleWhere(

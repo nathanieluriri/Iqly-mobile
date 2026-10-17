@@ -552,6 +552,60 @@ void main() {
       });
     });
 
+    for (final onSend in [true, false]) {
+      testWidgets('paid meanwhile (${onSend ? 'send' : 'upload'}): back to '
+          'the reward, not "ended"', (tester) async {
+        final stuck = _json.activationJson(
+          progress: _json.runJson(
+            confirmedAt: [_json.at(const Duration(hours: 24, minutes: 20))],
+          ),
+        );
+        final credited = _json.activationJson(
+          progress: _json.runJson(
+            status: 'paid',
+            confirmedAt: [for (var i = 0; i < 3; i++) _json.at(Duration.zero)],
+            paidAt: _json.at(Duration.zero),
+          ),
+        );
+        var paid = false;
+        final api = _Api({
+          'GET /activations': (_) => _ok({
+            'items': [stuck],
+          }),
+          'GET /activations/a_1': (_) => _ok(paid ? credited : stuck),
+          'POST /activations/a_1/proof': (_) {
+            paid = true;
+            return _no(409, 'ACTIVATION_COMPLETION_PAID');
+          },
+        });
+        await pumpLiveLaunch(
+          tester,
+          proofPath('a_1'),
+          api: api.client,
+          mode: _on,
+          overrides: [
+            activationsServiceProvider.overrideWith(
+              (ref) => _Uploads(
+                ref.watch(accountLinkProvider)!,
+                refusal: onSend
+                    ? null
+                    : const ApiRefused(409, 'ACTIVATION_COMPLETION_PAID'),
+              ),
+            ),
+          ],
+        );
+        await tester.pumpAndSettle();
+        if (!onSend) paid = true;
+        await _tap(tester, find.text('Choose a video'));
+        if (onSend) await _tap(tester, _button('Send proof'));
+        await tester.pumpAndSettle();
+        expect(find.byType(ProofScreen), findsNothing);
+        expect(find.byType(ActivationScreen), findsOneWidget);
+        expect(find.text('Your reward'), findsOneWidget);
+        expect(find.text('This activation has ended'), findsNothing);
+      });
+    }
+
     testWidgets('an upload refused as closed ends the page; no Retry loop', (
       tester,
     ) async {
@@ -734,13 +788,22 @@ void main() {
       expect(_button('Start activation'), findsNothing);
     });
 
-    testWidgets('Start refused as paused shows the paused state', (
+    testWidgets('Start refused as paused: paused until a re-read says live', (
       tester,
     ) async {
+      var status = 'live';
       final api = _Api({
-        'POST /activations/a_1/start': (_) => _no(409, 'ACTIVATION_PAUSED'),
+        'POST /activations/a_1/start': (_) {
+          status = 'paused';
+          return _no(409, 'ACTIVATION_PAUSED');
+        },
+        'GET /activations': (_) => _ok({
+          'items': [_json.activationJson(status: status)],
+        }),
+        'GET /activations/a_1': (_) =>
+            _ok(_json.activationJson(status: status)),
       });
-      await pumpLiveLaunch(
+      final (container, _) = await pumpLiveLaunch(
         tester,
         activationPath('a_1'),
         api: api.client,
@@ -754,6 +817,78 @@ void main() {
         isTrue,
       );
       expect(find.textContaining("Couldn't start"), findsNothing);
+
+      // Resumed by the business; the next read (a resume, a push) says so.
+      status = 'live';
+      await container.read(activationsProvider.notifier).refreshQuietly();
+      await tester.pumpAndSettle();
+      expect(_button('This activation is paused'), findsNothing);
+      expect(
+        tester.widget<IqButton>(_button('Start activation')).disabled,
+        isFalse,
+      );
+    });
+
+    testWidgets('a paused flag the client kept clears on a live re-read', (
+      tester,
+    ) async {
+      final api = _Api({
+        'POST /activations/a_1/start': (_) => _no(409, 'ACTIVATION_PAUSED'),
+        'GET /activations/a_1': (_) => _no(503, 'UNAVAILABLE'),
+      });
+      final (container, _) = await pumpLiveLaunch(
+        tester,
+        activationPath('a_1'),
+        api: api.client,
+        mode: _on,
+      );
+      await tester.pumpAndSettle();
+      await _tap(tester, _button('Start activation'));
+      expect(_button('This activation is paused'), findsOneWidget);
+      await container.read(activationsProvider.notifier).refreshQuietly();
+      await tester.pumpAndSettle();
+      expect(_button('Start activation'), findsOneWidget);
+    });
+
+    testWidgets('a link to an activation the API has not: it has ended', (
+      tester,
+    ) async {
+      final api = _Api({
+        'GET /activations/a_9': (_) => _no(404, 'ACTIVATION_NOT_FOUND'),
+      });
+      await pumpLiveLaunch(
+        tester,
+        activationPath('a_9'),
+        api: api.client,
+        mode: _on,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('This activation has ended'), findsOneWidget);
+      expect(find.text('Find another activation'), findsOneWidget);
+      expect(find.text('Try again'), findsNothing);
+      await _tap(tester, find.text('Find another activation'));
+      expect(find.byType(ActivationsScreen), findsOneWidget);
+    });
+
+    testWidgets('a link opened offline: Try again brings it in', (
+      tester,
+    ) async {
+      final api = _Api()..offline = true;
+      await pumpLiveLaunch(
+        tester,
+        activationPath('a_1'),
+        api: api.client,
+        mode: _on,
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text("Couldn't load. Check your connection."),
+        findsOneWidget,
+      );
+      api.offline = false;
+      await _tap(tester, find.text('Try again'));
+      expect(find.text(_plan), findsOneWidget);
+      expect(_button('Start activation'), findsOneWidget);
     });
 
     testWidgets('Start throttled offers Try again', (tester) async {

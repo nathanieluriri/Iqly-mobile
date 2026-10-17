@@ -177,13 +177,15 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
       if (closing) return showClosingAccount(context, ref);
       if (code == 'ACTIVATION_UPLOAD_NOT_FOUND') return _draft.lost();
       await activations.refreshOneQuietly(activation.id);
-      // Not due yet, or a proof already waits: the activation's own page
-      // says where it stands, where sending again could only be refused.
-      if (mounted &&
-          (code == 'ACTIVATION_PROOF_NOT_DUE' ||
-              code == 'ACTIVATION_PROOF_PENDING') &&
-          context.canPop()) {
-        context.pop();
+      if (!mounted) return;
+      // Paid meanwhile, not due yet, or a proof already waits: the
+      // activation's own page says where it stands, where sending again
+      // could only be refused.
+      final paid = ref.read(activationProvider(activation.id))?.credited;
+      if (paid == true ||
+          code == 'ACTIVATION_PROOF_NOT_DUE' ||
+          code == 'ACTIVATION_PROOF_PENDING') {
+        _toActivation();
       }
       return;
     } on Object {
@@ -201,6 +203,18 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
     context.pop();
   }
 
+  bool _leaving = false;
+
+  void _toActivation() {
+    if (_leaving || !mounted) return;
+    _leaving = true;
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(activationPath(widget.id));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen(proofDraftProvider(widget.id), (previous, next) {
@@ -215,12 +229,19 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
     final activation = ref.watch(activationProvider(widget.id));
     final draft = ref.watch(proofDraftProvider(widget.id));
     final now = ref.watch(clockProvider)();
-    // Closed, paid or never started: no proof can go, so nothing offers to
+    // Paid while recording: back to the activation, which shows the reward.
+    final paid = activation?.credited ?? false;
+    if (paid && !_sending) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _toActivation());
+    }
+    // Closed or never started: no proof can go, so nothing offers to
     // record or send one.
     final ended =
         activation != null &&
+        !paid &&
         (_ended ||
             draft.refusal == ProofRefusal.ended ||
+            draft.refusal == ProofRefusal.paid ||
             !activation.canProveAt(now));
     final step = (activation?.waitingStep ?? activation?.confirmed ?? 0) + 1;
     final refused = draft.stage == ProofStage.refused ? draft.video : null;
@@ -243,7 +264,7 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
                       : context.go(activationPath(widget.id)),
                 ),
                 Expanded(
-                  child: activation == null || ended
+                  child: activation == null || ended || paid
                       ? const SizedBox.shrink()
                       : ListView(
                           padding: const EdgeInsets.fromLTRB(
@@ -326,7 +347,9 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
                           ],
                         ),
                 ),
-                if (ended)
+                if (paid)
+                  const SizedBox.shrink()
+                else if (ended)
                   const ActionBar(
                     children: [
                       IqButton(

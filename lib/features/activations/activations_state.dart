@@ -74,6 +74,33 @@ class ActivationsNotifier extends AsyncNotifier<List<Activation>> {
     }
   }
 
+  /// Brings [id] in for a screen opened from a link or a notification:
+  /// null once it is in the list, else why it is not. A list that failed
+  /// is read again first, so the activation has somewhere to land.
+  Future<ActivationMissing?> load(String id) async {
+    bool held() => state.value?.any((a) => a.id == id) ?? false;
+    try {
+      if (state.hasError) ref.invalidateSelf();
+      await future;
+    } on Object {
+      return ActivationMissing.unreachable;
+    }
+    if (!ref.read(_liveProvider)) {
+      return held() ? null : ActivationMissing.gone;
+    }
+    try {
+      await refresh(id);
+    } on ApiRefused catch (refusal) {
+      if (held()) return null;
+      return refusal.status == 404 && !unanswered(refusal)
+          ? ActivationMissing.gone
+          : ActivationMissing.unreachable;
+    } on Object {
+      return held() ? null : ActivationMissing.unreachable;
+    }
+    return held() ? null : ActivationMissing.unreachable;
+  }
+
   Future<void> start(String id) => _landing(_service.start(id));
 
   Future<void> refresh(String id) => _landing(_service.refresh(id));
@@ -199,6 +226,15 @@ bool activationRunEnded(String? code) => switch (code) {
   _ => false,
 };
 
+/// Why an activation opened on its own could not be shown.
+enum ActivationMissing {
+  /// The API has none by that id (404): asking again cannot help.
+  gone,
+
+  /// No answer, or no list to put it in: Try again can.
+  unreachable,
+}
+
 /// Why a recording was refused.
 enum ProofRefusal {
   length,
@@ -210,6 +246,9 @@ enum ProofRefusal {
 
   /// The run can take no proof any more ([activationRunEnded]).
   ended,
+
+  /// The run was paid meanwhile: the activation reads again as credited.
+  paid,
 
   /// The account is closing, so it takes no uploads.
   closing;
@@ -224,6 +263,7 @@ enum ProofRefusal {
     'FILE_TOO_LARGE' => ProofRefusal.size,
     'FILE_TYPE_NOT_ALLOWED' => ProofRefusal.kind,
     'ACCOUNT_CLOSING' => ProofRefusal.closing,
+    'ACTIVATION_COMPLETION_PAID' => ProofRefusal.paid,
     _ when activationRunEnded(code) => ProofRefusal.ended,
     _ => null,
   };
@@ -340,7 +380,7 @@ class ProofDraftNotifier extends Notifier<ProofDraft> {
               stage: refusal == null ? ProofStage.failed : ProofStage.refused,
               refusal: refusal,
             );
-            if (refusal == ProofRefusal.ended) {
+            if (refusal == ProofRefusal.ended || refusal == ProofRefusal.paid) {
               ref
                   .read(activationsProvider.notifier)
                   .refreshOneQuietly(id)

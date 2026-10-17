@@ -404,12 +404,15 @@ void main() {
         for (final code in [
           'ACTIVATION_CLOSED',
           'ACTIVATION_NOT_STARTED',
-          'ACTIVATION_COMPLETION_PAID',
           'ACTIVATION_COMPLETION_EXPIRED',
           'ACTIVATION_NOT_FOUND',
         ]) {
           expect(ProofRefusal.fromCode(code), ProofRefusal.ended, reason: code);
         }
+        expect(
+          ProofRefusal.fromCode('ACTIVATION_COMPLETION_PAID'),
+          ProofRefusal.paid,
+        );
         expect(ProofRefusal.fromCode('ACCOUNT_CLOSING'), ProofRefusal.closing);
         expect(ProofRefusal.fromCode('RATE_LIMITED'), isNull);
         expect(videoMediaType('a.MP4'), 'video/mp4');
