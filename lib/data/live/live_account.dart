@@ -12,21 +12,6 @@ import '../models.dart';
 import '../reference_data.dart';
 import 'live_profile_service.dart';
 
-/// An answer the API refused, with its status, code and message.
-class ApiRefused implements Exception {
-  const ApiRefused(this.status, {this.code, this.message});
-
-  ApiRefused.of(ApiResponse res)
-    : this(res.status, code: res.code, message: res.message);
-
-  final int status;
-  final String? code;
-  final String? message;
-
-  @override
-  String toString() => 'ApiRefused($status ${code ?? ''})';
-}
-
 /// A UTC time from the API in the phone's time zone, or null.
 DateTime? apiTime(Object? value) =>
     value is String ? DateTime.tryParse(value)?.toLocal() : null;

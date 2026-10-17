@@ -15,17 +15,6 @@ import '../points_data.dart';
 import '../repository.dart';
 import 'mappers.dart';
 
-/// The API answered, but not with what was asked for.
-class ApiRefused implements Exception {
-  const ApiRefused(this.status, [this.code]);
-
-  final int status;
-  final String? code;
-
-  @override
-  String toString() => 'ApiRefused($status${code == null ? '' : ' $code'})';
-}
-
 /// What this launch runs on the API: health's decision, in a build that has
 /// an API client at all.
 final liveModeProvider = Provider<Backend>(

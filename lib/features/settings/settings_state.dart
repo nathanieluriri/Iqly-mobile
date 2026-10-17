@@ -1,9 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/backend.dart';
 import '../../data/device.dart';
+import '../../data/live/live_repository.dart';
 import '../../data/models.dart';
 import '../../data/profile_service.dart';
 import '../../data/repository.dart';
+import '../wallet/wallet_state.dart';
 
 /// The switches of Notification preferences. A flip shows at once and goes
 /// back if the account does not take it.
@@ -40,6 +43,9 @@ final notificationPreferencesProvider =
 /// What Delete account weighs: the available balance to withdraw first and
 /// what is already on its way (walletTotals, as on the web).
 final accountWalletProvider = FutureProvider<WalletTotals>((ref) async {
+  if (ref.watch(liveModeProvider).isLive(LiveFeature.wallet)) {
+    return (await ref.watch(walletProvider.future)).totals;
+  }
   final repo = ref.watch(repositoryProvider);
   final (ledger, withdrawals) = await (repo.ledger(), repo.withdrawals()).wait;
   return walletTotals(ledger, withdrawals);

@@ -62,6 +62,20 @@ class ApiUnreachable implements Exception {
   const ApiUnreachable();
 }
 
+/// An answer the API refused, with its status, code and message.
+class ApiRefused implements Exception {
+  const ApiRefused(this.status, [this.code, this.message]);
+
+  ApiRefused.of(ApiResponse res) : this(res.status, res.code, res.message);
+
+  final int status;
+  final String? code;
+  final String? message;
+
+  @override
+  String toString() => 'ApiRefused($status${code == null ? '' : ' $code'})';
+}
+
 /// A file part of a multipart request.
 class ApiFile {
   const ApiFile({

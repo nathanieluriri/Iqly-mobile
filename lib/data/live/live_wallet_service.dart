@@ -4,7 +4,6 @@ import '../api_client.dart';
 import '../local/local_rows.dart';
 import '../models.dart';
 import '../wallet_service.dart';
-import 'live_repository.dart';
 import 'mappers.dart';
 
 /// Bank checks, the payout account and withdrawals on the iQLY API

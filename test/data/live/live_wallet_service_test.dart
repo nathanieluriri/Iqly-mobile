@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/backend.dart';
 import 'package:iqly_mobile/data/api_client.dart';
-import 'package:iqly_mobile/data/live/live_repository.dart';
 import 'package:iqly_mobile/data/live/live_wallet_service.dart';
 import 'package:iqly_mobile/data/live/mappers.dart';
 import 'package:iqly_mobile/data/models.dart';

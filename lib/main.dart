@@ -131,9 +131,14 @@ void _startAccount(ProviderContainer container) {
 }
 
 Future<void> _startSurfaces(ProviderContainer container) async {
-  await container
-      .read(surfacesProvider)!
-      .start(SurfaceInputs.demo(DateTime.now()));
+  final surfaces = container.read(surfacesProvider)!;
+  await surfaces.start(await surfaceInputs(container.read, DateTime.now()));
+  container.listen(
+    backendProvider,
+    (_, _) => unawaited(
+      surfaceInputs(container.read, DateTime.now()).then(surfaces.publish),
+    ),
+  );
   final push = container.read(pushProvider);
   if (push != null) {
     await push.start();
