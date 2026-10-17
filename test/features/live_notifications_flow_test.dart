@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/data/live/live_account.dart';
+import 'package:iqly_mobile/data/live/live_repository.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/notifications/notification_screen.dart';
 import 'package:iqly_mobile/features/notifications/notifications_screen.dart';
@@ -9,6 +10,7 @@ import 'package:iqly_mobile/ui/leaderboard_row.dart';
 import 'package:iqly_mobile/ui/notification.dart';
 import 'package:iqly_mobile/ui/pressable.dart';
 
+import '../data/live/live_data_fixtures.dart' as data;
 import '../golden/screens/app_harness.dart';
 import '../support/live_api.dart';
 import '../support/live_app.dart';
@@ -227,6 +229,19 @@ void main() {
       'you': false,
     };
     final api = accountApi({
+      'GET /submissions/mine': (_) => answer(
+        data.page([
+          data.submissionJson({
+            'id': 's2',
+            'challengeId': 'c3',
+            'brief': {
+              ...data.submissionJson()['brief']! as Map<String, Object?>,
+              'id': 'c3',
+              'title': 'Sunday is data day',
+            },
+          }),
+        ]),
+      ),
       'GET /submissions/s2/outcome': (_) => answer({
         'submissionId': 's2',
         'challengeId': 'c3',
@@ -246,7 +261,19 @@ void main() {
         'note': null,
       }),
     });
-    await pumpLive(tester, leaderboardPath('s2'), api);
+    await pumpLive(
+      tester,
+      leaderboardPath('s2'),
+      api,
+      repository: LiveRepository(
+        api: api.client,
+        store: liveStore(),
+        mode: allLive,
+        demo: ScriptedRepository(),
+        userId: 'u_1',
+        clock: () => figmaNow,
+      ),
+    );
     final rows = tester
         .widgetList<IqLeaderboardRow>(find.byType(IqLeaderboardRow))
         .map((r) => (r.rank, r.name, r.showEntry, r.state))
