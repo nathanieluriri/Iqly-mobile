@@ -14,6 +14,7 @@ import '../../data/repository.dart';
 import '../../router.dart';
 import '../../ui/notification.dart';
 import '../submissions/submissions_routes.dart';
+import '../submissions/submissions_state.dart';
 import '../wallet/wallet_routes.dart';
 import '../wallet/wallet_state.dart';
 import 'notifications_routes.dart';
@@ -26,6 +27,20 @@ class NotificationsNotifier extends AsyncNotifier<List<AppNotification>> {
       ref.watch(notificationsServiceProvider).notifications();
 
   void retry() => ref.invalidateSelf();
+
+  /// Reads the feed again behind the rows shown (a push, a visit); a
+  /// failure keeps them.
+  Future<void> refreshQuietly() async {
+    if (!state.hasValue) return;
+    final scope = ref.read(accountScopeProvider);
+    final List<AppNotification> rows;
+    try {
+      rows = await ref.read(notificationsServiceProvider).notifications();
+    } on Object {
+      return;
+    }
+    if (ref.mounted && scope.open) state = AsyncData(rows);
+  }
 
   /// The feed is on screen, so the bell on every tab clears, while its
   /// account is still the one signed in.
@@ -50,6 +65,18 @@ final notificationsProvider =
       NotificationsNotifier.new,
       retry: (_, _) => null,
     );
+
+/// A push landed with iQLY open: the bell, the feed and My submissions read
+/// again behind what they show, whichever of them this run has loaded.
+void readAgainOnPush(Ref ref) {
+  ref.invalidate(unreadNotificationsProvider);
+  if (ref.exists(notificationsProvider)) {
+    ref.read(notificationsProvider.notifier).refreshQuietly().ignore();
+  }
+  if (ref.exists(mySubmissionsProvider)) {
+    ref.read(mySubmissionsProvider.notifier).refreshQuietly();
+  }
+}
 
 /// Whether the feed has arrived once this session; later visits show it in
 /// place (MOTION-SPEC §7.5).

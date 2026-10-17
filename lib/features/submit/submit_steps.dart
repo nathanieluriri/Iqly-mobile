@@ -79,14 +79,16 @@ class SendFailedBanner extends StatelessWidget {
   });
 
   final bool visible;
-  final VoidCallback onRetry;
+
+  /// Null hides Try again, for a send that would only be refused again.
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
     return IqBanner(
       kind: IqBannerKind.error,
       title: 'Couldn’t send. Your draft is saved on this phone.',
-      action: 'Try again',
+      action: onRetry == null ? null : 'Try again',
       visible: visible,
       onAction: onRetry,
     );
@@ -264,7 +266,10 @@ class _Failed extends StatelessWidget {
       open: flow.failed,
       child: Padding(
         padding: const EdgeInsets.only(top: IqSpace.s2),
-        child: SendFailedBanner(visible: flow.failed, onRetry: onRetry),
+        child: SendFailedBanner(
+          visible: flow.failed,
+          onRetry: flow.refusedFile ? null : onRetry,
+        ),
       ),
     );
   }
@@ -322,7 +327,9 @@ class _QuestionsStepState extends ConsumerState<QuestionsStep> {
   }
 
   Future<void> _attach() async {
-    final picked = await ref.read(attachmentPickerProvider).pick();
+    final picked = await ref
+        .read(attachmentPickerProvider)
+        .pick(only: widget.form.fileExtensions);
     if (!mounted || picked.isEmpty) return;
     final notifier = ref.read(submitFlowProvider(widget.briefId).notifier);
     notifier.addFiles(picked);

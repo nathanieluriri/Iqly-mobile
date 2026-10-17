@@ -42,10 +42,23 @@ class NotificationsScreen extends ConsumerStatefulWidget {
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   bool _seen = false;
 
+  /// A visit reads the feed again behind the rows kept from the last one,
+  /// and marks seen only up to what this read brought.
+  late final Future<void> _reading = ref
+      .read(notificationsProvider.notifier)
+      .refreshQuietly();
+
+  @override
+  void initState() {
+    super.initState();
+    _reading.ignore();
+  }
+
   void _markSeen() {
     if (_seen) return;
     _seen = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _reading;
       if (mounted) ref.read(notificationsProvider.notifier).markSeen();
     });
   }

@@ -242,12 +242,30 @@ class LiveAuthService implements AuthService {
     return value is String && value.trim().isNotEmpty ? value.trim() : null;
   }
 
-  /// A new account has no contributor profile yet, or one with onboarding
-  /// still open.
+  /// A new account has no contributor profile yet (the API's not found),
+  /// or one with onboarding still open. Any other failure asks `GET /me`,
+  /// whose profile carries the same date; with no answer from either the
+  /// account counts as returning, so nobody who finished first run is sent
+  /// back to it (`syncFirstRun` puts first run back once `/me` shows the
+  /// account has no record of it).
   Future<bool> _onboardingDue() async {
-    final res = await api.get('/profiles/contributors/me');
-    if (!res.ok) return true;
-    return res.data['onboardingCompletedAt'] == null;
+    try {
+      final res = await api.get('/profiles/contributors/me');
+      if (res.ok) return res.data['onboardingCompletedAt'] == null;
+      if (res.status == 404) return true;
+    } on ApiUnreachable {
+      // Asked of /me below.
+    }
+    try {
+      final res = await api.get('/me');
+      if (res.ok) {
+        final profile = res.data['profile'];
+        return profile is! Map || profile['onboardingCompletedAt'] == null;
+      }
+    } on ApiUnreachable {
+      // Neither answered: returning.
+    }
+    return false;
   }
 
   static Future<AuthResult> _guard(Future<AuthResult> Function() call) async {

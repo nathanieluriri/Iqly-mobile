@@ -19,10 +19,10 @@ import 'data/local/local_store.dart';
 import 'data/local/memory_local_store.dart';
 import 'data/patches.dart';
 import 'data/profile_service.dart';
-import 'data/repository.dart';
 import 'data/token_store.dart';
 import 'features/discover/discover_state.dart';
 import 'features/more/more_state.dart';
+import 'features/notifications/notifications_state.dart';
 import 'features/profile/account_sync.dart';
 import 'features/profile/profile_state.dart';
 import 'features/settings/settings_state.dart';
@@ -73,7 +73,7 @@ Future<void> main() async {
             devices: ApiPushDevices(api),
             signedIn: () => ref.read(sessionProvider).signedIn,
             onOpen: (route) => ref.read(surfacesProvider)?.openLink(route),
-            onArrive: () => ref.invalidate(unreadNotificationsProvider),
+            onArrive: () => readAgainOnPush(ref),
           ),
         ),
       ],

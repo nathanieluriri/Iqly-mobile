@@ -7,7 +7,9 @@ import 'core/backend.dart';
 import 'core/edge_haptics.dart';
 import 'core/patches.dart';
 import 'core/updates.dart';
+import 'data/live/live_repository.dart';
 import 'features/splash/patch_dialog.dart';
+import 'features/submissions/submissions_state.dart';
 import 'router.dart';
 import 'theme/theme.dart';
 
@@ -29,6 +31,10 @@ class _IqlyAppState extends ConsumerState<IqlyApp> {
         ref.read(updatesProvider.notifier).resumed();
         ref.read(backendProvider.notifier).resumed();
         ref.read(patchesProvider.notifier).resumed();
+        if (!ref.read(liveModeProvider).isPreview &&
+            ref.exists(mySubmissionsProvider)) {
+          ref.read(mySubmissionsProvider.notifier).refreshQuietly();
+        }
       },
     );
     unawaited(ref.read(patchesProvider.notifier).check());

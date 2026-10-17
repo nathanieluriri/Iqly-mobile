@@ -332,7 +332,8 @@ SubmitForm submitFormFromJson(Object? json) {
       _map(j?['audienceSurvey'])?['questions'],
       surveyQuestionFromJson,
     ),
-    acceptsFiles: formats?['image'] == true || formats?['pdf'] == true,
+    acceptsImages: formats?['image'] == true,
+    acceptsPdfs: formats?['pdf'] == true,
   );
 }
 

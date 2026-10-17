@@ -10,6 +10,7 @@ import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
+import '../../ui/banner.dart';
 import '../../ui/brief_hero.dart';
 import '../../ui/button.dart';
 import '../../ui/meta.dart';
@@ -60,9 +61,25 @@ class SubmissionDetailScreen extends ConsumerWidget {
                   child: LoadingGate(
                     loading: item == null && loaded.isLoading,
                     skeleton: const _Skeleton(),
-                    child: item == null
-                        ? const SizedBox.shrink()
-                        : _Body(item: item, now: ref.watch(clockProvider)()),
+                    child: item != null
+                        ? _Body(item: item, now: ref.watch(clockProvider)())
+                        : loaded.hasError
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: IqSpace.s4,
+                            ),
+                            child: Align(
+                              alignment: Alignment.topCenter,
+                              child: IqBanner(
+                                kind: IqBannerKind.error,
+                                title: 'Couldn’t load. Check your connection.',
+                                action: 'Try again',
+                                onAction: () =>
+                                    ref.invalidate(submissionItemProvider(id)),
+                              ),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
                   ),
                 ),
                 if (item != null)
