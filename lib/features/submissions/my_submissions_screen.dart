@@ -23,11 +23,10 @@ import '../../ui/illustration.dart';
 import '../../ui/list_row.dart';
 import '../../ui/meta.dart';
 import '../../ui/section_title.dart';
-import '../../ui/segmented.dart';
+import '../../ui/chip.dart';
 import '../../ui/submission_card.dart';
 import '../../ui/top_bar.dart';
 import '../discover/app_shell.dart';
-import '../drafts/drafts_entry.dart';
 import '../drafts/drafts_state.dart';
 import 'brief_art.dart';
 import 'row_card.dart';
@@ -36,12 +35,12 @@ import 'submissions_routes.dart';
 import 'submissions_state.dart';
 
 /// B4 My submissions, the Submissions tab root: Under review (35:24),
-/// Winners (324:14478) and Not selected (324:14520) as Segmented lenses,
+/// Winners (324:14478) and Not selected (324:14520) as lens chips,
 /// with loading (165:8524), empty (165:8608) and failed to load (165:8700).
 /// The shell draws the dock.
 ///
-/// A lens switch keeps the chrome still: the Segmented's pill slides to the
-/// lens and the lens slides in from that side as the last one leaves
+/// A lens switch keeps the chrome still: the chips hold still and the
+/// lens slides in from the picked chip's side as the last one leaves
 /// (LensSlide, 260 ms). The lenses carry no counts (owner, 16 Oct). The
 /// skeleton shows on the first visit only; the list is kept, so a later
 /// visit shows it at once.
@@ -158,7 +157,7 @@ class _MySubmissionsScreenState extends ConsumerState<MySubmissionsScreen> {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      // The Segmented is chrome: it holds still through the
+                      // The chips are chrome: it holds still through the
                       // gate's paper wait as well (spec 3.7).
                       if (data == null && !failed)
                         const _Loading(segmented: true, cards: false),
@@ -183,7 +182,7 @@ class _MySubmissionsScreenState extends ConsumerState<MySubmissionsScreen> {
   }
 }
 
-/// The Segmented over the lens it picks. A pick slides the lens under the
+/// The chips over the lens it picks. A pick slides the lens under the
 /// control over to the new one.
 class _Lenses extends ConsumerWidget {
   const _Lenses({super.key, required this.data, required this.controller});
@@ -195,7 +194,7 @@ class _Lenses extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tab = ref.watch(submissionsTabProvider);
     final now = ref.watch(clockProvider)();
-    final drafts = (ref.watch(draftItemsProvider).value ?? const []).isNotEmpty;
+    final drafts = (ref.watch(draftItemsProvider).value ?? const []).length;
     return ListView(
       controller: controller,
       padding: EdgeInsets.fromLTRB(
@@ -205,17 +204,15 @@ class _Lenses extends ConsumerWidget {
         AppShell.contentInset(context),
       ),
       children: [
-        SubmissionsSegmented(
+        SubmissionsChips(
           selected: tab,
+          drafts: drafts,
           onChanged: (next) {
             if (next == tab) return;
             ref.read(submissionsTabProvider.notifier).select(next);
           },
+          onDrafts: () => context.open(Routes.drafts),
         ),
-        if (drafts) ...[
-          const SizedBox(height: IqSpace.s3),
-          const DraftsEntry(),
-        ],
         LensSlide(
           key: const ValueKey('lens'),
           index: tab.index,
@@ -317,29 +314,61 @@ class _Lenses extends ConsumerWidget {
   }
 }
 
-/// The Segmented over the three lenses, by name only (owner, 16 Oct: no
-/// counts).
-class SubmissionsSegmented extends StatelessWidget {
-  const SubmissionsSegmented({
+/// The lens chips, as Discover's For you, All and Saved: Under review,
+/// Winners and Not selected pick a lens in place; Drafts, shown while there
+/// are any, opens Drafts as Saved opens its own page (owner, 18 Oct, over
+/// the Segmented in 35:24).
+class SubmissionsChips extends StatelessWidget {
+  const SubmissionsChips({
     super.key,
     this.selected = SubmissionsTab.underReview,
+    this.drafts = 0,
     this.onChanged,
+    this.onDrafts,
   });
 
   final SubmissionsTab selected;
+  final int drafts;
   final ValueChanged<SubmissionsTab>? onChanged;
+  final VoidCallback? onDrafts;
 
   @override
   Widget build(BuildContext context) {
     final onChanged = this.onChanged;
-    return IqSegmented(
-      option1: SubmissionsTab.underReview.label,
-      option2: SubmissionsTab.winners.label,
-      option3: SubmissionsTab.notSelected.label,
-      selected: IqSegmentedSelected.values[selected.index],
-      onChanged: onChanged == null
-          ? null
-          : (s) => onChanged(SubmissionsTab.values[s.index]),
+    // The row reaches past the page's side margins so a chip scrolls off
+    // the screen's edge rather than being cut 16 in from it.
+    return LayoutBuilder(
+      builder: (context, box) => SizedBox(
+        height: IqChip.height,
+        child: OverflowBox(
+          maxWidth: box.maxWidth + IqSpace.s4 * 2,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
+            child: Row(
+              children: [
+                for (final (i, tab) in SubmissionsTab.values.indexed) ...[
+                  if (i > 0) const SizedBox(width: IqSpace.s2),
+                  IqChip(
+                    label: tab.label,
+                    state: tab == selected
+                        ? IqChipState.selected
+                        : IqChipState.standard,
+                    onChanged: onChanged == null ? null : (_) => onChanged(tab),
+                  ),
+                ],
+                if (drafts > 0) ...[
+                  const SizedBox(width: IqSpace.s2),
+                  IqChip(
+                    label: draftsEntryLabel(drafts),
+                    onChanged: onDrafts == null ? null : (_) => onDrafts!(),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -397,7 +426,7 @@ class SubmissionCardFor extends StatelessWidget {
   }
 }
 
-/// The skeleton (165:8524). The Segmented under it is drawn by the page
+/// The skeleton (165:8524). The chips under it is drawn by the page
 /// while the list loads, so the skeleton only keeps its space.
 class _Loading extends StatelessWidget {
   const _Loading({this.segmented = false, this.cards = true});
@@ -414,9 +443,9 @@ class _Loading extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (segmented)
-            const SubmissionsSegmented()
+            const SubmissionsChips()
           else
-            const Opacity(opacity: 0, child: SubmissionsSegmented()),
+            const Opacity(opacity: 0, child: SubmissionsChips()),
           if (cards)
             for (var i = 0; i < 3; i++) ...[
               const SizedBox(height: IqSpace.s3),

@@ -29,6 +29,7 @@ import 'pin_sheet.dart';
 import 'wallet_format.dart';
 import 'wallet_routes.dart';
 import 'wallet_sheet.dart';
+import 'biometric_withdraw.dart';
 import 'withdrawal_pin_screen.dart' show openPinReset, pinTriesLeft;
 import 'wallet_state.dart';
 
@@ -80,6 +81,7 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
   /// The PIN the person confirmed, held in memory while the sheet is open
   /// so Try again resends with it; never stored.
   String? _pin;
+  bool _fromBiometrics = false;
 
   /// What the amount reads as. Tidying it as the field lets go, or moving
   /// the caret, is not an edit, so a refusal that lands first stays shown.
@@ -193,7 +195,10 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
           return;
         }
         if (status?.set == true) {
-          pin = await _askPin(kobo, to);
+          pin = await pinFromBiometrics(ref, 'Confirm withdrawal');
+          _fromBiometrics = pin != null;
+          if (!mounted) return;
+          pin ??= await _askPin(kobo, to);
           if (pin == null || !mounted) return;
         }
       }
@@ -239,7 +244,18 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
     final withdrawal = result.withdrawal;
     if (withdrawal == null) {
       final failure = result.failure;
-      if (result.pin?.problem == PinProblem.incorrect) _pin = null;
+      if (result.pin?.problem == PinProblem.incorrect) {
+        _pin = null;
+        if (_fromBiometrics) {
+          _fromBiometrics = false;
+          await forgetBiometricPin(ref);
+          if (!mounted) return;
+          setState(() => _sending = false);
+          final asked = await _askPin(kobo, to);
+          if (asked == null || !mounted) return;
+          return _send(kobo, to, pin: asked);
+        }
+      }
       if (result.pin?.problem == PinProblem.required && pin == null) {
         setState(() => _sending = false);
         final asked = await _askPin(kobo, to);

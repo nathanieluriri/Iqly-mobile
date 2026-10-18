@@ -1,16 +1,32 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/help/help_centre_screen.dart';
+import 'package:iqly_mobile/data/points_data.dart';
+import 'package:iqly_mobile/features/outcomes/leaderboard_states.dart';
 import 'package:iqly_mobile/features/outcomes/points_leaderboard_screen.dart';
+import 'package:iqly_mobile/features/splash/patch_dialog.dart';
+import 'package:iqly_mobile/ui/illustration.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/dock.dart';
 import 'package:iqly_mobile/ui/leaderboard_row.dart';
 import 'package:iqly_mobile/ui/podium.dart';
 
 import '../golden/screens/app_harness.dart';
+import '../golden/screens/outcomes_screens_test.dart' show FewOnTheBoard;
+
+class _Waiting extends DemoRepository {
+  _Waiting() : super(DemoData(now: figmaNow));
+
+  final board = Completer<PointsBoard>();
+
+  @override
+  Future<PointsBoard> pointsLeaderboard() => board.future;
+}
 
 String _path(WidgetTester tester) =>
     GoRouter.of(tester.element(find.byType(Navigator).first)).state.uri.path;
@@ -94,4 +110,62 @@ void main() {
     expect(find.byType(HelpCentreScreen), findsOneWidget);
     expect(_path(tester), Routes.helpCentre);
   });
+
+  testWidgets('B13 iQL points: the filling mark while the board loads', (
+    tester,
+  ) async {
+    final repository = _Waiting();
+    await pumpApp(
+      tester,
+      Routes.pointsLeaderboard,
+      repository: repository,
+      settle: false,
+    );
+    await tester.pump();
+    expect(find.byType(IqFillLoader), findsOneWidget);
+    repository.board.complete(await FewOnTheBoard(3).pointsLeaderboard());
+    await tester.pumpAndSettle();
+    expect(find.byType(IqFillLoader), findsNothing);
+    expect(find.byType(LeaderboardFew), findsOneWidget);
+  });
+
+  testWidgets('B13 iQL points: an empty board says no one is on it', (
+    tester,
+  ) async {
+    await pumpApp(
+      tester,
+      Routes.pointsLeaderboard,
+      repository: FewOnTheBoard(0),
+    );
+    expect(find.text('No one is on the leaderboard yet'), findsOneWidget);
+    expect(find.byType(IqPodium), findsNothing);
+  });
+
+  testWidgets('B13 iQL points: one person stands alone under confetti', (
+    tester,
+  ) async {
+    await pumpApp(
+      tester,
+      Routes.pointsLeaderboard,
+      repository: FewOnTheBoard(1),
+    );
+    expect(find.byType(FallingConfetti), findsOneWidget);
+    expect(find.text('Chinedu A.'), findsOneWidget);
+    expect(find.text('3,420 pts'), findsOneWidget);
+  });
+
+  for (final count in [2, 3]) {
+    testWidgets('B13 iQL points: $count people get the tall podium and no '
+        'rows', (tester) async {
+      await pumpApp(
+        tester,
+        Routes.pointsLeaderboard,
+        repository: FewOnTheBoard(count),
+      );
+      expect(find.byType(LeaderboardFew), findsOneWidget);
+      expect(find.byType(FallingConfetti), findsNothing);
+      expect(find.byType(IqPodium), findsNothing);
+      expect(find.byType(IqLeaderboardRow), findsNothing);
+    });
+  }
 }

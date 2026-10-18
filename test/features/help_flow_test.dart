@@ -114,7 +114,7 @@ void main() {
     expect(wallet.amount, '₦16,500.00');
     expect(
       find.text('₦10,000.00 on its way · ₦66,500.00 earned so far'),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.text('+₦1,500.00'), findsWidgets);
   });

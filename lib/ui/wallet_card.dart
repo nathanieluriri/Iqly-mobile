@@ -11,6 +11,9 @@ enum IqWalletCardVisibility { shown, hidden }
 /// [balance]; the eye in the header hides the figures. No dark slab, no
 /// stacked stats. Wallet figures keep two decimals.
 ///
+/// Owner over Figma (18 Oct): the Wallet screen drops the breakdown line
+/// ([showBreakdown] false); the balance tabs already carry those figures.
+///
 /// Figma over brief: the card's own tab row and eye are hidden layers in
 /// every variant; the screen carries both.
 ///
@@ -25,6 +28,7 @@ class IqWalletCard extends StatelessWidget {
     this.label,
     this.caption,
     this.breakdown,
+    this.showBreakdown = true,
   });
 
   final IqWalletCardBalance balance;
@@ -33,6 +37,7 @@ class IqWalletCard extends StatelessWidget {
   final String? label;
   final String? caption;
   final String? breakdown;
+  final bool showBreakdown;
 
   static const double height = 142;
   static const String hiddenAmount = '₦ • • • • •';
@@ -118,13 +123,15 @@ class IqWalletCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: IqText.small.copyWith(color: IqColors.fg2),
             ),
-            const SizedBox(height: IqSpace.s1p5),
-            Text(
-              _breakdown,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: IqText.small.copyWith(color: IqColors.fg3),
-            ),
+            if (showBreakdown) ...[
+              const SizedBox(height: IqSpace.s1p5),
+              Text(
+                _breakdown,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: IqText.small.copyWith(color: IqColors.fg3),
+              ),
+            ],
           ],
         ),
       ),

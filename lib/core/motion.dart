@@ -180,6 +180,9 @@ abstract final class IqDurations {
 
   /// Loop: the Cheer figure's confetti falling; every piece's pace divides it.
   static const confettiLoop = Duration(seconds: 24);
+
+  /// The Sender's bob; its speed lines and trail run twice per loop.
+  static const planeLoop = Duration(milliseconds: 1800);
 }
 
 /// The patch dialog's logomark fill (Figma B · Patch · fill motion).

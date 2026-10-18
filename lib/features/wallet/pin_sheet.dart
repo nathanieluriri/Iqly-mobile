@@ -13,6 +13,7 @@ import '../../theme/theme.dart';
 import '../../ui/button.dart';
 import '../../ui/field.dart';
 import '../entry/entry_widgets.dart' show EntryInput;
+import 'biometric_withdraw.dart';
 import 'wallet_sheet.dart';
 import 'withdrawal_pin_screen.dart'
     show openPinReset, pinLockWait, pinTriesLeft;
@@ -25,7 +26,7 @@ import 'withdrawal_pin_screen.dart'
 /// While the API runs the PIN (contract 13.1) the API checks it: a wrong
 /// one says the tries left, a lock how long it holds, and a lock only a
 /// reset opens hands over to the reset from More. The phone's own check
-/// cannot stand in for it then, since a withdrawal carries the PIN.
+/// then unlocks the PIN kept on the phone, once turned on from More.
 ///
 /// There is no PIN kit component: Exp/Field and the buttons, as the frame
 /// builds it. The Field help "Forgot it? Reset it by email from More." shows
@@ -35,10 +36,15 @@ class PinSheet extends ConsumerStatefulWidget {
     super.key,
     required this.body,
     this.action = 'Confirm withdrawal',
+    this.offerBiometric = true,
   });
 
   final String body;
   final String action;
+
+  /// Offers the phone's check: while the API runs the PIN, only once it is
+  /// turned on for withdrawals, since it then unlocks the kept PIN.
+  final bool offerBiometric;
 
   static const lockedForReset =
       'Your PIN is locked. Reset it by email to use it again.';
@@ -56,7 +62,13 @@ class _PinSheetState extends ConsumerState<PinSheet> {
   @override
   void initState() {
     super.initState();
-    if (ref.read(pinServiceProvider) != null) return;
+    if (!widget.offerBiometric) return;
+    if (ref.read(pinServiceProvider) != null) {
+      ref.read(biometricWithdrawProvider.future).then((check) {
+        if (mounted && check.on) setState(() => _biometric = check.kind);
+      });
+      return;
+    }
     ref.read(biometricServiceProvider).available().then((kind) {
       if (mounted) setState(() => _biometric = kind);
     });
@@ -137,6 +149,11 @@ class _PinSheetState extends ConsumerState<PinSheet> {
   }
 
   Future<void> _useBiometric() async {
+    if (ref.read(pinServiceProvider) != null) {
+      final pin = await pinFromBiometrics(ref, widget.action);
+      if (pin != null && mounted) Navigator.of(context).pop(pin);
+      return;
+    }
     final ok = await ref.read(biometricServiceProvider).confirm(widget.action);
     if (ok && mounted) Navigator.of(context).pop('');
   }
@@ -202,6 +219,7 @@ class _PinSheetState extends ConsumerState<PinSheet> {
                   label: _resetRequired ? 'Reset it by email' : widget.action,
                   width: double.infinity,
                   loading: _checking,
+                  disabled: !_resetRequired && _pin.controller.text.length != 4,
                   onTap: _resetRequired ? _reset : _confirm,
                 ),
                 if (biometric != null) ...[

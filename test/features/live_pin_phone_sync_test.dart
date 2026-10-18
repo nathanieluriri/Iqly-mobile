@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'package:http/testing.dart';
 import 'package:iqly_mobile/core/backend.dart';
 import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/data/api_client.dart';
+import 'package:iqly_mobile/data/biometric_service.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/live/brief_marks_sync.dart';
 import 'package:iqly_mobile/data/live/submit_queue.dart';
@@ -23,12 +25,14 @@ import 'package:iqly_mobile/features/profile/account_sync.dart';
 import 'package:iqly_mobile/features/profile/edit_detail_screen.dart';
 import 'package:iqly_mobile/features/profile/your_details_screen.dart';
 import 'package:iqly_mobile/features/submit/submit_sent.dart';
+import 'package:iqly_mobile/features/splash/patch_dialog.dart';
 import 'package:iqly_mobile/features/wallet/pin_sheet.dart';
 import 'package:iqly_mobile/features/wallet/withdraw_sheet.dart';
 import 'package:iqly_mobile/features/wallet/withdrawal_pin_screen.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/surfaces/surfaces.dart';
 import 'package:iqly_mobile/theme/theme.dart';
+import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/field.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -169,6 +173,10 @@ Future<void> _openWithdraw(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+IqButton _button(WidgetTester tester, String label) => tester.widget<IqButton>(
+  find.byWidgetPredicate((w) => w is IqButton && w.label == label),
+);
+
 Backend _with(Set<LiveFeature> more) => Backend.of({...firstFeatures, ...more});
 
 /// No value the phone keeps holds [secret].
@@ -196,7 +204,139 @@ class _Scheduling extends Surfaces {
   }) async => scheduled.add({for (final b in briefs) b.id, ...keep});
 }
 
+/// A fingerprint sensor that passes while [pass] holds.
+class _Finger implements BiometricService {
+  bool pass = true;
+  final asked = <String>[];
+
+  @override
+  Future<BiometricKind?> available() async => BiometricKind.fingerprint;
+
+  @override
+  Future<bool> confirm(String reason) async {
+    asked.add(reason);
+    return pass;
+  }
+}
+
 void main() {
+  group('withdrawing with the fingerprint', () {
+    Future<(_Finger, MemoryPinVault)> launch(
+      WidgetTester tester,
+      _Server server,
+      String location,
+    ) async {
+      final finger = _Finger();
+      final vault = MemoryPinVault();
+      await pumpLiveLaunch(
+        tester,
+        location,
+        api: server.api,
+        mode: _with({LiveFeature.withdrawalPin}),
+        overrides: [
+          biometricServiceProvider.overrideWithValue(finger),
+          pinVaultProvider.overrideWithValue(vault),
+        ],
+      );
+      await tester.pumpAndSettle();
+      return (finger, vault);
+    }
+
+    testWidgets('More turns it on with the PIN, checked by the API, then '
+        'the fingerprint, and off again', (tester) async {
+      final server = _wallet();
+      final (finger, vault) = await launch(tester, server, Routes.more);
+      expect(find.text('Withdraw with fingerprint'), findsOneWidget);
+
+      await tester.tap(find.text('Withdraw with fingerprint'));
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+      expect(find.byType(PinSheet), findsOneWidget);
+      expect(find.textContaining('instead'), findsNothing);
+      await _type(tester, 'iQLY PIN', '2580');
+      await tester.tap(find.text('Continue'));
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+      expect(_body(server.to('POST /wallet/pin/verify').single)['pin'], '2580');
+      expect(finger.asked, ['Turn on fingerprint for withdrawals']);
+      expect(await vault.read('u_1'), '2580');
+
+      await tester.tap(find.text('Withdraw with fingerprint'));
+      await tester.pumpAndSettle();
+      expect(await vault.read('u_1'), isNull);
+      _neverKept('2580');
+    });
+
+    testWidgets('a refused fingerprint at setup keeps nothing', (tester) async {
+      final server = _wallet();
+      final (finger, vault) = await launch(tester, server, Routes.more);
+      finger.pass = false;
+      await tester.tap(find.text('Withdraw with fingerprint'));
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+      await _type(tester, 'iQLY PIN', '2580');
+      await tester.tap(find.text('Continue'));
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+      expect(await vault.read('u_1'), isNull);
+    });
+
+    testWidgets('once on, a withdrawal asks for the fingerprint, not the '
+        'PIN, and carries the kept PIN', (tester) async {
+      final server = _wallet();
+      final (finger, vault) = await launch(tester, server, Routes.wallet);
+      await vault.write('u_1', '2580');
+      await _openWithdraw(tester);
+      expect(finger.asked, ['Confirm withdrawal']);
+      expect(find.byType(PinSheet), findsNothing);
+      expect(
+        _body(server.to('POST /wallet/withdrawals').single)['pin'],
+        '2580',
+      );
+    });
+
+    testWidgets('a cancelled fingerprint falls back to the PIN sheet, which '
+        'offers the fingerprint again', (tester) async {
+      final server = _wallet();
+      final (finger, vault) = await launch(tester, server, Routes.wallet);
+      await vault.write('u_1', '2580');
+      finger.pass = false;
+      await _openWithdraw(tester);
+      expect(find.byType(PinSheet), findsOneWidget);
+      expect(find.text('Use fingerprint instead'), findsOneWidget);
+      finger.pass = true;
+      await tester.tap(find.text('Use fingerprint instead'));
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+      expect(
+        _body(server.to('POST /wallet/withdrawals').single)['pin'],
+        '2580',
+      );
+    });
+
+    testWidgets('a kept PIN the API refuses (changed elsewhere) is dropped '
+        'and the PIN sheet asks', (tester) async {
+      final server = _wallet();
+      final (_, vault) = await launch(tester, server, Routes.wallet);
+      await vault.write('u_1', '1111');
+      await _openWithdraw(tester);
+      expect(find.byType(PinSheet), findsOneWidget);
+      expect(await vault.read('u_1'), isNull);
+      expect(find.textContaining('instead'), findsNothing);
+      await _type(tester, 'iQLY PIN', '2580');
+      await tester.tap(find.text('Confirm withdrawal'));
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+      expect(
+        [
+          for (final r in server.to('POST /wallet/withdrawals'))
+            _body(r)['pin'],
+        ],
+        ['1111', '2580'],
+      );
+    });
+  });
+
   group('the withdrawal PIN', () {
     testWidgets('live with a PIN set: the API checks it on the sheet, a '
         'wrong one says the tries left, and the withdrawal carries it', (
@@ -333,9 +473,10 @@ void main() {
         findsOneWidget,
       );
 
-      await _type(tester, 'New PIN', '4321');
-      await _type(tester, 'New PIN again', '4321');
-      await tester.tap(find.text('Email me a code.'));
+      expect(find.text('1 of 2'), findsOneWidget);
+      expect(find.text('New PIN'), findsNothing);
+      expect(find.text('6-digit code'), findsNothing);
+      await tester.tap(find.text('Email me a code'));
       await tester.pump();
       await tester.pump();
       expect(server.to('POST /wallet/pin/code'), hasLength(1));
@@ -349,7 +490,18 @@ void main() {
         find.text('Sent to a•••@example.com. Didn’t get it? Resend the code.'),
         findsOneWidget,
       );
+      expect(_button(tester, 'Continue').disabled, isTrue);
+      await _type(tester, '6-digit code', '48215');
+      expect(_button(tester, 'Continue').disabled, isTrue);
       await _type(tester, '6-digit code', '482152');
+      expect(_button(tester, 'Continue').disabled, isFalse);
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      expect(find.text('2 of 2'), findsOneWidget);
+      expect(_button(tester, 'Save PIN').disabled, isTrue);
+      await _type(tester, 'New PIN', '4321');
+      await _type(tester, 'New PIN again', '4321');
+      expect(_button(tester, 'Save PIN').disabled, isFalse);
       await tester.tap(find.text('Save PIN'));
       await tester.pumpAndSettle();
       expect(_body(server.to('POST /wallet/pin/reset').single), {
@@ -393,14 +545,17 @@ void main() {
         find.text('Your 4-digit iQLY PIN confirms every withdrawal.'),
         findsOneWidget,
       );
+      expect(_button(tester, 'Email me a code').disabled, isFalse);
       await tester.tap(find.text('Use your password instead'));
       await tester.pumpAndSettle();
+      expect(_button(tester, 'Continue').disabled, isTrue);
       await _type(tester, 'Password', 'iqly-local-123');
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
       await _type(tester, 'New PIN', '1357');
       await _type(tester, 'New PIN again', '1375');
-      await tester.tap(find.text('Save PIN'));
-      await tester.pumpAndSettle();
       expect(find.text('The PINs don’t match.'), findsOneWidget);
+      expect(_button(tester, 'Save PIN').disabled, isTrue);
       expect(server.to('POST /wallet/pin'), isEmpty);
       await _type(tester, 'New PIN again', '1357');
       await tester.tap(find.text('Save PIN'));
@@ -409,6 +564,36 @@ void main() {
         'pin': '1357',
         'password': 'iqly-local-123',
       });
+    });
+
+    testWidgets('the PIN page shows the filling mark while it loads', (
+      tester,
+    ) async {
+      final server = _wallet();
+      final status = Completer<http.Response>();
+      final api = ApiClient(
+        tokens: MemoryTokenStore('t'),
+        baseUrl: 'https://api.test',
+        client: MockClient((r) async {
+          if (r.url.path == '/wallet/pin') return status.future;
+          return server.routes['${r.method} ${r.url.path}']?.call(r) ??
+              ok(page([]));
+        }),
+      );
+      await pumpLiveLaunch(
+        tester,
+        Routes.withdrawalPin,
+        api: api,
+        mode: _with({LiveFeature.withdrawalPin}),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byType(IqPageLoading), findsOneWidget);
+      expect(find.text('Save PIN'), findsNothing);
+      status.complete(ok(_pin()));
+      await tester.pumpAndSettle();
+      expect(find.byType(IqPageLoading), findsNothing);
+      expect(find.text('Current PIN'), findsOneWidget);
+      expect(_button(tester, 'Save PIN').disabled, isTrue);
     });
 
     testWidgets('More has no PIN row while withdrawalPin is off', (

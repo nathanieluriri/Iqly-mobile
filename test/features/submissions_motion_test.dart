@@ -105,7 +105,7 @@ Future<Finder> _firstFrameOf(WidgetTester tester, Type type) async {
 void main() {
   setUpAll(loadAppFonts);
 
-  testWidgets('first visit: paper under the still Segmented, the skeleton, '
+  testWidgets('first visit: paper under the still chips, the skeleton, '
       'then the cards arrive; a later visit shows them at once', (
     tester,
   ) async {
@@ -119,10 +119,10 @@ void main() {
     await tester.tap(_tab);
     await tester.pump();
     expect(find.byType(MySubmissionsScreen), findsOneWidget);
-    expect(find.byType(SubmissionsSegmented), findsOneWidget);
+    expect(find.byType(SubmissionsChips), findsOneWidget);
     await tester.pump(_ms * 299);
     expect(find.byType(SkeletonSubmissionCard), findsNothing);
-    expect(find.byType(SubmissionsSegmented), findsOneWidget);
+    expect(find.byType(SubmissionsChips), findsOneWidget);
     await tester.pump(_ms);
     await tester.pump();
     expect(find.byType(SkeletonSubmissionCard), findsNWidgets(3));
@@ -176,20 +176,17 @@ void main() {
     expect(find.text('Bring the shop to the hostel'), findsOneWidget);
   });
 
-  testWidgets('a lens switch slides the pill and the lens over from the '
-      'picked side, 260 ms, and keeps the chrome still', (tester) async {
+  testWidgets('a lens switch slides the lens over from the picked side, '
+      '260 ms, and keeps the chips still', (tester) async {
     await pumpApp(tester, Routes.submissions, reducedMotion: false);
-    final segmented = tester.getTopLeft(find.byType(SubmissionsSegmented));
-    final pill = find.byKey(const ValueKey('pill'));
-    final pillAt = tester.getTopLeft(pill).dx;
+    final chips = tester.getTopLeft(find.byType(SubmissionsChips));
     await tester.tap(find.text('Winners'));
     await tester.pump();
     await tester.pump(_ms * 130);
     final won = find.text('₦62,500.00 won from 2 briefs');
     expect(won, findsOneWidget);
     final sliding = tester.getTopLeft(won).dx;
-    expect(tester.getTopLeft(pill).dx, greaterThan(pillAt));
-    expect(tester.getTopLeft(find.byType(SubmissionsSegmented)), segmented);
+    expect(tester.getTopLeft(find.byType(SubmissionsChips)), chips);
     await tester.pump(_ms * 140);
     await tester.pump();
     expect(tester.getTopLeft(won).dx, lessThan(sliding));

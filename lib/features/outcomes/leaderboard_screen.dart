@@ -17,6 +17,7 @@ import '../../ui/avatar.dart';
 import '../../ui/top_bar.dart';
 import '../submissions/brief_art.dart';
 import '../submissions/submissions_routes.dart';
+import 'leaderboard_states.dart';
 import 'outcomes_state.dart';
 import 'result_screen.dart';
 
@@ -38,7 +39,8 @@ class LeaderboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final data = ref.watch(resultProvider(id)).value;
+    final result = ref.watch(resultProvider(id));
+    final data = result.value;
     final board = data == null ? null : Leaderboard.of(data);
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
@@ -59,9 +61,15 @@ class LeaderboardScreen extends ConsumerWidget {
                       : context.go(resultPath(id), extra: NavDirection.back),
                 ),
                 Expanded(
-                  child: board == null
-                      ? const SizedBox.shrink()
-                      : _Board(board: board),
+                  child: board != null
+                      ? _Board(board: board)
+                      : result.hasError
+                      ? LeaderboardEmpty(
+                          onRetry: () => ref.invalidate(resultProvider(id)),
+                        )
+                      : result.hasValue
+                      ? const LeaderboardEmpty()
+                      : const LeaderboardLoading(),
                 ),
                 if (board != null)
                   ResultActions(
@@ -112,17 +120,30 @@ class _Board extends StatelessWidget {
           const SizedBox(height: IqSpace.s3),
           Text(board.title, style: IqText.title.copyWith(color: IqColors.fg)),
           const SizedBox(height: IqSpace.s3),
-          IqPodium(
-            name1: name(0),
-            amount1: amount(0),
-            avatar1: leaderboardAvatar(name(0), 64),
-            name2: name(1),
-            amount2: amount(1),
-            avatar2: leaderboardAvatar(name(1), 52),
-            name3: name(2),
-            amount3: amount(2),
-            avatar3: leaderboardAvatar(name(2), 52),
-          ),
+          if (board.rows.isEmpty)
+            LeaderboardFew(
+              spots: [
+                for (final (i, row) in podium.indexed)
+                  LeaderboardSpot(
+                    name: row.entry.name,
+                    amount: amount(i),
+                    detail: row.entry.entry,
+                    you: row.you,
+                  ),
+              ],
+            )
+          else
+            IqPodium(
+              name1: name(0),
+              amount1: amount(0),
+              avatar1: leaderboardAvatar(name(0), 64),
+              name2: name(1),
+              amount2: amount(1),
+              avatar2: leaderboardAvatar(name(1), 52),
+              name3: name(2),
+              amount3: amount(2),
+              avatar3: leaderboardAvatar(name(2), 52),
+            ),
           const SizedBox(height: IqSpace.s3 * 3),
           Stagger(
             child: Column(

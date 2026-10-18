@@ -22,6 +22,8 @@ import '../../ui/button.dart';
 import '../../ui/confirm_sheet.dart';
 import '../../ui/icon.dart';
 import '../../ui/list_row.dart';
+import '../../ui/setting_row.dart';
+import '../../ui/switch.dart';
 import '../../ui/pressable.dart';
 import '../../ui/referral_card.dart';
 import '../../ui/skeleton.dart';
@@ -34,6 +36,7 @@ import '../profile/profile_state.dart';
 import '../profile/leaving.dart';
 import '../referrals/referrals_screen.dart';
 import '../referrals/referrals_state.dart' show referralTermsProvider;
+import '../wallet/biometric_withdraw.dart';
 import '../wallet/wallet_routes.dart' show bankAccountPath;
 import 'more_state.dart';
 import 'more_widgets.dart';
@@ -100,6 +103,7 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
     final cache = ref.watch(cacheProvider);
     final ios = defaultTargetPlatform == TargetPlatform.iOS;
     final pin = ref.watch(pinServiceProvider) != null;
+    final biometric = pin ? ref.watch(biometricWithdrawProvider).value : null;
 
     final avatar = ref.watch(avatarProvider.select((a) => a.spec));
     final children = <Widget>[
@@ -196,8 +200,17 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
               label: 'iQLY PIN',
               showDescription: false,
               icon: IqIcons.lock,
-              divider: false,
+              divider: biometric?.kind != null,
               onTap: () => context.open(Routes.withdrawalPin),
+            ),
+          if (biometric?.kind case final kind?)
+            IqSettingRow(
+              label: 'Withdraw with ${kind.label}',
+              description: 'Instead of typing your PIN each time',
+              divider: false,
+              state: biometric!.on ? IqSwitchState.on : IqSwitchState.off,
+              onChanged: (next) =>
+                  setBiometricWithdraw(context, ref, next == IqSwitchState.on),
             ),
         ],
       ),

@@ -143,6 +143,23 @@ class _IqFillLoaderState extends State<IqFillLoader>
   }
 }
 
+/// A page body while its data loads: the filling mark in the middle
+/// (owner, 18 Oct: no page waits blank).
+class IqPageLoading extends StatelessWidget {
+  const IqPageLoading({super.key, this.label = 'Loading'});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: label,
+      liveRegion: true,
+      child: const Center(child: IqFillLoader()),
+    );
+  }
+}
+
 /// The patch dialog (Figma B · Patch, 1322:26867 / 1322:27353 / 1322:27844):
 /// Updating iQLY while the patch downloads, Update applied once it is on
 /// disk (its Close only takes the dialog down; the patch boots on the next
@@ -249,9 +266,8 @@ class _IqPatchDialogState extends State<IqPatchDialog>
     final (title, body) = switch (widget.phase) {
       PatchPhase.ready => (
         'Update applied',
-        'We updated iQLY over the air to improve your experience. It is '
-            'fully installed the next time you open the app. You can close '
-            'this message.',
+        'Some bugs were fixed over the air. Restart the app for the fixes '
+            'to fully appear.',
       ),
       PatchPhase.failed => (
         "Couldn't update",
@@ -371,13 +387,23 @@ class _PatchPresenterState extends ConsumerState<PatchPresenter> {
   @override
   void initState() {
     super.initState();
-    widget.router.routerDelegate.addListener(_present);
+    widget.router.routerDelegate.addListener(_schedule);
   }
 
   @override
   void dispose() {
-    widget.router.routerDelegate.removeListener(_present);
+    widget.router.routerDelegate.removeListener(_schedule);
     super.dispose();
+  }
+
+  // The dialog has no page of its own, so it belongs to the page it was
+  // pushed over and goes, without completing, when that page is replaced
+  // (the splash handing over to Discover). After each route change it waits
+  // for the new pages and comes back over them if it is gone.
+  void _schedule() {
+    WidgetsBinding.instance
+      ..addPostFrameCallback((_) => _present())
+      ..ensureVisualUpdate();
   }
 
   bool get _clear {
@@ -388,13 +414,15 @@ class _PatchPresenterState extends ConsumerState<PatchPresenter> {
   }
 
   void _present() {
-    if (!mounted || _route != null) return;
+    if (!mounted || (_route?.isActive ?? false)) return;
     if (ref.read(patchesProvider) == PatchPhase.idle || !_clear) return;
     final navigator = widget.router.routerDelegate.navigatorKey.currentState;
     if (navigator == null) return;
     final route = _PatchRoute();
     _route = route;
-    navigator.push(route).whenComplete(() => _route = null);
+    navigator.push(route).whenComplete(() {
+      if (_route == route) _route = null;
+    });
   }
 
   @override
@@ -407,7 +435,7 @@ class _PatchPresenterState extends ConsumerState<PatchPresenter> {
         }
         _route = null;
       } else {
-        _present();
+        _schedule();
       }
     });
     return widget.child;

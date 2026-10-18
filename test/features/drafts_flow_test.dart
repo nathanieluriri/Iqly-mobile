@@ -57,15 +57,10 @@ void main() {
     expect(businessOf(null), 'Private business');
   });
 
-  testWidgets('My submissions opens Drafts; back returns to it', (
-    tester,
-  ) async {
+  testWidgets('the Drafts chip on My submissions opens Drafts; back '
+      'returns to it', (tester) async {
     await pumpApp(tester, Routes.submissions, repository: _sample());
     expect(find.text('Drafts · 2'), findsOneWidget);
-    expect(
-      find.text('Unibooks and Sunline · last edited 2 hours ago'),
-      findsOneWidget,
-    );
     await _tap(tester, find.text('Drafts · 2'));
     expect(find.byType(DraftsScreen), findsOneWidget);
     expect(find.text('2 drafts'), findsOneWidget);

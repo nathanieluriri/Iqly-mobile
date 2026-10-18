@@ -15,8 +15,10 @@ import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/button.dart';
 import '../../ui/field.dart';
+import '../../ui/progress_thread.dart';
 import '../entry/entry_widgets.dart' show EntryInput;
 import '../more/more_widgets.dart';
+import '../splash/patch_dialog.dart' show IqPageLoading;
 
 enum PinStep { create, change, reset }
 
@@ -66,6 +68,10 @@ class _WithdrawalPinScreenState extends ConsumerState<WithdrawalPinScreen> {
   final _password = EntryInput();
   PinStep? _step;
   bool _usePassword = false;
+
+  /// Past the first of two steps: the code or the password is in, and the
+  /// new PIN is asked for. The API checks both together on Save.
+  bool _proved = false;
   bool _saving = false;
   bool _sending = false;
   String? _banner;
@@ -100,6 +106,7 @@ class _WithdrawalPinScreenState extends ConsumerState<WithdrawalPinScreen> {
   void _go(PinStep step, {String? banner, bool resets = false}) {
     setState(() {
       _step = step;
+      _proved = false;
       _banner = banner;
       _bannerResets = resets;
       for (final input in [_current, _pin, _again, _code, _password]) {
@@ -216,6 +223,7 @@ class _WithdrawalPinScreenState extends ConsumerState<WithdrawalPinScreen> {
         _current.controller.clear();
         _current.fail(pinTriesLeft(refused.attemptsLeft));
       case PinProblem.codeInvalid:
+        setState(() => _proved = false);
         final left = refused.attemptsLeft;
         _code.fail(
           left == null
@@ -224,12 +232,15 @@ class _WithdrawalPinScreenState extends ConsumerState<WithdrawalPinScreen> {
                     '${left == 1 ? 'try' : 'tries'} left.',
         );
       case PinProblem.codeExpired:
+        setState(() => _proved = false);
         _code.fail('That code has expired. Send a new one.');
         _countDown(null);
       case PinProblem.passwordIncorrect:
+        setState(() => _proved = false);
         _password.fail('That password isn’t right.');
       case PinProblem.passwordNotSet:
         setState(() {
+          _proved = false;
           _usePassword = false;
           _banner =
               'Your account signs in with Google or Apple. Use an emailed '
@@ -340,107 +351,231 @@ class _WithdrawalPinScreenState extends ConsumerState<WithdrawalPinScreen> {
     );
   }
 
+  static final _fourDigits = RegExp(r'^\d{4}$');
+
+  bool get _byCode => _step == PinStep.reset || !_usePassword;
+
+  bool get _codeIn => _code.controller.text.replaceAll(' ', '').length == 6;
+
+  bool get _proofIn => _byCode ? _codeIn : _password.text.isNotEmpty;
+
+  bool get _pinsMatch =>
+      _fourDigits.hasMatch(_pin.controller.text) &&
+      _again.controller.text == _pin.controller.text;
+
+  /// Whether the step's primary button has all it needs (owner, 18 Oct:
+  /// a primary button is live only once every field is ready).
+  bool _ready(PinStep step) => switch (step) {
+    PinStep.change =>
+      _fourDigits.hasMatch(_current.controller.text) && _pinsMatch,
+    _ when !_proved => _proofIn,
+    _ => _pinsMatch,
+  };
+
+  /// The code is only asked for once it has been sent.
+  bool get _codeSent => _sentTo != null || _wait > Duration.zero;
+
+  void _back(PinStep step) {
+    if (step != PinStep.change && _proved) {
+      setState(() {
+        _proved = false;
+        _pin.controller.clear();
+        _again.controller.clear();
+      });
+      return;
+    }
+    goBack(context);
+  }
+
+  Widget _mismatch() => ListenableBuilder(
+    listenable: Listenable.merge([_pin.changes, _again.changes]),
+    builder: (context, _) {
+      final again = _again.controller.text;
+      final shows =
+          again.length == 4 &&
+          again != _pin.controller.text &&
+          _again.error == null;
+      if (!shows) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.only(top: IqSpace.s1),
+        child: Text(
+          'The PINs don’t match.',
+          style: IqText.small.copyWith(color: IqColors.err),
+        ),
+      );
+    },
+  );
+
+  Widget _passwordField() => ListenableBuilder(
+    listenable: _password.changes,
+    builder: (context, _) => Shake(
+      trigger: _password.fails,
+      child: IqField(
+        label: 'Password',
+        value: '',
+        help: _password.error ?? '',
+        state: _password.error != null ? IqFieldState.error : null,
+        showNote: false,
+        controller: _password.controller,
+        focusNode: _password.focus,
+        obscureText: true,
+        autofillHints: const [AutofillHints.password],
+      ),
+    ),
+  );
+
+  List<Widget> _fields(PinStep step) {
+    if (step == PinStep.change) {
+      return [
+        _pinField(_current, 'Current PIN', autofocus: true),
+        const SizedBox(height: IqSpace.s2),
+        _pinField(_pin, 'New PIN'),
+        const SizedBox(height: IqSpace.s2),
+        _pinField(_again, 'New PIN again'),
+        _mismatch(),
+        const SizedBox(height: IqSpace.s3),
+        IqButton(
+          label: 'Forgot it? Reset it by email',
+          kind: IqButtonKind.ghost,
+          width: double.infinity,
+          onTap: () => _go(PinStep.reset),
+        ),
+      ];
+    }
+    final steps = IqProgressThread(
+      status: _proved
+          ? 'Choose your new PIN'
+          : _byCode
+          ? 'Confirm it’s you with a code'
+          : 'Confirm it’s you with your password',
+      count: _proved ? '2 of 2' : '1 of 2',
+    );
+    if (_proved) {
+      return [
+        steps,
+        const SizedBox(height: IqSpace.s4),
+        _pinField(_pin, 'New PIN', autofocus: true),
+        const SizedBox(height: IqSpace.s2),
+        _pinField(_again, 'New PIN again'),
+        _mismatch(),
+      ];
+    }
+    return [
+      steps,
+      const SizedBox(height: IqSpace.s4),
+      if (!_byCode)
+        _passwordField()
+      else if (_codeSent)
+        _codeField()
+      else
+        Text(
+          'We email a 6-digit code to the address on your account.',
+          style: IqText.body.copyWith(color: IqColors.fg2),
+        ),
+      if (step == PinStep.create) ...[
+        const SizedBox(height: IqSpace.s3),
+        IqButton(
+          label: _usePassword
+              ? 'Use an emailed code instead'
+              : 'Use your password instead',
+          kind: IqButtonKind.ghost,
+          width: double.infinity,
+          onTap: () => setState(() {
+            _usePassword = !_usePassword;
+            _banner = null;
+          }),
+        ),
+      ],
+    ];
+  }
+
+  Widget _action(PinStep step) {
+    if (step != PinStep.change && !_proved && _byCode && !_codeSent) {
+      return IqButton(
+        label: 'Email me a code',
+        showIcon: false,
+        width: double.infinity,
+        loading: _sending,
+        onTap: _sendCode,
+      );
+    }
+    final last = step == PinStep.change || _proved;
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        for (final input in [_current, _pin, _again, _code, _password])
+          input.changes,
+      ]),
+      builder: (context, _) => IqButton(
+        label: last ? 'Save PIN' : 'Continue',
+        showIcon: !last,
+        width: double.infinity,
+        loading: _saving,
+        disabled: !_ready(step),
+        onTap: () {
+          if (last) {
+            _save(step);
+            return;
+          }
+          FocusManager.instance.primaryFocus?.unfocus();
+          setState(() {
+            _proved = true;
+            _banner = null;
+          });
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final status = ref.watch(pinStatusProvider);
     final loaded = status.value;
     final step = _stepFor(loaded);
+    final known = loaded != null || _step != null;
     final failed = status.hasError && _step == null;
     final banner = failed ? 'Couldn’t load. Check your connection.' : _banner;
-    return SubPage(
-      title: 'iQLY PIN',
-      body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
-        children: [
-          IqBanner(
-            kind: IqBannerKind.error,
-            title: banner ?? '',
-            visible: banner != null,
-            action: failed
-                ? 'Try again'
-                : _bannerResets
-                ? 'Reset'
-                : null,
-            showAction: failed || _bannerResets,
-            onAction: failed
-                ? () => ref.invalidate(pinStatusProvider)
-                : () => _go(PinStep.reset),
-            margin: const EdgeInsets.only(bottom: IqSpace.s3),
-          ),
-          if (loaded != null || _step != null) ...[
-            Text(switch (step) {
-              PinStep.create =>
-                'Your 4-digit iQLY PIN confirms every withdrawal.',
-              PinStep.change => 'Enter your PIN, then the new one.',
-              PinStep.reset =>
-                'We email you a code. It sets a new PIN and unlocks it.',
-            }, style: IqText.body.copyWith(color: IqColors.fg2)),
-            const SizedBox(height: IqSpace.s3),
-            if (step == PinStep.change) ...[
-              _pinField(_current, 'Current PIN', autofocus: true),
-              const SizedBox(height: IqSpace.s2),
-            ],
-            if (step == PinStep.reset ||
-                (step == PinStep.create && !_usePassword)) ...[
-              _codeField(),
-              const SizedBox(height: IqSpace.s3),
-            ],
-            if (step == PinStep.create && _usePassword) ...[
-              ListenableBuilder(
-                listenable: _password.changes,
-                builder: (context, _) => Shake(
-                  trigger: _password.fails,
-                  child: IqField(
-                    label: 'Password',
-                    value: '',
-                    help: _password.error ?? '',
-                    state: _password.error != null ? IqFieldState.error : null,
-                    showNote: false,
-                    controller: _password.controller,
-                    focusNode: _password.focus,
-                    obscureText: true,
-                    autofillHints: const [AutofillHints.password],
+    return PopScope(
+      canPop: step == PinStep.change || !_proved,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _back(step);
+      },
+      child: SubPage(
+        title: 'iQLY PIN',
+        onBack: () => _back(step),
+        body: !known && !failed
+            ? const IqPageLoading(label: 'Loading your PIN')
+            : ListView(
+                padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
+                children: [
+                  IqBanner(
+                    kind: IqBannerKind.error,
+                    title: banner ?? '',
+                    visible: banner != null,
+                    action: failed
+                        ? 'Try again'
+                        : _bannerResets
+                        ? 'Reset'
+                        : null,
+                    showAction: failed || _bannerResets,
+                    onAction: failed
+                        ? () => ref.invalidate(pinStatusProvider)
+                        : () => _go(PinStep.reset),
+                    margin: const EdgeInsets.only(bottom: IqSpace.s3),
                   ),
-                ),
+                  if (known) ...[
+                    Text(switch (step) {
+                      PinStep.create =>
+                        'Your 4-digit iQLY PIN confirms every withdrawal.',
+                      PinStep.change => 'Enter your PIN, then the new one.',
+                      PinStep.reset => 'We email you a code. It sets a new PIN and unlocks it.',
+                    }, style: IqText.body.copyWith(color: IqColors.fg2)),
+                    const SizedBox(height: IqSpace.s3),
+                    ..._fields(step),
+                  ],
+                ],
               ),
-              const SizedBox(height: IqSpace.s3),
-            ],
-            _pinField(_pin, 'New PIN'),
-            const SizedBox(height: IqSpace.s2),
-            _pinField(_again, 'New PIN again'),
-            const SizedBox(height: IqSpace.s3),
-            if (step == PinStep.create)
-              IqButton(
-                label: _usePassword
-                    ? 'Use an emailed code instead'
-                    : 'Use your password instead',
-                kind: IqButtonKind.ghost,
-                width: double.infinity,
-                onTap: () => setState(() {
-                  _usePassword = !_usePassword;
-                  _banner = null;
-                }),
-              ),
-            if (step == PinStep.change)
-              IqButton(
-                label: 'Forgot it? Reset it by email',
-                kind: IqButtonKind.ghost,
-                width: double.infinity,
-                onTap: () => _go(PinStep.reset),
-              ),
-          ],
-        ],
+        actions: [if (known) _action(step)],
       ),
-      actions: [
-        IqButton(
-          label: 'Save PIN',
-          showIcon: false,
-          width: double.infinity,
-          loading: _saving,
-          disabled: loaded == null && _step == null,
-          onTap: () => _save(step),
-        ),
-      ],
     );
   }
 }

@@ -91,14 +91,7 @@ class WalletOverview extends ConsumerWidget {
         IqWalletCardBalance.earned =>
           'From ${data.winningSubmissions} winning submissions',
       },
-      breakdown: switch (shown) {
-        IqWalletCardBalance.available =>
-          '$onItsWay on its way · $earned earned so far',
-        IqWalletCardBalance.onItsWay =>
-          '$available available · $earned earned so far',
-        IqWalletCardBalance.earned =>
-          '$available available · $onItsWay on its way',
-      },
+      showBreakdown: false,
     );
 
     final head = <Widget>[

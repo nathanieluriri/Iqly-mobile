@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:iqly_mobile/core/deadline.dart';
 import 'package:iqly_mobile/core/patches.dart';
 import 'package:iqly_mobile/core/session.dart';
@@ -19,6 +20,8 @@ void main() {
   late FakePatchService service;
 
   setUp(() => service = FakePatchService());
+
+  late GoRouter router;
 
   Future<ProviderContainer> pump(
     WidgetTester tester, {
@@ -42,7 +45,7 @@ void main() {
       ],
     );
     addTearDown(container.dispose);
-    final router = buildRouter(initialLocation: location);
+    router = buildRouter(initialLocation: location);
     addTearDown(router.dispose);
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -59,12 +62,38 @@ void main() {
     return container;
   }
 
+  testWidgets('the dialog stays up when the page under it is replaced, as '
+      'the splash hands over to Discover', (tester) async {
+    service.found = [PatchCheck.available, PatchCheck.available];
+    final c = await pump(tester);
+    c.read(patchesProvider.notifier).check();
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.byType(IqPatchDialog), findsOneWidget);
+    router.go(Routes.home);
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(IqPatchDialog), findsOneWidget);
+    expect(find.text('Updating iQLY'), findsOneWidget);
+
+    service.found = [PatchCheck.ready];
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('Update applied'), findsOneWidget);
+    c.read(patchesProvider.notifier).dismiss();
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('a patch shows over the app and cannot be closed', (
     tester,
   ) async {
     service.found = [PatchCheck.available, PatchCheck.available];
     final c = await pump(tester);
     c.read(patchesProvider.notifier).check();
+    await tester.pump();
     await tester.pump();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
@@ -84,7 +113,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
     expect(find.text('Update applied'), findsOneWidget);
     expect(find.textContaining('over the air'), findsOneWidget);
-    expect(find.textContaining('next time you open'), findsOneWidget);
+    expect(find.textContaining('Restart the app'), findsOneWidget);
     expect(find.byType(IqButton), findsOneWidget);
     await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();

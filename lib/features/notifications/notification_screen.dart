@@ -8,6 +8,7 @@ import '../../ui/button.dart';
 import '../../ui/notification.dart';
 import '../more/more_widgets.dart';
 import 'notifications_state.dart';
+import '../splash/patch_dialog.dart' show IqPageLoading;
 
 /// B6 · Notification, the sub page a payout (498:24308), result
 /// (498:24590) or deadline (498:24830) row opens first: the row, read, one
@@ -41,7 +42,9 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
     final page = item?.page;
     return SubPage(
       title: 'Notification',
-      body: item == null || page == null
+      body: feed == null
+          ? const IqPageLoading()
+          : item == null || page == null
           ? const SizedBox.shrink()
           : ListView(
               padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/deadline.dart';
 import 'package:iqly_mobile/core/money.dart';
+import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/repository.dart';
@@ -12,15 +13,20 @@ import 'package:iqly_mobile/features/withdrawals/payout_arrival.dart';
 import 'package:iqly_mobile/features/withdrawals/withdrawal_failed_screen.dart';
 import 'package:iqly_mobile/features/withdrawals/withdrawal_widgets.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../golden/screens/app_harness.dart';
 import '../golden/screens/wallet_harness.dart';
 
 TextEditingValue _typed(String text) => const NairaInputFormatter()
     .formatEditUpdate(TextEditingValue.empty, TextEditingValue(text: text));
 
+late SharedPreferences _prefs;
+
 ProviderContainer _container({IqlyRepository? repository}) {
   final container = ProviderContainer(
     overrides: [
+      sharedPreferencesProvider.overrideWithValue(_prefs),
       repositoryProvider.overrideWithValue(repository ?? WalletRepository()),
       clockProvider.overrideWithValue(() => figmaNow),
     ],
@@ -30,6 +36,11 @@ ProviderContainer _container({IqlyRepository? repository}) {
 }
 
 void main() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    _prefs = await SharedPreferences.getInstance();
+  });
+
   group('amount', () {
     test('parses what the field holds, to the kobo', () {
       expect(parseNaira('₦5,000'), 500000);
@@ -367,6 +378,25 @@ void main() {
       final quiet = _container();
       await quiet.read(walletProvider.future);
       expect(quiet.read(recentPayoutProvider), isNull);
+    });
+
+    test('a payout seen on Home stays for that open and is gone from the '
+        'next launch', () async {
+      final container = _container(repository: PaidOutWalletRepository());
+      await container.read(walletProvider.future);
+      container.read(seenPayoutsProvider.notifier).seen('w3');
+      expect(container.read(recentPayoutProvider)?.id, 'w3');
+
+      final next = _container(repository: PaidOutWalletRepository());
+      await next.read(walletProvider.future);
+      expect(next.read(recentPayoutProvider), isNull);
+    });
+
+    test('a payout opened is gone from Home at once', () async {
+      final container = _container(repository: PaidOutWalletRepository());
+      await container.read(walletProvider.future);
+      container.read(seenPayoutsProvider.notifier).opened('w3');
+      expect(container.read(recentPayoutProvider), isNull);
     });
   });
 }
