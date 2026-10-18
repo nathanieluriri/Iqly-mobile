@@ -11,6 +11,7 @@ import 'core/haptics.dart';
 import 'core/session.dart';
 import 'data/api_client.dart';
 import 'data/api_config.dart';
+import 'data/app_config.dart';
 import 'data/app_version.dart';
 import 'data/auth.dart';
 import 'data/device.dart';
@@ -100,6 +101,7 @@ Future<void> main() async {
   );
   container.read(sessionGuardProvider);
   container.read(hapticsProvider);
+  container.listen(appConfigProvider, (_, _) {});
   if (ApiConfig.liveAuth) _startAccount(container);
   runApp(
     UncontrolledProviderScope(container: container, child: const IqlyApp()),

@@ -135,5 +135,6 @@ class HangingWalletService extends DemoWalletService {
   Future<WithdrawResult> withdraw({
     required int amountKobo,
     required SavedBank account,
+    String? pin,
   }) => Completer<WithdrawResult>().future;
 }

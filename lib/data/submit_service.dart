@@ -9,6 +9,7 @@ import 'api_client.dart';
 import 'demo_data.dart';
 import 'live/live_repository.dart';
 import 'live/live_submit_service.dart';
+import 'live/submit_queue.dart';
 import 'models.dart';
 import 'repository.dart';
 import 'submit_data.dart';
@@ -51,19 +52,34 @@ enum SubmitFailure {
   /// A file of a kind the brief does not take (415 FILE_TYPE_NOT_ALLOWED):
   /// sending it again can only be refused again.
   fileType,
+
+  /// A file uploaded ahead expired or went with another entry (404
+  /// SUBMISSION_UPLOAD_NOT_FOUND, 409 SUBMISSION_UPLOAD_IN_USE): it has to
+  /// go up again.
+  uploadsGone,
 }
 
 class SubmitResult {
   const SubmitResult.sent(SubmitReceipt this.receipt)
     : failure = null,
-      block = null;
+      block = null,
+      queued = false;
 
   const SubmitResult.failure(SubmitFailure this.failure, {this.block})
-    : receipt = null;
+    : receipt = null,
+      queued = false;
+
+  /// Kept on the phone to go once the API answers (contract 13.4).
+  const SubmitResult.queued()
+    : receipt = null,
+      failure = null,
+      block = null,
+      queued = true;
 
   final SubmitReceipt? receipt;
   final SubmitFailure? failure;
   final SubmitBlock? block;
+  final bool queued;
 
   bool get ok => receipt != null;
 }
@@ -305,7 +321,11 @@ final submitServiceProvider = Provider<SubmitService>((ref) {
   final api = ref.watch(apiClientProvider);
   final mode = ref.watch(liveModeProvider);
   if (api != null && mode.isLive(LiveFeature.submit)) {
-    return LiveSubmitService(api, clock: ref.watch(clockProvider));
+    return LiveSubmitService(
+      api,
+      clock: ref.watch(clockProvider),
+      queue: ref.watch(submitQueueProvider),
+    );
   }
   if (!mode.isPreview) return const PausedSubmitService();
   final repository = ref.watch(repositoryProvider);

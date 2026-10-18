@@ -29,7 +29,14 @@ enum LiveFeature {
   activations,
   businessNote,
   referralRewards,
-  avatarPhoto;
+  avatarPhoto,
+  withdrawalPin,
+  phoneVerification,
+  savedBriefsSync,
+  closeRemindersSync,
+  uploads,
+  etags,
+  config;
 
   /// The features this one calls into, which have to be live with it.
   Set<LiveFeature> get needs => switch (this) {
@@ -44,6 +51,12 @@ enum LiveFeature {
     LiveFeature.polls => const {LiveFeature.profile},
     LiveFeature.activations => const {LiveFeature.profile, LiveFeature.wallet},
     LiveFeature.bankAccounts => const {LiveFeature.wallet},
+    LiveFeature.leaderboard => const {LiveFeature.submissions},
+    LiveFeature.withdrawalPin => const {LiveFeature.withdrawals},
+    LiveFeature.phoneVerification => const {LiveFeature.profile},
+    LiveFeature.savedBriefsSync ||
+    LiveFeature.closeRemindersSync => const {LiveFeature.briefs},
+    LiveFeature.uploads => const {LiveFeature.submit},
     LiveFeature.leaderboard ||
     LiveFeature.businessNote => const {LiveFeature.submissions},
     LiveFeature.referralRewards => const {
@@ -53,7 +66,9 @@ enum LiveFeature {
     LiveFeature.avatarPhoto => const {LiveFeature.avatar},
     LiveFeature.profile ||
     LiveFeature.briefs ||
-    LiveFeature.notifications => const {},
+    LiveFeature.notifications ||
+    LiveFeature.etags ||
+    LiveFeature.config => const {},
   };
 
   /// This feature and everything it needs, all the way down.

@@ -12,6 +12,7 @@ import '../../core/transitions.dart';
 import '../../data/biometric_service.dart';
 import '../../data/live/live_repository.dart';
 import '../../data/models.dart';
+import '../../data/pin_service.dart';
 import '../../data/wallet_service.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
@@ -28,6 +29,7 @@ import 'pin_sheet.dart';
 import 'wallet_format.dart';
 import 'wallet_routes.dart';
 import 'wallet_sheet.dart';
+import 'withdrawal_pin_screen.dart' show openPinReset, pinTriesLeft;
 import 'wallet_state.dart';
 
 /// B5 · Withdraw sheet (40:9785) and its states: above available
@@ -38,9 +40,11 @@ import 'wallet_state.dart';
 /// (designer doc rev 55). To opens the Bank account sheet to pick the
 /// destination (answer 5). Withdraw confirms with the phone's own check
 /// when it has one, otherwise the iQLY PIN (answer 4, 483:22222); then the
-/// button sends, the sheet drops and Withdrawal pending pushes. The live API
-/// has no PIN yet (nor does the web), so a live launch goes straight to the
-/// request, which a paused feature refuses.
+/// button sends, the sheet drops and Withdrawal pending pushes. A live
+/// launch asks for the PIN only once the API holds one (contract 13.1): the
+/// API checks it on the sheet and the request carries it; without a PIN, or
+/// with `withdrawalPin` off, it goes straight to the request, which a paused
+/// feature refuses. A lock only a reset opens goes to the reset from More.
 ///
 /// A request whose answer was lost may have reached the API, so its banner
 /// keeps only the first sentence ("No connection.", "Couldn't send.": the
@@ -71,6 +75,11 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
   bool _covered = false;
   WalletFailure? _failure;
   bool _unsettled = false;
+  PinRefused? _pinRefused;
+
+  /// The PIN the person confirmed, held in memory while the sheet is open
+  /// so Try again resends with it; never stored.
+  String? _pin;
 
   /// What the amount reads as. Tidying it as the field lets go, or moving
   /// the caret, is not an edit, so a refusal that lands first stays shown.
@@ -166,9 +175,29 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
       return;
     }
     if (kobo > available) return;
+    if (aboveMaximum(kobo)) return;
     FocusScope.of(context).unfocus();
     if (!ref.read(liveModeProvider).isPreview) {
-      await _send(kobo, to);
+      final pins = ref.read(pinServiceProvider);
+      String? pin;
+      if (pins != null) {
+        PinStatus? status;
+        try {
+          status = await pins.status();
+        } on Object {
+          status = null;
+        }
+        if (!mounted) return;
+        if (status?.resetRequired == true) {
+          await _openReset();
+          return;
+        }
+        if (status?.set == true) {
+          pin = await _askPin(kobo, to);
+          if (pin == null || !mounted) return;
+        }
+      }
+      await _send(kobo, to, pin: pin);
       return;
     }
     final biometrics = ref.read(biometricServiceProvider);
@@ -179,35 +208,44 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
       confirmed = await biometrics.confirm('Confirm withdrawal');
       if (!mounted) return;
     }
-    if (!confirmed) {
-      confirmed =
-          await showOverSheet<bool>(
-            context,
-            (context) => PinSheet(
-              body:
-                  '${naira(kobo)} to ${to.label}. Your 4-digit iQLY PIN confirms every withdrawal.',
-            ),
-            cover: _cover,
-          ) ??
-          false;
-    }
+    if (!confirmed) confirmed = await _askPin(kobo, to) != null;
     if (!confirmed || !mounted) return;
     await _send(kobo, to);
   }
 
-  Future<void> _send(int kobo, SavedBank to) async {
+  Future<String?> _askPin(int kobo, SavedBank to) => showOverSheet<String>(
+    context,
+    (context) => PinSheet(
+      body:
+          '${naira(kobo)} to ${to.label}. Your 4-digit iQLY PIN confirms every withdrawal.',
+    ),
+    cover: _cover,
+  );
+
+  Future<void> _openReset() async => openPinReset(GoRouter.of(context));
+
+  Future<void> _send(int kobo, SavedBank to, {String? pin}) async {
+    if (pin != null) _pin = pin;
     setState(() {
       _sending = true;
       _failure = null;
       _unsettled = false;
+      _pinRefused = null;
     });
     final result = await ref
         .read(walletServiceProvider)
-        .withdraw(amountKobo: kobo, account: to);
+        .withdraw(amountKobo: kobo, account: to, pin: pin);
     if (!mounted) return;
     final withdrawal = result.withdrawal;
     if (withdrawal == null) {
       final failure = result.failure;
+      if (result.pin?.problem == PinProblem.incorrect) _pin = null;
+      if (result.pin?.problem == PinProblem.required && pin == null) {
+        setState(() => _sending = false);
+        final asked = await _askPin(kobo, to);
+        if (asked == null || !mounted) return;
+        return _send(kobo, to, pin: asked);
+      }
       final fix = switch (failure) {
         WalletFailure.profileIncomplete ||
         WalletFailure.underAge => _openDateOfBirth,
@@ -219,6 +257,7 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
         _sending = false;
         _failure = failure;
         _unsettled = result.unsettled;
+        _pinRefused = result.pin;
         if (gone) _to = null;
       });
       if (result.unsettled || gone) {
@@ -256,7 +295,7 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
     final kobo = parseNaira(_amount.controller.text);
     final to = _destination(data);
     if (kobo == null || to == null) return;
-    _send(kobo, to);
+    _send(kobo, to, pin: _pin);
   }
 
   @override
@@ -274,12 +313,19 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
           final over = kobo != null && kobo > available;
           final below =
               _belowShown && kobo != null && belowMinimum(kobo, available);
+          final most = maximumWithdrawalKobo;
           final error = over
               ? 'You have ${naira(available)} available.'
               : below
               ? 'Minimum withdrawal is ${naira(minimumWithdrawalKobo)}.'
+              : kobo != null && aboveMaximum(kobo)
+              ? 'Maximum withdrawal is ${naira(most!)}.'
               : null;
           final failure = _failure;
+          final pinRefused = _pinRefused;
+          final reset =
+              pinRefused?.problem == PinProblem.resetRequired ||
+              pinRefused?.problem == PinProblem.locked;
           return WalletSheet(
             children: [
               IqTopBar(
@@ -291,6 +337,22 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
                 IqBanner(
                   kind: IqBannerKind.error,
                   title: switch ((failure, _unsettled)) {
+                    (WalletFailure.pin, final held) => [
+                      switch (pinRefused?.problem) {
+                        PinProblem.incorrect => pinTriesLeft(
+                          pinRefused?.attemptsLeft,
+                        ),
+                        PinProblem.required => 'Confirm with your PIN.',
+                        _ => 'Your PIN is locked.',
+                      },
+                      if (!held) 'Nothing was sent.',
+                    ].join(' '),
+                    (WalletFailure.belowMinimum, _) =>
+                      'Minimum withdrawal is ${naira(minimumWithdrawalKobo)}. '
+                          'Nothing was sent.',
+                    (WalletFailure.aboveMaximum, _) =>
+                      'That is over the most one withdrawal takes. Nothing '
+                          'was sent.',
                     (WalletFailure.offline, false) =>
                       'No connection. Nothing was sent.',
                     (WalletFailure.offline, true) => 'No connection.',
@@ -299,8 +361,8 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
                     (_, false) => 'Couldn’t send. Nothing was sent.',
                     (_, true) => 'Couldn’t send.',
                   },
-                  action: 'Try again',
-                  onAction: _retry,
+                  action: reset ? 'Reset PIN' : 'Try again',
+                  onAction: reset ? _openReset : _retry,
                 ),
               const SizedBox(height: 32),
               Flexible(

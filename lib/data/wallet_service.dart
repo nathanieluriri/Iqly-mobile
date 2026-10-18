@@ -10,6 +10,7 @@ import 'demo_data.dart';
 import 'live/live_repository.dart';
 import 'live/live_wallet_service.dart';
 import 'models.dart';
+import 'pin_service.dart' show PinRefused;
 
 /// How long Home keeps showing a payout that arrived.
 const payoutArrivalShown = Duration(days: 1);
@@ -33,6 +34,16 @@ enum WalletFailure {
   /// The saved account named is no longer saved (404
   /// BANK_ACCOUNT_NOT_FOUND).
   accountGone,
+
+  /// The withdrawal PIN (contract 13.1) refused it; [WithdrawResult.pin]
+  /// says how.
+  pin,
+
+  /// Under the floor `GET /config` sets (400 WITHDRAWAL_BELOW_MINIMUM).
+  belowMinimum,
+
+  /// Over the cap `GET /config` sets (400 WITHDRAWAL_ABOVE_MAXIMUM).
+  aboveMaximum,
 }
 
 class VerifyResult {
@@ -50,15 +61,20 @@ class WithdrawResult {
     Withdrawal this.withdrawal, {
     this.earlier = false,
   }) : failure = null,
-       unsettled = false;
+       unsettled = false,
+       pin = null;
   const WithdrawResult.failure(
     WalletFailure this.failure, {
     this.unsettled = false,
+    this.pin,
   }) : withdrawal = null,
        earlier = false;
 
   final Withdrawal? withdrawal;
   final WalletFailure? failure;
+
+  /// What the PIN check said, when [failure] is [WalletFailure.pin].
+  final PinRefused? pin;
 
   /// The request may have reached the API and no answer says whether it
   /// was kept, so it is not known to have failed.
@@ -81,10 +97,12 @@ abstract class WalletService {
   });
 
   /// Asks for [amountKobo] to go to [account]. The amount is on hold until
-  /// it arrives or fails.
+  /// it arrives or fails. [pin] goes in the request body once the API
+  /// holds a PIN, and is never kept.
   Future<WithdrawResult> withdraw({
     required int amountKobo,
     required SavedBank account,
+    String? pin,
   });
 
   /// [withdrawal] now and every change after (approved, sent, arrived or
@@ -163,6 +181,7 @@ class DemoWalletService implements WalletService {
   Future<WithdrawResult> withdraw({
     required int amountKobo,
     required SavedBank account,
+    String? pin,
   }) async {
     await _wait(delay);
     final failure = failWith;
@@ -268,6 +287,7 @@ class PausedWalletService implements WalletService {
   Future<WithdrawResult> withdraw({
     required int amountKobo,
     required SavedBank account,
+    String? pin,
   }) async => const WithdrawResult.failure(WalletFailure.unknown);
 
   @override

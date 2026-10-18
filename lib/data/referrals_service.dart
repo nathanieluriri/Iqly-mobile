@@ -5,10 +5,13 @@ import '../core/money.dart';
 import '../core/session.dart';
 import '../core/backend.dart';
 import 'api_client.dart';
+import 'app_config.dart';
 import 'live/live_account.dart';
 import 'live/live_repository.dart' show liveModeProvider;
 import 'models.dart';
 import 'share_service.dart';
+
+export 'app_config.dart' show referralReward;
 
 enum InviteStatus { won, joined, invited }
 
@@ -278,7 +281,11 @@ class LiveReferralsService implements ReferralsService {
 
   @override
   Future<Referrals> referrals() async {
-    final json = await link.fetch('/me/referrals', AccountKeys.referrals);
+    final json = await link.fetch(
+      '/me/referrals',
+      AccountKeys.referrals,
+      conditional: true,
+    );
     return referralsFromJson(json);
   }
 
@@ -367,8 +374,12 @@ Referrals referralsFromJson(Map<String, dynamic> json) {
     invitedByReward: referralRewardFromJson(json['invitedByReward']),
     terms: rewards is Map && rewards['enabled'] == true
         ? ReferralTerms(
-            amountKobo: apiInt(rewards['amountKobo']) ?? 0,
-            inviteeAmountKobo: apiInt(rewards['inviteeAmountKobo']) ?? 0,
+            amountKobo:
+                apiInt(rewards['amountKobo']) ??
+                AppConfig.current.referralRewardKobo,
+            inviteeAmountKobo:
+                apiInt(rewards['inviteeAmountKobo']) ??
+                AppConfig.current.inviteeRewardKobo,
             earnedKobo: apiInt(rewards['earnedKobo']),
           )
         : null,

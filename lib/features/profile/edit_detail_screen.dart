@@ -8,7 +8,9 @@ import 'package:go_router/go_router.dart';
 import '../../core/backend.dart';
 import '../../core/deadline.dart';
 import '../../core/motion.dart';
+import '../../data/app_config.dart';
 import '../../data/onboarding_service.dart';
+import '../../data/phone_service.dart';
 import '../../data/profile_service.dart';
 import '../../data/reference_data.dart';
 import '../../router.dart';
@@ -158,11 +160,15 @@ class _PhoneEdit extends ConsumerStatefulWidget {
 class _PhoneEditState extends ConsumerState<_PhoneEdit> {
   final _phone = TextEditingController();
   String _saved = '';
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _phone.addListener(() => setState(() {}));
+    _phone.addListener(() {
+      if (_error != null) _error = null;
+      setState(() {});
+    });
     ref.listenManual(accountDetailsProvider, (previous, next) {
       final phone = next.value?.phone;
       if (previous?.value == null && phone != null) {
@@ -183,18 +189,73 @@ class _PhoneEditState extends ConsumerState<_PhoneEdit> {
       _phone.text.replaceAll(RegExp(r'\D'), '').length == 11;
 
   /// A new number is confirmed with the code first; the same number saves
-  /// nothing.
+  /// nothing. While the API sends the codes (contract 13.2) it checks the
+  /// code and saves the number itself, and a number not yet confirmed can
+  /// be confirmed from here; an API without SMS saves it as typed.
   Future<bool> _save() async {
     final typed = _phone.text.trim();
-    if (typed == _saved) return true;
-    final confirmed = await context.push<bool>(Routes.phoneCode, extra: typed);
-    if (confirmed != true) return false;
-    await saveProfile(ref, details: (d) => d.copyWith(phone: typed));
+    final phones = ref.read(phoneServiceProvider);
+    final verified =
+        ref.read(accountDetailsProvider).value?.phoneVerified ?? false;
+    if (typed == _saved && (phones == null || verified)) return true;
+    if (phones == null) {
+      final confirmed = await context.push<bool>(
+        Routes.phoneCode,
+        extra: typed,
+      );
+      if (confirmed != true) return false;
+      await saveProfile(ref, details: (d) => d.copyWith(phone: typed));
+      return true;
+    }
+    final same = typed == _saved;
+    final PhoneCodeSent sent;
+    try {
+      sent = await phones.sendCode(same ? null : typed);
+    } on PhoneRefused catch (refused) {
+      if (!mounted) return false;
+      switch (refused.problem) {
+        case PhoneProblem.notConfigured:
+          if (!same) {
+            await saveProfile(ref, details: (d) => d.copyWith(phone: typed));
+          }
+          return true;
+        case PhoneProblem.alreadyVerified:
+          _confirmed(_saved);
+          return true;
+        case PhoneProblem.offline:
+          rethrow;
+        case _:
+          setState(() => _error = phoneSendError(refused));
+          errorHaptic();
+          return false;
+      }
+    }
+    if (!mounted) return false;
+    return _code(sent.to, sent.resendAt);
+  }
+
+  Future<bool> _code(String to, DateTime? resendAt) async {
+    final status = await context.push<PhoneStatus>(
+      Routes.phoneCode,
+      extra: PhoneCodeArgs(to, resendAt),
+    );
+    if (status == null) return false;
+    _confirmed(status.phone ?? to);
     return true;
+  }
+
+  void _confirmed(String phone) {
+    final details = ref.read(accountDetailsProvider).value;
+    if (details == null) return;
+    _saved = phone;
+    ref
+        .read(accountDetailsProvider.notifier)
+        .edit(details.copyWith(phone: phone, phoneVerified: true));
   }
 
   @override
   Widget build(BuildContext context) {
+    final error = _error;
     return _EditPage(
       title: 'Phone number',
       canSave: _complete,
@@ -205,7 +266,12 @@ class _PhoneEditState extends ConsumerState<_PhoneEdit> {
             label: 'Phone number',
             value: '+234 801 234 5678',
             controller: _phone,
-            state: _complete ? IqFieldState.valid : null,
+            state: error != null
+                ? IqFieldState.error
+                : _complete
+                ? IqFieldState.valid
+                : null,
+            help: error ?? '',
             note: 'We send a code to confirm a new number.',
             keyboardType: TextInputType.phone,
             autofillHints: const [AutofillHints.telephoneNumber],
@@ -222,39 +288,128 @@ class _PhoneEditState extends ConsumerState<_PhoneEdit> {
   }
 }
 
+/// Why a code did not go to the number.
+String phoneSendError(PhoneRefused refused) => switch (refused.problem) {
+  PhoneProblem.invalid => 'Enter a Nigerian mobile number.',
+  PhoneProblem.missing => 'Enter your phone number.',
+  PhoneProblem.rateLimited =>
+    'Too many codes. Try again in ${_waitText(refused.retryAfter)}.',
+  PhoneProblem.sendFailed => 'Couldn’t send the code. Try again.',
+  PhoneProblem.offline => 'No connection. Try again.',
+  _ => 'Couldn’t send the code. Try again.',
+};
+
+String _waitText(Duration? wait) {
+  final seconds = (wait ?? ProfileService.codeResendAfter).inSeconds;
+  return '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
+}
+
+/// The code page in a launch where the API sends the codes: the number the
+/// code went to and when another may go.
+class PhoneCodeArgs {
+  const PhoneCodeArgs(this.to, this.resendAt);
+
+  final String to;
+  final DateTime? resendAt;
+}
+
 /// B7 · Edit · Phone number · code (484:22583), "Confirm your number": the
-/// 6-digit code sent by SMS to [phone]. Confirm pops true.
-class PhoneCodeScreen extends StatefulWidget {
-  const PhoneCodeScreen({super.key, required this.phone});
+/// 6-digit code sent by SMS to [phone]. Confirm pops true. While the API
+/// sends the codes it checks the code, pops the number's status, counts
+/// the resend down from the API's answer and says what each refusal means.
+class PhoneCodeScreen extends ConsumerStatefulWidget {
+  const PhoneCodeScreen({super.key, required this.phone, this.resendAt});
 
   final String phone;
+  final DateTime? resendAt;
 
   static const resendAfter = ProfileService.codeResendAfter;
 
   @override
-  State<PhoneCodeScreen> createState() => _PhoneCodeScreenState();
+  ConsumerState<PhoneCodeScreen> createState() => _PhoneCodeScreenState();
 }
 
-class _PhoneCodeScreenState extends State<PhoneCodeScreen> {
+class _PhoneCodeScreenState extends ConsumerState<PhoneCodeScreen> {
   final _code = TextEditingController();
   Timer? _tick;
   Duration _left = PhoneCodeScreen.resendAfter;
+  String? _error;
+  bool _checking = false;
 
   @override
   void initState() {
     super.initState();
-    _code.addListener(() => setState(() {}));
-    _start();
+    _code.addListener(() {
+      if (_error != null) _error = null;
+      setState(() {});
+    });
+    _start(widget.resendAt?.difference(ref.read(clockProvider)()));
   }
 
-  void _start() {
+  void _start([Duration? wait]) {
     _tick?.cancel();
-    setState(() => _left = PhoneCodeScreen.resendAfter);
+    final left = wait ?? _resendAfter;
+    setState(() => _left = left.isNegative ? Duration.zero : left);
+    if (_left <= Duration.zero) return;
     _tick = Timer.periodic(ProfileService.countdownStep, (timer) {
       if (!mounted) return;
       setState(() => _left -= ProfileService.countdownStep);
       if (_left <= Duration.zero) timer.cancel();
     });
+  }
+
+  Duration get _resendAfter => ref.read(phoneServiceProvider) == null
+      ? PhoneCodeScreen.resendAfter
+      : ref.read(appConfigProvider).phoneResendAfter;
+
+  Future<void> _resend() async {
+    final phones = ref.read(phoneServiceProvider);
+    if (phones == null) return _start();
+    try {
+      final sent = await phones.sendCode(widget.phone);
+      if (!mounted) return;
+      final at = sent.resendAt;
+      _start(at?.difference(ref.read(clockProvider)()));
+    } on PhoneRefused catch (refused) {
+      if (!mounted) return;
+      if (refused.problem == PhoneProblem.rateLimited) {
+        _start(refused.retryAfter);
+      } else {
+        setState(() => _error = phoneSendError(refused));
+        errorHaptic();
+      }
+    }
+  }
+
+  Future<void> _confirm() async {
+    final phones = ref.read(phoneServiceProvider);
+    if (phones == null) return context.pop(true);
+    if (_checking) return;
+    setState(() => _checking = true);
+    try {
+      final status = await phones.verify(_code.text.replaceAll(' ', ''));
+      if (mounted) context.pop(status);
+    } on PhoneRefused catch (refused) {
+      if (!mounted) return;
+      final left = refused.attemptsLeft;
+      setState(() {
+        _checking = false;
+        _error = switch (refused.problem) {
+          PhoneProblem.codeInvalid =>
+            left == null
+                ? 'That code isn’t right.'
+                : 'That code isn’t right. $left '
+                      '${left == 1 ? 'try' : 'tries'} left.',
+          PhoneProblem.codeExpired =>
+            'That code has expired. Resend a new one.',
+          PhoneProblem.rateLimited =>
+            'Too many tries. Try again in ${_waitText(refused.retryAfter)}.',
+          PhoneProblem.offline => 'No connection. Try again.',
+          _ => 'Couldn’t confirm the number. Try again.',
+        };
+      });
+      errorHaptic();
+    }
   }
 
   @override
@@ -268,8 +423,11 @@ class _PhoneCodeScreenState extends State<PhoneCodeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final seconds = _left.inSeconds.clamp(0, 59).toString().padLeft(2, '0');
+    final seconds = _left.inSeconds;
+    final wait =
+        '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
     final waiting = _left > Duration.zero;
+    final error = _error;
     return SubPage(
       title: 'Confirm your number',
       body: ListView(
@@ -280,6 +438,8 @@ class _PhoneCodeScreenState extends State<PhoneCodeScreen> {
             value: '',
             controller: _code,
             autofocus: true,
+            state: error == null ? null : IqFieldState.error,
+            help: error ?? '',
             keyboardType: TextInputType.number,
             autofillHints: const [AutofillHints.oneTimeCode],
             inputFormatters: [
@@ -290,10 +450,10 @@ class _PhoneCodeScreenState extends State<PhoneCodeScreen> {
           ),
           const SizedBox(height: IqSpace.s2),
           GestureDetector(
-            onTap: waiting ? null : _start,
+            onTap: waiting ? null : _resend,
             child: Text(
               waiting
-                  ? 'Didn’t get it? Resend in 0:$seconds, or go back and check '
+                  ? 'Didn’t get it? Resend in $wait, or go back and check '
                         'the number.'
                   : 'Didn’t get it? Resend the code, or go back and check the '
                         'number.',
@@ -308,7 +468,8 @@ class _PhoneCodeScreenState extends State<PhoneCodeScreen> {
           showIcon: false,
           width: double.infinity,
           disabled: _digits < 6,
-          onTap: () => context.pop(true),
+          loading: _checking,
+          onTap: _confirm,
         ),
       ],
     );

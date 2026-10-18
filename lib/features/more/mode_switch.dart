@@ -10,6 +10,7 @@ import '../../core/session.dart';
 import '../../data/api_client.dart';
 import '../../data/auth.dart';
 import '../../data/local/local_providers.dart';
+import '../../data/local/outbox.dart';
 import '../../data/reference_data.dart';
 import '../../router.dart';
 import '../avatar/avatar_state.dart';
@@ -57,6 +58,11 @@ Future<void> switchLaunchMode(
 }) async {
   final session = read(sessionProvider);
   final users = {session.userId, session.lostUserId}.nonNulls;
+  // What waits to go (saved briefs and reminders among it) gets one short
+  // chance to reach the account before the phone forgets it.
+  await read(outboxProvider)
+      .kick()
+      .timeout(Outbox.flushBeforeForget, onTimeout: () {});
   unawaited(read(outboxProvider).stop());
   if (session.signedIn) {
     try {

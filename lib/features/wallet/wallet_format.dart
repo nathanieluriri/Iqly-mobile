@@ -2,9 +2,18 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/money.dart';
+import '../../data/app_config.dart';
 
-/// The web form's floor: ₦1,000.
-const minimumWithdrawalKobo = 100000;
+/// The web form's floor: ₦1,000, or what `GET /config` says.
+int get minimumWithdrawalKobo => AppConfig.current.withdrawalMinimumKobo;
+
+/// The most one withdrawal takes, when `GET /config` sets a cap.
+int? get maximumWithdrawalKobo => AppConfig.current.withdrawalMaximumKobo;
+
+bool aboveMaximum(int kobo) {
+  final most = maximumWithdrawalKobo;
+  return most != null && kobo > most;
+}
 
 /// Under the floor, unless it is the whole withdrawable balance: contract 6
 /// lets that go whatever it is, so a remainder under ₦1,000 can always
@@ -14,7 +23,10 @@ bool belowMinimum(int kobo, int availableKobo) =>
 
 /// At least ₦1,000 or the whole balance, and no more than is available.
 bool validWithdrawal(int? kobo, int availableKobo) =>
-    kobo != null && !belowMinimum(kobo, availableKobo) && kobo <= availableKobo;
+    kobo != null &&
+    !belowMinimum(kobo, availableKobo) &&
+    !aboveMaximum(kobo) &&
+    kobo <= availableKobo;
 
 /// Kobo from what the Amount field holds ("₦5,000.50", "5000"); null when
 /// it is empty or not an amount.

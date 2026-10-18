@@ -177,7 +177,10 @@ class LiveNotificationsService implements NotificationsService {
   Future<Map<String, dynamic>> _page(int limit, String? cursor) async {
     final query = Uri(queryParameters: {'limit': '$limit', 'cursor': ?cursor})
         .query;
-    final res = await link.api.get('/notifications?$query');
+    final res = await link.api.get(
+      '/notifications?$query',
+      etags: link.etagCache,
+    );
     if (!res.ok) throw ApiRefused.of(res);
     return res.data;
   }

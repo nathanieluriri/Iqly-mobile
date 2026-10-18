@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'core/session.dart';
 import 'core/transitions.dart';
 import 'core/updates.dart';
+import 'data/pin_service.dart' show pinServiceProvider;
 import 'data/help_service.dart' show supportShownProvider;
 import 'data/referrals_service.dart' show referralsShownProvider;
 import 'data/repository.dart';
@@ -82,6 +83,8 @@ abstract final class Routes {
   static const phoneCode = '/profile/details/phone/code';
   static const moreSavedBriefs = '/saved-briefs';
   static const tryNotifications = '/try-notifications';
+  static const withdrawalPin = '/pin';
+  static const withdrawalPinReset = '/pin?reset=1';
   static const referrals = '/referrals';
   static const inviteCode = '/referrals/code';
   static const referralHistory = '/referrals/history';
@@ -124,6 +127,7 @@ bool hiddenRoute(Reader read, String path) {
       (!read(activationsShownProvider) && under(Routes.activations)) ||
       (!read(leaderboardShownProvider) && under(Routes.pointsLeaderboard)) ||
       (!read(referralsShownProvider) && under(Routes.referrals)) ||
+      (read(pinServiceProvider) == null && under(Routes.withdrawalPin)) ||
       (!read(supportShownProvider) &&
           (under(Routes.support) ||
               under(Routes.reportIssue) ||

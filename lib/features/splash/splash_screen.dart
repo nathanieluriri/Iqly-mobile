@@ -12,6 +12,7 @@ import '../../core/motion.dart';
 import '../../core/session.dart';
 import '../../core/transitions.dart';
 import '../../core/updates.dart';
+import '../../data/app_config.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/brand_logo.dart';
@@ -84,7 +85,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       ..addListener(_onTick)
       ..forward();
     unawaited(ref.read(updatesProvider.notifier).check());
-    unawaited(ref.read(backendProvider.notifier).check());
+    final config = ref.read(appConfigProvider.notifier);
+    unawaited(
+      ref.read(backendProvider.notifier).check().whenComplete(config.refresh),
+    );
   }
 
   Duration get _now => _timeline.total * _clock.value;

@@ -103,6 +103,15 @@ class LiveRepository implements IqlyRepository {
 
   List<Brief>? _briefs;
   Future<List<Brief>>? _loadingBriefs;
+
+  /// The reads contract 13.5 tags go conditional while `etags` runs live.
+  EtagCache? get _etags {
+    final id = userId;
+    return id != null && mode.isLive(LiveFeature.etags)
+        ? StoreEtags(store, id)
+        : null;
+  }
+
   final _reading = <String, Future<Object?>>{};
 
   /// Every live brief, all pages. The feed and a refresh ask the API; a
@@ -144,6 +153,7 @@ class LiveRepository implements IqlyRepository {
       final data = _data(
         await api.get(
           '/challenges/browse?status=live&perPage=$briefsPerPage&page=$page',
+          etags: _etags,
         ),
       );
       final rows = data['items'];
@@ -161,7 +171,7 @@ class LiveRepository implements IqlyRepository {
   Future<Brief?> brief(String id) async {
     _requireLive(LiveFeature.briefs);
     final fetching = api
-        .get('/challenges/${Uri.encodeComponent(id)}')
+        .get('/challenges/${Uri.encodeComponent(id)}', etags: _etags)
         .then((res) => res.status == 404 ? null : briefFromJson(_data(res)));
     try {
       return await scope.guard(orKept(fetching, _knownBrief(id)));
@@ -194,7 +204,7 @@ class LiveRepository implements IqlyRepository {
     _requireLive(LiveFeature.submissions);
     final items = await _read(
       LiveCacheKeys.submissions,
-      () => _pages('/submissions/mine'),
+      () => _pages('/submissions/mine', tagged: true),
     );
     return rowsOf(items, submissionFromJson);
   }
@@ -205,7 +215,9 @@ class LiveRepository implements IqlyRepository {
   Future<Submission?> submission(String id) {
     _requireLive(LiveFeature.submissions);
     return scope.guard(
-      api.get('/submissions/${Uri.encodeComponent(id)}').then((res) {
+      api.get('/submissions/${Uri.encodeComponent(id)}', etags: _etags).then((
+        res,
+      ) {
         if (res.status == 404) return null;
         return submissionFromJson(_data(res));
       }),
@@ -219,7 +231,7 @@ class LiveRepository implements IqlyRepository {
     _requireLive(LiveFeature.wallet);
     final items = await _read(
       LiveCacheKeys.ledger,
-      () => _pages('/wallet/transactions'),
+      () => _pages('/wallet/transactions', tagged: true),
       allowCache: allowCache,
     );
     return rowsOf(items, ledgerEntryFromJson);
@@ -285,7 +297,7 @@ class LiveRepository implements IqlyRepository {
     _requireLive(LiveFeature.wallet);
     final wallet = await _read(
       LiveCacheKeys.wallet,
-      () async => _payload(await api.get('/wallet')),
+      () async => _payload(await api.get('/wallet', etags: _etags)),
       allowCache: allowCache,
     );
     return walletTotalsFromJson(wallet);
@@ -357,7 +369,7 @@ class LiveRepository implements IqlyRepository {
     _requireLive(LiveFeature.leaderboard);
     final json = await _read(
       LiveCacheKeys.leaderboard,
-      () async => _payload(await api.get('/leaderboard')),
+      () async => _payload(await api.get('/leaderboard', etags: _etags)),
     );
     return pointsBoardFromJson(
       json is Map ? json.cast<String, dynamic>() : const {},
@@ -368,15 +380,17 @@ class LiveRepository implements IqlyRepository {
   @override
   Future<ActivationsSummary> activationsSummary() => demo.activationsSummary();
 
-  /// Every page of a cursor list, newest first.
-  Future<List<Object?>> _pages(String path) async {
+  /// Every page of a cursor list, newest first. A [tagged] list reads each
+  /// page conditionally.
+  Future<List<Object?>> _pages(String path, {bool tagged = false}) async {
+    final etags = tagged ? _etags : null;
     final items = <Object?>[];
     String? cursor;
     for (var page = 0; page < maxPages; page++) {
       final query = Uri(
         queryParameters: {'limit': '$rowsPerPage', 'cursor': ?cursor},
       ).query;
-      final data = _data(await api.get('$path?$query'));
+      final data = _data(await api.get('$path?$query', etags: etags));
       final rows = data['items'];
       if (rows is List) items.addAll(rows);
       final next = data['nextCursor'];

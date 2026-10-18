@@ -195,6 +195,10 @@ class _FlowState extends ConsumerState<_Flow> {
       if (!ref.read(submitFlowProvider(_id)).sending) IqHaptics.error.play();
       return;
     }
+    if (result.queued) {
+      FocusManager.instance.primaryFocus?.unfocus();
+      return;
+    }
     if (result.receipt case final receipt?) {
       FocusManager.instance.primaryFocus?.unfocus();
       IqHaptics.success.play();
@@ -222,7 +226,8 @@ class _FlowState extends ConsumerState<_Flow> {
   Widget build(BuildContext context) {
     final flow = ref.watch(submitFlowProvider(_id));
     final receipt = flow.receipt;
-    final sent = flow.step == SubmitStep.sent && receipt != null;
+    final sent =
+        flow.step == SubmitStep.sent && (receipt != null || flow.queued);
     return PopScope(
       canPop: flow.step != SubmitStep.questions,
       onPopInvokedWithResult: (didPop, _) {
@@ -238,8 +243,11 @@ class _FlowState extends ConsumerState<_Flow> {
                   ? SentMoment(
                       key: const ValueKey('sent'),
                       receipt: receipt,
-                      onView: () =>
-                          context.go(submissionPath(receipt.submission.id)),
+                      onView: receipt == null
+                          ? null
+                          : () => context.go(
+                              submissionPath(receipt.submission.id),
+                            ),
                       onDiscover: () => context.go(Routes.home),
                     )
                   : _Form(

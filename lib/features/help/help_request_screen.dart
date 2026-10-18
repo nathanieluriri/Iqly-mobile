@@ -9,6 +9,7 @@ import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../data/activations_data.dart';
+import '../../data/app_config.dart';
 import '../../data/help_data.dart';
 import '../../data/help_service.dart';
 import '../../data/support_files.dart' show SupportSource;
@@ -49,7 +50,7 @@ class HelpRequestScreen extends ConsumerStatefulWidget {
   /// The id of the activation the request is about.
   final String? about;
 
-  static const int maxLength = 1000;
+  static int get maxLength => AppConfig.current.supportMessageMaxChars;
 
   @override
   ConsumerState<HelpRequestScreen> createState() => _HelpRequestScreenState();

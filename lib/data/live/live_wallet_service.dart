@@ -5,6 +5,7 @@ import '../../core/session.dart';
 import '../api_client.dart';
 import '../local/local_rows.dart';
 import '../models.dart';
+import '../pin_service.dart';
 import '../wallet_service.dart';
 import 'mappers.dart';
 
@@ -13,7 +14,8 @@ typedef _Attempt = ({int amountKobo, String key, String? bankAccountId});
 /// Bank checks, the payout account and withdrawals on the iQLY API
 /// (contract 6). Every call goes online and none is queued. Withdrawals run
 /// here only while that feature is live too; paused, they refuse before
-/// anything is sent. The API has no PIN, so none is asked.
+/// anything is sent. Once the API holds a withdrawal PIN (contract 13.1) a
+/// withdrawal carries it in its body; the service never keeps it.
 class LiveWalletService implements WalletService {
   LiveWalletService(
     this.api, {
@@ -128,14 +130,24 @@ class LiveWalletService implements WalletService {
   Future<WithdrawResult> withdraw({
     required int amountKobo,
     required SavedBank account,
+    String? pin,
   }) async {
     if (!withdrawals) {
       return const WithdrawResult.failure(WalletFailure.unknown);
     }
     final held = _unsettled;
     if (held != null) {
-      final again = await _request(held, resent: true);
+      final again = await _request(held, resent: true, pin: pin);
       if (again.unsettled) return again;
+      // A PIN refusal says nothing of whether the first send was stored:
+      // it stays held, so the send with the PIN goes under its key.
+      if (again.failure == WalletFailure.pin) {
+        return WithdrawResult.failure(
+          WalletFailure.pin,
+          pin: again.pin,
+          unsettled: true,
+        );
+      }
       _unsettled = null;
       if (again.failure == WalletFailure.accountGone) return again;
       if (again.withdrawal case final landed?) {
@@ -148,7 +160,7 @@ class LiveWalletService implements WalletService {
       bankAccountId: bankAccounts ? account.id : null,
     );
     _unsettled = attempt;
-    final result = await _request(attempt, resent: false);
+    final result = await _request(attempt, resent: false, pin: pin);
     if (!result.unsettled) _unsettled = null;
     return result;
   }
@@ -156,6 +168,7 @@ class LiveWalletService implements WalletService {
   Future<WithdrawResult> _request(
     _Attempt attempt, {
     required bool resent,
+    String? pin,
   }) async {
     final ApiResponse res;
     try {
@@ -165,6 +178,7 @@ class LiveWalletService implements WalletService {
         body: {
           'amount': attempt.amountKobo,
           'bankAccountId': ?attempt.bankAccountId,
+          'pin': ?pin,
         },
         idempotencyKey: attempt.key,
       );
@@ -183,7 +197,17 @@ class LiveWalletService implements WalletService {
         unsettled: true,
       );
     }
+    final pinRefused = PinRefused.of(res);
+    if (pinRefused.problem
+        case PinProblem.required ||
+            PinProblem.incorrect ||
+            PinProblem.locked ||
+            PinProblem.resetRequired) {
+      return WithdrawResult.failure(WalletFailure.pin, pin: pinRefused);
+    }
     return WithdrawResult.failure(switch (res.code) {
+      'WITHDRAWAL_BELOW_MINIMUM' => WalletFailure.belowMinimum,
+      'WITHDRAWAL_ABOVE_MAXIMUM' => WalletFailure.aboveMaximum,
       'PROFILE_INCOMPLETE' => WalletFailure.profileIncomplete,
       'UNDER_AGE' => WalletFailure.underAge,
       'ACCOUNT_CLOSING' => WalletFailure.closing,
@@ -274,7 +298,7 @@ class LiveWalletService implements WalletService {
       a.completedAt == b.completedAt &&
       a.failureReason == b.failureReason;
 
-  /// A live launch never asks for a PIN.
+  /// A live launch checks the PIN on the API ([PinService.verify]).
   @override
   Future<bool> confirmPin(String pin) async => false;
 }

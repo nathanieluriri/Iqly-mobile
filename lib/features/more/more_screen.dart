@@ -11,6 +11,7 @@ import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../data/cache_service.dart';
 import '../../data/live/live_repository.dart' show liveModeProvider;
+import '../../data/pin_service.dart';
 import '../help/help_state.dart' show supportUnreadProvider;
 import '../../data/referrals_service.dart';
 import '../../data/repository.dart';
@@ -98,6 +99,7 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
     final code = pass?.code;
     final cache = ref.watch(cacheProvider);
     final ios = defaultTargetPlatform == TargetPlatform.iOS;
+    final pin = ref.watch(pinServiceProvider) != null;
 
     final avatar = ref.watch(avatarProvider.select((a) => a.spec));
     final children = <Widget>[
@@ -182,13 +184,21 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
             label: 'Bank account',
             showDescription: false,
             icon: IqIcons.bank,
-            divider: false,
+            divider: pin,
             onTap: () => context.open(
               ref.watch(liveModeProvider).isLive(LiveFeature.bankAccounts)
                   ? bankAccountPath
                   : Routes.selectBank,
             ),
           ),
+          if (pin)
+            IqListRow(
+              label: 'iQLY PIN',
+              showDescription: false,
+              icon: IqIcons.lock,
+              divider: false,
+              onTap: () => context.open(Routes.withdrawalPin),
+            ),
         ],
       ),
       RowGroup(

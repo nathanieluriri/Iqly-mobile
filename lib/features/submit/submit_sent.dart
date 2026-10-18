@@ -15,7 +15,9 @@ String submittedSoFar(int entries) =>
 
 /// B3 · Submit · sent (34:269), a moment: the Sender figure arrives, then
 /// the title, the line and the count settle in one after another; the
-/// buttons are there from the first frame.
+/// buttons are there from the first frame. Without a [receipt] the entry
+/// waits on the phone for the network (contract 13.4): the same moment
+/// says so and offers Discover only (no frame draws it).
 class SentMoment extends StatelessWidget {
   const SentMoment({
     super.key,
@@ -24,15 +26,16 @@ class SentMoment extends StatelessWidget {
     required this.onDiscover,
   });
 
-  final SubmitReceipt receipt;
-  final VoidCallback onView;
+  final SubmitReceipt? receipt;
+  final VoidCallback? onView;
   final VoidCallback onDiscover;
 
   static const double figureWidth = 188.24;
 
   @override
   Widget build(BuildContext context) {
-    final entries = receipt.entries;
+    final entries = receipt?.entries;
+    final queued = receipt == null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -56,7 +59,7 @@ class SentMoment extends StatelessWidget {
                         Appear(
                           delay: IqDurations.stagger * 2,
                           child: Text(
-                            'Submitted. Good luck!',
+                            queued ? 'Saved to send.' : 'Submitted. Good luck!',
                             textAlign: TextAlign.center,
                             style: IqText.title.copyWith(color: IqColors.fg),
                           ),
@@ -65,7 +68,10 @@ class SentMoment extends StatelessWidget {
                         Appear(
                           delay: IqDurations.stagger * 3,
                           child: Text(
-                            "Winners are picked after the brief closes. We'll tell you.",
+                            queued
+                                ? 'No connection right now. It goes by itself '
+                                      'once you’re back online.'
+                                : "Winners are picked after the brief closes. We'll tell you.",
                             textAlign: TextAlign.center,
                             style: IqText.body.copyWith(color: IqColors.fg2),
                           ),
@@ -91,12 +97,13 @@ class SentMoment extends StatelessWidget {
         ),
         SubmitActionBar(
           children: [
-            IqButton(
-              label: 'View submission',
-              showIcon: false,
-              width: double.infinity,
-              onTap: onView,
-            ),
+            if (onView case final onView?)
+              IqButton(
+                label: 'View submission',
+                showIcon: false,
+                width: double.infinity,
+                onTap: onView,
+              ),
             IqButton(
               label: 'Back to Discover',
               kind: IqButtonKind.ghost,

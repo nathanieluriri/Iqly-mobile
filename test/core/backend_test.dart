@@ -111,6 +111,12 @@ void main() {
           LiveFeature.polls,
           LiveFeature.businessNote,
           LiveFeature.avatarPhoto,
+          LiveFeature.phoneVerification,
+          LiveFeature.savedBriefsSync,
+          LiveFeature.closeRemindersSync,
+          LiveFeature.uploads,
+          LiveFeature.etags,
+          LiveFeature.config,
         }),
       );
     });
@@ -221,6 +227,10 @@ void main() {
           LiveFeature.notifications,
           LiveFeature.leaderboard,
           LiveFeature.businessNote,
+          LiveFeature.savedBriefsSync,
+          LiveFeature.closeRemindersSync,
+          LiveFeature.etags,
+          LiveFeature.config,
         }),
       );
     });
@@ -250,6 +260,10 @@ void main() {
         'activations',
         'referralRewards',
         'avatarPhoto',
+        'withdrawalPin',
+        'phoneVerification',
+        'etags',
+        'config',
       ]);
     });
 
@@ -318,6 +332,36 @@ void main() {
       expect(backend.isLive(LiveFeature.activations), isFalse);
       expect(backend.isLive(LiveFeature.avatar), isTrue);
       expect(backend.isLive(LiveFeature.polls), isTrue);
+    });
+
+    test('section 13 features need what they call into', () {
+      expect(LiveFeature.withdrawalPin.closure, {
+        LiveFeature.withdrawalPin,
+        LiveFeature.withdrawals,
+        LiveFeature.wallet,
+        LiveFeature.profile,
+      });
+      expect(LiveFeature.phoneVerification.closure, {
+        LiveFeature.phoneVerification,
+        LiveFeature.profile,
+      });
+      for (final f in [
+        LiveFeature.savedBriefsSync,
+        LiveFeature.closeRemindersSync,
+      ]) {
+        expect(f.closure, {f, LiveFeature.briefs});
+      }
+      expect(LiveFeature.uploads.closure, {
+        LiveFeature.uploads,
+        LiveFeature.submit,
+        LiveFeature.briefs,
+        LiveFeature.profile,
+      });
+      expect(LiveFeature.etags.closure, {LiveFeature.etags});
+      expect(LiveFeature.config.closure, {LiveFeature.config});
+      final backend = _decide(_health(off: {LiveFeature.withdrawals}));
+      expect(backend.isLive(LiveFeature.withdrawalPin), isFalse);
+      expect(backend.isLive(LiveFeature.uploads), isTrue);
     });
 
     test('an older API without the four new features runs the rest', () {
@@ -511,6 +555,12 @@ void main() {
         'polls',
         'businessNote',
         'avatarPhoto',
+        'phoneVerification',
+        'savedBriefsSync',
+        'closeRemindersSync',
+        'uploads',
+        'etags',
+        'config',
       ]);
       expect(backend.checkedAt, now);
       await backend.lock();
@@ -527,6 +577,12 @@ void main() {
         'polls',
         'businessNote',
         'avatarPhoto',
+        'phoneVerification',
+        'savedBriefsSync',
+        'closeRemindersSync',
+        'uploads',
+        'etags',
+        'config',
       ]);
     });
 

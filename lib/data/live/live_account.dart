@@ -228,10 +228,22 @@ class AccountLink {
     required this.store,
     required this.outbox,
     required this.userId,
+    this.etags = false,
     AccountScope? scope,
   }) : scope = scope ?? AccountScope.always();
 
   final ApiClient api;
+
+  /// Whether the reads contract 13.5 tags go conditional (`etags` live).
+  final bool etags;
+
+  /// Where the person's conditional reads keep their answers; null while
+  /// [etags] is off or no account id is known.
+  EtagCache? get etagCache {
+    final user = userId();
+    return etags && user != null ? StoreEtags(store, user) : null;
+  }
+
   final LocalStore store;
   final Outbox outbox;
   final String? Function() userId;
@@ -243,8 +255,15 @@ class AccountLink {
   /// GET [path]'s payload, kept under [key]. When the API does not answer
   /// ([orKept]) it answers what was kept last, and fails as the API did
   /// when nothing was. A refusal throws [ApiRefused].
-  Future<Map<String, dynamic>> fetch(String path, String key) {
-    final fetching = api.get(path).then((res) async {
+  /// A [conditional] read sends the ETag kept for it ([etagCache]).
+  Future<Map<String, dynamic>> fetch(
+    String path,
+    String key, {
+    bool conditional = false,
+  }) {
+    final fetching = api.get(path, etags: conditional ? etagCache : null).then((
+      res,
+    ) async {
       if (!res.ok) throw ApiRefused.of(res);
       await keep(key, res.data);
       return res.data;
@@ -454,6 +473,7 @@ final accountLinkProvider = Provider<AccountLink?>((ref) {
     store: ScopedLocalStore(ref.watch(localStoreProvider), scope),
     outbox: ref.watch(outboxProvider),
     userId: () => scope.userId,
+    etags: ref.watch(backendProvider).isLive(LiveFeature.etags),
     scope: scope,
   );
 });
