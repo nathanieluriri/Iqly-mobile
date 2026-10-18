@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/navigation.dart';
 import '../../data/onboarding_service.dart';
+import '../../data/phone_service.dart';
 import '../../data/profile_service.dart';
 import '../../data/reference_data.dart';
 import '../../theme/theme.dart';
@@ -105,7 +106,8 @@ bool detailShown(DetailField field, OnboardingProfile answers) =>
 
 /// B7 · Your details (40:141): eight rows, each with its own filled icon
 /// (designer answer, 5 Oct) and the value under the label. A row opens its
-/// Edit page; edits come back here on Save.
+/// Edit page; edits come back here on Save. While the API sends SMS codes
+/// a number its code confirmed reads "· Verified" (no frame draws it).
 class YourDetailsScreen extends ConsumerWidget {
   const YourDetailsScreen({super.key});
 
@@ -113,6 +115,9 @@ class YourDetailsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final details = ref.watch(accountDetailsProvider).value;
     final answers = ref.watch(profileAnswersProvider);
+    final verified =
+        ref.watch(phoneServiceProvider) != null &&
+        (details?.phoneVerified ?? false);
     return SubPage(
       title: 'Your details',
       body: ListView(
@@ -122,7 +127,9 @@ class YourDetailsScreen extends ConsumerWidget {
             if (detailShown(field, answers))
               IqListRow(
                 label: field.label,
-                description: detailValue(field, details, answers),
+                description: field == DetailField.phone && verified
+                    ? '${detailValue(field, details, answers)} · Verified'
+                    : detailValue(field, details, answers),
                 icon: field.icon,
                 onTap: () => context.open(editDetailPath(field)),
               ),

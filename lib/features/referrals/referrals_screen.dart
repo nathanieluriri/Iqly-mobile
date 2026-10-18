@@ -110,7 +110,7 @@ class _ReferralsScreenState extends ConsumerState<ReferralsScreen> {
             padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
             child: Text(
               rewards
-                  ? 'You both get ₦500 when a friend you invite wins their '
+                  ? 'You both get ${referralReward()} when a friend you invite wins their '
                         'first brief.'
                   : 'Share your code. Friends add it when they join iQLY.',
               textAlign: TextAlign.center,

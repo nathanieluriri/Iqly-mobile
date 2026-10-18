@@ -7,7 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/backend.dart';
 import '../../core/deadline.dart';
 import '../../core/session.dart';
+import '../../data/app_config.dart';
 import '../../data/demo_data.dart';
+import '../../data/live/brief_marks_sync.dart';
 import '../../data/live/live_repository.dart';
 import '../../data/models.dart';
 import '../../data/reference_data.dart';
@@ -383,6 +385,9 @@ bool _liveBriefs(Ref ref) =>
 /// Saved briefs, newest save first, kept on the device in full so the Saved
 /// list and brief detail still open offline. Seeds from the account on
 /// first run. A live launch drops the sample briefs a preview launch saved.
+/// While the API keeps them (contract 13.3) each change queues for it and
+/// the list is pulled at launch and at each sign-in, so it follows the
+/// person to another phone and back from the preview.
 class SavedBriefsNotifier extends AsyncNotifier<List<Brief>> {
   static const key = 'discover.savedBriefs';
 
@@ -391,6 +396,9 @@ class SavedBriefsNotifier extends AsyncNotifier<List<Brief>> {
   @override
   FutureOr<List<Brief>> build() {
     ref.watch(accountProvider);
+    if (ref.watch(briefMarksSyncProvider(BriefMark.saved)) != null) {
+      Future(pull).ignore();
+    }
     final raw = ref.watch(sharedPreferencesProvider).getString(key);
     if (raw != null) {
       final saved = [
@@ -426,6 +434,41 @@ class SavedBriefsNotifier extends AsyncNotifier<List<Brief>> {
     state = AsyncData(current);
     await _persist(current);
     await ref.read(repositoryProvider).setBriefSaved(brief.id, saved);
+    await ref
+        .read(briefMarksSyncProvider(BriefMark.saved))
+        ?.set(brief.id, saved);
+  }
+
+  /// The account's list from the API with this phone's unsent changes over
+  /// it. A brief the phone holds no copy of is read; one that cannot be
+  /// read waits for the next pull. No answer, or a change made while it
+  /// was out, keeps what the phone shows.
+  Future<void> pull() async {
+    final sync = ref.read(briefMarksSyncProvider(BriefMark.saved));
+    if (sync == null) return;
+    final scope = ref.read(accountScopeProvider);
+    try {
+      final before = await future;
+      final ids = await sync.pull();
+      final known = {for (final b in before) b.id: b};
+      final repository = ref.read(repositoryProvider);
+      final briefs = <Brief>[];
+      for (final id in ids) {
+        final brief =
+            known[id] ??
+            await repository
+                .brief(id)
+                .then<Brief?>((b) => b, onError: (Object _) => null);
+        if (brief != null) briefs.add(brief);
+      }
+      if (!scope.open || !ref.mounted || !identical(state.value, before)) {
+        return;
+      }
+      state = AsyncData(briefs);
+      await _persist(briefs);
+    } on Object catch (error) {
+      debugPrint('Saved briefs: kept as they are: $error');
+    }
   }
 
   /// Sign out: the phone keeps no saved brief of the account.
@@ -445,7 +488,9 @@ final savedBriefsProvider =
     );
 
 /// Briefs with a close reminder (an hour before close). A live launch drops
-/// the reminders a preview launch set on sample briefs.
+/// the reminders a preview launch set on sample briefs. While the API keeps
+/// them (contract 13.3) they sync as saved briefs do, and the phone still
+/// schedules each one itself from the synced list.
 class CloseRemindersNotifier extends AsyncNotifier<Set<String>> {
   static const key = 'discover.closeReminders';
 
@@ -454,6 +499,9 @@ class CloseRemindersNotifier extends AsyncNotifier<Set<String>> {
   @override
   FutureOr<Set<String>> build() {
     ref.watch(accountProvider);
+    if (ref.watch(briefMarksSyncProvider(BriefMark.reminder)) != null) {
+      Future(pull).ignore();
+    }
     final prefs = ref.watch(sharedPreferencesProvider);
     final stored = prefs.getStringList(key);
     if (stored == null) return _seed();
@@ -481,7 +529,33 @@ class CloseRemindersNotifier extends AsyncNotifier<Set<String>> {
     state = AsyncData(next);
     await ref.read(sharedPreferencesProvider).setStringList(key, [...next]);
     await ref.read(repositoryProvider).setCloseReminder(id, on);
+    await ref
+        .read(briefMarksSyncProvider(BriefMark.reminder))
+        ?.set(
+          id,
+          on,
+          offsets: on ? AppConfig.current.closeReminderOffsets : null,
+        );
     await syncSurfaces();
+  }
+
+  /// As [SavedBriefsNotifier.pull], then the phone schedules the list.
+  Future<void> pull() async {
+    final sync = ref.read(briefMarksSyncProvider(BriefMark.reminder));
+    if (sync == null) return;
+    final scope = ref.read(accountScopeProvider);
+    try {
+      final before = await future;
+      final ids = await sync.pull();
+      if (!scope.open || !ref.mounted || !identical(state.value, before)) {
+        return;
+      }
+      state = AsyncData(ids.toSet());
+      await ref.read(sharedPreferencesProvider).setStringList(key, ids);
+      await syncSurfaces();
+    } on Object catch (error) {
+      debugPrint('Close reminders: kept as they are: $error');
+    }
   }
 
   /// Sign out: no reminder of the account stays, scheduled or kept.

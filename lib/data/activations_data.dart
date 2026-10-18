@@ -4,6 +4,8 @@
 /// rows for it, so the demo values below come from the Figma frames.
 library;
 
+import 'app_config.dart';
+
 /// The activation rules (business rules, not motion).
 abstract final class ActivationRules {
   /// A step the business has not confirmed within this window can be
@@ -11,7 +13,8 @@ abstract final class ActivationRules {
   static const confirmWindow = Duration(hours: 24);
 
   /// The longest recording accepted as proof ("UP TO 60 SECONDS").
-  static const proofLength = Duration(seconds: 60);
+  static Duration get proofLength =>
+      Duration(seconds: AppConfig.current.proofVideoMaxSeconds);
 
   /// Under this the countdown counts hours ("36h"), then days ("2 days").
   static const countsHours = Duration(days: 2);
@@ -21,7 +24,7 @@ abstract final class ActivationRules {
   static const closingSoon = Duration(days: 1);
 
   /// The largest recording accepted as proof.
-  static const proofBytes = 50000000;
+  static int get proofBytes => AppConfig.current.proofVideoMaxBytes;
 }
 
 class ActivationStep {

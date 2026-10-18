@@ -107,6 +107,12 @@ void main() {
           LiveFeature.avatar,
           LiveFeature.leaderboard,
           LiveFeature.referrals,
+          LiveFeature.phoneVerification,
+          LiveFeature.savedBriefsSync,
+          LiveFeature.closeRemindersSync,
+          LiveFeature.uploads,
+          LiveFeature.etags,
+          LiveFeature.config,
         }),
       );
     });
@@ -216,6 +222,10 @@ void main() {
           LiveFeature.submissions,
           LiveFeature.notifications,
           LiveFeature.leaderboard,
+          LiveFeature.savedBriefsSync,
+          LiveFeature.closeRemindersSync,
+          LiveFeature.etags,
+          LiveFeature.config,
         }),
       );
     });
@@ -240,6 +250,10 @@ void main() {
         'avatar',
         'bankAccounts',
         'referrals',
+        'withdrawalPin',
+        'phoneVerification',
+        'etags',
+        'config',
       ]);
     });
 
@@ -266,6 +280,36 @@ void main() {
       final backend = _decide(_health(off: {LiveFeature.wallet}));
       expect(backend.isLive(LiveFeature.bankAccounts), isFalse);
       expect(backend.isLive(LiveFeature.avatar), isTrue);
+    });
+
+    test('section 13 features need what they call into', () {
+      expect(LiveFeature.withdrawalPin.closure, {
+        LiveFeature.withdrawalPin,
+        LiveFeature.withdrawals,
+        LiveFeature.wallet,
+        LiveFeature.profile,
+      });
+      expect(LiveFeature.phoneVerification.closure, {
+        LiveFeature.phoneVerification,
+        LiveFeature.profile,
+      });
+      for (final f in [
+        LiveFeature.savedBriefsSync,
+        LiveFeature.closeRemindersSync,
+      ]) {
+        expect(f.closure, {f, LiveFeature.briefs});
+      }
+      expect(LiveFeature.uploads.closure, {
+        LiveFeature.uploads,
+        LiveFeature.submit,
+        LiveFeature.briefs,
+        LiveFeature.profile,
+      });
+      expect(LiveFeature.etags.closure, {LiveFeature.etags});
+      expect(LiveFeature.config.closure, {LiveFeature.config});
+      final backend = _decide(_health(off: {LiveFeature.withdrawals}));
+      expect(backend.isLive(LiveFeature.withdrawalPin), isFalse);
+      expect(backend.isLive(LiveFeature.uploads), isTrue);
     });
 
     test('an older API without the four new features runs the rest', () {
@@ -455,6 +499,12 @@ void main() {
         'avatar',
         'leaderboard',
         'referrals',
+        'phoneVerification',
+        'savedBriefsSync',
+        'closeRemindersSync',
+        'uploads',
+        'etags',
+        'config',
       ]);
       expect(backend.checkedAt, now);
       await backend.lock();
@@ -467,6 +517,12 @@ void main() {
         'avatar',
         'leaderboard',
         'referrals',
+        'phoneVerification',
+        'savedBriefsSync',
+        'closeRemindersSync',
+        'uploads',
+        'etags',
+        'config',
       ]);
     });
 

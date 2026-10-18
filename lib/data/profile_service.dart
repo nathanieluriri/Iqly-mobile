@@ -16,9 +16,14 @@ class AccountDetails {
     this.dateOfBirth,
     this.gender,
     this.stateOfOrigin,
+    this.phoneVerified = false,
   });
 
   final String phone;
+
+  /// The number was confirmed by an SMS code (contract 13.2); a different
+  /// number is not.
+  final bool phoneVerified;
   final DateTime? dateOfBirth;
   final String? gender;
   final String? stateOfOrigin;
@@ -28,11 +33,15 @@ class AccountDetails {
     DateTime? dateOfBirth,
     String? gender,
     String? stateOfOrigin,
+    bool? phoneVerified,
   }) => AccountDetails(
     phone: phone ?? this.phone,
     dateOfBirth: dateOfBirth ?? this.dateOfBirth,
     gender: gender ?? this.gender,
     stateOfOrigin: stateOfOrigin ?? this.stateOfOrigin,
+    phoneVerified:
+        phoneVerified ??
+        (phone == null || phone == this.phone ? this.phoneVerified : false),
   );
 
   Map<String, Object?> toJson() => {
@@ -40,6 +49,7 @@ class AccountDetails {
     'dateOfBirth': dateOfBirth?.toIso8601String(),
     'gender': gender,
     'stateOfOrigin': stateOfOrigin,
+    if (phoneVerified) 'phoneVerified': true,
   };
 
   static AccountDetails fromJson(Map<String, Object?> json) {
@@ -49,6 +59,7 @@ class AccountDetails {
       dateOfBirth: born == null ? null : DateTime.tryParse(born),
       gender: json['gender'] as String?,
       stateOfOrigin: json['stateOfOrigin'] as String?,
+      phoneVerified: json['phoneVerified'] == true,
     );
   }
 
@@ -58,10 +69,12 @@ class AccountDetails {
       other.phone == phone &&
       other.dateOfBirth == dateOfBirth &&
       other.gender == gender &&
-      other.stateOfOrigin == stateOfOrigin;
+      other.stateOfOrigin == stateOfOrigin &&
+      other.phoneVerified == phoneVerified;
 
   @override
-  int get hashCode => Object.hash(phone, dateOfBirth, gender, stateOfOrigin);
+  int get hashCode =>
+      Object.hash(phone, dateOfBirth, gender, stateOfOrigin, phoneVerified);
 }
 
 /// The switches on Notification preferences (Flags.notificationPreferences).

@@ -6,6 +6,7 @@ import '../models.dart';
 import '../submit_data.dart';
 import '../submit_service.dart';
 import 'mappers.dart';
+import 'submit_queue.dart';
 
 /// The answer as the API stores it: each paragraph (split on blank lines)
 /// escaped and wrapped in `<p>`, a single line break inside it as `<br>`.
@@ -29,13 +30,19 @@ String _escape(String text) => text
 
 /// Opens briefs and sends responses on the iQLY API (contract 5). A send
 /// goes online with its files; nothing is queued, so the draft stays until
-/// the API confirms. Retries of a send whose answer never came back carry
+/// the API confirms. While `uploads` runs live the files go up first and a
+/// send naming them queues in the outbox ([SubmitQueue]), so it can wait
+/// for the network and goes once. Retries of a send whose answer never came back carry
 /// the same Idempotency-Key, so the API can never take it twice.
 class LiveSubmitService implements SubmitService {
-  LiveSubmitService(this.api, {DateTime Function()? clock})
+  LiveSubmitService(this.api, {DateTime Function()? clock, this.queue})
     : _clock = clock ?? DateTime.now;
 
   final ApiClient api;
+
+  /// While `uploads` runs live: a send naming its uploads queues here, so
+  /// it can wait for the network (contract 13.4).
+  final SubmitQueue? queue;
   final DateTime Function() _clock;
 
   /// What the API takes besides the answer: images and PDFs.
@@ -95,6 +102,24 @@ class LiveSubmitService implements SubmitService {
 
   @override
   Future<SubmitResult> submit(SubmitRequest request) async {
+    final queue = this.queue;
+    final uploadIds = request.uploadIds;
+    if (queue != null && uploadIds != null) {
+      final SubmitForm form;
+      try {
+        form = _forms[request.briefId] ?? await _formOf(request.briefId);
+      } on ApiUnreachable {
+        return const SubmitResult.failure(SubmitFailure.offline);
+      } on Exception {
+        return const SubmitResult.failure(SubmitFailure.unknown);
+      }
+      return queue.send(request.briefId, {
+        'title': request.title,
+        'body': answerHtml(request.answer),
+        'surveyAnswers': _survey(form, request.answers),
+        'uploadIds': uploadIds,
+      });
+    }
     final SubmitForm form;
     final List<ApiFile>? files;
     try {
@@ -138,23 +163,7 @@ class LiveSubmitService implements SubmitService {
         ),
       );
     }
-    final block = switch (res.code) {
-      'SUBMISSION_DEADLINE_PASSED' => SubmitBlock.deadlinePassed,
-      'SUBMISSION_CHALLENGE_NOT_OPEN' => SubmitBlock.closed,
-      'SUBMISSION_CAP_REACHED' => SubmitBlock.full,
-      'SUBMISSION_DUPLICATE' => SubmitBlock.alreadySubmitted,
-      _ => null,
-    };
-    if (block != null) {
-      return SubmitResult.failure(SubmitFailure.blocked, block: block);
-    }
-    return SubmitResult.failure(switch (res.code) {
-      'UNDER_AGE' => SubmitFailure.underAge,
-      'ACCOUNT_CLOSING' => SubmitFailure.closing,
-      'FILE_TYPE_NOT_ALLOWED' => SubmitFailure.fileType,
-      _ when res.status == 415 => SubmitFailure.fileType,
-      _ => SubmitFailure.unknown,
-    });
+    return submitResultFor(res.code, res.status);
   }
 
   /// A timeout, a throttle or a server fault says nothing of whether the

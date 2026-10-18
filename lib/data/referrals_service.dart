@@ -4,10 +4,13 @@ import '../core/deadline.dart';
 import '../core/session.dart';
 import '../core/backend.dart';
 import 'api_client.dart';
+import 'app_config.dart';
 import 'live/live_account.dart';
 import 'live/live_repository.dart' show liveModeProvider;
 import 'models.dart';
 import 'share_service.dart';
+
+export 'app_config.dart' show referralReward;
 
 enum InviteStatus { won, joined, invited }
 
@@ -109,7 +112,7 @@ abstract class ReferralsService {
 
   static String message(String code, {bool rewards = true}) => rewards
       ? 'Join me on iQLY. Businesses pay for good ideas. Use my code $code and '
-            'we both get ₦500 when you win your first brief. ${link(code)}'
+            'we both get ${referralReward()} when you win your first brief. ${link(code)}'
       : 'Join me on iQLY. Businesses pay for good ideas. Use my code $code '
             'when you sign up. ${link(code)}';
 }
@@ -197,7 +200,11 @@ class LiveReferralsService implements ReferralsService {
 
   @override
   Future<Referrals> referrals() async {
-    final json = await link.fetch('/me/referrals', AccountKeys.referrals);
+    final json = await link.fetch(
+      '/me/referrals',
+      AccountKeys.referrals,
+      conditional: true,
+    );
     return referralsFromJson(json);
   }
 

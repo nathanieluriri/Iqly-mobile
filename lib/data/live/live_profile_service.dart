@@ -26,6 +26,7 @@ class ContributorProfile {
     this.interests = const [],
     this.interestOther,
     this.onboardingCompletedAt,
+    this.phoneVerified = false,
   });
 
   factory ContributorProfile.fromJson(Map<String, dynamic> json) =>
@@ -44,6 +45,7 @@ class ContributorProfile {
         interests: knownValues(json['interests'], Reference.interests),
         interestOther: apiText(json['interestOther']),
         onboardingCompletedAt: apiTime(json['onboardingCompletedAt']),
+        phoneVerified: json['phoneVerified'] == true,
       );
 
   final String? phone;
@@ -61,11 +63,15 @@ class ContributorProfile {
   final String? interestOther;
   final DateTime? onboardingCompletedAt;
 
+  /// Contract 13.2: true only while the number is the one a code confirmed.
+  final bool phoneVerified;
+
   AccountDetails get details => AccountDetails(
     phone: phone ?? '',
     dateOfBirth: dateOfBirth,
     gender: gender,
     stateOfOrigin: stateOfOrigin,
+    phoneVerified: phoneVerified,
   );
 }
 
@@ -148,10 +154,12 @@ class LiveProfileService implements ProfileService {
       stored = const {};
     }
     final edits = await link.waiting(AccountWrite.profile);
-    return ContributorProfile.fromJson({
-      ...stored,
-      for (final edit in edits) ...edit,
-    }).details;
+    final merged = {...stored, for (final edit in edits) ...edit};
+    // A number still on its way replaces the one the code confirmed.
+    if (apiText(merged['phone']) != apiText(stored['phone'])) {
+      merged['phoneVerified'] = false;
+    }
+    return ContributorProfile.fromJson(merged).details;
   }
 
   /// Without [before] and [answersBefore] every field goes.

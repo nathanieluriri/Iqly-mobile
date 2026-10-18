@@ -57,6 +57,11 @@ Future<void> switchLaunchMode(
 }) async {
   final session = read(sessionProvider);
   final users = {session.userId, session.lostUserId}.nonNulls;
+  // What waits to go (saved briefs and reminders among it) gets one short
+  // chance to reach the account before the phone forgets it.
+  await read(outboxProvider)
+      .kick()
+      .timeout(const Duration(seconds: 5), onTimeout: () {});
   unawaited(read(outboxProvider).stop());
   if (session.signedIn) {
     try {

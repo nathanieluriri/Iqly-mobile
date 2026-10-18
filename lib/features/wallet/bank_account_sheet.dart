@@ -11,6 +11,7 @@ import '../../core/session.dart';
 import '../../data/api_client.dart';
 import '../../data/live/live_repository.dart';
 import '../../data/models.dart';
+import '../../data/pin_service.dart';
 import '../../data/wallet_service.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -29,7 +30,7 @@ import 'wallet_state.dart';
 /// Set as default asks for the PIN, then switches (designer answer 14). From the Withdraw "To"
 /// picker ([picking]) a row picks the destination and closes (designer
 /// answer 5). Add a bank account goes to Select bank. A live sheet asks for
-/// no PIN, and a withdrawal keeps the account it was sent to, so it names
+/// the PIN only once the API holds one (contract 13.1), and a withdrawal keeps the account it was sent to, so it names
 /// that account. While the API keeps several accounts (contract 10.2) the
 /// selected one can also be removed, after a confirm.
 class BankAccountSheet extends ConsumerStatefulWidget {
@@ -73,8 +74,9 @@ class _BankAccountSheetState extends ConsumerState<BankAccountSheet> {
       Navigator.of(context).pop();
       return;
     }
-    if (!live) {
-      final ok = await showOverSheet<bool>(
+    if (!live || await _pinSet()) {
+      if (!mounted) return;
+      final pin = await showOverSheet<String>(
         context,
         (context) => PinSheet(
           body:
@@ -83,7 +85,7 @@ class _BankAccountSheetState extends ConsumerState<BankAccountSheet> {
         ),
         cover: _cover,
       );
-      if (ok != true || !mounted) return;
+      if (pin == null || !mounted) return;
     }
     setState(() {
       _saving = true;
@@ -109,6 +111,18 @@ class _BankAccountSheetState extends ConsumerState<BankAccountSheet> {
     if (!mounted || !scope.open) return;
     ref.read(walletProvider.notifier).setDefault(picked);
     Navigator.of(context).pop();
+  }
+
+  /// Whether the API holds a PIN for the switch to check; unknown asks,
+  /// and the sheet lets a person without one through.
+  Future<bool> _pinSet() async {
+    final pins = ref.read(pinServiceProvider);
+    if (pins == null) return false;
+    try {
+      return (await pins.status()).set;
+    } on Object {
+      return true;
+    }
   }
 
   /// Asks first. A withdrawal on its way to the account keeps it
@@ -184,7 +198,8 @@ class _BankAccountSheetState extends ConsumerState<BankAccountSheet> {
     final note = [
       if (pending > 0 && pendingTo != null)
         'Your pending ${naira(pending)} still goes to $pendingTo.',
-      if (!live) 'We ask for your PIN before switching.',
+      if (!live || ref.watch(pinStatusProvider).value?.set == true)
+        'We ask for your PIN before switching.',
     ].join(' ');
     final selected = accounts.where((a) => a.key == current).firstOrNull;
     final error = _error;

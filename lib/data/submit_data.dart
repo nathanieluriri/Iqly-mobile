@@ -1,3 +1,4 @@
+import 'app_config.dart';
 import 'models.dart';
 
 /// The submit form's limits, as iqly.net enforces them.
@@ -7,11 +8,11 @@ abstract final class SubmitLimits {
   static const answerMin = 20;
   static const answerMax = 5000;
   static const questionMax = 500;
-  static const files = 5;
-  static const fileBytes = 10 * 1024 * 1024;
+  static int get files => AppConfig.current.maxFiles;
+  static int get fileBytes => AppConfig.current.maxFileBytes;
 
   /// The API refuses a send whose files add up to more.
-  static const totalBytes = 30 * 1024 * 1024;
+  static int get totalBytes => AppConfig.current.maxTotalBytes;
 }
 
 /// One of the business's audience questions (iqly.net audienceSurvey): a
@@ -92,6 +93,7 @@ class Attachment {
     this.file, {
     this.status = AttachmentStatus.uploading,
     this.progress = 0,
+    this.uploadId,
   });
 
   final AttachmentFile file;
@@ -100,12 +102,19 @@ class Attachment {
   /// 0 to 1 while uploading.
   final double progress;
 
-  Attachment copyWith({AttachmentStatus? status, double? progress}) =>
-      Attachment(
-        file,
-        status: status ?? this.status,
-        progress: progress ?? this.progress,
-      );
+  /// The API's id for the file once it is up on its own (contract 13.4).
+  final String? uploadId;
+
+  Attachment copyWith({
+    AttachmentStatus? status,
+    double? progress,
+    String? Function()? uploadId,
+  }) => Attachment(
+    file,
+    status: status ?? this.status,
+    progress: progress ?? this.progress,
+    uploadId: uploadId == null ? this.uploadId : uploadId(),
+  );
 }
 
 class SubmitRequest {
@@ -115,6 +124,7 @@ class SubmitRequest {
     required this.answer,
     this.answers = const {},
     this.files = const [],
+    this.uploadIds,
     this.onProgress,
   });
 
@@ -125,6 +135,10 @@ class SubmitRequest {
   /// Question id to the options picked, or the typed answer as one entry.
   final Map<String, List<String>> answers;
   final List<AttachmentFile> files;
+
+  /// The files uploaded ahead (contract 13.4), by id; set, the send goes
+  /// through the outbox and [files] stay on the phone.
+  final List<String>? uploadIds;
 
   /// Hears the upload go from 0 to 1 when [files] ride in the send itself.
   final void Function(double progress)? onProgress;

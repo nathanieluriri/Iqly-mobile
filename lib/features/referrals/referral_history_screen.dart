@@ -80,16 +80,16 @@ class ReferralHistoryScreen extends ConsumerWidget {
     );
   }
 
-  static String _line(
-    Invite invite,
-    DateTime now, {
-    required bool rewards,
-  }) => switch (invite.status) {
-    InviteStatus.won =>
-      rewards ? 'Won a first brief · ₦500 paid to you' : 'Won a first brief',
-    InviteStatus.joined => 'Joined ${_ago(invite.at ?? now, now)} · no win yet',
-    InviteStatus.invited => 'Invited · has not joined',
-  };
+  static String _line(Invite invite, DateTime now, {required bool rewards}) =>
+      switch (invite.status) {
+        InviteStatus.won =>
+          rewards
+              ? 'Won a first brief · ${referralReward()} paid to you'
+              : 'Won a first brief',
+        InviteStatus.joined =>
+          'Joined ${_ago(invite.at ?? now, now)} · no win yet',
+        InviteStatus.invited => 'Invited · has not joined',
+      };
 }
 
 /// "2 weeks ago" from a week on, else as the product writes it.

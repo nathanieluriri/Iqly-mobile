@@ -132,9 +132,10 @@ class _InviteCodeScreenState extends ConsumerState<InviteCodeScreen> {
           const SizedBox(height: IqSpace.s2),
           Text(switch ((applied, rewards)) {
             (true, true) =>
-              'You’re in. You both get ₦500 when you win your first brief.',
+              'You’re in. You both get ${referralReward()} when you win your first '
+                  'brief.',
             (false, true) =>
-              'Add a code before your first brief. You both get ₦500 when '
+              'Add a code before your first brief. You both get ${referralReward()} when '
                   'you win one.',
             (true, false) =>
               'You’re in. Your friend’s code is on your account.',

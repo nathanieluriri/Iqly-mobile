@@ -8,14 +8,19 @@ import '../../core/backend.dart';
 import '../../core/flags.dart';
 import '../../core/session.dart';
 import '../../data/api_client.dart';
+import '../../data/live/brief_marks_sync.dart';
 import '../../data/live/live_account.dart';
 import '../../data/live/live_repository.dart';
+import '../../data/live/submit_queue.dart';
 import '../../data/local/local_providers.dart';
 import '../../data/onboarding_service.dart';
 import '../../data/referrals_service.dart' show inviteCodeOutcome;
 import '../../router.dart';
+import '../discover/discover_state.dart';
+import '../drafts/drafts_state.dart';
 import '../onboarding/onboarding_draft.dart';
 import '../referrals/referrals_state.dart';
+import '../submissions/submissions_state.dart';
 
 /// Runs the account's writes in a live build. The outbox sends them for the
 /// signed-in person once the session knows the account (at launch and after
@@ -57,6 +62,29 @@ final accountSyncProvider = Provider<void>((ref) {
           ref.mounted) {
         unawaited(_refuseDateOfBirth(ref, item.payload['dateOfBirth']));
       }
+    },
+  );
+  registerBriefMarkWrites(
+    outbox,
+    api,
+    live: mode.isLive,
+    onRefused: (mark) {
+      if (!ref.mounted) return;
+      unawaited(switch (mark) {
+        BriefMark.saved => ref.read(savedBriefsProvider.notifier).pull(),
+        BriefMark.reminder => ref.read(closeRemindersProvider.notifier).pull(),
+      });
+    },
+  );
+  registerSubmitWrites(
+    outbox,
+    api,
+    ref.watch(localStoreProvider),
+    live: mode.isLive(LiveFeature.uploads),
+    onSent: (userId, briefId) {
+      if (!signedIn(userId) || !ref.mounted) return;
+      unawaited(ref.read(draftsProvider.notifier).discard([briefId]));
+      ref.read(mySubmissionsProvider.notifier).refreshQuietly();
     },
   );
   final locked = ref.read(backendProvider.notifier).locked;

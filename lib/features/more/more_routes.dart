@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/flags.dart';
 import '../../core/transitions.dart';
 import '../../router.dart';
+import '../wallet/withdrawal_pin_screen.dart';
 import 'more_screen.dart';
 import 'saved_briefs_page.dart';
 import 'try_notifications_screen.dart';
@@ -22,6 +23,13 @@ final moreRoutes = <RouteBase>[
       pageBuilder: (context, state) =>
           pushPage(state, const MoreSavedBriefsPage()),
     ),
+  GoRoute(
+    path: Routes.withdrawalPin,
+    pageBuilder: (context, state) => pushPage(
+      state,
+      WithdrawalPinScreen(reset: state.uri.queryParameters['reset'] == '1'),
+    ),
+  ),
   GoRoute(
     path: Routes.tryNotifications,
     pageBuilder: (context, state) =>

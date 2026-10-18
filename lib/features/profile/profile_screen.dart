@@ -150,7 +150,7 @@ class ProfileScreen extends ConsumerWidget {
                 IqListRow(
                   label: 'Invite friends',
                   description: ref.watch(referralRewardsProvider)
-                      ? '₦500 when a friend wins a brief'
+                      ? '${referralReward()} when a friend wins a brief'
                       : 'Share your invite code',
                   icon: IqIcons.gift,
                   onTap: () => context.open(Routes.referrals),

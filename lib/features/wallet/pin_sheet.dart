@@ -1,21 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../core/deadline.dart';
 import '../../core/motion.dart';
 import '../../core/transitions.dart';
 import '../../data/biometric_service.dart';
+import '../../data/pin_service.dart';
 import '../../data/wallet_service.dart';
 import '../../theme/theme.dart';
 import '../../ui/button.dart';
 import '../../ui/field.dart';
 import '../entry/entry_widgets.dart' show EntryInput;
 import 'wallet_sheet.dart';
+import 'withdrawal_pin_screen.dart'
+    show openPinReset, pinLockWait, pinTriesLeft;
 
 /// B5 · Withdraw · confirm with PIN (483:22222): the 4-digit iQLY PIN
 /// confirms a withdrawal or a switch of the default account (designer
 /// answers 4 and 14). The ghost offers the phone's own check when it has
-/// one. Pops true once confirmed.
+/// one. Pops the PIN once confirmed ('' for the phone's own check).
+///
+/// While the API runs the PIN (contract 13.1) the API checks it: a wrong
+/// one says the tries left, a lock how long it holds, and a lock only a
+/// reset opens hands over to the reset from More. The phone's own check
+/// cannot stand in for it then, since a withdrawal carries the PIN.
 ///
 /// There is no PIN kit component: Exp/Field and the buttons, as the frame
 /// builds it. The Field help "Forgot it? Reset it by email from More." shows
@@ -30,6 +40,9 @@ class PinSheet extends ConsumerStatefulWidget {
   final String body;
   final String action;
 
+  static const lockedForReset =
+      'Your PIN is locked. Reset it by email to use it again.';
+
   @override
   ConsumerState<PinSheet> createState() => _PinSheetState();
 }
@@ -38,10 +51,12 @@ class _PinSheetState extends ConsumerState<PinSheet> {
   final _pin = EntryInput();
   BiometricKind? _biometric;
   bool _checking = false;
+  bool _resetRequired = false;
 
   @override
   void initState() {
     super.initState();
+    if (ref.read(pinServiceProvider) != null) return;
     ref.read(biometricServiceProvider).available().then((kind) {
       if (mounted) setState(() => _biometric = kind);
     });
@@ -68,20 +83,62 @@ class _PinSheetState extends ConsumerState<PinSheet> {
       return;
     }
     setState(() => _checking = true);
+    final pins = ref.read(pinServiceProvider);
+    if (pins != null) return _verify(pins, pin);
     final ok = await ref.read(walletServiceProvider).confirmPin(pin);
     if (!mounted) return;
     setState(() => _checking = false);
     if (ok) {
-      Navigator.of(context).pop(true);
+      Navigator.of(context).pop(pin);
       return;
     }
     _pin.controller.clear();
     _pin.fail(_forgot);
   }
 
+  Future<void> _verify(PinService pins, String pin) async {
+    try {
+      await pins.verify(pin);
+    } on PinRefused catch (refused) {
+      if (!mounted) return;
+      setState(() => _checking = false);
+      _pin.controller.clear();
+      final now = ref.read(clockProvider)();
+      switch (refused.problem) {
+        case PinProblem.notSet:
+          Navigator.of(context).pop('');
+        case PinProblem.resetRequired:
+          setState(() => _resetRequired = true);
+          _pin.fail(PinSheet.lockedForReset);
+        case PinProblem.incorrect:
+          _pin.fail('${pinTriesLeft(refused.attemptsLeft)} $_forgot');
+        case PinProblem.locked:
+          _pin.fail(
+            'Locked after 5 wrong PINs. '
+            '${pinLockWait(refused.retryAfter, null, now)}, or reset it by '
+            'email from More.',
+          );
+        case PinProblem.offline:
+          _pin.fail('No connection. Try again.');
+        case _:
+          _pin.fail('Couldn’t check your PIN. Try again.');
+      }
+      return;
+    }
+    if (mounted) Navigator.of(context).pop(pin);
+  }
+
+  /// Closes the sheets and opens the reset from More, where the help line
+  /// points; Back from it lands on More.
+  void _reset() {
+    final router = GoRouter.of(context);
+    Navigator.of(context).pop();
+    openPinReset(router);
+  }
+
   Future<void> _useBiometric() async {
     final ok = await ref.read(biometricServiceProvider).confirm(widget.action);
-    if (ok && mounted) Navigator.of(context).pop(true);
+    if (ok && mounted) Navigator.of(context).pop('');
   }
 
   static const _forgot = 'Forgot it? Reset it by email from More.';
@@ -142,10 +199,10 @@ class _PinSheetState extends ConsumerState<PinSheet> {
                 ),
                 const SizedBox(height: 14),
                 IqButton(
-                  label: widget.action,
+                  label: _resetRequired ? 'Reset it by email' : widget.action,
                   width: double.infinity,
                   loading: _checking,
-                  onTap: _confirm,
+                  onTap: _resetRequired ? _reset : _confirm,
                 ),
                 if (biometric != null) ...[
                   const SizedBox(height: 14),

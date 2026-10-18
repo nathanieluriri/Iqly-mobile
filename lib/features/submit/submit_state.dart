@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/deadline.dart';
 import '../../core/session.dart';
 import '../../data/drafts_data.dart';
+import '../../data/live/submit_queue.dart';
 import '../../data/submit_data.dart';
 import '../../data/submit_service.dart';
 import '../drafts/drafts_state.dart';
@@ -36,6 +38,18 @@ int? firstUnanswered(SubmitForm form, Draft draft) {
   return null;
 }
 
+/// What a file refused on its own upload says under the files; null for a
+/// refusal a tap on the row may get past.
+String? uploadError(UploadRefused refused, AttachmentFile file) =>
+    switch (refused.problem) {
+      UploadProblem.fileType => '${file.name} is not a file this brief takes.',
+      UploadProblem.tooLarge =>
+        '${file.name} exceeds ${SubmitLimits.fileBytes ~/ (1024 * 1024)} MB.',
+      UploadProblem.limit =>
+        'Too many files waiting to send. Send or remove some first.',
+      _ => null,
+    };
+
 /// "Question 2 needs an answer", from Figma 34:186.
 String needsAnswer(int index) => 'Question ${index + 1} needs an answer';
 
@@ -52,6 +66,7 @@ class SubmitFlow {
     this.receipt,
     this.back = false,
     this.restored,
+    this.queued = false,
   });
 
   final SubmitStep step;
@@ -79,6 +94,10 @@ class SubmitFlow {
   /// When the draft this flow opened on was last saved (313:13650).
   final DateTime? restored;
 
+  /// The send waits on the phone for the network (contract 13.4); the
+  /// draft stays until it lands.
+  final bool queued;
+
   bool get uploading =>
       files.any((f) => f.status == AttachmentStatus.uploading);
 
@@ -104,6 +123,7 @@ class SubmitFlow {
     receipt: receipt,
     back: back ?? this.back,
     restored: restored,
+    queued: queued,
   );
 }
 
@@ -222,7 +242,12 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
     _upload(file);
   }
 
+  /// While `uploads` runs live each file goes up on its own and keeps the
+  /// id the send names it by; a refusal that sending again cannot change
+  /// says why under the files.
   Future<void> _upload(AttachmentFile file) async {
+    final uploads = ref.read(submissionUploadsProvider);
+    if (uploads != null) return _uploadAhead(uploads, file);
     final ok = await ref
         .read(attachmentUploaderProvider)
         .upload(
@@ -239,6 +264,50 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
     );
   }
 
+  Future<void> _uploadAhead(
+    SubmissionUploads uploads,
+    AttachmentFile file,
+  ) async {
+    try {
+      final upload = await uploads.upload(
+        file,
+        briefId: briefId,
+        onProgress: (progress) =>
+            _update(file, (a) => a.copyWith(progress: math.min(progress, .99))),
+      );
+      if (!ref.mounted) return unawaited(uploads.drop(upload.id));
+      if (!state.files.any((a) => identical(a.file, file))) {
+        return unawaited(uploads.drop(upload.id));
+      }
+      _update(
+        file,
+        (a) => a.copyWith(
+          status: AttachmentStatus.done,
+          progress: 1,
+          uploadId: () => upload.id,
+        ),
+      );
+    } on UploadRefused catch (refused) {
+      if (!ref.mounted) return;
+      _update(
+        file,
+        (a) => a.copyWith(
+          status: AttachmentStatus.failed,
+          progress: 0,
+          uploadId: () => null,
+        ),
+      );
+      final error = uploadError(refused, file);
+      if (error != null) state = state.copyWith(fileError: () => error);
+    } on Object {
+      if (!ref.mounted) return;
+      _update(
+        file,
+        (a) => a.copyWith(status: AttachmentStatus.failed, progress: 0),
+      );
+    }
+  }
+
   void _update(AttachmentFile file, Attachment Function(Attachment) change) {
     if (!ref.mounted) return;
     state = state.copyWith(
@@ -248,10 +317,16 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
     );
   }
 
-  void removeFile(int index) => state = state.copyWith(
-    files: [...state.files]..removeAt(index),
-    fileError: () => null,
-  );
+  void removeFile(int index) {
+    final id = state.files[index].uploadId;
+    if (id != null) {
+      unawaited(ref.read(submissionUploadsProvider)?.drop(id));
+    }
+    state = state.copyWith(
+      files: [...state.files]..removeAt(index),
+      fileError: () => null,
+    );
+  }
 
   /// Continue on the answer step: true when it moved on to the questions;
   /// otherwise the answer step shows what is missing.
@@ -310,11 +385,18 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
     final scope = ref.read(accountScopeProvider);
     state = state.copyWith(sending: true, failed: false, refusedFile: false);
     final draft = state.draft;
+    final ahead = ref.read(submissionUploadsProvider) != null;
     final files = [
       for (final a in state.files)
         if (a.status == AttachmentStatus.done) a.file,
     ];
-    final going = files.toSet();
+    final uploadIds = ahead
+        ? [
+            for (final a in state.files)
+              if (a.status == AttachmentStatus.done) ?a.uploadId,
+          ]
+        : null;
+    final going = ahead ? <AttachmentFile>{} : files.toSet();
     final result = await ref
         .read(submitServiceProvider)
         .submit(
@@ -329,13 +411,26 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
                     a.trim(),
                 ],
             },
-            files: files,
+            files: ahead ? const [] : files,
+            uploadIds: uploadIds,
             onProgress: (progress) => _goingUp(going, progress),
           ),
         );
     if (!ref.mounted || !scope.open) return result;
     final receipt = result.receipt;
-    if (receipt == null) {
+    if (result.queued) {
+      state = SubmitFlow(
+        draft: state.draft,
+        step: SubmitStep.sent,
+        files: state.files,
+        queued: true,
+      );
+    } else if (result.failure == SubmitFailure.uploadsGone) {
+      state = state.copyWith(sending: false, failed: true);
+      for (final a in state.files) {
+        if (a.status == AttachmentStatus.done) retry(a.file);
+      }
+    } else if (receipt == null) {
       state = state.copyWith(
         sending: false,
         failed: true,

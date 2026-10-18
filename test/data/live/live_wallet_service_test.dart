@@ -184,7 +184,8 @@ void main() {
         (409, 'WALLET_INSUFFICIENT_BALANCE', WalletFailure.unknown),
         (409, 'PROFILE_INCOMPLETE', WalletFailure.profileIncomplete),
         (403, 'UNDER_AGE', WalletFailure.underAge),
-        (400, 'WITHDRAWAL_BELOW_MINIMUM', WalletFailure.unknown),
+        (400, 'WITHDRAWAL_BELOW_MINIMUM', WalletFailure.belowMinimum),
+        (400, 'WITHDRAWAL_ABOVE_MAXIMUM', WalletFailure.aboveMaximum),
         (409, 'WITHDRAWAL_NO_BANK_ACCOUNT', WalletFailure.unknown),
         (403, 'ACCOUNT_CLOSING', WalletFailure.closing),
       ]) {

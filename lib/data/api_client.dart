@@ -58,6 +58,17 @@ class ApiResponse {
   }
 }
 
+/// An answer kept for a conditional read: the ETag it came with and its
+/// body.
+typedef TaggedAnswer = ({String etag, Map<String, dynamic> body});
+
+/// Where conditional reads keep each answer with its ETag (contract 13.5),
+/// for one person: a tag never answers for anyone else.
+abstract class EtagCache {
+  Future<TaggedAnswer?> read(String path);
+  Future<void> write(String path, TaggedAnswer answer);
+}
+
 /// No answer from the API: no connection, a timeout, or the connection
 /// failing on the way.
 class ApiUnreachable implements Exception {
@@ -153,7 +164,35 @@ class ApiClient {
   /// which is the phone's surest sign that it is back online.
   Stream<void> get reachable => _reachable.stream;
 
-  Future<ApiResponse> get(String path) => send('GET', path);
+  /// With [etags] the read is conditional: the ETag kept for [path] goes as
+  /// If-None-Match, and a 304 answers the body kept with it as a 200. A
+  /// cache that fails to read or write leaves the read as a plain one.
+  Future<ApiResponse> get(String path, {EtagCache? etags}) async {
+    if (etags == null) return send('GET', path);
+    TaggedAnswer? kept;
+    try {
+      kept = await etags.read(path);
+    } on Object catch (error) {
+      debugPrint('ETag for $path not read: $error');
+    }
+    final res = await send(
+      'GET',
+      path,
+      headers: {'if-none-match': ?kept?.etag},
+    );
+    if (res.status == 304 && kept != null) {
+      return ApiResponse(200, kept.body, headers: res.headers);
+    }
+    final tag = res.headers['etag'];
+    if (res.status == 200 && tag != null && tag.isNotEmpty) {
+      try {
+        await etags.write(path, (etag: tag, body: res.body));
+      } on Object catch (error) {
+        debugPrint('ETag for $path not kept: $error');
+      }
+    }
+    return res;
+  }
 
   Future<ApiResponse> post(String path, [Map<String, Object?>? body]) =>
       send('POST', path, body: body ?? const {});
@@ -174,8 +213,10 @@ class ApiClient {
     String path, {
     Object? body,
     String? idempotencyKey,
+    Map<String, String> headers = const {},
   }) async {
-    final request = http.Request(method, Uri.parse('$baseUrl$path'));
+    final request = http.Request(method, Uri.parse('$baseUrl$path'))
+      ..headers.addAll(headers);
     if (body != null) {
       request.headers['content-type'] = 'application/json';
       request.body = jsonEncode(body);

@@ -41,10 +41,15 @@ final profileRoutes = <RouteBase>[
         routes: [
           GoRoute(
             path: 'code',
-            pageBuilder: (context, state) => pushPage(
-              state,
-              PhoneCodeScreen(phone: state.extra as String? ?? ''),
-            ),
+            pageBuilder: (context, state) =>
+                pushPage(state, switch (state.extra) {
+                  PhoneCodeArgs(:final to, :final resendAt) => PhoneCodeScreen(
+                    phone: to,
+                    resendAt: resendAt,
+                  ),
+                  final String phone => PhoneCodeScreen(phone: phone),
+                  _ => const PhoneCodeScreen(phone: ''),
+                }),
           ),
         ],
       ),
