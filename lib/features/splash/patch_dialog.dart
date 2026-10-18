@@ -370,13 +370,23 @@ class _PatchPresenterState extends ConsumerState<PatchPresenter> {
   @override
   void initState() {
     super.initState();
-    widget.router.routerDelegate.addListener(_present);
+    widget.router.routerDelegate.addListener(_schedule);
   }
 
   @override
   void dispose() {
-    widget.router.routerDelegate.removeListener(_present);
+    widget.router.routerDelegate.removeListener(_schedule);
     super.dispose();
+  }
+
+  // The dialog has no page of its own, so it belongs to the page it was
+  // pushed over and goes, without completing, when that page is replaced
+  // (the splash handing over to Discover). After each route change it waits
+  // for the new pages and comes back over them if it is gone.
+  void _schedule() {
+    WidgetsBinding.instance
+      ..addPostFrameCallback((_) => _present())
+      ..ensureVisualUpdate();
   }
 
   bool get _clear {
@@ -387,13 +397,15 @@ class _PatchPresenterState extends ConsumerState<PatchPresenter> {
   }
 
   void _present() {
-    if (!mounted || _route != null) return;
+    if (!mounted || (_route?.isActive ?? false)) return;
     if (ref.read(patchesProvider) == PatchPhase.idle || !_clear) return;
     final navigator = widget.router.routerDelegate.navigatorKey.currentState;
     if (navigator == null) return;
     final route = _PatchRoute();
     _route = route;
-    navigator.push(route).whenComplete(() => _route = null);
+    navigator.push(route).whenComplete(() {
+      if (_route == route) _route = null;
+    });
   }
 
   @override
@@ -406,7 +418,7 @@ class _PatchPresenterState extends ConsumerState<PatchPresenter> {
         }
         _route = null;
       } else {
-        _present();
+        _schedule();
       }
     });
     return widget.child;
