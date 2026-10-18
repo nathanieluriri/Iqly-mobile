@@ -139,10 +139,17 @@ class LiveWalletService implements WalletService {
     if (held != null) {
       final again = await _request(held, resent: true, pin: pin);
       if (again.unsettled) return again;
-      _unsettled = null;
-      if (again.failure case WalletFailure.accountGone || WalletFailure.pin) {
-        return again;
+      // A PIN refusal says nothing of whether the first send was stored:
+      // it stays held, so the send with the PIN goes under its key.
+      if (again.failure == WalletFailure.pin) {
+        return WithdrawResult.failure(
+          WalletFailure.pin,
+          pin: again.pin,
+          unsettled: true,
+        );
       }
+      _unsettled = null;
+      if (again.failure == WalletFailure.accountGone) return again;
       if (again.withdrawal case final landed?) {
         return WithdrawResult.requested(landed, earlier: true);
       }

@@ -77,6 +77,10 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
   bool _unsettled = false;
   PinRefused? _pinRefused;
 
+  /// The PIN the person confirmed, held in memory while the sheet is open
+  /// so Try again resends with it; never stored.
+  String? _pin;
+
   /// What the amount reads as. Tidying it as the field lets go, or moving
   /// the caret, is not an edit, so a refusal that lands first stays shown.
   int? _kobo;
@@ -221,6 +225,7 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
   Future<void> _openReset() async => openPinReset(GoRouter.of(context));
 
   Future<void> _send(int kobo, SavedBank to, {String? pin}) async {
+    if (pin != null) _pin = pin;
     setState(() {
       _sending = true;
       _failure = null;
@@ -234,6 +239,7 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
     final withdrawal = result.withdrawal;
     if (withdrawal == null) {
       final failure = result.failure;
+      if (result.pin?.problem == PinProblem.incorrect) _pin = null;
       if (result.pin?.problem == PinProblem.required && pin == null) {
         setState(() => _sending = false);
         final asked = await _askPin(kobo, to);
@@ -289,7 +295,7 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
     final kobo = parseNaira(_amount.controller.text);
     final to = _destination(data);
     if (kobo == null || to == null) return;
-    _send(kobo, to);
+    _send(kobo, to, pin: _pin);
   }
 
   @override
@@ -331,12 +337,16 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
                 IqBanner(
                   kind: IqBannerKind.error,
                   title: switch ((failure, _unsettled)) {
-                    (WalletFailure.pin, _) => switch (pinRefused?.problem) {
-                      PinProblem.incorrect =>
-                        '${pinTriesLeft(pinRefused?.attemptsLeft)} '
-                            'Nothing was sent.',
-                      _ => 'Your PIN is locked. Nothing was sent.',
-                    },
+                    (WalletFailure.pin, final held) => [
+                      switch (pinRefused?.problem) {
+                        PinProblem.incorrect => pinTriesLeft(
+                          pinRefused?.attemptsLeft,
+                        ),
+                        PinProblem.required => 'Confirm with your PIN.',
+                        _ => 'Your PIN is locked.',
+                      },
+                      if (!held) 'Nothing was sent.',
+                    ].join(' '),
                     (WalletFailure.belowMinimum, _) =>
                       'Minimum withdrawal is ${naira(minimumWithdrawalKobo)}. '
                           'Nothing was sent.',

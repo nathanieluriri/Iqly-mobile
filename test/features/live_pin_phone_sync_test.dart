@@ -218,6 +218,44 @@ void main() {
       _neverKept('2580');
     });
 
+    testWidgets('Try again after a lost answer resends with the PIN under '
+        'the same key: one withdrawal', (tester) async {
+      final server = _wallet();
+      final made = <String, Map<String, Object?>>{};
+      server.routes['POST /wallet/withdrawals'] = (r) {
+        final key = r.headers['idempotency-key']!;
+        if (made.isEmpty) {
+          made[key] = withdrawalJson({'id': 'w_2', 'amount': 500000});
+          return _refused(503, 'SERVICE_UNAVAILABLE');
+        }
+        if (_body(r)['pin'] != '2580') return _refused(403, 'PIN_REQUIRED');
+        return ok(made[key] ??= withdrawalJson({'id': 'w_${made.length + 2}'}));
+      };
+      await pumpLiveLaunch(
+        tester,
+        Routes.wallet,
+        api: server.api,
+        mode: _with({LiveFeature.withdrawalPin}),
+      );
+      await _openWithdraw(tester);
+      await _type(tester, 'iQLY PIN', '2580');
+      await tester.tap(find.text('Confirm withdrawal'));
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+      expect(find.text('Couldn’t send.'), findsOneWidget);
+      await tester.tap(find.text('Try again'));
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+      final sends = server.to('POST /wallet/withdrawals');
+      expect(sends, hasLength(2));
+      expect({
+        for (final r in sends) r.headers['idempotency-key'],
+      }, hasLength(1));
+      expect(_body(sends.last)['pin'], '2580');
+      expect(made, hasLength(1));
+      expect(find.byType(WithdrawSheet), findsNothing);
+    });
+
     testWidgets('a lock says how long it holds', (tester) async {
       final server = _wallet(
         verify: (_) => _refused(

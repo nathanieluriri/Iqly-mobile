@@ -246,6 +246,49 @@ void main() {
     });
   });
 
+  test('a PIN refusal on the resend of a lost withdrawal keeps its key: '
+      'the send with the PIN makes one withdrawal, not two', () async {
+    final api = FakeApi();
+    final made = <String, Map<String, Object?>>{};
+    var calls = 0;
+    api.on('POST', '/wallet/withdrawals', (r) {
+      final key = r.headers['idempotency-key']!;
+      final pin = _body(r)['pin'];
+      if (++calls == 1) {
+        made[key] = withdrawalJson({'id': 'w_1'});
+        return refused(503, 'SERVICE_UNAVAILABLE');
+      }
+      if (pin == null) return refused(403, 'PIN_REQUIRED');
+      if (pin != '2580') {
+        return _refusedWith(403, 'PIN_INCORRECT', {'attemptsLeft': 4});
+      }
+      if (made[key] case final row?) return ok(row);
+      return ok(
+        made[key] = withdrawalJson({'id': 'w_${made.length + 1}'}),
+        status: 201,
+      );
+    });
+    final wallet = LiveWalletService(api.api());
+    Future<WithdrawResult> send(String? pin) =>
+        wallet.withdraw(amountKobo: 500000, account: _account, pin: pin);
+
+    final lost = await send('2580');
+    expect(lost.unsettled, isTrue);
+    final again = await send(null);
+    expect(again.pin!.problem, PinProblem.required);
+    expect(again.unsettled, isTrue, reason: 'still held');
+    final wrong = await send('1111');
+    expect(wrong.pin!.problem, PinProblem.incorrect);
+    expect(wrong.unsettled, isTrue);
+    final landed = await send('2580');
+    expect(landed.withdrawal, isNotNull);
+    expect(landed.earlier, isTrue);
+    expect(made, hasLength(1));
+    expect({
+      for (final r in api.requests) r.headers['idempotency-key'],
+    }, hasLength(1));
+  });
+
   group('phone codes (13.2)', () {
     test('send, refusals and verify', () async {
       final api = FakeApi();
