@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:go_router/go_router.dart';
 import 'package:http/testing.dart';
 import 'package:iqly_mobile/core/backend.dart';
 import 'package:iqly_mobile/core/session.dart';
@@ -26,6 +27,7 @@ import 'package:iqly_mobile/features/wallet/pin_sheet.dart';
 import 'package:iqly_mobile/features/wallet/withdraw_sheet.dart';
 import 'package:iqly_mobile/features/wallet/withdrawal_pin_screen.dart';
 import 'package:iqly_mobile/router.dart';
+import 'package:iqly_mobile/surfaces/surfaces.dart';
 import 'package:iqly_mobile/theme/theme.dart';
 import 'package:iqly_mobile/ui/field.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -177,6 +179,21 @@ void _neverKept(String secret) {
       expect('${p.get(key)}', isNot(contains(secret)), reason: key);
     }
   });
+}
+
+/// Surfaces that keep each set of briefs the phone schedules reminders
+/// for.
+class _Scheduling extends Surfaces {
+  _Scheduling(GoRouter router, this.scheduled)
+    : super(router: router, signedIn: () => true, tabRoots: const {'/'});
+
+  final List<Set<String>> scheduled;
+
+  @override
+  Future<void> syncCloseReminders(
+    Iterable<Brief> briefs, {
+    Set<String> keep = const {},
+  }) async => scheduled.add({for (final b in briefs) b.id, ...keep});
 }
 
 void main() {
@@ -552,6 +569,7 @@ void main() {
       _Server server, {
       required Backend mode,
       Map<String, Object> prefs = const {},
+      Surfaces Function(GoRouter router)? surfaces,
     }) async {
       final store = MemoryLocalStore(clock: () => launchNow);
       final (container, _) = await pumpLiveLaunch(
@@ -561,6 +579,12 @@ void main() {
         store: store,
         mode: mode,
         prefs: signedInLive(prefs),
+        overrides: [
+          if (surfaces != null)
+            surfacesProvider.overrideWith(
+              (ref) => surfaces(ref.watch(routerProvider)),
+            ),
+        ],
       );
       startAccountSync(container);
       container
@@ -617,6 +641,8 @@ void main() {
         prefs: {
           SavedBriefsNotifier.key: saved,
           CloseRemindersNotifier.key: ['c_9'],
+          'sync.saved.adopted.u_1': true,
+          'sync.reminder.adopted.u_1': true,
         },
       );
       expect(
@@ -643,6 +669,42 @@ void main() {
         'offsetsMinutes': [60],
       });
       expect(await _await(tester, store.outbox('u_1')), isEmpty);
+    });
+
+    testWidgets('the first sync on a phone keeps the marks kept only on it: '
+        'they go to the API, stay listed, and the reminder stays '
+        'scheduled', (tester) async {
+      final server = marks();
+      server.routes['PUT /me/close-reminders/c_2'] = (r) =>
+          ok({'challengeId': 'c_2', ..._body(r)});
+      final scheduled = <Set<String>>[];
+      final (c, store) = await launch(
+        tester,
+        server,
+        mode: _with({
+          LiveFeature.savedBriefsSync,
+          LiveFeature.closeRemindersSync,
+        }),
+        prefs: {
+          SavedBriefsNotifier.key: saved,
+          CloseRemindersNotifier.key: ['c_2'],
+        },
+        surfaces: (router) => _Scheduling(router, scheduled),
+      );
+      expect(
+        [for (final b in c.read(savedBriefsProvider).value!) b.id],
+        ['c_1', 'c_2'],
+      );
+      expect(c.read(closeRemindersProvider).value, {'c_2', 'c_1'});
+      expect(server.to('PUT /me/saved-briefs/c_1'), hasLength(1));
+      expect(_body(server.to('PUT /me/close-reminders/c_2').single), {
+        'offsetsMinutes': [60],
+      });
+      expect(scheduled.last, {'c_2', 'c_1'});
+      final prefs = c.read(sharedPreferencesProvider);
+      expect(prefs.getBool('sync.saved.adopted.u_1'), isTrue);
+      expect(prefs.getBool('sync.reminder.adopted.u_1'), isTrue);
+      await c.read(outboxProvider).stop();
     });
 
     testWidgets('a change not yet sent wins over the pull until it goes', (

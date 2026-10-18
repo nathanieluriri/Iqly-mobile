@@ -2387,10 +2387,15 @@ class _Recording extends http.BaseClient {
 
 /// A person of the seed signed in through the app's own auth on their own
 /// client: the PIN, phone and upload services take it as they are.
-Future<ApiClient> _signedIn(String base, String email, String password) async {
+Future<ApiClient> _signedIn(
+  String base,
+  String email,
+  String password, {
+  http.Client? client,
+}) async {
   final api = ApiClient(
     tokens: MemoryTokenStore(),
-    client: http.Client(),
+    client: client ?? http.Client(),
     baseUrl: base,
     appVersion: '0.5.0+5',
     platform: 'android',
@@ -2663,6 +2668,60 @@ void _contract13(String? base) {
         await outbox.discard(failed.single.id);
       });
 
+      test('the first sync on a phone sends the marks kept only on it '
+          'before a pull can drop them', () async {
+        final prefs = container.read(sharedPreferencesProvider);
+        final closed = (await repository().brief(seed.closedBriefId))!;
+        final kept = [closed, ...container.read(savedBriefsProvider).value!];
+        await prefs.setString(
+          SavedBriefsNotifier.key,
+          jsonEncode([for (final b in kept) b.toJson()]),
+        );
+        await prefs.setStringList(CloseRemindersNotifier.key, [
+          seed.liveBriefId,
+          ...container.read(closeRemindersProvider).value!,
+        ]);
+        for (final mark in BriefMark.values) {
+          await prefs.remove(
+            container
+                .read(briefMarksSyncProvider(mark))!
+                .adoptedKey(seed.contributorId),
+          );
+        }
+        container
+          ..invalidate(savedBriefsProvider)
+          ..invalidate(closeRemindersProvider);
+        await container.read(savedBriefsProvider.future);
+        await container.read(closeRemindersProvider.future);
+        await container.read(savedBriefsProvider.notifier).pull();
+        await container.read(closeRemindersProvider.notifier).pull();
+        await drain();
+
+        final saved = await api.get('/me/saved-briefs');
+        expect([
+          for (final i in saved.data['items'] as List) i['challengeId'],
+        ], contains(seed.closedBriefId));
+        expect([
+          for (final b in container.read(savedBriefsProvider).value!) b.id,
+        ], contains(seed.closedBriefId));
+        final reminders = await api.get('/me/close-reminders');
+        expect([
+          for (final i in reminders.data['items'] as List) i['challengeId'],
+        ], containsAll([seed.liveBriefId, seed.hiddenBriefId]));
+        expect(
+          container.read(closeRemindersProvider).value,
+          containsAll([seed.liveBriefId, seed.hiddenBriefId]),
+        );
+        expect(
+          prefs.getBool(
+            container
+                .read(briefMarksSyncProvider(BriefMark.saved))!
+                .adoptedKey(seed.contributorId),
+          ),
+          isTrue,
+        );
+      });
+
       test('phone codes: the verified number, a new one by SMS, each '
           'refusal, and a different number saved clears the check', () async {
         final phones = container.read(phoneServiceProvider)!;
@@ -2891,7 +2950,13 @@ void _contract13(String? base) {
       test('the withdrawal PIN: Bob withdraws with it, wrong PINs count, '
           'five lock it, a reset by emailed code opens it, and the third '
           'lock needs the reset', () async {
-        final bob = await _signedIn(base!, at(['pin', 'email']), seed.password);
+        final losing = _LosingClient(http.Client());
+        final bob = await _signedIn(
+          base!,
+          at(['pin', 'email']),
+          seed.password,
+          client: losing,
+        );
         final pins = PinService(bob);
         final wallet = LiveWalletService(bob, bankAccounts: true);
         const account = SavedBank(
@@ -2933,6 +2998,25 @@ void _contract13(String? base) {
         );
         expect(made.withdrawal, isNotNull);
         expect((await pins.status()).attemptsLeft, 5);
+
+        Future<int> count() async =>
+            ((await bob.get('/wallet/withdrawals')).data['items'] as List)
+                .length;
+        final before = await count();
+        losing.loseNextAnswer('POST', '/wallet/withdrawals');
+        final lost = await wallet.withdraw(
+          amountKobo: 100000,
+          account: account,
+          pin: pin,
+        );
+        expect(lost.unsettled, isTrue);
+        final again = await wallet.withdraw(
+          amountKobo: 100000,
+          account: account,
+        );
+        expect(again.withdrawal, isNotNull, reason: '${again.failure}');
+        expect(again.earlier, isTrue);
+        expect(await count(), before + 1, reason: 'one key, one withdrawal');
 
         expect(
           (await refusal(pins.change('0000', '1357'))).problem,
@@ -2998,13 +3082,15 @@ void _contract13(String? base) {
           PinProblem.resetRequired,
         );
         expect((await pins.status()).resetRequired, isTrue);
+        // Withdrawals are limited to 5 a minute per person.
+        await Future<void>.delayed(const Duration(seconds: 61));
         final blocked = await wallet.withdraw(
           amountKobo: 100000,
           account: account,
           pin: '2468',
         );
         expect(blocked.pin!.problem, PinProblem.resetRequired);
-      });
+      }, timeout: const Timeout(Duration(minutes: 4)));
 
       test(
         'a first PIN with the password; a wrong password is refused',

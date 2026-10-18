@@ -16,6 +16,7 @@ import '../../data/local/local_providers.dart';
 import '../../data/onboarding_service.dart';
 import '../../data/referrals_service.dart' show inviteCodeOutcome;
 import '../../router.dart';
+import '../../ui/toast.dart';
 import '../discover/discover_state.dart';
 import '../drafts/drafts_state.dart';
 import '../onboarding/onboarding_draft.dart';
@@ -86,6 +87,16 @@ final accountSyncProvider = Provider<void>((ref) {
       unawaited(ref.read(draftsProvider.notifier).discard([briefId]));
       ref.read(mySubmissionsProvider.notifier).refreshQuietly();
     },
+    onRefused: (userId, briefId, code) {
+      if (!signedIn(userId) || !ref.mounted) return;
+      final context = ref
+          .read(routerProvider)
+          .routerDelegate
+          .navigatorKey
+          .currentContext;
+      if (context == null || !context.mounted) return;
+      IqToast.show(context, queuedSendFailed, kind: IqToastKind.error);
+    },
   );
   final locked = ref.read(backendProvider.notifier).locked;
   ref.listen(sessionProvider.select((s) => s.signedIn ? s.userId : null), (
@@ -104,6 +115,10 @@ final accountSyncProvider = Provider<void>((ref) {
     );
   }, fireImmediately: true);
 });
+
+/// An entry that waited for the network and was refused once it went: its
+/// draft is still on the phone (481:21472's words).
+const queuedSendFailed = 'Couldn’t send. Your draft is saved on this phone.';
 
 /// Keeps the account's writes running for the app's life. They are
 /// listened to rather than read, so the mode the splash settles after

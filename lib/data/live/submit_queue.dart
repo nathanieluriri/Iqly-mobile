@@ -171,6 +171,9 @@ class SubmitQueue {
 
   final AccountLink link;
 
+  /// The queued sends a screen is waiting on; it says itself how they went.
+  static final waiting = <String>{};
+
   /// How long the screen waits for the outbox's first answer.
   final Duration wait;
 
@@ -208,6 +211,7 @@ class SubmitQueue {
       if (result != null && !done.isCompleted) done.complete(result);
     }
 
+    waiting.add(id);
     final changes = link.outbox.watch().listen((_) => unawaited(check()));
     try {
       return await done.future.timeout(
@@ -215,6 +219,7 @@ class SubmitQueue {
         onTimeout: () => const SubmitResult.queued(),
       );
     } finally {
+      waiting.remove(id);
       await changes.cancel();
     }
   }
@@ -267,6 +272,7 @@ void registerSubmitWrites(
   LocalStore store, {
   required bool live,
   void Function(String userId, String briefId)? onSent,
+  void Function(String userId, String briefId, String code)? onRefused,
 }) {
   if (!live) {
     outbox.unregister(submitKind);
@@ -315,6 +321,10 @@ void registerSubmitWrites(
       serverRef: submissionId,
     );
     if (result is OutboxDone) onSent?.call(item.userId, briefId);
+    if (result case OutboxFail(:final code)
+        when !SubmitQueue.waiting.contains(item.id)) {
+      onRefused?.call(item.userId, briefId, code);
+    }
     return result;
   });
 }

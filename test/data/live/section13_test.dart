@@ -741,6 +741,38 @@ void main() {
       );
     });
 
+    test('a queued send refused once no screen waits on it is told, so the '
+        'person hears of it', () async {
+      final api = FakeApi();
+      api.on(
+        'POST',
+        '/submissions/challenges/c_1',
+        (_) => refused(404, 'SUBMISSION_UPLOAD_NOT_FOUND'),
+      );
+      final store = MemoryLocalStore(clock: () => _now);
+      final outbox = Outbox(store, clock: () => _now);
+      final told = <String>[];
+      registerSubmitWrites(
+        outbox,
+        api.api(),
+        store,
+        live: true,
+        onRefused: (user, brief, code) => told.add('$user $brief $code'),
+      );
+      await store.enqueue(
+        'u_1',
+        kind: submitKind,
+        payload: {
+          'challengeId': 'c_1',
+          'title': 'Sunday is data day',
+          'body': '<p>Give a bonus bundle on Sundays.</p>',
+          'uploadIds': ['up_1'],
+        },
+      );
+      await outbox.start('u_1');
+      expect(told, ['u_1 c_1 SUBMISSION_UPLOAD_NOT_FOUND']);
+    });
+
     test('online, the screen hears the answer; each refusal maps', () async {
       final api = FakeApi();
       final codes = [

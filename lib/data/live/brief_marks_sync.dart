@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/backend.dart';
 import '../../core/session.dart';
@@ -60,6 +61,29 @@ class BriefMarksSync {
       payload: {'challengeId': briefId, 'offsetsMinutes': ?offsets},
       coalesceKey: mark.coalesceKey(briefId),
     );
+  }
+
+  /// Set once an account's marks on this phone have gone to the API.
+  String adoptedKey(String userId) => 'sync.${mark.name}.adopted.$userId';
+
+  /// [pull], except on the account's first sync on this phone: live
+  /// launches before kept the marks on the phone only, so the ones the API
+  /// lacks are queued first and nothing kept here is lost. [local] is the
+  /// phone's list, newest first.
+  Future<List<String>> pullKeeping(
+    List<String> local,
+    SharedPreferences prefs, {
+    List<int>? offsets,
+  }) async {
+    final user = link.userId();
+    final key = user == null ? null : adoptedKey(user);
+    if (key == null || (prefs.getBool(key) ?? false)) return pull();
+    final known = (await pull()).toSet();
+    for (final id in local.reversed) {
+      if (!known.contains(id)) await set(id, true, offsets: offsets);
+    }
+    await prefs.setBool(key, true);
+    return pull();
   }
 
   /// The briefs marked, newest first: the API's list with this phone's

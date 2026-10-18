@@ -449,7 +449,9 @@ class SavedBriefsNotifier extends AsyncNotifier<List<Brief>> {
     final scope = ref.read(accountScopeProvider);
     try {
       final before = await future;
-      final ids = await sync.pull();
+      final ids = await sync.pullKeeping([
+        for (final b in before) b.id,
+      ], ref.read(sharedPreferencesProvider));
       final known = {for (final b in before) b.id: b};
       final repository = ref.read(repositoryProvider);
       final briefs = <Brief>[];
@@ -546,7 +548,11 @@ class CloseRemindersNotifier extends AsyncNotifier<Set<String>> {
     final scope = ref.read(accountScopeProvider);
     try {
       final before = await future;
-      final ids = await sync.pull();
+      final ids = await sync.pullKeeping(
+        [...before],
+        ref.read(sharedPreferencesProvider),
+        offsets: AppConfig.current.closeReminderOffsets,
+      );
       if (!scope.open || !ref.mounted || !identical(state.value, before)) {
         return;
       }
