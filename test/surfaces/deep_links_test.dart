@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/deep_links.dart';
+import 'package:iqly_mobile/features/help/help_routes.dart';
 import 'package:iqly_mobile/router.dart';
 
 void main() {
@@ -12,6 +13,16 @@ void main() {
     expect(DeepLinks.submit('c5'), Routes.submitTo('c5'));
     expect(DeepLinks.withdrawal('w3'), '/wallet/withdrawals/w3');
     expect(Routes.withdrawal, DeepLinks.withdrawalPattern);
+    expect(DeepLinks.helpThread('t_1'), helpThreadPath('t_1'));
+    expect(DeepLinks.referrals, Routes.referrals);
+    expect(DeepLinks.referralHistory, Routes.referralHistory);
+  });
+
+  test('the support and referral pushes open their pages', () {
+    expect(DeepLinks.route('/help/t_1'), '/help/t_1');
+    expect(DeepLinks.route('iqly://app/referrals'), '/referrals');
+    expect(DeepLinks.route('/referrals/history'), '/referrals/history');
+    expect(DeepLinks.route('/help'), isNull);
   });
 
   test('uri and route round trip', () {

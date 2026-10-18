@@ -21,6 +21,7 @@ import '../more/more_state.dart';
 import '../more/more_widgets.dart';
 import '../onboarding/onboarding_draft.dart';
 import '../referrals/referrals_screen.dart';
+import '../referrals/referrals_state.dart' show referralTermsProvider;
 
 /// B7 · Your profile (40:24; 7 Oct, settings style): the big centred avatar
 /// with its pencil (both open Choose your avatar), the name and the invite
@@ -149,9 +150,12 @@ class ProfileScreen extends ConsumerWidget {
               if (referrals)
                 IqListRow(
                   label: 'Invite friends',
-                  description: ref.watch(referralRewardsProvider)
-                      ? '${referralReward()} when a friend wins a brief'
-                      : 'Share your invite code',
+                  description: switch (ref
+                      .watch(referralTermsProvider)
+                      ?.inviterReward) {
+                    final reward? => '$reward when a friend wins a brief',
+                    null => 'Share your invite code',
+                  },
                   icon: IqIcons.gift,
                   onTap: () => context.open(Routes.referrals),
                 ),

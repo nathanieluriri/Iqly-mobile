@@ -12,6 +12,7 @@ import '../../core/responsive.dart';
 import '../../data/cache_service.dart';
 import '../../data/live/live_repository.dart' show liveModeProvider;
 import '../../data/pin_service.dart';
+import '../help/help_state.dart' show supportUnreadProvider;
 import '../../data/referrals_service.dart';
 import '../../data/repository.dart';
 import '../../router.dart';
@@ -32,6 +33,7 @@ import '../onboarding/onboarding_draft.dart';
 import '../profile/profile_state.dart';
 import '../profile/leaving.dart';
 import '../referrals/referrals_screen.dart';
+import '../referrals/referrals_state.dart' show referralTermsProvider;
 import '../wallet/wallet_routes.dart' show bankAccountPath;
 import 'more_state.dart';
 import 'more_widgets.dart';
@@ -133,9 +135,12 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
                         onTap: () => context.open(Routes.referrals),
                         label: 'Referrals',
                         child: IqReferralCard(
-                          title: ref.watch(referralRewardsProvider)
-                              ? 'Invite friends, earn ${referralReward()}'
-                              : 'Invite friends to iQLY',
+                          title: switch (ref
+                              .watch(referralTermsProvider)
+                              ?.inviterReward) {
+                            final reward? => 'Invite friends, earn $reward',
+                            null => 'Invite friends to iQLY',
+                          },
                           code: code,
                           onCopy: () => copyInviteCode(context, code),
                         ),
@@ -202,6 +207,7 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
             label: 'Help centre',
             showDescription: false,
             icon: IqIcons.lifebuoy,
+            count: ref.watch(supportUnreadProvider).value ?? 0,
             onTap: () => context.open(Routes.helpCentre),
           ),
           IqListRow(

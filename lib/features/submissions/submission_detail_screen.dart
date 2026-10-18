@@ -8,21 +8,26 @@ import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
+import '../../data/outcomes_data.dart' show BusinessNote;
+import '../../data/outcomes_service.dart' show businessNoteShownProvider;
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/brief_hero.dart';
 import '../../ui/button.dart';
 import '../../ui/meta.dart';
+import '../../ui/section_title.dart';
 import '../../ui/skeleton.dart';
 import '../../ui/top_bar.dart';
+import '../outcomes/business_note.dart';
 import 'brief_art.dart';
 import 'submissions_state.dart';
 
 /// B4 Submission detail (35:146), a sub page: the brief's photo with the
 /// business logo, who it is for and the status, your title, when you sent
 /// it and the brief, the pool and deadline, your answer and when results
-/// come. View the brief opens Brief detail. From a card the submission is
+/// come, and the business's note once its results are out (contract
+/// 12.2). View the brief opens Brief detail. From a card the submission is
 /// already on the device, so it draws from the first frame; only a cold
 /// open waits behind LoadingGate.
 class SubmissionDetailScreen extends ConsumerWidget {
@@ -62,7 +67,13 @@ class SubmissionDetailScreen extends ConsumerWidget {
                     loading: item == null && loaded.isLoading,
                     skeleton: const _Skeleton(),
                     child: item != null
-                        ? _Body(item: item, now: ref.watch(clockProvider)())
+                        ? _Body(
+                            item: item,
+                            now: ref.watch(clockProvider)(),
+                            note: ref.watch(businessNoteShownProvider)
+                                ? item.submission.note
+                                : null,
+                          )
                         : loaded.hasError
                         ? Padding(
                             padding: const EdgeInsets.symmetric(
@@ -149,10 +160,13 @@ class _Skeleton extends StatelessWidget {
 }
 
 class _Body extends StatelessWidget {
-  const _Body({required this.item, required this.now});
+  const _Body({required this.item, required this.now, this.note});
 
   final SubmissionItem item;
   final DateTime now;
+
+  /// The business's note to the author, once its results are out.
+  final BusinessNote? note;
 
   @override
   Widget build(BuildContext context) {
@@ -271,6 +285,26 @@ class _Body extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (note case final note?) ...[
+                    gap(),
+                    const StaggerItem(
+                      index: 4,
+                      child: IqSectionTitle(
+                        title: 'A note from the business',
+                        showCount: false,
+                        showLink: false,
+                      ),
+                    ),
+                    gap(),
+                    StaggerItem(
+                      index: 5,
+                      child: BusinessNoteView(
+                        note: note,
+                        brief: brief,
+                        now: now,
+                      ),
+                    ),
+                  ],
                   if (item.underReview) ...[
                     gap(),
                     StaggerItem(

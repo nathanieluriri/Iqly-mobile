@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/deadline.dart';
+import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
@@ -18,6 +19,7 @@ import '../../ui/skeleton.dart';
 import '../../ui/top_bar.dart';
 import '../discover/business_art.dart';
 import '../discover/discover_routes.dart';
+import '../settings/restore_account_screen.dart' show showClosingAccount;
 import 'polls_state.dart';
 
 /// B2 · Polls · Orchid Foods · open (33:169), voted (33:289) and done
@@ -160,20 +162,40 @@ class _Polls extends ConsumerStatefulWidget {
 
 class _PollsState extends ConsumerState<_Polls> {
   final _picks = <String, int>{};
-  bool _failed = false;
+  String? _failed;
+  bool _looked = false;
 
   Future<void> _vote(Poll poll, int choice) async {
     if (_picks.isNotEmpty) return;
     setState(() => _picks[poll.id] = choice);
-    final counted = await ref
+    final outcome = await ref
         .read(pollsProvider.notifier)
         .vote(poll.id, choice);
     if (!mounted) return;
     setState(() {
       _picks.remove(poll.id);
-      _failed = !counted;
+      _failed = switch (outcome) {
+        VoteOutcome.counted => null,
+        VoteOutcome.offline => 'Couldn’t send. Check your connection.',
+        VoteOutcome.closing when Flags.deleteAccount => null,
+        VoteOutcome.refused || VoteOutcome.closing => 'Couldn’t send.',
+      };
     });
-    if (!counted) errorHaptic();
+    if (outcome == VoteOutcome.counted) return;
+    errorHaptic();
+    if (outcome == VoteOutcome.closing && Flags.deleteAccount) {
+      await showClosingAccount(context, ref);
+    }
+  }
+
+  /// A sheet opened for a business the list has not got yet (a push for a
+  /// poll that came after the list loaded) reads the list again, once.
+  void _lookFor() {
+    if (_looked || !ref.read(pollsProvider).hasValue) return;
+    _looked = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(pollsProvider.notifier).refreshQuietly();
+    });
   }
 
   @override
@@ -182,6 +204,7 @@ class _PollsState extends ConsumerState<_Polls> {
     final now = ref.watch(clockProvider)();
     final leading = widget.layout == IqBrandHeaderLayout.leading;
     if (business == null) {
+      _lookFor();
       return const Padding(
         padding: EdgeInsets.symmetric(horizontal: IqSpace.s4),
         child: Align(alignment: Alignment.topCenter, child: IqSkeleton()),
@@ -198,7 +221,7 @@ class _PollsState extends ConsumerState<_Polls> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          inset(_FailedVote(shown: _failed)),
+          inset(_FailedVote(title: _failed)),
           IqBrandHeader(
             layout: widget.layout,
             brand: business.name,
@@ -246,17 +269,20 @@ class _PollsState extends ConsumerState<_Polls> {
   }
 }
 
-/// The error banner over the polls when a vote did not go in. It opens its
-/// slot as it slides down (240 ms) and closes it again (180 ms) once a vote
-/// counts; under reduced motion it fades and the polls move in one step.
+/// The error banner over the polls when a vote did not go in: no answer
+/// from the API, or a refusal ([title] keeps the first sentence then, as
+/// the withdraw sheet does). It opens its slot as it slides down (240 ms)
+/// and closes it again (180 ms) once a vote counts; under reduced motion it
+/// fades and the polls move in one step.
 class _FailedVote extends StatelessWidget {
-  const _FailedVote({required this.shown});
+  const _FailedVote({required this.title});
 
-  final bool shown;
+  final String? title;
 
   @override
   Widget build(BuildContext context) {
     final reduced = MediaQuery.disableAnimationsOf(context);
+    final title = this.title;
     return AnimatedSwitcher(
       duration: motion(context, IqDurations.mark, fade: true),
       reverseDuration: motion(context, IqDurations.ink, fade: true),
@@ -269,13 +295,13 @@ class _FailedVote extends StatelessWidget {
               alignment: Alignment.topCenter,
               child: FadeTransition(opacity: animation, child: child),
             ),
-      child: shown
-          ? const Padding(
-              key: ValueKey(true),
-              padding: EdgeInsets.only(bottom: IqSpace.s3),
+      child: title != null
+          ? Padding(
+              key: ValueKey(title),
+              padding: const EdgeInsets.only(bottom: IqSpace.s3),
               child: IqBanner(
                 kind: IqBannerKind.error,
-                title: 'Couldn’t send. Check your connection.',
+                title: title,
                 showAction: false,
               ),
             )

@@ -26,6 +26,7 @@ class IqAvatarChoice extends StatelessWidget {
     this.emoji = '😄',
     this.semanticLabel,
     this.onTap,
+    this.onLongPress,
   });
 
   final IqAvatarChoiceKind kind;
@@ -34,6 +35,9 @@ class IqAvatarChoice extends StatelessWidget {
   final String emoji;
   final String? semanticLabel;
   final VoidCallback? onTap;
+
+  /// Not a Figma prop: holding the saved photo offers to remove it.
+  final VoidCallback? onLongPress;
 
   static const double size = 82;
   static const double emojiSize = 57;
@@ -77,6 +81,7 @@ class IqAvatarChoice extends StatelessWidget {
       button: true,
       child: IqPressable(
         onTap: onTap,
+        onLongPress: onLongPress,
         semanticLabel: semanticLabel,
         haptic: IqHaptics.select,
         builder: (context, pressed) => PressDim(

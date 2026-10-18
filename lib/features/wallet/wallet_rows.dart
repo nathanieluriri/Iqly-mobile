@@ -96,7 +96,9 @@ class WalletActivityRow extends StatelessWidget {
         return (
           award.business ?? 'Activation',
           award.note ?? 'activation',
-          _logo(award.business),
+          award.activationId == null
+              ? _logo(award.business)
+              : const IqSampleLogo(IqSampleLogoBrand.private, size: 40),
         );
       case RewardSource.referral:
         return (

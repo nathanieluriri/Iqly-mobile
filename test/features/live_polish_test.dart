@@ -26,6 +26,7 @@ import 'package:iqly_mobile/ui/icon.dart';
 import 'package:iqly_mobile/ui/segmented.dart';
 import 'package:iqly_mobile/ui/wallet_card.dart';
 
+import '../data/live/live_data_fixtures.dart' show firstFeatures;
 import '../golden/screens/app_harness.dart';
 import '../golden/screens/more_harness.dart' show pumpMore;
 import '../golden/screens/wallet_harness.dart';
@@ -62,11 +63,11 @@ class _SlowSignOut extends DemoAuthService {
 }
 
 void main() {
-  group('a live launch hides polls and activations', () {
+  group('a live launch without polls and activations hides them', () {
     test('their routes are hidden; a preview launch keeps them', () {
       final live = ProviderContainer(
         overrides: [
-          liveModeProvider.overrideWithValue(Backend.of(LiveFeature.values)),
+          liveModeProvider.overrideWithValue(Backend.of(firstFeatures)),
         ],
       );
       addTearDown(live.dispose);

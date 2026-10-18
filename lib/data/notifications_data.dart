@@ -55,8 +55,11 @@ class NotificationFacts {
     required this.body,
     this.amountKobo,
     this.submissionId,
+    this.ticketId,
     this.brief,
     this.withdrawal,
+    this.pollId,
+    this.activationId,
   });
 
   final String type;
@@ -64,7 +67,14 @@ class NotificationFacts {
   final String body;
   final int? amountKobo;
   final String? submissionId;
+
+  /// The help thread support answered (`support` rows).
+  final String? ticketId;
   final NotificationBrief? brief;
+
+  /// The poll or activation the row is about (contract 11).
+  final String? pollId;
+  final String? activationId;
 
   /// As embedded: the amount, status, bank, last 4 digits and reference.
   final Withdrawal? withdrawal;

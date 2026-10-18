@@ -142,6 +142,8 @@ abstract final class AccountKeys {
   static const avatar = 'avatar';
   static const referrals = 'referrals';
   static const bankAccounts = 'bankAccounts';
+  static const polls = 'polls';
+  static const activations = 'activations';
 
   static String outcome(String submissionId) => 'outcomes/$submissionId';
 }

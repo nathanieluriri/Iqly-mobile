@@ -351,6 +351,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       if (ref.read(pollsShownProvider)) {
         ref.read(pollsProvider.notifier).refreshQuietly();
       }
+      if (ref.read(activationsShownProvider)) {
+        ref.read(activationsProvider.notifier).refreshQuietly();
+      }
       // The tab is told before the dock switch shows it.
       WidgetsBinding.instance.addPostFrameCallback((_) => _offerUpdate());
     });
@@ -657,8 +660,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ),
   );
 
-  /// Quick polls and the Activations block, each behind its flag and only
-  /// in a preview launch.
+  /// Quick polls and the Activations block, each behind its flag and, in a
+  /// live launch, only while the API runs it.
   List<_Item> _proposals() {
     final businesses = ref.watch(pollsShownProvider)
         ? ref.watch(pollsProvider).value ?? const <PollBusiness>[]

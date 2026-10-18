@@ -4,22 +4,30 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
+import '../../core/transitions.dart';
 import '../../data/activations_data.dart';
 import '../../data/app_config.dart';
 import '../../data/help_data.dart';
+import '../../data/help_service.dart';
+import '../../data/support_files.dart' show SupportSource;
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/button.dart';
 import '../../ui/confirm_sheet.dart';
 import '../../ui/field.dart';
+import '../../ui/icon.dart';
+import '../../ui/list_row.dart';
 import '../../ui/proof_tile.dart';
 import '../../ui/top_bar.dart';
 import '../../ui/video_preview.dart';
 import '../activations/activations_state.dart';
 import '../activations/activations_widgets.dart';
 import '../discover/discover_routes.dart';
+import '../more/more_widgets.dart' show RowGroup;
+import '../settings/restore_account_screen.dart';
 import 'help_routes.dart';
 import 'help_state.dart';
 
@@ -69,6 +77,10 @@ class _HelpRequestScreenState extends ConsumerState<HelpRequestScreen> {
     if (ticket == null) {
       setState(() => _shakes++);
       errorHaptic();
+      if (ref.read(helpDraftProvider).failure == HelpFailure.closing &&
+          Flags.deleteAccount) {
+        await showClosingAccount(context, ref);
+      }
       return;
     }
     IqHaptics.success.play();
@@ -76,6 +88,19 @@ class _HelpRequestScreenState extends ConsumerState<HelpRequestScreen> {
       helpThreadPath(ticket.id),
       extra: HelpThreadEntry.sent,
     );
+  }
+
+  /// A preview picks the frame's recording; on the API the person picks a
+  /// picture or a recording from their photos, or a voice note.
+  Future<void> _add(Activation? activation) async {
+    final notifier = ref.read(helpDraftProvider.notifier);
+    if (!ref.read(supportLiveProvider)) {
+      notifier.addRecording(about: activation?.business);
+      return;
+    }
+    final source = await _chooseSource(context);
+    if (source == null || !mounted) return;
+    notifier.addRecording(about: activation?.business, source: source);
   }
 
   Future<void> _remove() async {
@@ -125,7 +150,10 @@ class _HelpRequestScreenState extends ConsumerState<HelpRequestScreen> {
                       children: [
                         Shake(
                           trigger: _shakes,
-                          child: _SendFailed(shown: draft.failed),
+                          child: _SendFailed(
+                            shown: draft.failed,
+                            title: helpFailureText(draft.failure),
+                          ),
                         ),
                         Text(
                           DemoHelp.replyLine,
@@ -163,10 +191,11 @@ class _HelpRequestScreenState extends ConsumerState<HelpRequestScreen> {
                         const SizedBox(height: IqSpace.s4),
                         _Recording(
                           draft: draft,
-                          onAdd: () => ref
-                              .read(helpDraftProvider.notifier)
-                              .addRecording(about: activation?.business),
+                          onAdd: () => _add(activation),
                           onRemove: _remove,
+                          onRetry: ref
+                              .read(helpDraftProvider.notifier)
+                              .retryUpload,
                         ),
                       ],
                     ),
@@ -214,11 +243,13 @@ class _Recording extends StatelessWidget {
     required this.draft,
     required this.onAdd,
     required this.onRemove,
+    required this.onRetry,
   });
 
   final HelpDraft draft;
   final VoidCallback onAdd;
   final VoidCallback onRemove;
+  final VoidCallback onRetry;
 
   static const _tile = ValueKey('tile');
   static const _preview = ValueKey('preview');
@@ -227,8 +258,18 @@ class _Recording extends StatelessWidget {
   Widget build(BuildContext context) {
     final upload = draft.upload;
     final recording = draft.recording;
+    final unsent = draft.unsent;
+    final refused = draft.refused;
     final Widget shown;
-    if (upload != null) {
+    if (unsent != null && upload == null) {
+      shown = IqVideoPreview(
+        key: _preview,
+        state: IqVideoPreviewState.failed,
+        name: unsent.name,
+        onRetry: onRetry,
+        onRemove: onRemove,
+      );
+    } else if (upload != null) {
       shown = IqVideoPreview(
         key: _preview,
         state: IqVideoPreviewState.uploading,
@@ -242,12 +283,21 @@ class _Recording extends StatelessWidget {
       shown = IqVideoPreview(
         key: _preview,
         name: recording.name,
-        duration: recording.lengthLabel,
+        duration: recording.lengthLabel ?? '',
         meta: '${recording.sizeLabel} · uploaded, ready to send',
         thumbnail: recording.source == null
             ? null
             : ProofFrame(source: recording.source),
         onRemove: onRemove,
+      );
+    } else if (refused != null) {
+      final words = helpRefusalWords(refused, draft.refusedKind);
+      shown = IqProofTile(
+        key: _tile,
+        state: IqProofTileState.error,
+        title: words.title,
+        hint: words.title == null ? null : words.hint,
+        onTap: onAdd,
       );
     } else {
       shown = IqProofTile(key: _tile, onTap: onAdd);
@@ -292,9 +342,10 @@ class _Recording extends StatelessWidget {
 /// opens its slot as it slides down (240 ms) and closes it (180 ms) once
 /// the person edits or sends again. Reduced motion: it fades in place.
 class _SendFailed extends StatelessWidget {
-  const _SendFailed({required this.shown});
+  const _SendFailed({required this.shown, required this.title});
 
   final bool shown;
+  final String title;
 
   @override
   Widget build(BuildContext context) {
@@ -312,16 +363,60 @@ class _SendFailed extends StatelessWidget {
               child: FadeTransition(opacity: animation, child: child),
             ),
       child: shown
-          ? const Padding(
-              key: ValueKey(true),
-              padding: EdgeInsets.only(bottom: IqSpace.s3),
+          ? Padding(
+              key: const ValueKey(true),
+              padding: const EdgeInsets.only(bottom: IqSpace.s3),
               child: IqBanner(
                 kind: IqBannerKind.error,
-                title: 'Couldn’t send. Check your connection.',
+                title: title,
                 showAction: false,
               ),
             )
           : const SizedBox(key: ValueKey(false), width: double.infinity),
     );
   }
+}
+
+/// Photos or a voice note for a help request. No frame draws the choice,
+/// so it is the app's own sheet of two rows, as Use a photo's is.
+Future<SupportSource?> _chooseSource(BuildContext context) {
+  return showIqSheet<SupportSource>(
+    context,
+    scrim: IqScrim.picker,
+    (context) => Material(
+      type: MaterialType.transparency,
+      child: Container(
+        decoration: const BoxDecoration(
+          color: IqColors.bg,
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(IqConfirmSheet.radius),
+          ),
+        ),
+        padding: EdgeInsets.fromLTRB(
+          IqSpace.s4,
+          IqSpace.s6,
+          IqSpace.s4,
+          IqSpace.s4 + MediaQuery.viewPaddingOf(context).bottom,
+        ),
+        child: RowGroup(
+          outlined: true,
+          children: [
+            IqListRow(
+              label: 'Choose from your photos',
+              showDescription: false,
+              icon: IqIcons.background,
+              onTap: () => Navigator.of(context).pop(SupportSource.photos),
+            ),
+            IqListRow(
+              label: 'Choose a voice note',
+              showDescription: false,
+              icon: IqIcons.headset,
+              divider: false,
+              onTap: () => Navigator.of(context).pop(SupportSource.voiceNote),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }

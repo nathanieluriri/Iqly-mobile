@@ -6,27 +6,65 @@ enum HelpTicketStatus { open, replied, resolved }
 
 enum HelpAuthor { you, support }
 
-/// A screen recording sent with a message. [source] is where it plays from;
-/// the demo's recordings have none.
+enum HelpAttachmentKind { image, video, audio }
+
+/// A file sent with a message: a screen recording in the frames, and on the
+/// live API also a picture or a voice note. [source] is where it plays from
+/// (the demo's recordings have none); [id] is the API's upload, [url] where
+/// the API serves it (with the bearer token) and [read] the picked file's
+/// bytes until it is uploaded.
 class HelpAttachment {
   const HelpAttachment({
     required this.name,
-    required this.length,
     required this.bytes,
+    this.length,
     this.source,
+    this.id,
+    this.kind = HelpAttachmentKind.video,
+    this.mime,
+    this.url,
+    this.read,
   });
 
   final String name;
-  final Duration length;
+  final Duration? length;
   final int bytes;
   final Uri? source;
+  final String? id;
+  final HelpAttachmentKind kind;
+  final String? mime;
+  final Uri? url;
+  final Future<List<int>> Function()? read;
 
-  /// "0:31".
-  String get lengthLabel =>
-      '${length.inMinutes}:${(length.inSeconds % 60).toString().padLeft(2, '0')}';
+  /// "0:31", null for a picture or an unknown length.
+  String? get lengthLabel {
+    final length = this.length;
+    if (length == null) return null;
+    return '${length.inMinutes}:${(length.inSeconds % 60).toString().padLeft(2, '0')}';
+  }
 
-  /// "12 MB".
-  String get sizeLabel => '${(bytes / 1000000).round()} MB';
+  /// "12 MB", or "68 KB" under a megabyte.
+  String get sizeLabel => bytes >= 1000000
+      ? '${(bytes / 1000000).round()} MB'
+      : '${(bytes / 1000).ceil()} KB';
+
+  /// Uploaded as [id], as the API answered it.
+  HelpAttachment uploaded({
+    required String id,
+    String? name,
+    int? bytes,
+    Duration? length,
+    HelpAttachmentKind? kind,
+    String? mime,
+  }) => HelpAttachment(
+    name: name ?? this.name,
+    bytes: bytes ?? this.bytes,
+    length: length ?? this.length,
+    source: source,
+    id: id,
+    kind: kind ?? this.kind,
+    mime: mime ?? this.mime,
+  );
 }
 
 class HelpMessage {
@@ -35,12 +73,18 @@ class HelpMessage {
     required this.body,
     required this.at,
     this.attachment,
+    this.more = const [],
   });
 
   final HelpAuthor author;
   final String body;
   final DateTime at;
   final HelpAttachment? attachment;
+
+  /// What else the API says was sent with it (up to three in all).
+  final List<HelpAttachment> more;
+
+  List<HelpAttachment> get attachments => [?attachment, ...more];
 }
 
 /// A help thread: what it is about, its messages oldest first, whether
@@ -55,12 +99,22 @@ class HelpTicket {
     this.supportTyping = false,
     this.credit,
     this.unread = false,
+    this.reference,
+    this.lastAt,
   });
 
   final String id;
   final String subject;
   final HelpTicketStatus status;
+
+  /// Oldest first. An inbox row from the API holds only its last message.
   final List<HelpMessage> messages;
+
+  /// "IQ-HELP-2041", from the API.
+  final String? reference;
+
+  /// When the API says the thread last moved, for a row with no messages.
+  final DateTime? lastAt;
 
   /// The activation the ticket is about, if any.
   final String? activationId;
@@ -73,7 +127,8 @@ class HelpTicket {
   final bool unread;
 
   /// The last message.
-  DateTime get updatedAt => messages.last.at;
+  DateTime get updatedAt =>
+      messages.isEmpty ? lastAt ?? DateTime(2000) : messages.last.at;
 
   /// Support has answered.
   bool get answered => messages.any((m) => m.author == HelpAuthor.support);
@@ -93,6 +148,8 @@ class HelpTicket {
     supportTyping: supportTyping ?? this.supportTyping,
     credit: credit ?? this.credit,
     unread: unread ?? this.unread,
+    reference: reference,
+    lastAt: lastAt,
   );
 }
 
@@ -102,11 +159,21 @@ class HelpRequest {
     required this.message,
     this.attachment,
     this.activation,
+    this.topic,
+    this.idempotencyKey,
   });
 
   final String subject;
   final String message;
   final HelpAttachment? attachment;
+
+  /// The key the screen keeps for this request until the API has answered
+  /// it for sure, so a send whose answer was lost opens one thread.
+  final String? idempotencyKey;
+
+  /// A report's topic as the API names it (`the_app`); a report's subject
+  /// is the topic as Report an issue lists it.
+  final String? topic;
 
   /// The activation the request is about, as the app had it when the
   /// request went; the live API takes its id.

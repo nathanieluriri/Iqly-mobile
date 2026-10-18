@@ -108,7 +108,8 @@ class _InviteCodeScreenState extends ConsumerState<InviteCodeScreen> {
         : InviteCodeScreen.errors[result.outcome];
     final retry =
         result != null && InviteCodeScreen.retryable.contains(result.outcome);
-    final rewards = ref.watch(referralRewardsProvider);
+    final terms = ref.watch(referralTermsProvider);
+    final reward = terms != null && terms.both ? terms.inviteeReward : null;
     final inviter = applied ? result?.inviter : _inviter;
     return SubPage(
       title: 'Invite code',
@@ -130,16 +131,15 @@ class _InviteCodeScreenState extends ConsumerState<InviteCodeScreen> {
             onSubmitted: (_) => _typed.isEmpty ? null : _apply(),
           ),
           const SizedBox(height: IqSpace.s2),
-          Text(switch ((applied, rewards)) {
-            (true, true) =>
-              'You’re in. You both get ${referralReward()} when you win your first '
+          Text(switch ((applied, reward)) {
+            (true, final reward?) =>
+              'You’re in. You both get $reward when you win your first '
                   'brief.',
-            (false, true) =>
-              'Add a code before your first brief. You both get ${referralReward()} when '
+            (false, final reward?) =>
+              'Add a code before your first brief. You both get $reward when '
                   'you win one.',
-            (true, false) =>
-              'You’re in. Your friend’s code is on your account.',
-            (false, false) =>
+            (true, null) => 'You’re in. Your friend’s code is on your account.',
+            (false, null) =>
               'Add the code of the friend who invited you. Codes work for '
                   '30 days after sign-up.',
           }, style: IqText.small.copyWith(color: IqColors.fg2)),

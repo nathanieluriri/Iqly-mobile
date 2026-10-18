@@ -10,8 +10,10 @@ import 'live_account.dart';
 
 /// A `GET /notifications` row as the app's notification (contract 7):
 /// `payout_confirmed` is a win reporting its ledger credit, the withdrawal
-/// types report their withdrawal, and every other type keeps the API's
-/// words. A row without an id or a time is dropped.
+/// types report their withdrawal, `referral_reward` its reward's ledger row
+/// (section 12.3), and every other type keeps the API's words, the poll and
+/// activation types (contract 11) among them. A row
+/// without an id or a time is dropped.
 AppNotification? notificationFromJson(Map<String, dynamic> json) {
   final id = apiText(json['id']);
   final at = apiTime(json['createdAt']);
@@ -27,6 +29,7 @@ AppNotification? notificationFromJson(Map<String, dynamic> json) {
     'payout_failed' => NotificationEvent.payoutFailed,
     'review_ready' => NotificationEvent.resultsReady,
     'deadline_extended' => NotificationEvent.deadlineExtended,
+    'referral_reward' => NotificationEvent.rewardCredited,
     _ => NotificationEvent.other,
   };
   return AppNotification(
@@ -35,7 +38,8 @@ AppNotification? notificationFromJson(Map<String, dynamic> json) {
     at: at,
     briefId: brief?.id ?? apiText(refs['challengeId']),
     entryId: switch (event) {
-      NotificationEvent.won => apiText(refs['ledgerId']),
+      NotificationEvent.won ||
+      NotificationEvent.rewardCredited => apiText(refs['ledgerId']),
       NotificationEvent.withdrawalRequested ||
       NotificationEvent.paidOut ||
       NotificationEvent.payoutFailed =>
@@ -49,8 +53,11 @@ AppNotification? notificationFromJson(Map<String, dynamic> json) {
       body: apiText(json['body']) ?? '',
       amountKobo: apiInt(json['amountKobo']),
       submissionId: apiText(refs['submissionId']),
+      ticketId: apiText(refs['ticketId']),
       brief: brief,
       withdrawal: withdrawal,
+      pollId: apiText(refs['pollId']),
+      activationId: apiText(refs['activationId']),
     ),
   );
 }

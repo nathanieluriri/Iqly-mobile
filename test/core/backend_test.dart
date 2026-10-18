@@ -107,6 +107,10 @@ void main() {
           LiveFeature.avatar,
           LiveFeature.leaderboard,
           LiveFeature.referrals,
+          LiveFeature.support,
+          LiveFeature.polls,
+          LiveFeature.businessNote,
+          LiveFeature.avatarPhoto,
           LiveFeature.phoneVerification,
           LiveFeature.savedBriefsSync,
           LiveFeature.closeRemindersSync,
@@ -222,6 +226,7 @@ void main() {
           LiveFeature.submissions,
           LiveFeature.notifications,
           LiveFeature.leaderboard,
+          LiveFeature.businessNote,
           LiveFeature.savedBriefsSync,
           LiveFeature.closeRemindersSync,
           LiveFeature.etags,
@@ -250,11 +255,43 @@ void main() {
         'avatar',
         'bankAccounts',
         'referrals',
+        'support',
+        'polls',
+        'activations',
+        'referralRewards',
+        'avatarPhoto',
         'withdrawalPin',
         'phoneVerification',
         'etags',
         'config',
       ]);
+    });
+
+    test('support needs the profile, the note submissions, rewards '
+        'referrals and the wallet, and photos the avatar', () {
+      expect(LiveFeature.support.closure, {
+        LiveFeature.support,
+        LiveFeature.profile,
+      });
+      expect(LiveFeature.businessNote.closure, {
+        LiveFeature.businessNote,
+        LiveFeature.submissions,
+        LiveFeature.briefs,
+      });
+      expect(LiveFeature.referralRewards.closure, {
+        LiveFeature.referralRewards,
+        LiveFeature.referrals,
+        LiveFeature.wallet,
+        LiveFeature.profile,
+      });
+      expect(LiveFeature.avatarPhoto.closure, {
+        LiveFeature.avatarPhoto,
+        LiveFeature.avatar,
+        LiveFeature.profile,
+      });
+      final noReferrals = _decide(_health(off: {LiveFeature.referrals}));
+      expect(noReferrals.isLive(LiveFeature.referralRewards), isFalse);
+      expect(noReferrals.isLive(LiveFeature.wallet), isTrue);
     });
 
     test('avatar and referrals need the profile, saved accounts the '
@@ -277,9 +314,24 @@ void main() {
         LiveFeature.submissions,
         LiveFeature.briefs,
       });
+      expect(LiveFeature.polls.closure, {
+        LiveFeature.polls,
+        LiveFeature.profile,
+      });
+      expect(LiveFeature.support.closure, {
+        LiveFeature.support,
+        LiveFeature.profile,
+      });
+      expect(LiveFeature.activations.closure, {
+        LiveFeature.activations,
+        LiveFeature.profile,
+        LiveFeature.wallet,
+      });
       final backend = _decide(_health(off: {LiveFeature.wallet}));
       expect(backend.isLive(LiveFeature.bankAccounts), isFalse);
+      expect(backend.isLive(LiveFeature.activations), isFalse);
       expect(backend.isLive(LiveFeature.avatar), isTrue);
+      expect(backend.isLive(LiveFeature.polls), isTrue);
     });
 
     test('section 13 features need what they call into', () {
@@ -499,6 +551,10 @@ void main() {
         'avatar',
         'leaderboard',
         'referrals',
+        'support',
+        'polls',
+        'businessNote',
+        'avatarPhoto',
         'phoneVerification',
         'savedBriefsSync',
         'closeRemindersSync',
@@ -517,6 +573,10 @@ void main() {
         'avatar',
         'leaderboard',
         'referrals',
+        'support',
+        'polls',
+        'businessNote',
+        'avatarPhoto',
         'phoneVerification',
         'savedBriefsSync',
         'closeRemindersSync',

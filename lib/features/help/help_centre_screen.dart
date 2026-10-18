@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/navigation.dart';
 import '../../core/transitions.dart';
 import '../../data/help_data.dart';
+import '../../data/help_service.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/faq_row.dart';
@@ -12,6 +14,7 @@ import '../../ui/list_row.dart';
 import '../../ui/search_box.dart';
 import '../../ui/section_title.dart';
 import '../more/more_widgets.dart';
+import 'help_state.dart';
 
 /// B21 · Help centre (431:19394): search, the common questions and the way
 /// to a person (Chat with us, Report an issue). Typing filters the questions
@@ -20,17 +23,17 @@ import '../more/more_widgets.dart';
 /// support inbox.
 ///
 /// The bar title is the frame's "Help"; More's row names it Help centre.
-class HelpCentreScreen extends StatefulWidget {
+class HelpCentreScreen extends ConsumerStatefulWidget {
   const HelpCentreScreen({super.key, this.query = ''});
 
   /// What the search box starts with (a deep link or a test).
   final String query;
 
   @override
-  State<HelpCentreScreen> createState() => _HelpCentreScreenState();
+  ConsumerState<HelpCentreScreen> createState() => _HelpCentreScreenState();
 }
 
-class _HelpCentreScreenState extends State<HelpCentreScreen> {
+class _HelpCentreScreenState extends ConsumerState<HelpCentreScreen> {
   late final _search = TextEditingController(text: widget.query);
 
   @override
@@ -56,16 +59,19 @@ class _HelpCentreScreenState extends State<HelpCentreScreen> {
 
   void _open(Faq faq) {
     _leave();
+    final support = ref.read(supportShownProvider);
     showIqSheet<void>(
       context,
       (sheet) => Material(
         type: MaterialType.transparency,
         child: _AnswerSheet(
           faq: faq,
-          onChat: () {
-            Navigator.of(sheet).pop();
-            context.open(Routes.support);
-          },
+          onChat: support
+              ? () {
+                  Navigator.of(sheet).pop();
+                  context.open(Routes.support);
+                }
+              : null,
         ),
       ),
       scrim: IqScrim.sheet,
@@ -75,6 +81,8 @@ class _HelpCentreScreenState extends State<HelpCentreScreen> {
   @override
   Widget build(BuildContext context) {
     final query = _search.text.trim();
+    final support = ref.watch(supportShownProvider);
+    final unread = ref.watch(supportUnreadProvider).value ?? 0;
     final matches = query.isEmpty
         ? DemoHelp.faqs.take(DemoHelp.commonFaqs).toList()
         : [
@@ -108,23 +116,25 @@ class _HelpCentreScreenState extends State<HelpCentreScreen> {
           ],
         ),
       ],
-      RowGroup(
-        children: [
-          IqListRow(
-            label: 'Chat with us',
-            description: DemoHelp.replyLine,
-            icon: IqIcons.chat,
-            onTap: () => _push(Routes.support),
-          ),
-          IqListRow(
-            label: 'Report an issue',
-            description: 'Payments, a brief, or the app',
-            icon: IqIcons.flag,
-            divider: false,
-            onTap: () => _push(Routes.reportIssue),
-          ),
-        ],
-      ),
+      if (support)
+        RowGroup(
+          children: [
+            IqListRow(
+              label: 'Chat with us',
+              description: DemoHelp.replyLine,
+              icon: IqIcons.chat,
+              count: unread,
+              onTap: () => _push(Routes.support),
+            ),
+            IqListRow(
+              label: 'Report an issue',
+              description: 'Payments, a brief, or the app',
+              icon: IqIcons.flag,
+              divider: false,
+              onTap: () => _push(Routes.reportIssue),
+            ),
+          ],
+        ),
     ];
     return SubPage(
       title: 'Help',
@@ -137,7 +147,7 @@ class _AnswerSheet extends StatefulWidget {
   const _AnswerSheet({required this.faq, required this.onChat});
 
   final Faq faq;
-  final VoidCallback onChat;
+  final VoidCallback? onChat;
 
   @override
   State<_AnswerSheet> createState() => _AnswerSheetState();
@@ -154,6 +164,7 @@ class _AnswerSheetState extends State<_AnswerSheet> {
       helpful: _helpful,
       onHelpful: (yes) => setState(() => _helpful = yes),
       onChat: widget.onChat,
+      showChat: widget.onChat != null,
     );
   }
 }

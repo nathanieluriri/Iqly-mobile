@@ -5,18 +5,28 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../data/help_data.dart';
 import '../../theme/theme.dart';
+import '../../ui/banner.dart';
 import '../../ui/button.dart';
+import '../../ui/empty_state.dart';
+import '../../ui/illustration.dart';
+import '../../ui/pressable.dart';
 import '../../ui/chat_bubble.dart';
 import '../../ui/field.dart';
 import '../../ui/ticket_tag.dart';
+import '../../ui/toast.dart';
 import '../../ui/top_bar.dart';
 import '../../data/help_service.dart';
+import '../../data/local/local_rows.dart';
+import '../../data/live/live_help_service.dart' show LiveHelpService;
 import '../more/more_widgets.dart';
+import '../settings/restore_account_screen.dart';
+import 'help_attachment_screen.dart';
 import 'help_routes.dart';
 import 'help_state.dart';
 import 'help_widgets.dart';
@@ -64,27 +74,43 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
   bool _holding = false;
   bool _resolving = false;
   bool _replying = false;
+
+  /// The reply's Idempotency-Key, kept until the API answers it for sure.
+  String _replyKey = LocalRows.newId();
   Timer? _hold;
   Timer? _leave;
+
+  late final HelpTicketsNotifier _tickets = ref.read(
+    helpTicketsProvider.notifier,
+  );
+  Timer? _polling;
 
   @override
   void initState() {
     super.initState();
-    ref.read(helpTicketsProvider.notifier).follow(widget.id);
+    _tickets
+      ..follow(widget.id)
+      ..opened(widget.id);
+    if (ref.read(supportLiveProvider)) {
+      _polling = Timer.periodic(
+        LiveHelpService.pollEvery,
+        (_) => _tickets.follow(widget.id),
+      );
+    }
     // Marking read rebuilds the inbox beneath, so it waits for the push to
     // land rather than stutter it.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       whenArrived(context, () {
-        if (mounted) {
-          ref.read(helpServiceProvider).markRead(widget.id).ignore();
-        }
+        if (mounted) _tickets.markRead(widget.id).catchError((Object _) {});
       });
     });
   }
 
   @override
   void dispose() {
+    _tickets.closed(widget.id);
+    _polling?.cancel();
     _hold?.cancel();
     _leave?.cancel();
     _reply.dispose();
@@ -121,9 +147,10 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
     setState(() => _resolving = true);
     try {
       await ref.read(helpTicketsProvider.notifier).resolve(widget.id);
-    } catch (_) {
+    } catch (error) {
       if (mounted) setState(() => _resolving = false);
       errorHaptic();
+      await _refused(error);
       return;
     }
     if (!mounted) return;
@@ -142,12 +169,33 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
     if (body.isEmpty || _replying) return;
     setState(() => _replying = true);
     try {
-      await ref.read(helpTicketsProvider.notifier).reply(widget.id, body);
+      await ref
+          .read(helpTicketsProvider.notifier)
+          .reply(widget.id, body, idempotencyKey: _replyKey);
       _reply.clear();
-    } catch (_) {
+      _replyKey = LocalRows.newId();
+    } catch (error) {
+      // Only a reply the API may have taken keeps its key for the retry.
+      if (error is HelpRefused && error.failure != HelpFailure.offline) {
+        _replyKey = LocalRows.newId();
+      }
       errorHaptic();
+      if (mounted) setState(() => _replying = false);
+      await _refused(error);
+      return;
     }
     if (mounted) setState(() => _replying = false);
+  }
+
+  /// What the API refused, said as the app says it elsewhere; a closing
+  /// account is offered Restore.
+  Future<void> _refused(Object error) async {
+    if (!mounted || error is! HelpRefused) return;
+    if (error.failure == HelpFailure.closing && Flags.deleteAccount) {
+      await showClosingAccount(context, ref);
+      return;
+    }
+    IqToast.show(context, helpFailureText(error.failure));
   }
 
   @override
@@ -155,6 +203,9 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
     final ticket = ref.watch(
       helpTicketsProvider.select((tickets) => tickets[widget.id]),
     );
+    final failure = ticket == null
+        ? ref.watch(helpLoadFailedProvider.select((ids) => ids[widget.id]))
+        : null;
     if (ticket != null) _note(ticket);
     final shownMessages = _shownMessages ?? 0;
     final thread = ticket == null
@@ -182,7 +233,33 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
                 ),
                 Expanded(
                   child: thread == null
-                      ? const SizedBox.shrink()
+                      ? failure == true
+                            ? const IqEmptyFill(
+                                child: IqEmptyState(
+                                  figure: IqFigures.sender,
+                                  title: 'This conversation is gone',
+                                  body:
+                                      'It is no longer in your inbox. Start a '
+                                      'new one from Support.',
+                                ),
+                              )
+                            : failure == false
+                            ? Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: IqSpace.s4,
+                                ),
+                                child: Align(
+                                  alignment: Alignment.topCenter,
+                                  child: IqBanner(
+                                    kind: IqBannerKind.error,
+                                    title:
+                                        'Couldn’t load. Check your connection.',
+                                    action: 'Try again',
+                                    onAction: () => _tickets.follow(widget.id),
+                                  ),
+                                ),
+                              )
+                            : const SizedBox.shrink()
                       : SingleChildScrollView(
                           padding: const EdgeInsets.fromLTRB(
                             IqSpace.s4,
@@ -302,14 +379,27 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
           child: _message(message, arriving: arriving, delay: delay),
         ),
       );
-      final attachment = message.attachment;
-      if (attachment != null) {
-        final line = Align(
-          alignment: Alignment.centerRight,
-          child: Text(
-            'Attached ${[attachment.name, attachment.lengthLabel, attachment.sizeLabel].join(' · ')}',
-            style: IqText.small.copyWith(color: IqColors.fg3),
+      for (final attachment in message.attachments) {
+        final words =
+            'Attached ${[attachment.name, ?attachment.lengthLabel, attachment.sizeLabel].join(' · ')}';
+        final text = Text(
+          words,
+          style: IqText.small.copyWith(
+            color: attachment.url == null ? IqColors.fg3 : IqColors.brand,
           ),
+        );
+        final line = Align(
+          alignment: message.author == HelpAuthor.you
+              ? Alignment.centerRight
+              : Alignment.centerLeft,
+          child: attachment.url == null
+              ? text
+              : IqPressable(
+                  semanticLabel: words,
+                  onTap: () => openHelpAttachment(context, attachment),
+                  builder: (context, pressed) =>
+                      PressDim(pressed: pressed, child: text),
+                ),
         );
         parts.add(
           arriving

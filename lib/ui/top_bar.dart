@@ -487,14 +487,16 @@ class _BadgeState extends State<_Badge> with SingleTickerProviderStateMixin {
       opacity: _pop,
       child: ScaleTransition(
         scale: _pop.drive(Tween(begin: IqScale.pop, end: 1)),
-        child: _CountBadge(count: _count),
+        child: IqCountBadge(count: _count),
       ),
     );
   }
 }
 
-class _CountBadge extends StatelessWidget {
-  const _CountBadge({required this.count});
+/// The bell's count pill (brand fill, paper ring), also drawn by a row
+/// that counts what waits behind it.
+class IqCountBadge extends StatelessWidget {
+  const IqCountBadge({super.key, required this.count});
 
   final String count;
 

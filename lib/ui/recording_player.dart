@@ -15,7 +15,10 @@ import 'tilt.dart';
 typedef RecordingOpener = VideoPlayerController Function(Uri source);
 
 VideoPlayerController openRecording(Uri source) => switch (source.scheme) {
-  'http' || 'https' => VideoPlayerController.networkUrl(source),
+  'http' || 'https' => VideoPlayerController.networkUrl(
+    source,
+    httpHeaders: Recordings.headersFor(source),
+  ),
   'content' => VideoPlayerController.contentUri(source),
   _ => VideoPlayerController.file(File(source.toFilePath())),
 };
@@ -26,6 +29,28 @@ VideoPlayerController openRecording(Uri source) => switch (source.scheme) {
 /// pause or sound icons, so those two use Material's rounded glyphs.
 abstract final class Recordings {
   static RecordingOpener open = openRecording;
+
+  /// The API's address and the session's token: a proof recording on the
+  /// API plays only for the person who sent it (contract 11.2).
+  static ({String base, String token})? signedIn;
+
+  /// Brings a [source] that needs the session's token onto the phone and
+  /// answers where it is there: iOS will not stream such a link while the
+  /// API ignores Range. Without it a source plays where it is.
+  static Future<Uri> Function(Uri source)? fetchSignedIn;
+
+  static Future<Uri> _playable(Uri source) async {
+    final fetch = fetchSignedIn;
+    if (fetch == null || headersFor(source).isEmpty) return source;
+    return fetch(source);
+  }
+
+  static Map<String, String> headersFor(Uri source) {
+    final signed = signedIn;
+    return signed != null && source.toString().startsWith(signed.base)
+        ? {'authorization': 'Bearer ${signed.token}'}
+        : const {};
+  }
 
   static final _posters = <Uri, _Poster>{};
 
@@ -137,13 +162,20 @@ class _IqRecordingPosterState extends State<IqRecordingPoster> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.source != widget.source && _held != null) {
       _release();
-      _load();
+      unawaited(_load());
     }
   }
 
-  void _load() {
+  Future<void> _load() async {
     if (!mounted) return;
-    final source = widget.source;
+    final asked = widget.source;
+    final Uri source;
+    try {
+      source = await Recordings._playable(asked);
+    } on Object {
+      return;
+    }
+    if (!mounted || widget.source != asked || _held != null) return;
     _held = source;
     final controller = Recordings._takePoster(source);
     controller.addListener(_changed);
@@ -226,7 +258,14 @@ class _IqRecordingPlayerState extends State<IqRecordingPlayer>
 
   Future<void> _load() async {
     if (!mounted) return;
-    final controller = Recordings.open(widget.source);
+    final Uri source;
+    try {
+      source = await Recordings._playable(widget.source);
+    } on Object {
+      return;
+    }
+    if (!mounted) return;
+    final controller = Recordings.open(source);
     _controller = controller;
     controller.addListener(_changed);
     try {

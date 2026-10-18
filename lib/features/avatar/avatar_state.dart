@@ -4,9 +4,11 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/deadline.dart';
 import '../../core/session.dart';
+import '../../data/api_client.dart';
 import '../../data/avatar_service.dart';
 import '../../data/live/live_account.dart';
 import '../../ui/avatar.dart';
@@ -58,11 +60,18 @@ class AvatarNotifier extends Notifier<AvatarState> {
   static String _account(String userId) => 'avatar.account.$userId';
   static String _accountPhoto(String userId) => 'avatar.accountPhoto.$userId';
 
+  /// Where the account serves the photo kept for it, once the two match.
+  static String _photoUrl(String userId) => 'avatar.photoUrl.$userId';
+
+  /// Set while the photo picked on this phone still has to go up.
+  static String _photoPending(String userId) => 'avatar.photoPending.$userId';
+
   /// Bumped by every local change, so an account answer that left before
   /// one never overwrites it.
   var _changes = 0;
   var _synced = false;
   Future<void>? _pulling;
+  Future<void>? _pushing;
 
   @override
   AvatarState build() {
@@ -71,6 +80,7 @@ class AvatarNotifier extends Notifier<AvatarState> {
     final live = ref.watch(liveAvatarServiceProvider);
     _synced = false;
     _pulling = null;
+    _pushing = null;
     final user = _userId;
     Map<String, Object?>? decode(String? value) {
       if (value == null) return null;
@@ -148,8 +158,194 @@ class AvatarNotifier extends Notifier<AvatarState> {
   }
 
   void _retry(LiveAvatarService live) {
-    if (_synced || !ref.mounted) return;
-    _pulling ??= _pull(live).whenComplete(() => _pulling = null);
+    if (!ref.mounted) return;
+    if (!_synced) {
+      _pulling ??= _pull(live).whenComplete(() => _pulling = null);
+    }
+    if (live.photos && _pendingPhoto) _push(live);
+  }
+
+  SharedPreferences get _prefs => ref.read(sharedPreferencesProvider);
+
+  bool get _pendingPhoto => switch (_userId) {
+    final user? => _prefs.getBool(_photoPending(user)) ?? false,
+    null => false,
+  };
+
+  void _push(LiveAvatarService live) {
+    _pushing ??= _pushPhoto(live).whenComplete(() => _pushing = null);
+  }
+
+  /// Sends the photo picked on this phone up (contract 12.4). Without an
+  /// answer, or while the API asks to wait, it stays to go again when the
+  /// API is reachable or the app comes back; refused for good, it stays on
+  /// the phone and the account keeps the pick without it, as before photos
+  /// went up. A pick made while it went is sent again after it, so the
+  /// newest pick wins.
+  Future<void> _pushPhoto(LiveAvatarService live) async {
+    final user = _userId;
+    final bytes = state.photo;
+    if (user == null) return;
+    if (bytes == null) {
+      await _prefs.remove(_photoPending(user));
+      return;
+    }
+    final scope = ref.read(accountScopeProvider);
+    final changes = _changes;
+    final AccountAvatar? account;
+    try {
+      account = await live.uploadPhoto(bytes);
+    } on ApiUnreachable {
+      return;
+    } on ApiRefused catch (refused) {
+      if (unanswered(refused) || refused.code == 'ACCOUNT_CLOSING') return;
+      debugPrint('Avatar: photo refused: $refused');
+      if (!ref.mounted || !scope.open) return;
+      await _prefs.remove(_photoPending(user));
+      if (state.spec is IqPhotoAvatar) {
+        await _upload(live, state.spec, state.look);
+      }
+      return;
+    } on Object catch (error) {
+      debugPrint('Avatar: photo not sent: $error');
+      return;
+    }
+    if (!ref.mounted || !scope.open) return;
+    final sent = state.photo;
+    if (sent == null || !listEquals(sent, bytes)) {
+      // A newer photo was picked while this one went: it goes next.
+      if (sent != null) Future(() => _push(live));
+      return;
+    }
+    await _prefs.remove(_photoPending(user));
+    if (account?.photoUrl case final url?) {
+      await _prefs.setString(_photoUrl(user), url);
+    }
+    if (changes != _changes || state.spec is! IqPhotoAvatar) {
+      if (state.spec is! IqPhotoAvatar) {
+        await _upload(live, state.spec, state.look);
+      }
+      return;
+    }
+    if (account == null) return;
+    state = AvatarState(
+      spec: IqPhotoAvatar(bytes),
+      look: account.look,
+      photo: bytes,
+      pickedAt: account.updatedAt,
+    );
+    await _keep(
+      IqPhotoAvatar(bytes),
+      account.look,
+      pickedAt: account.updatedAt,
+    );
+  }
+
+  /// Brings the account's photo onto this phone when it is not the one kept
+  /// here (another phone uploaded it, or this one never had it), and lets
+  /// go of a kept photo the account no longer has. A photo still to go up
+  /// from here wins.
+  Future<void> _pullPhoto(LiveAvatarService live, AccountAvatar account) async {
+    final user = _userId;
+    if (user == null || _pendingPhoto) return;
+    final kept = _prefs.getString(_photoUrl(user));
+    final url = account.photoUrl;
+    if (url == null) {
+      if (kept == null) {
+        // Picked before photos went up: the account shows it without it.
+        if (account.photoShown && state.photo != null) {
+          await _prefs.setBool(_photoPending(user), true);
+          _push(live);
+        }
+        return;
+      }
+      await _dropPhoto(user);
+      if (state.spec is IqPhotoAvatar) {
+        state = AvatarState(
+          spec: IqPersonAvatar(state.look),
+          look: state.look,
+          pickedAt: state.pickedAt,
+        );
+        await _keep(state.spec, state.look, pickedAt: state.pickedAt);
+      } else {
+        state = AvatarState(
+          spec: state.spec,
+          look: state.look,
+          isDefault: state.isDefault,
+          pickedAt: state.pickedAt,
+        );
+      }
+      return;
+    }
+    if (url == kept && state.photo != null) {
+      if (account.photoShown && state.spec is! IqPhotoAvatar) {
+        state = AvatarState(
+          spec: IqPhotoAvatar(state.photo!),
+          look: state.look,
+          photo: state.photo,
+          pickedAt: state.pickedAt,
+        );
+      }
+      return;
+    }
+    final scope = ref.read(accountScopeProvider);
+    final changes = _changes;
+    final Uint8List? bytes;
+    try {
+      bytes = await live.photo(url);
+    } on Object catch (error) {
+      debugPrint('Avatar: photo not read: $error');
+      return;
+    }
+    if (bytes == null || !ref.mounted || !scope.open) return;
+    if (changes != _changes) return;
+    await _prefs.setString(_accountPhoto(user), base64Encode(bytes));
+    await _prefs.setString(_photoUrl(user), url);
+    final spec = account.photoShown ? IqPhotoAvatar(bytes) : state.spec;
+    state = AvatarState(
+      spec: spec,
+      look: state.look,
+      photo: bytes,
+      isDefault: state.isDefault,
+      pickedAt: state.pickedAt,
+    );
+    if (spec is IqPhotoAvatar) {
+      await _keep(spec, state.look, pickedAt: state.pickedAt);
+    }
+  }
+
+  Future<void> _dropPhoto(String user) async {
+    await _prefs.remove(_accountPhoto(user));
+    await _prefs.remove(_photoUrl(user));
+    await _prefs.remove(_photoPending(user));
+    await _prefs.remove(_photo);
+  }
+
+  /// Removes the photo from the account and this phone (contract 12.4); a
+  /// photo avatar becomes the last illustrated person, as the API answers.
+  /// Online only, so it throws [ApiUnreachable] or [ApiRefused] when the
+  /// API does not take it.
+  Future<void> removePhoto() async {
+    final live = ref.read(liveAvatarServiceProvider);
+    final user = _userId;
+    if (live == null || !live.photos || user == null) return;
+    final scope = ref.read(accountScopeProvider);
+    _changes++;
+    await _prefs.remove(_photoPending(user));
+    final account = await live.deletePhoto();
+    if (!ref.mounted || !scope.open) return;
+    await _dropPhoto(user);
+    final look = account?.look ?? state.look;
+    final spec = state.spec is IqPhotoAvatar
+        ? account?.spec ?? IqPersonAvatar(look)
+        : state.spec;
+    state = AvatarState(
+      spec: spec,
+      look: look,
+      isDefault: state.isDefault,
+      pickedAt: account?.updatedAt ?? state.pickedAt,
+    );
+    await _keep(spec, look, pickedAt: state.pickedAt);
   }
 
   Future<void> _pull(LiveAvatarService live) async {
@@ -189,7 +385,7 @@ class AvatarNotifier extends Notifier<AvatarState> {
     if (held.known &&
         !held.isDefault &&
         (account.isDefault || (newer && held.spec != account.spec))) {
-      await _upload(live, held.spec, held.look);
+      await _save(live, held.spec, held.look);
       return;
     }
     state = AvatarState(
@@ -205,6 +401,7 @@ class AvatarNotifier extends Notifier<AvatarState> {
       isDefault: account.isDefault,
       pickedAt: updated,
     );
+    if (live.photos) await _pullPhoto(live, account);
   }
 
   String? get _userId => switch (ref.read(accountProvider)) {
@@ -224,6 +421,25 @@ class AvatarNotifier extends Notifier<AvatarState> {
     } on FormatException {
       return null;
     }
+  }
+
+  /// A photo not yet on the account goes up while photos run live; any
+  /// other pick queues.
+  Future<void> _save(
+    LiveAvatarService live,
+    IqAvatarSpec spec,
+    IqAvatarLook look,
+  ) async {
+    final user = _userId;
+    if (spec is IqPhotoAvatar && live.photos && user != null) {
+      final onAccount = _prefs.getString(_photoUrl(user)) != null;
+      if (_pendingPhoto || !onAccount) {
+        await _prefs.setBool(_photoPending(user), true);
+        _push(live);
+        return;
+      }
+    }
+    await _upload(live, spec, look);
   }
 
   Future<void> _upload(
@@ -279,11 +495,20 @@ class AvatarNotifier extends Notifier<AvatarState> {
     _changes++;
     final look = spec is IqPersonAvatar ? spec.look : state.look;
     final photo = spec is IqPhotoAvatar ? spec.bytes : state.photo;
+    final user = _userId;
+    final previous = state.photo;
+    if (spec is IqPhotoAvatar &&
+        user != null &&
+        (previous == null || !listEquals(previous, spec.bytes))) {
+      // A new photo: the one the account has, if any, is not it.
+      await _prefs.remove(_photoUrl(user));
+      await _prefs.setBool(_photoPending(user), true);
+    }
     final now = ref.read(clockProvider)();
     state = AvatarState(spec: spec, look: look, photo: photo, pickedAt: now);
     await _keep(spec, look, pickedAt: now);
     final live = ref.read(liveAvatarServiceProvider);
-    if (live != null) await _upload(live, spec, look);
+    if (live != null) await _save(live, spec, look);
   }
 
   /// A new account's avatar: the preset the API defaults to for its id and
@@ -328,6 +553,8 @@ class AvatarNotifier extends Notifier<AvatarState> {
     final prefs = ref.read(sharedPreferencesProvider);
     await prefs.remove(_account(userId));
     await prefs.remove(_accountPhoto(userId));
+    await prefs.remove(_photoUrl(userId));
+    await prefs.remove(_photoPending(userId));
     ref.invalidateSelf();
   }
 }

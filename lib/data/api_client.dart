@@ -69,6 +69,17 @@ abstract class EtagCache {
   Future<void> write(String path, TaggedAnswer answer);
 }
 
+/// A file the API served, as bytes.
+class ApiBytes {
+  const ApiBytes(this.status, this.bytes, {this.contentType});
+
+  final int status;
+  final Uint8List bytes;
+  final String? contentType;
+
+  bool get ok => status >= 200 && status < 300;
+}
+
 /// No answer from the API: no connection, a timeout, or the connection
 /// failing on the way.
 class ApiUnreachable implements Exception {
@@ -234,6 +245,7 @@ class ApiClient {
     List<ApiFile> files = const [],
     void Function(double progress)? onProgress,
     String? idempotencyKey,
+    String method = 'POST',
   }) async {
     final stalled = Completer<void>();
     Timer? idle;
@@ -246,6 +258,7 @@ class ApiClient {
 
     final request =
         _Upload(
+            method,
             Uri.parse('$baseUrl$path'),
             abortTrigger: stalled.future,
             onSent: (sent, total) {
@@ -276,6 +289,103 @@ class ApiClient {
     } finally {
       idle?.cancel();
     }
+  }
+
+  /// [url] on this client's API: only its path and query are kept, so a
+  /// link that carries the session token never leaves for another host.
+  Uri authorized(String url) {
+    final given = Uri.parse(url);
+    final path = given.hasQuery ? '${given.path}?${given.query}' : given.path;
+    return Uri.parse('$baseUrl$path');
+  }
+
+  /// The headers a player or an image sends to read a signed-in file.
+  Future<Map<String, String>> fileHeaders() async {
+    final token = await tokens.read();
+    return {
+      'x-iqly-client': 'mobile',
+      'x-platform': platform,
+      if (token != null) 'authorization': 'Bearer $token',
+    };
+  }
+
+  /// The file the API serves at [url], read with the session token. Only
+  /// the path and query of [url] are kept, so the token never goes to any
+  /// host but the API's.
+  Future<ApiBytes> download(String url) async {
+    final request = await _fileRequest(url);
+    final http.Response response;
+    try {
+      response = await http.Response.fromStream(
+        await _client.send(request).timeout(timeout),
+      ).timeout(timeout);
+    } on TimeoutException {
+      throw const ApiUnreachable();
+    } on http.ClientException catch (error) {
+      throw ApiUnreachable(nothingSent: _beforeSending(error));
+    } on IOException catch (error) {
+      throw ApiUnreachable(nothingSent: _beforeSending(error));
+    }
+    return ApiBytes(
+      response.statusCode,
+      response.bodyBytes,
+      contentType: response.headers['content-type'],
+    );
+  }
+
+  /// Writes the file the API serves at [url] to [target] as it arrives,
+  /// [onProgress] going from 0 to 1 when the API says the size. [timeout]
+  /// counts from the last bytes received. Throws [ApiUnreachable] without a
+  /// whole answer, [ApiRefused] when the API refuses.
+  Future<void> downloadTo(
+    String url,
+    File target, {
+    void Function(double progress)? onProgress,
+  }) async {
+    final request = await _fileRequest(url);
+    final IOSink sink;
+    try {
+      final response = await _client.send(request).timeout(timeout);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        await response.stream.drain<void>();
+        throw ApiRefused(response.statusCode);
+      }
+      final total = response.contentLength;
+      var received = 0;
+      onProgress?.call(0);
+      sink = target.openWrite();
+      try {
+        await for (final chunk in response.stream.timeout(timeout)) {
+          sink.add(chunk);
+          received += chunk.length;
+          if (total != null && total > 0) {
+            onProgress?.call((received / total).clamp(0, 1));
+          }
+        }
+      } finally {
+        await sink.close();
+      }
+    } on TimeoutException {
+      throw const ApiUnreachable();
+    } on http.ClientException catch (error) {
+      throw ApiUnreachable(nothingSent: _beforeSending(error));
+    } on IOException catch (error) {
+      throw ApiUnreachable(nothingSent: _beforeSending(error));
+    }
+    onProgress?.call(1);
+  }
+
+  Future<http.Request> _fileRequest(String url) async {
+    final request = http.Request('GET', authorized(url));
+    final token = await tokens.read();
+    request.headers.addAll({
+      'x-iqly-client': 'mobile',
+      'x-app': 'web',
+      'x-app-version': ?appVersion,
+      'x-platform': platform,
+      if (token != null) 'authorization': 'Bearer $token',
+    });
+    return request;
   }
 
   Future<ApiResponse> _dispatch(
@@ -371,8 +481,7 @@ class ApiClient {
 
 /// A multipart body that reports how much of it the connection has read.
 class _Upload extends http.MultipartRequest with http.Abortable {
-  _Upload(Uri url, {required this.onSent, this.abortTrigger})
-    : super('POST', url);
+  _Upload(super.method, super.url, {required this.onSent, this.abortTrigger});
 
   final void Function(int sent, int total) onSent;
 
