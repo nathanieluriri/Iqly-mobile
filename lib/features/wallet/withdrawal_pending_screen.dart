@@ -60,6 +60,7 @@ class WithdrawalPendingScreen extends ConsumerWidget {
                                     IqFigures.sender,
                                     width: 188.235,
                                     arrive: true,
+                                    flies: true,
                                   ),
                                 ),
                                 const SizedBox(height: IqSpace.s4),

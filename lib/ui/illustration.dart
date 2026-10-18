@@ -376,7 +376,8 @@ enum IqFigures {
 
 /// [arrive] fades it in as it rises 16, 320 ms ease-out, once, after
 /// [delay] (MOTION-SPEC 5.29); it fades only, 150, under reduced motion.
-/// [confettiFalls] lets a figure's confetti fall past it (Cheer).
+/// [confettiFalls] lets a figure's confetti fall past it (Cheer); [flies]
+/// streams the Sender's speed lines and trail behind the plane.
 class IqFigure extends StatelessWidget {
   const IqFigure(
     this.figure, {
@@ -385,6 +386,7 @@ class IqFigure extends StatelessWidget {
     this.arrive = false,
     this.delay = Duration.zero,
     this.confettiFalls = false,
+    this.flies = false,
   });
 
   final IqFigures figure;
@@ -392,6 +394,7 @@ class IqFigure extends StatelessWidget {
   final bool arrive;
   final Duration delay;
   final bool confettiFalls;
+  final bool flies;
 
   static const double designWidth = 320;
   static const double designHeight = 340;
@@ -401,6 +404,8 @@ class IqFigure extends StatelessWidget {
     final height = width * designHeight / designWidth;
     final Widget picture = confettiFalls
         ? FallingConfetti(asset: figure.asset, width: width, height: height)
+        : flies
+        ? FlyingPlane(asset: figure.asset, width: width, height: height)
         : SvgPicture.asset(
             figure.asset,
             width: width,
@@ -539,6 +544,186 @@ class _FallingConfettiState extends State<FallingConfetti>
         ],
       ),
     );
+  }
+}
+
+/// The Sender in flight (owner, 18 Oct): the official file is split as it
+/// loads, never edited. The plane bobs, each speed line streams back from
+/// it and fades in turn, and the dotted trail flows away behind it.
+/// Reduced motion, and the frames before the split, show it as drawn.
+class FlyingPlane extends StatefulWidget {
+  const FlyingPlane({
+    super.key,
+    required this.asset,
+    required this.width,
+    required this.height,
+  });
+
+  final String asset;
+  final double width;
+  final double height;
+
+  /// One dash and gap of the trail, and the frames it flows through.
+  static const double dash = 13;
+  static const int trailFrames = 8;
+
+  @override
+  State<FlyingPlane> createState() => _FlyingPlaneState();
+}
+
+class _FlyingPlaneState extends State<FlyingPlane>
+    with SingleTickerProviderStateMixin {
+  static final _split = <String, _PlaneParts>{};
+
+  late final AnimationController _loop = AnimationController(
+    vsync: this,
+    duration: IqDurations.planeLoop,
+  );
+  late _PlaneParts? _parts = _split[widget.asset];
+  bool _reduced = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_parts != null) return;
+    rootBundle.loadString(widget.asset).then((svg) {
+      final parts = _split[widget.asset] ??= _PlaneParts.split(svg);
+      if (mounted) setState(() => _parts = parts);
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduced = MediaQuery.disableAnimationsOf(context);
+    if (_reduced) {
+      _loop.stop();
+    } else if (!_loop.isAnimating) {
+      _loop.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _loop.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final parts = _parts;
+    if (parts == null || _reduced || parts.lines.isEmpty) {
+      return SvgPicture.asset(
+        widget.asset,
+        width: widget.width,
+        height: widget.height,
+        excludeFromSemantics: true,
+      );
+    }
+    final scale = widget.width / IqFigure.designWidth;
+    return SizedBox(
+      width: widget.width,
+      height: widget.height,
+      child: AnimatedBuilder(
+        animation: _loop,
+        builder: (context, _) {
+          final t = _loop.value;
+          final bob = math.sin(t * 2 * math.pi) * 3 * scale;
+          final trail = parts.trail.isEmpty
+              ? null
+              : parts.trail[(t * 2 * parts.trail.length).floor() %
+                    parts.trail.length];
+          return Transform.translate(
+            offset: Offset(0, bob),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ?trail,
+                for (final (i, line) in parts.lines.indexed)
+                  Builder(
+                    builder: (context) {
+                      final lap = (t * 2 + i / parts.lines.length) % 1;
+                      final back = line.back * (lap * 20 * scale);
+                      return Opacity(
+                        opacity: math.sin(lap * math.pi).clamp(0.0, 1.0),
+                        child: Transform.translate(
+                          offset: back,
+                          child: line.picture,
+                        ),
+                      );
+                    },
+                  ),
+                parts.plane,
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PlaneLine {
+  const _PlaneLine(this.picture, this.back);
+
+  final Widget picture;
+
+  /// The unit direction from the line's front (nearer the plane) to its tail.
+  final Offset back;
+}
+
+/// The Sender split into the plane, its speed lines and the trail drawn at
+/// each step of its dash flow.
+class _PlaneParts {
+  const _PlaneParts(this.plane, this.lines, this.trail);
+
+  final Widget plane;
+  final List<_PlaneLine> lines;
+  final List<Widget> trail;
+
+  static final _motion = RegExp(r'<g id="motion">([\s\S]*?)</g>');
+  static final _trail = RegExp(r'<g id="trail">([\s\S]*?)</g>');
+  static final _path = RegExp(r'<path [^>]*/>');
+
+  static _PlaneParts split(String svg) {
+    final open = RegExp(r'<svg[^>]*>').firstMatch(svg)!.group(0)!;
+    Widget draw(String markup) => SvgPicture(
+      SvgStringLoader(markup),
+      fit: BoxFit.fill,
+      excludeFromSemantics: true,
+    );
+
+    final motion = _motion.firstMatch(svg);
+    final trail = _trail.firstMatch(svg);
+    var plane = svg;
+    for (final group in [?motion, ?trail]..sort((a, b) => b.start - a.start)) {
+      plane = plane.replaceRange(group.start, group.end, '');
+    }
+    final lines = [
+      if (motion != null)
+        for (final m in _path.allMatches(motion.group(1)!))
+          _PlaneLine(draw('$open${m.group(0)}</svg>'), _back(m.group(0)!)),
+    ];
+    final trails = [
+      if (trail != null)
+        for (var f = 0; f < FlyingPlane.trailFrames; f++)
+          draw(
+            '$open${trail.group(1)!.replaceFirst('/>', ' stroke-dashoffset="${FlyingPlane.dash * f / FlyingPlane.trailFrames}"/>')}</svg>',
+          ),
+    ];
+    return _PlaneParts(draw(plane), lines, trails);
+  }
+
+  static Offset _back(String path) {
+    final d = RegExp(r' d="([^"]*)"').firstMatch(path)!.group(1)!;
+    final n = [
+      for (final m in RegExp(r'-?\d+(\.\d+)?').allMatches(d))
+        double.parse(m.group(0)!),
+    ];
+    final front = n[1] < n[3] ? Offset(n[0], n[1]) : Offset(n[2], n[3]);
+    final tail = n[1] < n[3] ? Offset(n[2], n[3]) : Offset(n[0], n[1]);
+    final v = tail - front;
+    return v / v.distance;
   }
 }
 
