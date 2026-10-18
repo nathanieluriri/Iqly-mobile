@@ -219,6 +219,7 @@ class _PinSheetState extends ConsumerState<PinSheet> {
                   label: _resetRequired ? 'Reset it by email' : widget.action,
                   width: double.infinity,
                   loading: _checking,
+                  disabled: !_resetRequired && _pin.controller.text.length != 4,
                   onTap: _resetRequired ? _reset : _confirm,
                 ),
                 if (biometric != null) ...[

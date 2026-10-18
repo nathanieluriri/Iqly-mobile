@@ -11,6 +11,7 @@ import '../../ui/illustration.dart';
 import '../../ui/top_bar.dart';
 import 'wallet_routes.dart';
 import 'wallet_state.dart';
+import '../splash/patch_dialog.dart' show IqPageLoading;
 
 /// B5 · Withdrawal pending (38:147), the moment after a withdrawal is sent:
 /// the Sender figure arrives, then the title, the line and the fact, 40 ms
@@ -46,7 +47,7 @@ class WithdrawalPendingScreen extends ConsumerWidget {
                 ),
                 Expanded(
                   child: withdrawal == null || data == null
-                      ? const SizedBox.shrink()
+                      ? const IqPageLoading()
                       : Center(
                           child: SingleChildScrollView(
                             padding: const EdgeInsets.symmetric(

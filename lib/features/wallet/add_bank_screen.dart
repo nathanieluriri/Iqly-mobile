@@ -216,12 +216,20 @@ class _AddBankScreenState extends ConsumerState<AddBankScreen> {
                     IqSpace.s4,
                     IqSpace.s3,
                   ),
-                  child: IqButton(
-                    label: verified == null ? 'Check the name' : 'Save account',
-                    showIcon: false,
-                    width: double.infinity,
-                    loading: _busy,
-                    onTap: verified == null ? _check : () => _save(data),
+                  child: ListenableBuilder(
+                    listenable: _number.changes,
+                    builder: (context, _) => IqButton(
+                      label: verified == null
+                          ? 'Check the name'
+                          : 'Save account',
+                      showIcon: false,
+                      width: double.infinity,
+                      loading: _busy,
+                      disabled:
+                          verified == null &&
+                          _number.controller.text.length != 10,
+                      onTap: verified == null ? _check : () => _save(data),
+                    ),
                   ),
                 ),
               ],

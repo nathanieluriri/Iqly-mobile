@@ -195,6 +195,7 @@ void main() {
         act: (tester) async {
           await _settle(tester);
           await tester.enterText(find.byType(EditableText), '0123456789');
+          await tester.pump();
           await _tap(tester, find.text('Check the name'));
         },
       );

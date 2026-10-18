@@ -143,6 +143,23 @@ class _IqFillLoaderState extends State<IqFillLoader>
   }
 }
 
+/// A page body while its data loads: the filling mark in the middle
+/// (owner, 18 Oct: no page waits blank).
+class IqPageLoading extends StatelessWidget {
+  const IqPageLoading({super.key, this.label = 'Loading'});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: label,
+      liveRegion: true,
+      child: const Center(child: IqFillLoader()),
+    );
+  }
+}
+
 /// The patch dialog (Figma B · Patch, 1322:26867 / 1322:27353 / 1322:27844):
 /// Updating iQLY while the patch downloads, Update applied once it is on
 /// disk (its Close only takes the dialog down; the patch boots on the next

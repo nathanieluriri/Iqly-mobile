@@ -9,6 +9,7 @@ import '../../ui/wallet_card.dart';
 import 'wallet_overview.dart';
 import 'wallet_routes.dart';
 import 'wallet_state.dart';
+import '../splash/patch_dialog.dart' show IqPageLoading;
 
 /// B5 · Wallet · On its way (331:15089) and Earned so far (331:15098): sub
 /// pages with the Page bar and Back, no dock; the card fixed on [balance].
@@ -39,7 +40,7 @@ class WalletBalanceScreen extends ConsumerWidget {
                 ),
                 Expanded(
                   child: data == null
-                      ? const SizedBox.shrink()
+                      ? const IqPageLoading()
                       : WalletOverview(
                           data: data,
                           balance: balance,

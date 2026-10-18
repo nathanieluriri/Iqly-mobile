@@ -8,6 +8,7 @@ import '../../ui/illustration.dart';
 import '../discover/discover_state.dart';
 import '../discover/discover_widgets.dart';
 import 'more_widgets.dart';
+import '../splash/patch_dialog.dart' show IqPageLoading;
 
 /// B7 · Saved briefs (485:39490): the saved briefs as their own page inside
 /// More (designer answer 27), Page top bar and Back, no dock. The saved
@@ -27,7 +28,7 @@ class MoreSavedBriefsPage extends ConsumerWidget {
     return SubPage(
       title: 'Saved briefs',
       body: saved == null
-          ? const SizedBox.shrink()
+          ? const IqPageLoading()
           : saved.isEmpty
           ? IqEmptyFill(
               child: IqEmptyState(

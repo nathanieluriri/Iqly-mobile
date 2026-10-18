@@ -14,6 +14,7 @@ import '../../ui/list_row.dart';
 import '../more/more_widgets.dart';
 import 'referrals_screen.dart';
 import 'referrals_state.dart';
+import '../splash/patch_dialog.dart' show IqPageLoading;
 
 /// B20 · Referral history (430:19239) and empty (430:19331): invited,
 /// joined and the referral rewards earned, then one row per friend. While
@@ -36,7 +37,7 @@ class ReferralHistoryScreen extends ConsumerWidget {
     return SubPage(
       title: 'Referral history',
       body: referrals == null
-          ? const SizedBox.shrink()
+          ? const IqPageLoading()
           : invites.isEmpty && own == null
           ? const IqEmptyFill(
               child: IqEmptyState(
