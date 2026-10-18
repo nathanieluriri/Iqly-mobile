@@ -7,7 +7,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/deadline.dart';
 import '../../core/motion.dart';
+import '../../data/app_config.dart';
 import '../../data/pin_service.dart';
+import '../../data/profile_service.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
@@ -34,7 +36,7 @@ String pinTriesLeft(int? left) => left == null
 /// "Try again in 30 min" from the lock's Retry-After or its end.
 String pinLockWait(Duration? retryAfter, DateTime? until, DateTime now) {
   final wait =
-      retryAfter ?? until?.difference(now) ?? const Duration(minutes: 30);
+      retryAfter ?? until?.difference(now) ?? AppConfig.current.pinLock;
   final minutes = (wait.inSeconds / 60).ceil().clamp(1, 1440);
   return 'Try again in $minutes min';
 }
@@ -114,9 +116,9 @@ class _WithdrawalPinScreenState extends ConsumerState<WithdrawalPinScreen> {
     final left = wait == null || wait.isNegative ? Duration.zero : wait;
     setState(() => _wait = left);
     if (left == Duration.zero) return;
-    _tick = Timer.periodic(const Duration(seconds: 1), (timer) {
+    _tick = Timer.periodic(ProfileService.countdownStep, (timer) {
       if (!mounted) return timer.cancel();
-      setState(() => _wait -= const Duration(seconds: 1));
+      setState(() => _wait -= ProfileService.countdownStep);
       if (_wait <= Duration.zero) timer.cancel();
     });
   }
@@ -134,12 +136,12 @@ class _WithdrawalPinScreenState extends ConsumerState<WithdrawalPinScreen> {
       setState(() => _sentTo = sent.sentTo);
       _countDown(
         sent.resendAt?.difference(ref.read(clockProvider)()) ??
-            const Duration(seconds: 60),
+            pinCodeResendAfter,
       );
     } on PinRefused catch (refused) {
       if (!mounted) return;
       if (refused.problem == PinProblem.rateLimited) {
-        _countDown(refused.retryAfter ?? const Duration(seconds: 60));
+        _countDown(refused.retryAfter ?? pinCodeResendAfter);
       } else {
         _refused(refused);
       }

@@ -217,6 +217,10 @@ class Outbox {
   /// [outboxLongestWait]. A pause starts the count again.
   static const maxFailures = 200;
 
+  /// How long the phone waits for what is queued to go before it forgets
+  /// the account.
+  static const flushBeforeForget = Duration(seconds: 5);
+
   /// Done items stay this long, then go at the next launch.
   static const keepDone = Duration(days: 1);
 

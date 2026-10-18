@@ -144,6 +144,12 @@ class AppConfig {
 
   /// Minutes before close a new reminder fires.
   final List<int> closeReminderOffsets;
+
+  /// How long a new SMS code waits after the last one.
+  Duration get phoneResendAfter => Duration(seconds: phoneResendAfterSeconds);
+
+  /// How long five wrong PINs lock the PIN.
+  Duration get pinLock => const Duration(minutes: 30);
 }
 
 /// "₦500": what a referral pays, as the referral screens word it.

@@ -360,7 +360,7 @@ class _PhoneCodeScreenState extends ConsumerState<PhoneCodeScreen> {
 
   Duration get _resendAfter => ref.read(phoneServiceProvider) == null
       ? PhoneCodeScreen.resendAfter
-      : Duration(seconds: ref.read(appConfigProvider).phoneResendAfterSeconds);
+      : ref.read(appConfigProvider).phoneResendAfter;
 
   Future<void> _resend() async {
     final phones = ref.read(phoneServiceProvider);

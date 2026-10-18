@@ -115,6 +115,10 @@ class PinRefused implements Exception {
   String toString() => 'PinRefused(${problem.name})';
 }
 
+/// Another emailed PIN code can be asked for this long after the last,
+/// when the API's answer does not say.
+const pinCodeResendAfter = Duration(minutes: 1);
+
 /// The withdrawal PIN on the API (contract 13.1). The PIN only ever goes
 /// in a request body: the phone never keeps it, logs it or reads it back.
 class PinService {

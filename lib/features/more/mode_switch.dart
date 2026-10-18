@@ -10,6 +10,7 @@ import '../../core/session.dart';
 import '../../data/api_client.dart';
 import '../../data/auth.dart';
 import '../../data/local/local_providers.dart';
+import '../../data/local/outbox.dart';
 import '../../data/reference_data.dart';
 import '../../router.dart';
 import '../avatar/avatar_state.dart';
@@ -61,7 +62,7 @@ Future<void> switchLaunchMode(
   // chance to reach the account before the phone forgets it.
   await read(outboxProvider)
       .kick()
-      .timeout(const Duration(seconds: 5), onTimeout: () {});
+      .timeout(Outbox.flushBeforeForget, onTimeout: () {});
   unawaited(read(outboxProvider).stop());
   if (session.signedIn) {
     try {
