@@ -60,11 +60,12 @@ Future<void> setBiometricWithdraw(
     ref.invalidate(biometricWithdrawProvider);
     return;
   }
+  final root = Navigator.of(context, rootNavigator: true).context;
   final biometrics = ref.read(biometricServiceProvider);
   final kind = await biometrics.available();
-  if (kind == null || !context.mounted) return;
+  if (kind == null || !root.mounted) return;
   final pin = await showIqSheet<String>(
-    Navigator.of(context, rootNavigator: true).context,
+    root,
     (context) => Material(
       type: MaterialType.transparency,
       child: PinSheet(
