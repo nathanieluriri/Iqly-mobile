@@ -249,9 +249,8 @@ class _IqPatchDialogState extends State<IqPatchDialog>
     final (title, body) = switch (widget.phase) {
       PatchPhase.ready => (
         'Update applied',
-        'We updated iQLY over the air to improve your experience. It is '
-            'fully installed the next time you open the app. You can close '
-            'this message.',
+        'Some bugs were fixed over the air. Restart the app for the fixes '
+            'to fully appear.',
       ),
       PatchPhase.failed => (
         "Couldn't update",

@@ -84,7 +84,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
     expect(find.text('Update applied'), findsOneWidget);
     expect(find.textContaining('over the air'), findsOneWidget);
-    expect(find.textContaining('next time you open'), findsOneWidget);
+    expect(find.textContaining('Restart the app'), findsOneWidget);
     expect(find.byType(IqButton), findsOneWidget);
     await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();

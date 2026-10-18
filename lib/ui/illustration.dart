@@ -422,18 +422,21 @@ class IqFigure extends StatelessWidget {
 /// through the figure's box at its own pace, swaying and spinning, and comes
 /// back in above; the pieces fall behind the figure. Reduced motion, and
 /// the frames before the file is split, show the figure as drawn.
-@visibleForTesting
+/// [showFigure] false draws only the falling pieces, and nothing until they
+/// can fall.
 class FallingConfetti extends StatefulWidget {
   const FallingConfetti({
     super.key,
     required this.asset,
     required this.width,
     required this.height,
+    this.showFigure = true,
   });
 
   final String asset;
   final double width;
   final double height;
+  final bool showFigure;
 
   @override
   State<FallingConfetti> createState() => _FallingConfettiState();
@@ -481,6 +484,9 @@ class _FallingConfettiState extends State<FallingConfetti>
   Widget build(BuildContext context) {
     final parts = _parts;
     if (parts == null || _reduced || parts.pieces.isEmpty) {
+      if (!widget.showFigure) {
+        return SizedBox(width: widget.width, height: widget.height);
+      }
       return SvgPicture.asset(
         widget.asset,
         width: widget.width,
@@ -523,12 +529,13 @@ class _FallingConfettiState extends State<FallingConfetti>
                 excludeFromSemantics: true,
               ),
             ),
-          SvgPicture(
-            SvgStringLoader(parts.figure),
-            width: widget.width,
-            height: widget.height,
-            excludeFromSemantics: true,
-          ),
+          if (widget.showFigure)
+            SvgPicture(
+              SvgStringLoader(parts.figure),
+              width: widget.width,
+              height: widget.height,
+              excludeFromSemantics: true,
+            ),
         ],
       ),
     );

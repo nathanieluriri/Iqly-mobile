@@ -79,7 +79,7 @@ void main() {
     expect(_card(tester).amount, '₦15,000.00');
     expect(
       find.text('₦10,000.00 on its way · ₦65,000.00 earned so far'),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.byType(IqWalletRow), findsNWidgets(recentRows));
     expect(find.text('Private business'), findsOneWidget);

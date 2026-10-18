@@ -138,9 +138,17 @@ class _ReferralsScreenState extends ConsumerState<ReferralsScreen> {
                         style: IqText.mono.copyWith(color: IqColors.fg2),
                       ),
                       const SizedBox(height: 2),
-                      Text(
-                        code,
-                        style: IqText.title.copyWith(color: IqColors.fg),
+                      // A long code shrinks to fit rather than breaking: a
+                      // code split over two lines reads as two codes.
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          code,
+                          maxLines: 1,
+                          softWrap: false,
+                          style: IqText.title.copyWith(color: IqColors.fg),
+                        ),
                       ),
                     ],
                   ),

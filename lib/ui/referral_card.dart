@@ -94,9 +94,17 @@ class IqReferralCard extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          code.toUpperCase(),
-                          style: IqText.mono.copyWith(color: IqColors.fg2),
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              code.toUpperCase(),
+                              maxLines: 1,
+                              softWrap: false,
+                              style: IqText.mono.copyWith(color: IqColors.fg2),
+                            ),
+                          ),
                         ),
                         const SizedBox(width: IqSpace.s1p5),
                         const IqIcon(
