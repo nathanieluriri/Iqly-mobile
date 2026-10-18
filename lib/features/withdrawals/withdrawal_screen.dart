@@ -12,6 +12,7 @@ import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/top_bar.dart';
 import '../wallet/wallet_state.dart';
+import 'payout_arrival.dart';
 import 'withdrawal_failed_screen.dart';
 import 'withdrawal_tracker_screen.dart';
 
@@ -42,6 +43,9 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(seenPayoutsProvider.notifier).opened(widget.id);
+    });
     ref.listenManual(
       walletProvider,
       (previous, next) => _follow(next),
