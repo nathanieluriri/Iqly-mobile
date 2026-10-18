@@ -1,7 +1,7 @@
 name: iqly_mobile
 description: "The iQLY contributor app for Android, iOS and Windows."
 publish_to: 'none'
-version: 0.5.0+5
+version: 0.5.1+6
 
 environment:
   sdk: ^3.13.5
