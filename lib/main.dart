@@ -19,6 +19,7 @@ import 'data/live_auth.dart';
 import 'data/local/local_providers.dart';
 import 'data/local/local_store.dart';
 import 'data/local/memory_local_store.dart';
+import 'data/biometric_service.dart';
 import 'data/patches.dart';
 import 'data/profile_service.dart';
 import 'data/token_store.dart';
@@ -54,6 +55,8 @@ Future<void> main() async {
         ),
       ),
       patchServiceProvider.overrideWithValue(ShorebirdPatchService()),
+      biometricServiceProvider.overrideWithValue(DeviceBiometrics()),
+      pinVaultProvider.overrideWithValue(SecurePinVault()),
       buildInfoProvider.overrideWith((ref) async {
         final info = await PackageInfo.fromPlatform();
         return BuildInfo(
