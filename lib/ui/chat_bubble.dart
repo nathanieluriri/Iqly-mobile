@@ -21,6 +21,9 @@ enum IqChatBubbleFrom { you, support }
 ///
 /// Figma over its note: the attachment fills the bubble width (272 or 270)
 /// instead of keeping the master's 358 thumbnail.
+/// Brief over Figma (owner decision D4): a reply from the business behind
+/// an activation signs with its [name] alone, [showSticker] false, since the
+/// iQ sticker is iQLY's own.
 class IqChatBubble extends StatefulWidget {
   const IqChatBubble({
     super.key,
@@ -30,6 +33,7 @@ class IqChatBubble extends StatefulWidget {
         'of step 2 yesterday and it still says Checking.',
     this.time = 'Today, 2:20 pm',
     this.name = 'iQLY support',
+    this.showSticker = true,
     this.showAttachment = false,
     this.attachment,
     this.animate = true,
@@ -39,6 +43,7 @@ class IqChatBubble extends StatefulWidget {
   final String body;
   final String time;
   final String name;
+  final bool showSticker;
   final bool showAttachment;
   final Widget? attachment;
   final bool animate;
@@ -157,26 +162,32 @@ class _IqChatBubbleState extends State<IqChatBubble>
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              IqTilt(
-                degrees: 6,
-                child: Container(
-                  width: 24,
-                  height: 24,
-                  alignment: Alignment.center,
-                  decoration: const BoxDecoration(
-                    color: IqColors.accent,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    'iQ',
-                    style: IqText.label.copyWith(color: IqColors.brand),
+              if (widget.showSticker) ...[
+                IqTilt(
+                  degrees: 6,
+                  child: Container(
+                    width: 24,
+                    height: 24,
+                    alignment: Alignment.center,
+                    decoration: const BoxDecoration(
+                      color: IqColors.accent,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      'iQ',
+                      style: IqText.label.copyWith(color: IqColors.brand),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: IqSpace.s2),
-              Text(
-                widget.name,
-                style: IqText.smallStrong.copyWith(color: IqColors.fg),
+                const SizedBox(width: IqSpace.s2),
+              ],
+              Flexible(
+                child: Text(
+                  widget.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: IqText.smallStrong.copyWith(color: IqColors.fg),
+                ),
               ),
             ],
           ),

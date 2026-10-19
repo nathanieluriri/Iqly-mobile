@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/deadline.dart';
 import '../../core/flags.dart';
+import '../../core/money.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
@@ -43,6 +44,10 @@ import 'activations_widgets.dart';
 /// proof is disabled until a recording is in; tapped before it is ready,
 /// the slot shakes with the error haptic. Once sent, the success haptic and
 /// back to the activation, which now reads Your proof.
+///
+/// The line over the slot promises what confirming the step pays: the
+/// reward on a per-run activation, as the frames say, and the step's own
+/// amount on a per-step one (nothing when the step pays nothing).
 ///
 /// Figma over this build: 141:5492 shows the phone field's placeholder as
 /// "e.g. 0801 234 5678"; the build keeps "0801 234 5678" of the other
@@ -130,7 +135,7 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
   }
 
   Future<void> _send(Activation activation, ProofDraft draft) async {
-    final step = activation.waitingStep;
+    final step = activation.proofStep;
     final video = draft.video;
     final uploadId = draft.uploadId;
     if (draft.stage != ProofStage.ready ||
@@ -243,7 +248,9 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
             draft.refusal == ProofRefusal.ended ||
             draft.refusal == ProofRefusal.paid ||
             !activation.canProveAt(now));
-    final step = (activation?.waitingStep ?? activation?.confirmed ?? 0) + 1;
+    final index = activation?.proofStep ?? activation?.confirmed ?? 0;
+    final step = index + 1;
+    final pays = activation?.paysFor(index) ?? 0;
     final refused = draft.stage == ProofStage.refused ? draft.video : null;
     final refusal = refused == null ? null : _refusal(refused, draft.refusal);
 
@@ -285,8 +292,12 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
                               const SizedBox(height: IqSpace.s4),
                             ],
                             Text(
-                              'Record step $step. ${activation.business} '
-                              'confirms it, then we pay ${reward(activation)}.',
+                              pays > 0
+                                  ? 'Record step $step. ${activation.business} '
+                                        'confirms it, then we pay '
+                                        '${rewardPool(pays)}.'
+                                  : 'Record step $step. ${activation.business} '
+                                        'confirms it.',
                               style: IqText.body.copyWith(color: IqColors.fg2),
                             ),
                             const SizedBox(height: IqSpace.s4),

@@ -37,6 +37,8 @@ import 'help_state.dart';
 /// lines, up to 1,000 characters with a live count; a recording is
 /// optional and goes up before it can be sent. Send to support opens the
 /// thread in its place, so back from the thread returns to the activation.
+/// On an API that routes a request about an activation to the business
+/// behind it (owner decision D4), the button names that business.
 ///
 /// Where the build parts from the frame: the message box is Exp/Field (the
 /// one text entry component) where Figma draws a plain frame, so focus
@@ -120,6 +122,9 @@ class _HelpRequestScreenState extends ConsumerState<HelpRequestScreen> {
         ? null
         : ref.watch(activationProvider(about));
     final draft = ref.watch(helpDraftProvider);
+    final to = ref.watch(helpAuthorNamesProvider) && activation != null
+        ? activation.business
+        : 'support';
     final count = _thousands.format(draft.message.characters.length);
     final limit = _thousands.format(HelpRequestScreen.maxLength);
 
@@ -210,7 +215,7 @@ class _HelpRequestScreenState extends ConsumerState<HelpRequestScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       IqButton(
-                        label: 'Send to support',
+                        label: 'Send to $to',
                         showIcon: false,
                         width: double.infinity,
                         disabled: !draft.canSend && !draft.sending,

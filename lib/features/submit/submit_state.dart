@@ -67,6 +67,7 @@ class SubmitFlow {
     this.back = false,
     this.restored,
     this.queued = false,
+    this.blocked,
   });
 
   final SubmitStep step;
@@ -98,6 +99,9 @@ class SubmitFlow {
   /// draft stays until it lands.
   final bool queued;
 
+  /// The API refused the send for good: the brief cannot take it.
+  final SubmitBlock? blocked;
+
   bool get uploading =>
       files.any((f) => f.status == AttachmentStatus.uploading);
 
@@ -124,6 +128,7 @@ class SubmitFlow {
     back: back ?? this.back,
     restored: restored,
     queued: queued,
+    blocked: blocked,
   );
 }
 
@@ -424,6 +429,14 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
         step: SubmitStep.sent,
         files: state.files,
         queued: true,
+      );
+    } else if (result.failure == SubmitFailure.blocked &&
+        result.block != SubmitBlock.alreadySubmitted) {
+      state = SubmitFlow(
+        draft: state.draft,
+        step: state.step,
+        files: state.files,
+        blocked: result.block ?? SubmitBlock.closed,
       );
     } else if (result.failure == SubmitFailure.uploadsGone) {
       state = state.copyWith(sending: false, failed: true);

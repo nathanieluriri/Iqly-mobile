@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
+import '../../core/deadline.dart';
 import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
@@ -24,12 +24,14 @@ import '../../ui/top_bar.dart';
 import '../../data/help_service.dart';
 import '../../data/local/local_rows.dart';
 import '../../data/live/live_help_service.dart' show LiveHelpService;
+import '../activations/activations_state.dart' show activationProvider;
 import '../more/more_widgets.dart';
 import '../settings/restore_account_screen.dart';
 import 'help_attachment_screen.dart';
 import 'help_routes.dart';
 import 'help_state.dart';
 import 'help_widgets.dart';
+import 'support_screen.dart' show supportTime;
 
 /// B10 · Help thread · replied (141:5876) and B21 · Chat with support
 /// (431:19583), one thread screen for the one support inbox: the ticket's
@@ -46,6 +48,11 @@ import 'help_widgets.dart';
 /// crosses to Support replied. Resolving crosses the tag to Resolved before
 /// leaving. A thread opened later shows still; reduced motion cuts the
 /// space open and fades the parts in.
+///
+/// On an API that names who wrote each reply (owner decision D4), a reply
+/// from the business behind an activation shows the business's name, the
+/// tag says it replied, and the reply box writes to it; iQLY support keeps
+/// its name and sticker. Times a week old or more show their date.
 class HelpThreadScreen extends ConsumerStatefulWidget {
   const HelpThreadScreen({super.key, required this.id, this.entry});
 
@@ -57,8 +64,6 @@ class HelpThreadScreen extends ConsumerStatefulWidget {
 }
 
 class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
-  static final _time = DateFormat('EEE, h:mm a');
-
   /// A part landing in view opens its space over this, then arrives.
   static const _open = IqDurations.mark;
 
@@ -117,8 +122,7 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
     super.dispose();
   }
 
-  static String _at(DateTime at) =>
-      _time.format(at).replaceAll('AM', 'am').replaceAll('PM', 'pm');
+  String _at(DateTime at) => supportTime(at, ref.read(clockProvider)());
 
   /// Notes what lands while the thread is open, so it can open its space
   /// and arrive; what was there when it opened shows still.
@@ -207,12 +211,19 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
         ? ref.watch(helpLoadFailedProvider.select((ids) => ids[widget.id]))
         : null;
     if (ticket != null) _note(ticket);
+    final names = ref.watch(helpAuthorNamesProvider);
+    final about = ticket?.activationId;
+    final business = !names || about == null
+        ? null
+        : ticket?.business ??
+              ref.watch(activationProvider(about))?.business ??
+              'the business';
     final shownMessages = _shownMessages ?? 0;
     final thread = ticket == null
         ? null
         : Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: _thread(ticket, shownMessages),
+            children: _thread(ticket, shownMessages, names: names),
           );
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -284,7 +295,7 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
                               const SizedBox(height: IqSpace.s3),
                               IqField(
                                 label: 'Reply',
-                                value: 'Write to support',
+                                value: 'Write to ${business ?? 'support'}',
                                 controller: _reply,
                                 minLines: 1,
                                 maxLines: null,
@@ -337,9 +348,10 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
     );
   }
 
-  List<Widget> _thread(HelpTicket ticket, int shown) {
+  List<Widget> _thread(HelpTicket ticket, int shown, {required bool names}) {
     final open = motion(context, _open);
     final held = _holding ? _heldReply : null;
+    final reply = ticket.lastReply;
     final parts = <Widget>[
       Padding(
         padding: const EdgeInsets.symmetric(vertical: IqSpace.s2),
@@ -354,6 +366,14 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
                 HelpTicketStatus.replied => IqTicketTagKind.replied,
                 HelpTicketStatus.resolved => IqTicketTagKind.resolved,
               },
+              label:
+                  names &&
+                      held == null &&
+                      ticket.status == HelpTicketStatus.replied &&
+                      reply != null &&
+                      reply.fromBusiness
+                  ? '${reply.authorName} replied'
+                  : null,
             ),
             const SizedBox(height: IqSpace.s2),
             Text(
@@ -376,7 +396,12 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
       parts.add(
         KeyedSubtree(
           key: ValueKey('message-$i'),
-          child: _message(message, arriving: arriving, delay: delay),
+          child: _message(
+            message,
+            arriving: arriving,
+            delay: delay,
+            names: names,
+          ),
         ),
       );
       for (final attachment in message.attachments) {
@@ -424,6 +449,7 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
                 ticket.messages[held],
                 arriving: false,
                 delay: Duration.zero,
+                names: names,
               ),
             ),
           const TypingBubble(key: ValueKey('dots')),
@@ -449,12 +475,16 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
     HelpMessage message, {
     required bool arriving,
     required Duration delay,
+    required bool names,
   }) {
     final you = message.author == HelpAuthor.you;
+    final business = names && message.fromBusiness;
     IqChatBubble bubble(bool animate) => IqChatBubble(
       from: you ? IqChatBubbleFrom.you : IqChatBubbleFrom.support,
       body: message.body,
       time: _at(message.at),
+      name: business ? message.authorName! : iqlySupport,
+      showSticker: !business,
       animate: animate,
     );
     final aligned = Align(

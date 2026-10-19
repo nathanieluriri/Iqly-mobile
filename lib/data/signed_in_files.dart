@@ -1,11 +1,12 @@
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'api_client.dart';
 
 /// Files the API serves only to the signed-in person (what they sent to
-/// support), downloaded with the session token into a folder of the
+/// support or with an entry), downloaded with the session token into a folder of the
 /// account's own in the phone's temporary directory, so a player opens them
 /// from disk: iOS will not stream a link whose server ignores Range. A file
 /// already downloaded is used again; signing out deletes the account's
@@ -78,3 +79,34 @@ final signedInFilesProvider = Provider<SignedInFiles?>((ref) {
   final api = ref.watch(apiClientProvider);
   return api == null ? null : SignedInFiles(api: api);
 });
+
+/// Hands a downloaded file the app cannot show (a PDF) to the phone's own
+/// save dialog, so the person keeps it where they can open it. False when
+/// it was not saved.
+abstract class FileSaver {
+  Future<bool> save(File file, {required String name, required String mime});
+}
+
+class DeviceFileSaver implements FileSaver {
+  const DeviceFileSaver();
+
+  @override
+  Future<bool> save(
+    File file, {
+    required String name,
+    required String mime,
+  }) async {
+    try {
+      final saved = await FilePicker.saveFile(
+        fileName: name,
+        bytes: await file.readAsBytes(),
+        mimeType: mime,
+      );
+      return saved != null;
+    } on Exception {
+      return false;
+    }
+  }
+}
+
+final fileSaverProvider = Provider<FileSaver>((ref) => const DeviceFileSaver());

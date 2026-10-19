@@ -321,3 +321,11 @@ final supportShownProvider = Provider<bool>((ref) {
 final supportLiveProvider = Provider<bool>(
   (ref) => ref.watch(liveModeProvider).isLive(LiveFeature.support),
 );
+
+/// Whether replies name who wrote them (health's `helpAuthorNames`): a
+/// business's reply then shows its name, and a thread about an activation
+/// names the business it goes to. The preview's threads are iQLY support's,
+/// as the frames draw them.
+final helpAuthorNamesProvider = Provider<bool>(
+  (ref) => ref.watch(liveModeProvider).isLive(LiveFeature.helpAuthorNames),
+);

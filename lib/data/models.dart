@@ -71,6 +71,7 @@ class Brief {
     this.minutes,
     this.logo,
     this.cover,
+    this.inAudience,
   });
 
   final String id;
@@ -103,6 +104,10 @@ class Brief {
   final String? logo;
   final String? cover;
 
+  /// Whether the person is in the brief's audience, as the API's brief
+  /// detail says; null when it does not.
+  final bool? inAudience;
+
   bool get isLive => status == BriefStatus.live;
 
   Map<String, Object?> toJson() => {
@@ -123,6 +128,7 @@ class Brief {
     'minutes': minutes,
     'logo': logo,
     'cover': cover,
+    'inAudience': inAudience,
   };
 
   factory Brief.fromJson(Map<String, Object?> json) {
@@ -145,6 +151,7 @@ class Brief {
       minutes: json['minutes'] as int?,
       logo: json['logo'] as String?,
       cover: json['cover'] as String?,
+      inAudience: json['inAudience'] as bool?,
     );
   }
 }
@@ -167,6 +174,7 @@ class Submission {
     this.brief,
     this.award,
     this.note,
+    this.files = const [],
   });
 
   final String id;
@@ -175,6 +183,9 @@ class Submission {
   final String body;
   final SubmissionStatus status;
   final DateTime createdAt;
+
+  /// What the person sent with it, as the API lists it. None in the demo.
+  final List<SubmissionFile> files;
 
   /// The business's note to the author (contract 12.2), as the API embeds
   /// it once the results are out. Null in the demo.
@@ -188,6 +199,31 @@ class Submission {
   /// What the win paid, as the API embeds it. Null in the demo, which
   /// finds the award on its ledger.
   final SubmissionAward? award;
+}
+
+/// A file sent with an entry (contract 5), which the API serves to its
+/// author with the session token.
+class SubmissionFile {
+  const SubmissionFile({
+    required this.id,
+    required this.type,
+    required this.url,
+  });
+
+  final String id;
+
+  /// `image` or `pdf`, as the API names it.
+  final String type;
+  final String url;
+
+  bool get image => type == 'image';
+
+  /// iqly.net's words for it: "PDF attachment".
+  String get label => switch (type) {
+    'image' => 'Image attachment',
+    'pdf' => 'PDF attachment',
+    _ => 'Attachment',
+  };
 }
 
 /// A winning entry's award as the API embeds it in the submission.

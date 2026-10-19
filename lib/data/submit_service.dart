@@ -15,8 +15,16 @@ import 'repository.dart';
 import 'submit_data.dart';
 
 /// Why a brief cannot take a submission now (iqly.net "Can't submit right
-/// now"), in the order the product checks them.
-enum SubmitBlock { full, deadlinePassed, closed, alreadySubmitted }
+/// now"), in the order the product checks them. [notInAudience]: the brief
+/// is for people the person is not among (403 SUBMISSION_NOT_IN_AUDIENCE,
+/// or the brief's own `inAudience`).
+enum SubmitBlock {
+  full,
+  deadlinePassed,
+  closed,
+  alreadySubmitted,
+  notInAudience,
+}
 
 /// A brief as the submit flow opens it: its form, or why it is blocked.
 class SubmitOpening {
@@ -150,10 +158,11 @@ class DemoSubmitService implements SubmitService {
     final deadline = brief.deadline;
     final passed = deadline != null && !deadline.isAfter(_clock());
     final full = brief.spotsLeft == 0;
-    if (!full && !passed && brief.isLive) return null;
     if (full) return SubmitBlock.full;
     if (passed) return SubmitBlock.deadlinePassed;
-    return SubmitBlock.closed;
+    if (!brief.isLive) return SubmitBlock.closed;
+    if (brief.inAudience == false) return SubmitBlock.notInAudience;
+    return null;
   }
 
   @override
@@ -325,6 +334,7 @@ final submitServiceProvider = Provider<SubmitService>((ref) {
       api,
       clock: ref.watch(clockProvider),
       queue: ref.watch(submitQueueProvider),
+      audience: mode.isLive(LiveFeature.briefAudience),
     );
   }
   if (!mode.isPreview) return const PausedSubmitService();
@@ -335,6 +345,13 @@ final submitServiceProvider = Provider<SubmitService>((ref) {
         : ref.watch(demoRepositoryProvider).data,
     clock: ref.watch(clockProvider),
   );
+});
+
+/// Whether a brief outside the person's audience is blocked before they
+/// write (health's `briefAudience`). The preview's briefs never say.
+final briefAudienceProvider = Provider<bool>((ref) {
+  final mode = ref.watch(liveModeProvider);
+  return mode.isPreview || mode.isLive(LiveFeature.briefAudience);
 });
 
 /// A live send takes images and PDFs only: the API refuses anything else.

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/deadline.dart';
 import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
@@ -24,21 +25,33 @@ import '../settings/restore_account_screen.dart';
 import 'help_routes.dart';
 import 'help_state.dart';
 
-/// "Sat, 3:06 pm".
-String supportTime(DateTime at) =>
-    DateFormat('EEE, h:mm a')
-        .format(at)
-        .replaceAll('AM', 'am')
-        .replaceAll('PM', 'pm');
+/// "Sat, 3:06 pm" within the week, then the date: "12 Oct, 3:06 pm", so a
+/// weekday never stands for two days.
+String supportTime(DateTime at, DateTime now) {
+  final day = DateTime(at.year, at.month, at.day);
+  final today = DateTime(now.year, now.month, now.day);
+  final old =
+      (today.difference(day).inHours / Duration.hoursPerDay).round() > 6;
+  return DateFormat(old ? 'd MMM, h:mm a' : 'EEE, h:mm a')
+      .format(at)
+      .replaceAll('AM', 'am')
+      .replaceAll('PM', 'pm');
+}
 
-/// What an inbox row says under the subject.
-String conversationLine(HelpTicket ticket) {
+/// What an inbox row says under the subject. With [names] a reply from a
+/// business says so by name: "Kudi Box replied".
+String conversationLine(HelpTicket ticket, DateTime now, {bool names = false}) {
+  final reply = ticket.lastReply;
   final status = switch (ticket.status) {
-    HelpTicketStatus.replied => ticket.unread ? 'Support replied' : 'Replied',
+    HelpTicketStatus.replied when !ticket.unread => 'Replied',
+    HelpTicketStatus.replied
+        when names && reply != null && reply.fromBusiness =>
+      '${reply.authorName} replied',
+    HelpTicketStatus.replied => 'Support replied',
     HelpTicketStatus.open => 'Sent',
     HelpTicketStatus.resolved => 'Resolved',
   };
-  return '$status · ${supportTime(ticket.updatedAt)}';
+  return '$status · ${supportTime(ticket.updatedAt, now)}';
 }
 
 /// B21 · Support · conversations (485:39190): the one support inbox
@@ -51,6 +64,8 @@ class SupportScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final loaded = ref.watch(conversationsProvider);
     final tickets = loaded.value;
+    final now = ref.watch(clockProvider)();
+    final names = ref.watch(helpAuthorNamesProvider);
     final failed = tickets == null && loaded.hasError && !loaded.isLoading;
     return SubPage(
       title: 'Support',
@@ -78,7 +93,11 @@ class SupportScreen extends ConsumerWidget {
                       padding: const EdgeInsets.only(top: IqSpace.s3),
                       child: IqListRow(
                         label: ticket.subject,
-                        description: conversationLine(ticket),
+                        description: conversationLine(
+                          ticket,
+                          now,
+                          names: names,
+                        ),
                         icon: IqIcons.chat,
                         onTap: () => context.open(helpThreadPath(ticket.id)),
                       ),

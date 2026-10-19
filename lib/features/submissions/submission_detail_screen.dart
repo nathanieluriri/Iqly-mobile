@@ -21,13 +21,15 @@ import '../../ui/skeleton.dart';
 import '../../ui/top_bar.dart';
 import '../outcomes/business_note.dart';
 import 'brief_art.dart';
+import 'submission_files.dart';
 import 'submissions_state.dart';
 
 /// B4 Submission detail (35:146), a sub page: the brief's photo with the
 /// business logo, who it is for and the status, your title, when you sent
 /// it and the brief, the pool and deadline, your answer and when results
-/// come, and the business's note once its results are out (contract
-/// 12.2). View the brief opens Brief detail. From a card the submission is
+/// come, what the person sent with it (no frame draws the files: they keep
+/// the submit flow's attachments group), and the business's note once its
+/// results are out (contract 12.2). View the brief opens Brief detail. From a card the submission is
 /// already on the device, so it draws from the first frame; only a cold
 /// open waits behind LoadingGate.
 class SubmissionDetailScreen extends ConsumerWidget {
@@ -285,6 +287,17 @@ class _Body extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (item.submission.files case final files
+                      when files.isNotEmpty) ...[
+                    gap(),
+                    StaggerItem(
+                      index: 4,
+                      child: SubmissionFiles(
+                        submissionId: item.submission.id,
+                        files: files,
+                      ),
+                    ),
+                  ],
                   if (note case final note?) ...[
                     gap(),
                     const StaggerItem(
