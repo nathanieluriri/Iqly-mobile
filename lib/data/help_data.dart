@@ -85,6 +85,10 @@ class HelpMessage {
   final HelpAuthor author;
   final String body;
   final DateTime at;
+  final HelpAttachment? attachment;
+
+  /// What else the API says was sent with it (up to three in all).
+  final List<HelpAttachment> more;
 
   /// Who signed a reply, as the API names them: the business's name, or
   /// [iqlySupport]; null for the person's own and on an API that does not
@@ -96,10 +100,6 @@ class HelpMessage {
       author == HelpAuthor.support &&
       authorName != null &&
       authorName != iqlySupport;
-  final HelpAttachment? attachment;
-
-  /// What else the API says was sent with it (up to three in all).
-  final List<HelpAttachment> more;
 
   List<HelpAttachment> get attachments => [?attachment, ...more];
 }

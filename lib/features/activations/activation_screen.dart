@@ -15,6 +15,7 @@ import '../../core/transitions.dart';
 import '../../data/activations_data.dart';
 import '../../data/api_client.dart';
 import '../../data/help_service.dart' show supportShownProvider;
+import '../../data/referrals_service.dart' show ReferralsService;
 import '../../data/device.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -667,7 +668,7 @@ class _StepsPage extends StatelessWidget {
     final divider = i < a.steps.length - 1;
     final number = '${i + 1}';
     final showReward = showsStepReward(a, i);
-    final reward = stepRewardText(a, i);
+    final amount = stepRewardText(a, i);
     if (i < a.confirmed) {
       return IqStepRow(
         state: IqStepRowState.done,
@@ -677,7 +678,7 @@ class _StepsPage extends StatelessWidget {
             'Confirmed by ${a.business} · ${dayTime(a.progress!.confirmedAt[i])}',
         divider: divider,
         showReward: showReward,
-        reward: reward,
+        reward: amount,
       );
     }
     if (i == _activeStep && i != chained) {
@@ -692,7 +693,7 @@ class _StepsPage extends StatelessWidget {
             : '${a.business} is checking. Usually a few minutes.',
         divider: divider,
         showReward: showReward,
-        reward: reward,
+        reward: amount,
       );
       if (_stuck || _recording) return row;
       return MergeSemantics(
@@ -708,7 +709,7 @@ class _StepsPage extends StatelessWidget {
       body: step.hint,
       divider: divider,
       showReward: showReward,
-      reward: reward,
+      reward: amount,
     );
   }
 
@@ -797,8 +798,6 @@ class _RunCode extends StatefulWidget {
 }
 
 class _RunCodeState extends State<_RunCode> {
-  static const _copiedFor = Duration(seconds: 2);
-
   bool _copied = false;
   Timer? _reset;
 
@@ -815,7 +814,7 @@ class _RunCodeState extends State<_RunCode> {
     IqToast.show(context, 'Code copied');
     setState(() => _copied = true);
     _reset?.cancel();
-    _reset = Timer(_copiedFor, () {
+    _reset = Timer(ReferralsService.copiedFor, () {
       if (mounted) setState(() => _copied = false);
     });
   }

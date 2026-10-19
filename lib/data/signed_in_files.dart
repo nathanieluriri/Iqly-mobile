@@ -5,12 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'api_client.dart';
 
-/// Files the API serves only to the signed-in person (what they sent to
-/// support or with an entry), downloaded with the session token into a folder of the
+/// Files the API serves only to the signed-in person (what they sent to support
+/// or with an entry), downloaded with the session token into a folder of the
 /// account's own in the phone's temporary directory, so a player opens them
 /// from disk: iOS will not stream a link whose server ignores Range. A file
-/// already downloaded is used again; signing out deletes the account's
-/// folder.
+/// already downloaded is used again; signing out deletes the account's folder.
 class SignedInFiles {
   SignedInFiles({required this.api, Directory? root})
     : root = root ?? Directory('${Directory.systemTemp.path}/iqly-files');

@@ -12,15 +12,15 @@ import '../../data/media_service.dart';
 import '../../data/models.dart';
 import '../wallet/wallet_state.dart';
 
-/// The activations and your progress on each, kept for the session so the
-/// list opens at once the second time. Changes the service pushes land here
-/// as they happen. A reward that gets paid is credited to the wallet as a
-/// ledger award with the activation's [Activation.creditId], so it counts
-/// once whoever pays it; a per-step activation credits each step as it is
-/// paid, on that payout's own row. The wallet foots: DemoData's ledger (₦15,000.00 available, ₦65,000.00 earned,
-/// designer answer 6) plus the reward (₦1,500 makes ₦16,500.00 and
-/// ₦66,500.00; the B8 · Reward · credited frame still reads the older
-/// ₦14,000.00). The live API credits the ledger itself, so a live payment
+/// The activations and your progress on each, kept for the session so the list
+/// opens at once the second time. Changes the service pushes land here as they
+/// happen. A reward that gets paid is credited to the wallet as a ledger award
+/// with the activation's [Activation.creditId], so it counts once whoever pays
+/// it; a per-step activation credits each step as it is paid, on that payout's
+/// own row. The wallet foots: DemoData's ledger (₦15,000.00 available,
+/// ₦65,000.00 earned, designer answer 6) plus the reward (₦1,500 makes
+/// ₦16,500.00 and ₦66,500.00; the B8 · Reward · credited frame still reads the
+/// older ₦14,000.00). The live API credits the ledger itself, so a live payment
 /// reads the wallet again instead.
 class ActivationsNotifier extends AsyncNotifier<List<Activation>> {
   @override
