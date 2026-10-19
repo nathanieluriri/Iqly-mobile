@@ -348,12 +348,14 @@ class Activation {
       (progress?.heldSteps.isNotEmpty ?? false);
 
   /// The proof that still stands: with a mode, one accepted or whose step
-  /// is already confirmed is done with, as the API reads it.
+  /// is already confirmed is done with, as the API reads it, and so is one
+  /// turned down for a step the business has since reported and holds.
   ActivationProof? get pendingProof {
     final run = progress;
     final proof = run?.proof;
     if (run == null || proof == null) return null;
     if (confirmationMode == null) return proof;
+    if (!proof.accepted && heldAt(proof.step)) return null;
     final accepted = proof.accepted && proof.checkedAt != null;
     return proof.step >= run.confirmedAt.length && !accepted ? proof : null;
   }

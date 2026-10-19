@@ -132,6 +132,38 @@ String progressLine(Activation activation) => activation.confirmed == 0
           : 'Not started · ${_count(activation.steps.length, 'step')}'
     : 'Step ${activation.confirmed} of ${activation.steps.length} confirmed';
 
+/// Why no proof can go now, in words, or null when one can: a step the
+/// business has reported waits out its hold; in postback mode, or without
+/// a mode, a step first waits a day for the business.
+String? proofHeldBack(Activation activation, DateTime now) {
+  final waiting = activation.waitingStep;
+  if (waiting != null && activation.heldAt(waiting)) return _held(activation);
+  if (activation.confirmationMode == ConfirmationMode.proof) return null;
+  return switch (activation.phaseAt(now)) {
+    ActivationPhase.started ||
+    ActivationPhase.confirming => _notDue(activation),
+    _ => null,
+  };
+}
+
+/// A proof refused as not due (409 ACTIVATION_PROOF_NOT_DUE) in words, as
+/// the API words it with the business named: held when it sends
+/// `heldUntil`, else the rule of the activation's mode.
+String proofNotDueText(Activation activation, Map<String, dynamic>? details) {
+  if (details?['heldUntil'] != null) return _held(activation);
+  return activation.confirmationMode == ConfirmationMode.proof
+      ? 'Send proof of the next step, one step at a time.'
+      : _notDue(activation);
+}
+
+String _held(Activation activation) =>
+    '${activation.business} has reported this step. It counts when its hold '
+    'ends.';
+
+String _notDue(Activation activation) =>
+    'Proof can be sent once a step has waited a day for '
+    '${activation.business}.';
+
 /// My activations: "Kudi Box · step 1 of 3 confirmed".
 String myActivationsLine(Activation activation) =>
     '${activation.business} · step ${activation.confirmed} of '

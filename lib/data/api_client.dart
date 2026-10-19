@@ -39,6 +39,13 @@ class ApiResponse {
     return message is String ? message : null;
   }
 
+  /// What the API's `error.details` adds to a refusal.
+  Map<String, dynamic>? get details {
+    final error = body['error'];
+    final details = error is Map ? error['details'] : null;
+    return details is Map ? details.cast<String, dynamic>() : null;
+  }
+
   /// The API's `{ success, data }` payload.
   Map<String, dynamic> get data {
     final data = body['data'];
@@ -103,13 +110,17 @@ bool unanswered(Object error) =>
 
 /// An answer the API refused, with its status, code and message.
 class ApiRefused implements Exception {
-  const ApiRefused(this.status, [this.code, this.message]);
+  const ApiRefused(this.status, [this.code, this.message, this.details]);
 
-  ApiRefused.of(ApiResponse res) : this(res.status, res.code, res.message);
+  ApiRefused.of(ApiResponse res)
+    : this(res.status, res.code, res.message, res.details);
 
   final int status;
   final String? code;
   final String? message;
+
+  /// What the API's `error.details` adds, such as when a held step counts.
+  final Map<String, dynamic>? details;
 
   @override
   String toString() => 'ApiRefused($status${code == null ? '' : ' $code'})';

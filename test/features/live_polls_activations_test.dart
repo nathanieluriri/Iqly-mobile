@@ -130,6 +130,19 @@ http.Response _no(int status, String code) => http.Response(
   headers: {'content-type': 'application/json'},
 );
 
+http.Response _notDue(Map<String, Object?> details) => http.Response(
+  jsonEncode({
+    'success': false,
+    'error': {
+      'code': 'ACTIVATION_PROOF_NOT_DUE',
+      'message': '',
+      'details': details,
+    },
+  }),
+  409,
+  headers: {'content-type': 'application/json'},
+);
+
 Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);
   await tester.pumpAndSettle();
@@ -644,6 +657,264 @@ void main() {
         await tester.scrollUntilVisible(find.text('Your progress:'), 100);
         expect(find.text('₦500 earned of up to ₦1,500'), findsOneWidget);
       });
+
+      const held =
+          'Harbour Telecom has reported this step. It counts when its hold '
+          'ends.';
+
+      /// Postback mode, a day after the start: step 1's proof was turned
+      /// down, then the business's server reported the step, which it holds.
+      Map<String, Object?> refusedThenHeld({bool hold = true}) =>
+          _json.activationJson(
+            confirmationMode: 'postback',
+            progress: _json.runJson(
+              started: const Duration(hours: 26),
+              refCode: 'IQ-7K3P2',
+              proof: _json.proofJson(
+                status: 'rejected',
+                reason: 'The recording ends too soon.',
+                step: 0,
+              ),
+              heldSteps: hold
+                  ? [_json.heldJson(0, const Duration(hours: 20))]
+                  : null,
+            ),
+          );
+
+      testWidgets('a proof turned down, then the step reported and held: '
+          'the step waits on the business, with nothing to record again', (
+        tester,
+      ) async {
+        final run = refusedThenHeld();
+        final api = _Api({
+          'GET /activations': (_) => _ok({
+            'items': [run],
+          }),
+          'GET /activations/a_1': (_) => _ok(run),
+        });
+        await pumpLiveLaunch(
+          tester,
+          activationPath('a_1'),
+          api: api.client,
+          mode: Backend.of({...gated.live, LiveFeature.support}),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.text('Waiting for Harbour Telecom to confirm.'),
+          findsOneWidget,
+        );
+        expect(find.text('Record again'), findsNothing);
+        expect(find.textContaining('Proof not accepted'), findsNothing);
+        expect(find.textContaining('Upload proof'), findsNothing);
+        expect(find.text('No steps confirmed yet'), findsOneWidget);
+      });
+
+      testWidgets('without the hold the same proof offers Record again', (
+        tester,
+      ) async {
+        final run = refusedThenHeld(hold: false);
+        final api = _Api({
+          'GET /activations': (_) => _ok({
+            'items': [run],
+          }),
+          'GET /activations/a_1': (_) => _ok(run),
+        });
+        await pumpLiveLaunch(
+          tester,
+          activationPath('a_1'),
+          api: api.client,
+          mode: gated,
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Record again'), findsOneWidget);
+        expect(
+          find.text('Proof not accepted. The recording ends too soon.'),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('Upload proof of a held step says why, and sends nothing', (
+        tester,
+      ) async {
+        final run = refusedThenHeld();
+        final api = _Api({
+          'GET /activations': (_) => _ok({
+            'items': [run],
+          }),
+          'GET /activations/a_1': (_) => _ok(run),
+        });
+        await pumpLiveLaunch(
+          tester,
+          proofPath('a_1'),
+          api: api.client,
+          mode: gated,
+          overrides: [
+            activationsServiceProvider.overrideWith(
+              (ref) =>
+                  _Uploads(ref.watch(accountLinkProvider)!, stepProof: true),
+            ),
+          ],
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(ProofScreen), findsOneWidget);
+        expect(find.text(held), findsOneWidget);
+        expect(find.textContaining('Record step'), findsNothing);
+        await _tap(tester, find.text('Choose a video'));
+        expect(tester.widget<IqButton>(_button('Send proof')).disabled, isTrue);
+        await tester.tap(_button('Send proof'));
+        await tester.pumpAndSettle();
+        expect(api.to('POST /activations/a_1/proof'), isEmpty);
+        expect(find.text(held), findsOneWidget);
+      });
+
+      for (final (name, details, words) in [
+        (
+          'held',
+          {'step': 0, 'dueAt': null, 'heldUntil': _json.inn(Duration.zero)},
+          held,
+        ),
+        (
+          'not a day yet',
+          {'step': 0, 'dueAt': _json.inn(const Duration(hours: 2))},
+          'Proof can be sent once a step has waited a day for Harbour '
+              'Telecom.',
+        ),
+      ]) {
+        testWidgets('a send refused as not due ($name) says why and stays', (
+          tester,
+        ) async {
+          final run = refusedThenHeld(hold: false);
+          final api = _Api({
+            'GET /activations': (_) => _ok({
+              'items': [run],
+            }),
+            'GET /activations/a_1': (_) => _ok(run),
+            'POST /activations/a_1/proof': (_) => _notDue(details),
+          });
+          await pumpLiveLaunch(
+            tester,
+            proofPath('a_1'),
+            api: api.client,
+            mode: gated,
+            overrides: [
+              activationsServiceProvider.overrideWith(
+                (ref) =>
+                    _Uploads(ref.watch(accountLinkProvider)!, stepProof: true),
+              ),
+            ],
+          );
+          await tester.pumpAndSettle();
+          expect(find.textContaining('Record step 1.'), findsOneWidget);
+          await _tap(tester, find.text('Choose a video'));
+          await _tap(tester, _button('Send proof'));
+          expect(api.to('POST /activations/a_1/proof'), hasLength(1));
+          expect(find.byType(ProofScreen), findsOneWidget);
+          expect(find.text(words), findsOneWidget);
+        });
+      }
+
+      testWidgets('paid after a proof was turned down: the reward reads as '
+          'the business\'s confirmation, not the proof\'s', (tester) async {
+        final paid = _json.activationJson(
+          confirmationMode: 'postback',
+          progress: _json.runJson(
+            status: 'paid',
+            started: const Duration(days: 3),
+            confirmedAt: [
+              _json.at(const Duration(days: 1)),
+              _json.at(Duration.zero),
+            ],
+            paidAt: _json.at(Duration.zero),
+            proof: _json.proofJson(
+              status: 'rejected',
+              reason: 'The recording ends too soon.',
+              step: 0,
+            ),
+          ),
+        );
+        final api = _Api({
+          'GET /activations': (_) => _ok({
+            'items': [paid],
+          }),
+          'GET /activations/a_1': (_) => _ok(paid),
+        });
+        await pumpLiveLaunch(
+          tester,
+          activationPath('a_1'),
+          api: api.client,
+          mode: gated,
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Your reward'), findsOneWidget);
+        expect(find.text('Steps confirmed by Harbour Telecom'), findsOneWidget);
+        expect(find.text('Proof received'), findsNothing);
+      });
+
+      for (final names in [false, true]) {
+        testWidgets('Your proof of a step that pays nothing has no "Not '
+            'credited yet?"; the last step\'s has it'
+            '${names ? ', without iQLY\'s reply promise' : ''}', (
+          tester,
+        ) async {
+          Map<String, Object?> proving(int step) => _json.activationJson(
+            confirmationMode: 'proof',
+            progress: _json.runJson(
+              confirmedAt: [
+                for (var i = 0; i < step; i++) _json.at(Duration.zero),
+              ],
+              proof: _json.proofJson(step: step),
+            ),
+          );
+          var run = proving(0);
+          final api = _Api({
+            'GET /activations': (_) => _ok({
+              'items': [run],
+            }),
+            'GET /activations/a_1': (_) => _ok(run),
+          });
+          final (container, _) = await pumpLiveLaunch(
+            tester,
+            activationPath('a_1'),
+            api: api.client,
+            mode: Backend.of({
+              ...gated.live,
+              LiveFeature.support,
+              if (names) LiveFeature.helpAuthorNames,
+            }),
+          );
+          await tester.pumpAndSettle();
+          expect(find.text('Checking with Harbour Telecom'), findsWidgets);
+          await tester.scrollUntilVisible(find.text('Ask for help'), 100);
+          expect(find.text('Not credited yet?'), findsNothing);
+          expect(find.textContaining('Support usually replies'), findsNothing);
+
+          run = proving(2);
+          await container.read(activationsProvider.notifier).refresh('a_1');
+          await tester.pumpAndSettle();
+          await tester.scrollUntilVisible(find.text('Ask for help'), 100);
+          expect(find.text('Not credited yet?'), findsOneWidget);
+          expect(
+            find.textContaining('Support usually replies'),
+            names ? findsNothing : findsOneWidget,
+          );
+          await _tap(tester, find.text('Ask for help'));
+          expect(
+            _button(names ? 'Send to Harbour Telecom' : 'Send to support'),
+            findsOneWidget,
+          );
+          expect(
+            find.text('We reply here and by notification.'),
+            names ? findsNothing : findsOneWidget,
+          );
+          expect(
+            find.text(
+              'Usually replies within an hour on weekdays, within a day at '
+              'weekends.',
+            ),
+            names ? findsNothing : findsOneWidget,
+          );
+        });
+      }
     });
 
     testWidgets('a full activation: "Couldn\'t start." and Start goes grey', (

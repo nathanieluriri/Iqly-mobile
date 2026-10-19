@@ -287,6 +287,74 @@ void main() {
       expect(progressLine(today), 'Not started · 3 steps');
     });
 
+    test('a proof turned down for a step the business then reports and '
+        'holds is history: the step waits on the business', () {
+      ActivationProgress run({
+        ActivationProof? proof,
+        List<int> held = const [],
+      }) => _run(started: const Duration(hours: 26), proof: proof, held: held);
+      final refused = _proof(0, refused: 'The recording ends too soon.');
+      final heldBack = _kudiBox(
+        ConfirmationMode.postback,
+        run(proof: refused, held: [0]),
+      );
+      expect(heldBack.pendingProof, isNull);
+      expect(heldBack.phaseAt(_now), ActivationPhase.confirming);
+      expect(heldBack.proofStep, isNull);
+      expect(
+        proofHeldBack(heldBack, _now),
+        'Kudi Box has reported this step. It counts when its hold ends.',
+      );
+
+      final open = _kudiBox(ConfirmationMode.postback, run(proof: refused));
+      expect(open.phaseAt(_now), ActivationPhase.notAccepted);
+      expect(open.proofStep, 0);
+      expect(proofHeldBack(open, _now), isNull);
+
+      final waiting = _kudiBox(
+        ConfirmationMode.postback,
+        run(proof: _proof(0), held: [0]),
+      );
+      expect(
+        waiting.phaseAt(_now),
+        ActivationPhase.checking,
+        reason: 'a proof still waiting stands, as the API reads it',
+      );
+    });
+
+    test('why no proof can go, in words', () {
+      final early = _kudiBox(ConfirmationMode.postback, _run());
+      expect(
+        proofHeldBack(early, _now),
+        'Proof can be sent once a step has waited a day for Kudi Box.',
+      );
+      final due = _kudiBox(
+        ConfirmationMode.postback,
+        _run(started: const Duration(hours: 25)),
+      );
+      expect(proofHeldBack(due, _now), isNull);
+      expect(
+        proofHeldBack(_kudiBox(ConfirmationMode.proof, _run()), _now),
+        isNull,
+      );
+      expect(
+        proofNotDueText(early, {
+          'step': 0,
+          'dueAt': null,
+          'heldUntil': '2026-10-03T14:10:00.000Z',
+        }),
+        'Kudi Box has reported this step. It counts when its hold ends.',
+      );
+      expect(
+        proofNotDueText(early, {'step': 0, 'dueAt': '2026-10-03T14:10:00Z'}),
+        'Proof can be sent once a step has waited a day for Kudi Box.',
+      );
+      expect(
+        proofNotDueText(_kudiBox(ConfirmationMode.proof, _run()), null),
+        'Send proof of the next step, one step at a time.',
+      );
+    });
+
     test('held steps count in postback mode only', () {
       final run = _run(started: const Duration(hours: 25), held: [0]);
       final proof = _kudiBox(ConfirmationMode.proof, run);

@@ -677,12 +677,11 @@ void main() {
     expect(find.text('kudi-box-signup.mp4'), findsOneWidget);
     await _tap(tester, _button('Back'));
     expect(find.byType(ProofPlayerScreen), findsNothing);
-    expect(find.text('Not credited yet?'), findsOneWidget);
+    expect(find.text('Proof received'), findsOneWidget);
   });
 
-  testWidgets('B9: Ask for help opens the support inbox about the activation', (
-    tester,
-  ) async {
+  testWidgets('B9: Ask for help opens the support inbox about the activation; '
+      'a step that pays nothing has no "Not credited yet?"', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -720,13 +719,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(
-      find.text(
-        'Support usually replies within an hour on weekdays, within a day '
-        'at weekends.',
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('Not credited yet?'), findsNothing);
+    expect(find.textContaining('Support usually replies'), findsNothing);
     await _tap(tester, find.text('Ask for help'));
     expect(router.state.uri.path, Routes.help);
     expect(router.state.uri.queryParameters['about'], 'a2');

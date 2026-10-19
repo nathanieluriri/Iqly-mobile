@@ -14,7 +14,8 @@ import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../data/activations_data.dart';
 import '../../data/api_client.dart';
-import '../../data/help_service.dart' show supportShownProvider;
+import '../../data/help_service.dart'
+    show helpAuthorNamesProvider, supportShownProvider;
 import '../../data/referrals_service.dart' show ReferralsService;
 import '../../data/device.dart';
 import '../../router.dart';
@@ -330,6 +331,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
           activation: activation,
           now: now,
           support: ref.watch(supportShownProvider),
+          toBusiness: ref.watch(helpAuthorNamesProvider),
           onBack: _back,
           onRefresh: _refresh,
           onRecordAgain: _recordAgain,
@@ -914,12 +916,17 @@ class _AskForHelp extends StatelessWidget {
 /// B9 · Proof · submitted (141:5549) and not accepted (485:38715): what the
 /// proof is waiting on, the recording without its remove sticker, and the
 /// way to support. Not accepted puts the business's reason on the Error
-/// banner with Record again, which opens a fresh Upload proof.
+/// banner with Record again, which opens a fresh Upload proof; never for a
+/// step the business has reported and holds. "Not credited yet?" shows
+/// for a step that pays, with support's reply promise only when the
+/// request goes to iQLY (owner decision: a business makes none); a step
+/// that pays nothing keeps Ask for help alone, under the recording.
 class _ProofPage extends StatelessWidget {
   const _ProofPage({
     required this.activation,
     required this.now,
     required this.support,
+    required this.toBusiness,
     required this.onBack,
     required this.onRefresh,
     required this.onRecordAgain,
@@ -931,6 +938,9 @@ class _ProofPage extends StatelessWidget {
   /// Whether this launch has support to ask: "Not credited yet?" and Ask
   /// for help show only then.
   final bool support;
+
+  /// Whether help about the activation goes to its business.
+  final bool toBusiness;
   final VoidCallback onBack;
   final VoidCallback onRefresh;
   final VoidCallback onRecordAgain;
@@ -944,6 +954,7 @@ class _ProofPage extends StatelessWidget {
     final label = IqText.bodyStrong.copyWith(color: IqColors.fg3);
     final ended = refused != null && !a.canProveAt(now);
     final pays = a.paysFor(proof.step);
+    void help() => context.open(helpPath(about: a.id));
     return _Page(
       title: 'Your proof',
       onBack: onBack,
@@ -964,7 +975,7 @@ class _ProofPage extends StatelessWidget {
               kind: IqBannerKind.error,
               title: 'Proof not accepted. $refused',
               action: 'Record again',
-              showAction: !ended,
+              showAction: !ended && !a.heldAt(proof.step),
               onAction: onRecordAgain,
             ),
           _Header(
@@ -1005,23 +1016,25 @@ class _ProofPage extends StatelessWidget {
             ],
           ),
           Text('Your proof', style: label),
-          if (support)
+          if (support && pays > 0)
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text('Not credited yet?', style: label),
                 const SizedBox(height: IqSpace.s2),
-                Text(
-                  'Support usually replies within an hour on weekdays, within '
-                  'a day at weekends.',
-                  style: IqText.small.copyWith(color: IqColors.fg2),
-                ),
-                const SizedBox(height: IqSpace.s2),
+                if (!toBusiness) ...[
+                  Text(
+                    'Support usually replies within an hour on weekdays, '
+                    'within a day at weekends.',
+                    style: IqText.small.copyWith(color: IqColors.fg2),
+                  ),
+                  const SizedBox(height: IqSpace.s2),
+                ],
                 IqButton(
                   label: 'Ask for help',
                   showIcon: false,
                   width: double.infinity,
-                  onTap: () => context.open(helpPath(about: a.id)),
+                  onTap: help,
                 ),
               ],
             ),
@@ -1034,6 +1047,7 @@ class _ProofPage extends StatelessWidget {
             heroTag: proofHeroTag(a.id),
             onPlay: () => context.open(proofPlayerPath(a.id)),
           ),
+          if (support && pays == 0) _AskForHelp(onTap: help),
         ], IqSpace.s4),
       ),
     );
@@ -1093,7 +1107,8 @@ class _CreditedPageState extends State<_CreditedPage> {
       meta: dayTime(run.paidAt!),
       showLine: false,
     );
-    if (proof == null) {
+    // A proof turned down is history: the business's own confirmation paid.
+    if (proof == null || !proof.accepted) {
       final n = a.steps.length;
       return [
         IqTimelineRow(

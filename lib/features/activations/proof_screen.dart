@@ -49,6 +49,12 @@ import 'activations_widgets.dart';
 /// reward on a per-run activation, as the frames say, and the step's own
 /// amount on a per-step one (nothing when the step pays nothing).
 ///
+/// When no proof can go (a step the business has reported and holds, or
+/// one that has not waited its day), the error banner says why in place of
+/// that line and Send proof stays off; a send the API refuses as not due
+/// says why the same way. A proof already waiting, or a paid run, goes back
+/// to the activation, which shows it.
+///
 /// Figma over this build: 141:5492 shows the phone field's placeholder as
 /// "e.g. 0801 234 5678"; the build keeps "0801 234 5678" of the other
 /// frames. The textarea frame is drawn with Exp/Field, the one text entry
@@ -138,10 +144,14 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
     final step = activation.proofStep;
     final video = draft.video;
     final uploadId = draft.uploadId;
-    if (draft.stage != ProofStage.ready ||
-        step == null ||
-        video == null ||
-        uploadId == null) {
+    if (step == null) {
+      final why = proofHeldBack(activation, ref.read(clockProvider)());
+      if (why == null) return _toActivation();
+      errorHaptic();
+      setState(() => _failed = why);
+      return;
+    }
+    if (draft.stage != ProofStage.ready || video == null || uploadId == null) {
       setState(() => _shakes++);
       errorHaptic();
       return;
@@ -177,19 +187,20 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
       setState(() {
         _sending = false;
         _ended = ended;
-        _failed = closing || ended ? null : "Couldn't send.";
+        _failed = closing || ended
+            ? null
+            : code == 'ACTIVATION_PROOF_NOT_DUE'
+            ? proofNotDueText(activation, refusal.details)
+            : "Couldn't send.";
       });
       if (closing) return showClosingAccount(context, ref);
       if (code == 'ACTIVATION_UPLOAD_NOT_FOUND') return _draft.lost();
       await activations.refreshOneQuietly(activation.id);
       if (!mounted) return;
-      // Paid meanwhile, not due yet, or a proof already waits: the
-      // activation's own page says where it stands, where sending again
-      // could only be refused.
+      // Paid meanwhile, or a proof already waits: the activation's own page
+      // says where it stands, where sending again could only be refused.
       final paid = ref.read(activationProvider(activation.id))?.credited;
-      if (paid == true ||
-          code == 'ACTIVATION_PROOF_NOT_DUE' ||
-          code == 'ACTIVATION_PROOF_PENDING') {
+      if (paid == true || code == 'ACTIVATION_PROOF_PENDING') {
         _toActivation();
       }
       return;
@@ -251,6 +262,10 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
     final index = activation?.proofStep ?? activation?.confirmed ?? 0;
     final step = index + 1;
     final pays = activation?.paysFor(index) ?? 0;
+    final heldBack = activation == null || ended || paid
+        ? null
+        : proofHeldBack(activation, now);
+    final banner = _failed ?? heldBack;
     final refused = draft.stage == ProofStage.refused ? draft.video : null;
     final refusal = refused == null ? null : _refusal(refused, draft.refusal);
 
@@ -281,7 +296,7 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
                             IqSpace.s4,
                           ),
                           children: [
-                            if (_failed case final failed?) ...[
+                            if (banner case final failed?) ...[
                               IqBanner(
                                 kind: IqBannerKind.error,
                                 title: failed,
@@ -291,16 +306,22 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
                               ),
                               const SizedBox(height: IqSpace.s4),
                             ],
-                            Text(
-                              pays > 0
-                                  ? 'Record step $step. ${activation.business} '
-                                        'confirms it, then we pay '
-                                        '${rewardPool(pays)}.'
-                                  : 'Record step $step. ${activation.business} '
-                                        'confirms it.',
-                              style: IqText.body.copyWith(color: IqColors.fg2),
-                            ),
-                            const SizedBox(height: IqSpace.s4),
+                            if (heldBack == null) ...[
+                              Text(
+                                pays > 0
+                                    ? 'Record step $step. '
+                                          '${activation.business} confirms '
+                                          'it, then we pay '
+                                          '${rewardPool(pays)}.'
+                                    : 'Record step $step. '
+                                          '${activation.business} confirms '
+                                          'it.',
+                                style: IqText.body.copyWith(
+                                  color: IqColors.fg2,
+                                ),
+                              ),
+                              const SizedBox(height: IqSpace.s4),
+                            ],
                             Text(
                               'Proof of step $step · up to '
                               '${ActivationRules.proofLength.inSeconds} seconds',
@@ -379,7 +400,7 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
                         showIcon: false,
                         width: double.infinity,
                         loading: _sending,
-                        disabled: !draft.hasVideo,
+                        disabled: !draft.hasVideo || heldBack != null,
                         onTap: activation == null
                             ? null
                             : () => _send(activation, draft),
