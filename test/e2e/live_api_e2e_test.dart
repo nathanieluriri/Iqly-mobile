@@ -3864,6 +3864,66 @@ void _rules19OctOn(String? base) {
         expect(counted.phaseAt(DateTime.now()), ActivationPhase.confirming);
       });
 
+      test('a proof turned down, then the step reported and held: no proof '
+          'is offered, and the API refuses one, naming the hold', () async {
+        final service = walk.activations;
+        final id = await walk.publish(
+          'Open the app, proof first, then held',
+          mode: 'postback',
+          holdHours: 24,
+        );
+        final code = (await service.start(id)).progress!.refCode!;
+        final run = await walk.runOf(id);
+        await startedAgo(run, '25 hours');
+        final video = walk.recording('turned-down.mp4');
+        final checking = await service.sendProof(
+          id,
+          step: 0,
+          uploadId: await walk.upload(id, video),
+          video: video,
+        );
+        expect(checking.phaseAt(DateTime.now()), ActivationPhase.checking);
+        await walk.asOwner(
+          'POST',
+          '/activations/owner/$id/completions/$run/reject',
+          {'reason': 'The recording ends too soon.'},
+        );
+        final refused = await service.refresh(id);
+        expect(refused.phaseAt(DateTime.now()), ActivationPhase.notAccepted);
+        expect(refused.proofStep, 0);
+
+        final held = await walk.postback(code, 0);
+        expect(held['status'], 'accepted');
+        expect(held['payAfter'], isNotNull);
+        final raw = (await walk.api.get('/activations/$id')).data;
+        expect(raw['phase'], 'not_accepted', reason: 'the API reads it so');
+        expect(
+          (((raw['progress'] as Map)['heldSteps'] as List).single
+              as Map)['step'],
+          0,
+        );
+        final waiting = await service.refresh(id);
+        expect(waiting.pendingProof, isNull);
+        expect(waiting.phaseAt(DateTime.now()), ActivationPhase.confirming);
+        expect(waiting.proofStep, isNull);
+        const words =
+            'Sunline Foods has reported this step. It counts when its hold '
+            'ends.';
+        expect(proofHeldBack(waiting, DateTime.now()), words);
+
+        final again = walk.recording('again.mp4');
+        final upload = await walk.upload(id, again);
+        try {
+          await service.sendProof(id, step: 0, uploadId: upload, video: again);
+          fail('a proof of a held step went through');
+        } on ApiRefused catch (refusal) {
+          expect(refusal.code, 'ACTIVATION_PROOF_NOT_DUE');
+          expect(refusal.details?['heldUntil'], isNotNull);
+          expect(proofNotDueText(waiting, refusal.details), words);
+        }
+        await service.discard(id, upload);
+      });
+
       test('a brief outside the audience: not in the feed, blocked on the '
           'brief and at opening, and refused on send', () async {
         final submit = walk.container.read(submitServiceProvider);
