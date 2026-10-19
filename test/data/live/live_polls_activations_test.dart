@@ -297,6 +297,56 @@ void main() {
         expect(odd.rewardMode, RewardMode.perRun);
       });
 
+      test('a step the business holds is the business’s, never proof’s', () {
+        Activation postback({List<Object?>? held}) => gated(
+          _f.activationJson(
+            confirmationMode: 'postback',
+            progress: {
+              ..._f.runJson(
+                started: const Duration(hours: 30),
+                refCode: 'IQ-7K3P2',
+              ),
+              'heldSteps': ?held,
+            },
+          ),
+        );
+        final held = postback(
+          held: [
+            _f.heldJson(0, const Duration(hours: 2)),
+            {'until': _f.inn(const Duration(hours: 3))},
+            'nonsense',
+          ],
+        );
+        final step = held.progress!.heldSteps.single;
+        expect(step.step, 0);
+        expect(
+          step.until!.isAtSameMomentAs(_now.add(const Duration(hours: 2))),
+          isTrue,
+        );
+        expect(held.heldAt(0), isTrue);
+        expect(held.phaseAt(_now.toLocal()), ActivationPhase.confirming);
+        expect(held.proofStep, isNull, reason: 'no 24 hour fallback');
+        expect(held.waitingStep, 0);
+        expect(held.waitingSince, isNull);
+
+        final today = postback();
+        expect(today.progress!.heldSteps, isEmpty);
+        expect(today.phaseAt(_now.toLocal()), ActivationPhase.notConfirmed);
+        expect(today.proofStep, 0);
+
+        final off = activationFromJson(
+          _f.activationJson(
+            confirmationMode: 'postback',
+            progress: _f.runJson(
+              started: const Duration(hours: 30),
+              heldSteps: [_f.heldJson(0, const Duration(hours: 2))],
+            ),
+          ),
+          now: _now,
+        )!;
+        expect(off.progress!.heldSteps, isEmpty);
+      });
+
       test('a malformed payout is left out', () {
         final a = gated(
           _f.activationJson(

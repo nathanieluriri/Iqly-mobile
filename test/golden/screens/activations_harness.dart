@@ -86,6 +86,14 @@ abstract final class Figma {
     refCode: DemoActivations.runCode,
   );
 
+  /// Kudi Box's server confirmed step 1 on Thursday and the business holds
+  /// it until Friday 4 pm, so it is not to prove on Friday.
+  static ActivationProgress get step1Held => ActivationProgress(
+    startedAt: startedAt,
+    refCode: DemoActivations.runCode,
+    heldSteps: [ActivationHeldStep(step: 0, until: DateTime(2026, 10, 2, 16))],
+  );
+
   /// When Orchid Foods confirmed its first recording on Thursday.
   static final orchidStep1At = DateTime(2026, 10, 1, 10, 5);
 

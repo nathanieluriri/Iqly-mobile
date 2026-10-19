@@ -448,6 +448,21 @@ void main() {
         ),
       );
     });
+
+    testWidgets('postback mode: a step the business holds is not to prove', (
+      tester,
+    ) async {
+      await _golden(
+        tester,
+        'activations_held_step',
+        activationPath('a2'),
+        now: friday,
+        service: instantActivations(
+          now: friday,
+          seed: Figma.world(friday, kudiBox: Figma.step1Held),
+        ),
+      );
+    });
   });
 
   test('the Discover row counts what the list shows closing today', () {

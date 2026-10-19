@@ -124,10 +124,10 @@ String stepRewardText(Activation activation, int i) {
 String minutesText(Activation activation) => '${activation.minutes} min';
 
 /// The ProgressThread status: "Not started · 3 steps" until the business
-/// confirms one ("No steps confirmed yet" when it pays step by step), then
-/// "Step 1 of 3 confirmed".
+/// confirms one ("No steps confirmed yet" when it pays step by step, or
+/// holds a step it confirmed), then "Step 1 of 3 confirmed".
 String progressLine(Activation activation) => activation.confirmed == 0
-    ? activation.perStep
+    ? activation.perStep || activation.holding
           ? 'No steps confirmed yet'
           : 'Not started · ${_count(activation.steps.length, 'step')}'
     : 'Step ${activation.confirmed} of ${activation.steps.length} confirmed';

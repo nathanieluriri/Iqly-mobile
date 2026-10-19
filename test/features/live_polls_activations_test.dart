@@ -475,6 +475,51 @@ void main() {
         expect(_button('Open Harbour Telecom'), findsOneWidget);
       });
 
+      testWidgets('postback mode: a step the business holds waits on it, '
+          'with no proof offered a day after the start', (tester) async {
+        Map<String, Object?> postback({List<Map<String, Object?>>? held}) =>
+            _json.activationJson(
+              confirmationMode: 'postback',
+              progress: _json.runJson(
+                started: const Duration(hours: 25),
+                refCode: 'IQ-7K3P2',
+                heldSteps: held,
+              ),
+            );
+        var held = postback(
+          held: [_json.heldJson(0, const Duration(hours: 2))],
+        );
+        final api = _Api({
+          'GET /activations': (_) => _ok({
+            'items': [held],
+          }),
+          'GET /activations/a_1': (_) => _ok(held),
+        });
+        await pumpLiveLaunch(
+          tester,
+          activationPath('a_1'),
+          api: api.client,
+          mode: gated,
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.text('Waiting for Harbour Telecom to confirm.'),
+          findsOneWidget,
+        );
+        expect(find.text('No steps confirmed yet'), findsOneWidget);
+        expect(find.textContaining('Upload proof'), findsNothing);
+        expect(find.text('Not confirmed after a day'), findsNothing);
+        expect(_button('Open Harbour Telecom'), findsOneWidget);
+
+        held = postback();
+        await _tap(
+          tester,
+          find.text('Waiting for Harbour Telecom to confirm.'),
+        );
+        expect(_button('Upload proof of step 1'), findsOneWidget);
+        expect(find.text('Not confirmed after a day'), findsOneWidget);
+      });
+
       testWidgets('postback mode: the run’s code shows and copies', (
         tester,
       ) async {

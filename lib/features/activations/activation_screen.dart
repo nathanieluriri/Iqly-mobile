@@ -693,6 +693,8 @@ class _StepsPage extends StatelessWidget {
             ? step.hint
             : _stuck
             ? 'Not confirmed after a day'
+            : a.heldAt(i)
+            ? 'Waiting for ${a.business} to confirm.'
             : '${a.business} is checking. Usually a few minutes.',
         divider: divider,
         showReward: showReward,

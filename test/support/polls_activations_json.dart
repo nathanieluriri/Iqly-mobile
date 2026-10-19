@@ -117,6 +117,7 @@ class PollsActivationsJson {
     Map<String, Object?>? proof,
     String? refCode,
     List<Map<String, Object?>>? stepPayouts,
+    List<Map<String, Object?>>? heldSteps,
   }) => {
     'id': 'r_1',
     'status': status,
@@ -128,6 +129,13 @@ class PollsActivationsJson {
     'proof': proof,
     'refCode': ?refCode,
     'stepPayouts': ?stepPayouts,
+    'heldSteps': ?heldSteps,
+  };
+
+  /// A step the business's server confirmed, held until [settles] from now.
+  Map<String, Object?> heldJson(int step, Duration settles) => {
+    'step': step,
+    'until': inn(settles),
   };
 
   /// A step paid on its own, [ago].

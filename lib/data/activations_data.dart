@@ -85,6 +85,15 @@ class ActivationStepPayout {
   final String? ledgerId;
 }
 
+/// Postback mode: a step the business's server confirmed that waits out the
+/// business's hold, settling at [until].
+class ActivationHeldStep {
+  const ActivationHeldStep({required this.step, this.until});
+
+  final int step;
+  final DateTime? until;
+}
+
 /// The recording picked as proof. [length] is null when the picker cannot
 /// read it (the phone's own picker gives the file only). [source] is where
 /// it plays from (a file, an Android content uri or the API's link); the
@@ -161,6 +170,7 @@ class ActivationProgress {
     this.ledgerId,
     this.refCode,
     this.stepPayouts = const [],
+    this.heldSteps = const [],
   });
 
   final DateTime startedAt;
@@ -183,11 +193,15 @@ class ActivationProgress {
   /// What each step paid so far, on a per-step activation.
   final List<ActivationStepPayout> stepPayouts;
 
+  /// Steps the business's server confirmed that are waiting out its hold.
+  final List<ActivationHeldStep> heldSteps;
+
   ActivationProgress copyWith({
     List<DateTime>? confirmedAt,
     ActivationProof? proof,
     DateTime? paidAt,
     List<ActivationStepPayout>? stepPayouts,
+    List<ActivationHeldStep>? heldSteps,
   }) => ActivationProgress(
     startedAt: startedAt,
     confirmedAt: confirmedAt ?? this.confirmedAt,
@@ -196,6 +210,7 @@ class ActivationProgress {
     ledgerId: ledgerId,
     refCode: refCode,
     stepPayouts: stepPayouts ?? this.stepPayouts,
+    heldSteps: heldSteps ?? this.heldSteps,
   );
 }
 
@@ -321,6 +336,17 @@ class Activation {
   ActivationStepPayout? payoutOf(int i) =>
       progress?.stepPayouts.where((p) => p.step == i).firstOrNull;
 
+  /// Postback mode: step [i] is confirmed by the business's server and
+  /// waits out its hold, so it is never one to prove.
+  bool heldAt(int i) =>
+      confirmationMode == ConfirmationMode.postback &&
+      (progress?.heldSteps.any((h) => h.step == i) ?? false);
+
+  /// Postback mode: whether any step waits out the business's hold.
+  bool get holding =>
+      confirmationMode == ConfirmationMode.postback &&
+      (progress?.heldSteps.isNotEmpty ?? false);
+
   /// The proof that still stands: with a mode, one accepted or whose step
   /// is already confirmed is done with, as the API reads it.
   ActivationProof? get pendingProof {
@@ -350,9 +376,12 @@ class Activation {
   }
 
   /// The step a recording proves: the next one in proof mode, else the one
-  /// waiting on the business.
+  /// waiting on the business, unless the business's hold has it.
   int? get proofStep {
-    if (confirmationMode != ConfirmationMode.proof) return waitingStep;
+    if (confirmationMode != ConfirmationMode.proof) {
+      final step = waitingStep;
+      return step == null || heldAt(step) ? null : step;
+    }
     final run = progress;
     if (run == null || credited) return null;
     final done = run.confirmedAt.length;
@@ -367,10 +396,10 @@ class Activation {
   static String creditIdOf(String activationId) => 'activation-$activationId';
 
   /// Since when [waitingStep] has waited: its predecessor's confirmation,
-  /// or the start for the first step.
+  /// or the start for the first step. A held step has no window to run out.
   DateTime? get waitingSince {
     final step = waitingStep;
-    if (step == null) return null;
+    if (step == null || heldAt(step)) return null;
     final run = progress!;
     return step == 0 ? run.startedAt : run.confirmedAt.last;
   }
@@ -391,6 +420,8 @@ class Activation {
           ? ActivationPhase.confirming
           : ActivationPhase.recording;
     }
+    final waiting = waitingStep;
+    if (waiting != null && heldAt(waiting)) return ActivationPhase.confirming;
     final since = waitingSince;
     if (since != null &&
         now.difference(since) >= ActivationRules.confirmWindow) {

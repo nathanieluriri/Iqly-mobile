@@ -605,8 +605,8 @@ String videoMediaType(String name) {
 /// or a close. The app works its phase out from the run as the API does;
 /// an activation the business closed early, or a run that ended, counts as
 /// closed from then ([now] when the API does not say when). Its modes, step
-/// amounts, run code and step payouts are read with [stepProof] only; a
-/// mode the build does not know reads as none.
+/// amounts, run code, step payouts and held steps are read with [stepProof]
+/// only; a mode the build does not know reads as none.
 Activation? activationFromJson(
   Object? json, {
   required DateTime now,
@@ -686,6 +686,14 @@ ActivationProgress? _progress(
       if (stepProof)
         if (json['stepPayouts'] case final List<Object?> payouts)
           for (final payout in payouts) ?_payout(payout),
+    ],
+    heldSteps: [
+      if (stepProof)
+        if (json['heldSteps'] case final List<Object?> held)
+          for (final step in held)
+            if (step is Map)
+              if (apiInt(step['step']) case final int i)
+                ActivationHeldStep(step: i, until: apiTime(step['until'])),
     ],
   );
 }

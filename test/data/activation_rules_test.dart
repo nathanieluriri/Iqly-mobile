@@ -13,12 +13,17 @@ ActivationProgress _run({
   ActivationProof? proof,
   bool paid = false,
   List<ActivationStepPayout> payouts = const [],
+  List<int> held = const [],
 }) => ActivationProgress(
   startedAt: _now.subtract(started),
   confirmedAt: [for (final ago in confirmed) _now.subtract(ago)],
   proof: proof,
   paidAt: paid ? _now : null,
   stepPayouts: payouts,
+  heldSteps: [
+    for (final step in held)
+      ActivationHeldStep(step: step, until: _now.add(const Duration(hours: 2))),
+  ],
 );
 
 ActivationProof _proof(int step, {String? refused, bool checked = false}) =>
@@ -234,6 +239,31 @@ void main() {
             null,
             null,
           ),
+          (
+            'step 1 held by the business a day after the start: no fallback',
+            _run(started: const Duration(hours: 25), held: [0]),
+            ActivationPhase.confirming,
+            null,
+            null,
+          ),
+          (
+            'step 2 held a day after step 1',
+            _run(
+              started: const Duration(days: 2),
+              confirmed: [const Duration(hours: 25)],
+              held: [1],
+            ),
+            ActivationPhase.confirming,
+            null,
+            null,
+          ),
+          (
+            'steps 1 and 2 held',
+            _run(started: const Duration(days: 2), held: [0, 1]),
+            ActivationPhase.confirming,
+            null,
+            null,
+          ),
         ];
     for (final (name, run, phase, step, since) in cases) {
       test(name, () {
@@ -243,6 +273,30 @@ void main() {
         expect(a.waitingSince, since == null ? null : _now.subtract(since));
       });
     }
+
+    test('a held step reads as the business confirming it', () {
+      final held = _kudiBox(
+        ConfirmationMode.postback,
+        _run(started: const Duration(hours: 25), held: [0]),
+      );
+      expect(held.heldAt(0), isTrue);
+      expect(held.heldAt(1), isFalse);
+      expect(held.waitingStep, 0);
+      expect(progressLine(held), 'No steps confirmed yet');
+      final today = _kudiBox(ConfirmationMode.postback, _run());
+      expect(progressLine(today), 'Not started · 3 steps');
+    });
+
+    test('held steps count in postback mode only', () {
+      final run = _run(started: const Duration(hours: 25), held: [0]);
+      final proof = _kudiBox(ConfirmationMode.proof, run);
+      expect(proof.heldAt(0), isFalse);
+      expect(proof.phaseAt(_now), ActivationPhase.recording);
+      expect(proof.proofStep, 0);
+      final none = _kudiBox(null, run);
+      expect(none.heldAt(0), isFalse);
+      expect(none.phaseAt(_now), ActivationPhase.started);
+    });
   });
 
   group('paid step by step (Round 18)', () {
