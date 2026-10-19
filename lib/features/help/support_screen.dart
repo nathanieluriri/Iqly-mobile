@@ -13,9 +13,12 @@ import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/button.dart';
+import '../../ui/empty_state.dart';
 import '../../ui/field.dart';
 import '../../ui/icon.dart';
+import '../../ui/illustration.dart';
 import '../../ui/list_row.dart';
+import '../../ui/skeleton.dart';
 import '../more/more_widgets.dart';
 import '../settings/restore_account_screen.dart';
 import 'help_routes.dart';
@@ -48,37 +51,40 @@ class SupportScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final loaded = ref.watch(conversationsProvider);
     final tickets = loaded.value;
+    final failed = tickets == null && loaded.hasError && !loaded.isLoading;
     return SubPage(
       title: 'Support',
-      body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
-        children: [
-          if (tickets == null && loaded.hasError && !loaded.isLoading)
-            IqBanner(
-              kind: IqBannerKind.error,
-              title: 'Couldn’t load. Check your connection.',
-              action: 'Try again',
-              onAction: () => ref.invalidate(conversationsProvider),
-              margin: const EdgeInsets.only(top: IqSpace.s2),
-            ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: IqSpace.s2),
-            child: Text(
-              'Your conversations',
-              style: IqText.title.copyWith(color: IqColors.fg),
-            ),
-          ),
-          for (final ticket in tickets ?? const <HelpTicket>[])
-            Padding(
-              padding: const EdgeInsets.only(top: IqSpace.s3),
-              child: IqListRow(
-                label: ticket.subject,
-                description: conversationLine(ticket),
-                icon: IqIcons.chat,
-                onTap: () => context.open(helpThreadPath(ticket.id)),
+      body: LoadingGate(
+        loading: tickets == null && !failed,
+        skeleton: const _InboxSkeleton(),
+        child: failed
+            ? _InboxFailed(onRetry: () => ref.invalidate(conversationsProvider))
+            : tickets == null
+            ? const SizedBox.shrink()
+            : tickets.isEmpty
+            ? const IqEmptyFill(
+                child: IqEmptyState(
+                  figure: IqFigures.caller,
+                  title: 'No conversations yet',
+                  body: 'Start one and the replies land here.',
+                ),
+              )
+            : ListView(
+                padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
+                children: [
+                  const _InboxTitle(),
+                  for (final ticket in tickets)
+                    Padding(
+                      padding: const EdgeInsets.only(top: IqSpace.s3),
+                      child: IqListRow(
+                        label: ticket.subject,
+                        description: conversationLine(ticket),
+                        icon: IqIcons.chat,
+                        onTap: () => context.open(helpThreadPath(ticket.id)),
+                      ),
+                    ),
+                ],
               ),
-            ),
-        ],
       ),
       actions: [
         IqButton(
@@ -86,6 +92,74 @@ class SupportScreen extends ConsumerWidget {
           showIcon: false,
           width: double.infinity,
           onTap: () => context.open(Routes.newConversation),
+        ),
+      ],
+    );
+  }
+}
+
+class _InboxTitle extends StatelessWidget {
+  const _InboxTitle();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: IqSpace.s2),
+      child: Text(
+        'Your conversations',
+        style: IqText.title.copyWith(color: IqColors.fg),
+      ),
+    );
+  }
+}
+
+class _InboxSkeleton extends StatelessWidget {
+  const _InboxSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
+      children: [
+        const _InboxTitle(),
+        for (var i = 0; i < 3; i++) ...[
+          const SizedBox(height: IqSpace.s3),
+          const IqSkeleton(kind: IqSkeletonKind.row),
+        ],
+      ],
+    );
+  }
+}
+
+class _InboxFailed extends StatelessWidget {
+  const _InboxFailed({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
+      children: [
+        IqBanner(
+          kind: IqBannerKind.error,
+          title: 'Couldn’t load. Check your connection.',
+          action: 'Try again',
+          onAction: onRetry,
+          margin: const EdgeInsets.only(top: IqSpace.s2),
+        ),
+        const SizedBox(height: IqSpace.s6),
+        Text(
+          'Nothing to show yet',
+          textAlign: TextAlign.center,
+          style: IqText.cardTitle.copyWith(color: IqColors.fg),
+        ),
+        const SizedBox(height: IqSpace.s2),
+        Text(
+          'They will show here once they load.',
+          textAlign: TextAlign.center,
+          style: IqText.body.copyWith(color: IqColors.fg2),
         ),
       ],
     );

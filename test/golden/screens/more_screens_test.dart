@@ -249,6 +249,11 @@ void main() {
       await moreGolden(tester, 'support');
     });
 
+    testWidgets('485:39190 Support conversations, none yet', (tester) async {
+      await pumpMore(tester, Routes.support, help: EmptyInboxHelpService());
+      await moreGolden(tester, 'support_empty');
+    });
+
     testWidgets('431:19583 Chat with support', (tester) async {
       await pumpMore(tester, Routes.support);
       await tester.tap(find.text('Withdrawal to Access Bank'));

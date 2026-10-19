@@ -91,6 +91,15 @@ DemoHelpService instantHelp({Duration? replyAfter = Duration.zero}) {
   );
 }
 
+/// No conversations yet.
+class EmptyInboxHelpService extends DemoHelpService {
+  EmptyInboxHelpService()
+    : super(delay: Duration.zero, uploadStep: Duration.zero);
+
+  @override
+  Future<List<HelpTicket>> conversations() async => const [];
+}
+
 /// Sending never goes through.
 class FailingHelpService extends DemoHelpService {
   FailingHelpService() : super(delay: Duration.zero, uploadStep: Duration.zero);
