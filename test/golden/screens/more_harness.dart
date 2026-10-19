@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/data/device.dart';
+import 'package:iqly_mobile/data/help_service.dart';
 import 'package:iqly_mobile/data/media_service.dart';
 import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/notifications_service.dart';
@@ -39,6 +40,7 @@ Future<ProviderContainer> pumpMore(
   List<Override> overrides = const [],
   ProfileService? profile,
   NotificationsService? notifications,
+  HelpService? help,
   DeviceService? device,
   bool settle = true,
   bool reducedMotion = true,
@@ -51,7 +53,7 @@ Future<ProviderContainer> pumpMore(
     reducedMotion: reducedMotion,
     settle: false,
     overrides: [
-      ...laneOverrides(notifications: notifications),
+      ...laneOverrides(notifications: notifications, help: help),
       profileServiceProvider.overrideWithValue(profile ?? TestProfileService()),
       deviceServiceProvider.overrideWithValue(
         device ?? DemoDeviceService(delay: Duration.zero),
