@@ -248,14 +248,43 @@ void main() {
   group('paid step by step (Round 18)', () {
     final byStep = _demo.orchidFoodsByStep;
 
-    test('each step pays its own amount; a per-run one pays the reward', () {
+    test('each step pays its own amount; a per-run one pays the reward on '
+        'its last step (D1), or on any without a mode, as before', () {
       expect(
         [for (var i = 0; i < 3; i++) byStep.paysFor(i)],
         [10000, 20000, 20000],
       );
-      expect(_demo.orchidFoods.paysFor(0), 50000);
+      expect(
+        [for (var i = 0; i < 3; i++) _demo.orchidFoods.paysFor(i)],
+        [0, 0, 50000],
+      );
+      expect(_kudiBox(null, null).paysFor(1), 150000);
       expect(offerReward(byStep), 'Up to ₦500');
-      expect(offerReward(_demo.orchidFoods), '₦500');
+      expect(offerReward(_demo.orchidFoods), '₦500 per completion');
+      expect(offerReward(_demo.kudiBox), '₦1,500 per completion');
+    });
+
+    test('the progress reads as the design profile has it', () {
+      final started = byStep.withProgress(_run());
+      expect(progressLine(started), 'No steps confirmed yet');
+      expect(earnedLine(started), '₦0 earned of up to ₦500');
+      final one = byStep.withProgress(
+        _run(
+          confirmed: [Duration.zero],
+          payouts: [ActivationStepPayout(step: 0, kobo: 10000, paidAt: _now)],
+        ),
+      );
+      expect(progressLine(one), 'Step 1 of 3 confirmed');
+      expect(earnedLine(one), '₦100 earned of up to ₦500');
+      expect(
+        perStepLine(byStep),
+        'Rewards land in your iQLY wallet as each step is confirmed. Finish '
+        'every step by 2 Oct, when the activation ends.',
+      );
+      expect(
+        progressLine(_demo.kudiBox.withProgress(_run())),
+        'Not started · 3 steps',
+      );
     });
 
     test('amounts show once more than one step pays', () {

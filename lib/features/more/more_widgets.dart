@@ -6,7 +6,6 @@ import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
-import '../../ui/button.dart';
 import '../../ui/toast.dart';
 import '../../ui/top_bar.dart';
 
@@ -198,69 +197,6 @@ class FigureState extends StatelessWidget {
           action,
         ],
       ],
-    );
-  }
-}
-
-/// A code to type elsewhere, with Copy (B20 · Referrals draws it for the
-/// invite code): the mono eyebrow, the code and the ghost Copy, which reads
-/// Copied while [copied].
-class CodeBox extends StatelessWidget {
-  const CodeBox({
-    super.key,
-    required this.code,
-    required this.copied,
-    required this.onCopy,
-  });
-
-  final String code;
-  final bool copied;
-  final VoidCallback? onCopy;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 80,
-      padding: const EdgeInsets.only(left: 18, right: 14),
-      decoration: BoxDecoration(
-        color: IqColors.tint,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Your code'.toUpperCase(),
-                  style: IqText.mono.copyWith(color: IqColors.fg2),
-                ),
-                const SizedBox(height: 2),
-                // A long code shrinks to fit rather than breaking: a code
-                // split over two lines reads as two codes.
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    code,
-                    maxLines: 1,
-                    softWrap: false,
-                    style: IqText.title.copyWith(color: IqColors.fg),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IqButton(
-            label: copied ? 'Copied' : 'Copy',
-            kind: IqButtonKind.ghost,
-            rollLabel: true,
-            onTap: onCopy,
-          ),
-        ],
-      ),
     );
   }
 }

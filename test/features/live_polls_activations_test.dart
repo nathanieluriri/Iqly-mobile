@@ -411,9 +411,7 @@ void main() {
         await _tap(tester, _button('Upload proof of step 1'));
         expect(find.byType(ProofScreen), findsOneWidget);
         expect(
-          find.text(
-            'Record step 1. Harbour Telecom confirms it, then we pay ₦1,500.',
-          ),
+          find.text('Record step 1. Harbour Telecom confirms it.'),
           findsOneWidget,
         );
         await _tap(tester, find.text('Choose a video'));
@@ -509,8 +507,11 @@ void main() {
           mode: gated,
         );
         await tester.pumpAndSettle();
-        expect(find.text('IQ-7K3P2'), findsOneWidget);
-        expect(find.text('YOUR CODE'), findsOneWidget);
+        expect(find.text('Your iQLY code: IQ-7K3P2'), findsOneWidget);
+        expect(
+          find.text('Enter it if the Harbour Telecom app asks for it.'),
+          findsOneWidget,
+        );
         calls.clear();
         await tester.tap(_button('Copy'));
         await tester.pump();
@@ -594,9 +595,9 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('Paid ₦500'), findsOneWidget);
         expect(find.text('₦1,000'), findsOneWidget);
-        await tester.scrollUntilVisible(find.text('paid step by step'), 100);
-        expect(find.text('Earn up to ₦1,500'), findsOneWidget);
-        expect(find.text('paid step by step'), findsOneWidget);
+        expect(find.text('Step 2 of 3 confirmed'), findsOneWidget);
+        await tester.scrollUntilVisible(find.text('Your progress:'), 100);
+        expect(find.text('₦500 earned of up to ₦1,500'), findsOneWidget);
       });
     });
 

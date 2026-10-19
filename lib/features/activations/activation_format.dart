@@ -80,10 +80,31 @@ String rewardChip(Activation activation) {
   return '₦${digits}k';
 }
 
-/// The offer's reward: "Up to ₦1,000" when it pays step by step (Round 18),
-/// else the chip.
-String offerReward(Activation activation) =>
-    activation.perStep ? 'Up to ${reward(activation)}' : rewardChip(activation);
+/// The offer's reward (design profile, round 18): "Up to ₦1,000" when
+/// several steps pay, else "₦1,500 per completion", as B8 now draws it.
+String offerReward(Activation activation) => activation.showsStepRewards
+    ? 'Up to ${reward(activation)}'
+    : '${reward(activation)} per completion';
+
+/// What a per-step run has earned so far: "₦50 earned of up to ₦1,000".
+String earnedLine(Activation activation) {
+  final earned = activation.progress?.stepPayouts.fold(
+    0,
+    (sum, p) => sum + p.kobo,
+  );
+  return '${rewardPool(earned ?? 0)} earned of up to ${reward(activation)}';
+}
+
+/// The offer's line on how a per-step activation pays: B8's mobile preview
+/// when the business's app confirms each step, else the round 18 rules.
+String perStepLine(Activation activation) {
+  final by = DateFormat('d MMM').format(activation.closesAt);
+  return activation.confirmationMode == ConfirmationMode.postback
+      ? 'Each step pays when the ${activation.business} app confirms it. '
+            'Finish every step by $by.'
+      : 'Rewards land in your iQLY wallet as each step is confirmed. '
+            'Finish every step by $by, when the activation ends.';
+}
 
 /// Whether step [i]'s row shows an amount: a paying step, once more than one
 /// step pays (Round 18).
@@ -103,9 +124,12 @@ String stepRewardText(Activation activation, int i) {
 String minutesText(Activation activation) => '${activation.minutes} min';
 
 /// The ProgressThread status: "Not started · 3 steps" until the business
-/// confirms one, then "Step 1 of 3 confirmed".
+/// confirms one ("No steps confirmed yet" when it pays step by step), then
+/// "Step 1 of 3 confirmed".
 String progressLine(Activation activation) => activation.confirmed == 0
-    ? 'Not started · ${_count(activation.steps.length, 'step')}'
+    ? activation.perStep
+          ? 'No steps confirmed yet'
+          : 'Not started · ${_count(activation.steps.length, 'step')}'
     : 'Step ${activation.confirmed} of ${activation.steps.length} confirmed';
 
 /// My activations: "Kudi Box · step 1 of 3 confirmed".

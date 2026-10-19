@@ -385,8 +385,9 @@ void main() {
     await _tap(tester, find.text('Upload proof of step 2'));
     expect(find.byType(ProofScreen), findsOneWidget);
     expect(
-      find.text('Record step 2. Kudi Box confirms it, then we pay ₦1,500.'),
+      find.text('Record step 2. Kudi Box confirms it.'),
       findsOneWidget,
+      reason: 'step 2 of 3 pays nothing on its own (D1)',
     );
     expect(_iqButton(tester, 'Send proof').disabled, isTrue);
 
@@ -415,7 +416,7 @@ void main() {
     expect(find.byType(ProofScreen), findsNothing);
     expect(find.text('Your proof'), findsWidgets);
     expect(find.text('Checking with Kudi Box'), findsWidgets);
-    expect(find.text('₦1,500.00 after confirmation'), findsOneWidget);
+    expect(find.textContaining('after confirmation'), findsNothing);
   });
 
   testWidgets('B9: a recording over 60 s is refused; Retry picks another', (

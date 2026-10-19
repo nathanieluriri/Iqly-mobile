@@ -36,7 +36,7 @@ import '../../ui/toast.dart';
 import '../../ui/top_bar.dart';
 import '../../ui/video_preview.dart';
 import '../help/help_routes.dart';
-import '../more/more_widgets.dart' show CodeBox, RowGroup;
+import '../more/more_widgets.dart' show RowGroup;
 import '../profile/profile_routes.dart';
 import '../profile/your_details_screen.dart' show DetailField;
 import '../settings/restore_account_screen.dart' show showClosingAccount;
@@ -79,10 +79,11 @@ _Layout _layoutOf(ActivationPhase phase) => switch (phase) {
 /// The rules of 19 Oct (no frame draws them): in proof mode the steps page
 /// marks the step to do and record next, with Upload proof of it, from the
 /// start; once its proof is accepted the next one is. In postback mode the
-/// run's code sits under the title with Copy (owner decision D2), drawn as
-/// B20 draws the invite code. A per-step activation reads "Up to" on its
-/// offer and each paying step its amount, "Paid" once paid (Round 18).
-/// While steps are under way the person can ask for help about the run.
+/// run's code sits under the title with Copy (owner decision D2). Rewards
+/// read as the design profile's round 18 has them: "₦1,500 per
+/// completion", or "Up to" with each paying step's amount, "Paid" once
+/// paid, and "Your progress" on a per-step run. While steps are under way
+/// the person can ask for help about the run.
 class ActivationScreen extends ConsumerStatefulWidget {
   const ActivationScreen({super.key, required this.id});
 
@@ -516,8 +517,10 @@ class _OfferPage extends StatelessWidget {
                   ],
                 ),
                 Text(
-                  'Paid to your iQLY wallet once ${a.business} confirms, '
-                  'usually within 24 hours.',
+                  a.perStep
+                      ? perStepLine(a)
+                      : 'Paid to your iQLY wallet once ${a.business} '
+                            'confirms, usually within 24 hours.',
                   style: IqText.body.copyWith(color: IqColors.fg),
                 ),
                 const IqSectionTitle(title: 'What to do', showLink: false),
@@ -740,27 +743,43 @@ class _StepsPage extends StatelessWidget {
         padding: _padding,
         children: _gapped([
           _Header(activation: a),
-          if (code != null) _RunCode(code: code),
+          if (code != null) _RunCode(code: code, business: a.business),
           const IqSectionTitle(title: 'What to do', showLink: false),
           for (var i = 0; i < a.steps.length; i++) _step(i),
           MergeSemantics(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  a.perStep ? 'Earn up to ${reward(a)}' : 'Earn ${reward(a)}',
-                  style: IqText.bodyStrong.copyWith(color: IqColors.brand),
-                ),
-                const SizedBox(width: IqSpace.s2),
-                Flexible(
-                  child: Text(
-                    a.perStep
-                        ? 'paid step by step'
-                        : 'when all ${a.steps.length} steps are confirmed',
-                    style: IqText.small.copyWith(color: IqColors.fg2),
-                  ),
-                ),
-              ],
+              children: a.perStep
+                  ? [
+                      Text(
+                        'Your progress:',
+                        style: IqText.small.copyWith(color: IqColors.fg2),
+                      ),
+                      const SizedBox(width: IqSpace.s2),
+                      Flexible(
+                        child: Text(
+                          earnedLine(a),
+                          style: IqText.bodyStrong.copyWith(
+                            color: IqColors.brand,
+                          ),
+                        ),
+                      ),
+                    ]
+                  : [
+                      Text(
+                        'Earn ${reward(a)}',
+                        style: IqText.bodyStrong.copyWith(
+                          color: IqColors.brand,
+                        ),
+                      ),
+                      const SizedBox(width: IqSpace.s2),
+                      Flexible(
+                        child: Text(
+                          'when all ${a.steps.length} steps are confirmed',
+                          style: IqText.small.copyWith(color: IqColors.fg2),
+                        ),
+                      ),
+                    ],
             ),
           ),
           if (support) _AskForHelp(onTap: onHelp),
@@ -786,12 +805,15 @@ class _StepsPage extends StatelessWidget {
   }
 }
 
-/// Postback mode: the run's code, for a business's app that asks for it
-/// (one opened from the App Store gets no link), with Copy.
+/// Postback mode: the run's code as the API gives it, for a business's app
+/// that asks for it (one opened from the App Store gets no link), in the
+/// design profile's words (round 18), with Copy as B20 copies the invite
+/// code.
 class _RunCode extends StatefulWidget {
-  const _RunCode({required this.code});
+  const _RunCode({required this.code, required this.business});
 
   final String code;
+  final String business;
 
   @override
   State<_RunCode> createState() => _RunCodeState();
@@ -820,8 +842,47 @@ class _RunCodeState extends State<_RunCode> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      CodeBox(code: widget.code, copied: _copied, onCopy: _copy);
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
+      decoration: BoxDecoration(
+        color: IqColors.tint,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text.rich(
+                  TextSpan(
+                    text: 'Your iQLY code: ',
+                    children: [
+                      TextSpan(text: widget.code, style: IqText.bodyStrong),
+                    ],
+                  ),
+                  style: IqText.body.copyWith(color: IqColors.fg),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Enter it if the ${widget.business} app asks for it.',
+                  style: IqText.small.copyWith(color: IqColors.fg2),
+                ),
+              ],
+            ),
+          ),
+          IqButton(
+            label: _copied ? 'Copied' : 'Copy',
+            kind: IqButtonKind.ghost,
+            rollLabel: true,
+            width: 96,
+            onTap: _copy,
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// A run under way asks for help about itself: the help request, which

@@ -304,9 +304,13 @@ class Activation {
   bool get perStep => rewardMode == RewardMode.perStep;
 
   /// What confirming step [i] pays: its own amount on a per-step
-  /// activation, the reward on a per-run one.
-  int paysFor(int i) =>
-      perStep ? (i < steps.length ? steps[i].rewardKobo ?? 0 : 0) : rewardKobo;
+  /// activation; on a per-run one the reward, on its last step only once
+  /// the run has a mode (D1: before, a checked proof paid the whole run).
+  int paysFor(int i) {
+    if (perStep) return i < steps.length ? steps[i].rewardKobo ?? 0 : 0;
+    if (confirmationMode == null) return rewardKobo;
+    return i == steps.length - 1 ? rewardKobo : 0;
+  }
 
   /// Round 18: once more than one step pays, each paying step shows its
   /// amount.
@@ -317,14 +321,15 @@ class Activation {
   ActivationStepPayout? payoutOf(int i) =>
       progress?.stepPayouts.where((p) => p.step == i).firstOrNull;
 
-  /// The proof that still stands: with a mode, one whose step is already
-  /// confirmed is done with.
+  /// The proof that still stands: with a mode, one accepted or whose step
+  /// is already confirmed is done with, as the API reads it.
   ActivationProof? get pendingProof {
     final run = progress;
     final proof = run?.proof;
     if (run == null || proof == null) return null;
     if (confirmationMode == null) return proof;
-    return proof.step >= run.confirmedAt.length ? proof : null;
+    final accepted = proof.accepted && proof.checkedAt != null;
+    return proof.step >= run.confirmedAt.length && !accepted ? proof : null;
   }
 
   /// The step the business is confirming, while no accepted proof stands in

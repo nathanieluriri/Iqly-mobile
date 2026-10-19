@@ -119,10 +119,48 @@ class _ReferralsScreenState extends ConsumerState<ReferralsScreen> {
             ),
           ),
           const SizedBox(height: 14),
-          CodeBox(
-            code: code,
-            copied: _copied,
-            onCopy: code.isEmpty ? null : () => _copy(code),
+          Container(
+            height: 80,
+            padding: const EdgeInsets.only(left: 18, right: 14),
+            decoration: BoxDecoration(
+              color: IqColors.tint,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Your code'.toUpperCase(),
+                        style: IqText.mono.copyWith(color: IqColors.fg2),
+                      ),
+                      const SizedBox(height: 2),
+                      // A long code shrinks to fit rather than breaking: a
+                      // code split over two lines reads as two codes.
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          code,
+                          maxLines: 1,
+                          softWrap: false,
+                          style: IqText.title.copyWith(color: IqColors.fg),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IqButton(
+                  label: _copied ? 'Copied' : 'Copy',
+                  kind: IqButtonKind.ghost,
+                  rollLabel: true,
+                  onTap: code.isEmpty ? null : () => _copy(code),
+                ),
+              ],
+            ),
           ),
           if (unapplied != null) ...[
             const SizedBox(height: IqSpace.s3),
