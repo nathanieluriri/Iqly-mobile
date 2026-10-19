@@ -22,7 +22,9 @@ import '../../ui/banner.dart';
 import '../../ui/brief_hero.dart';
 import '../../ui/button.dart';
 import '../../ui/empty_state.dart';
+import '../../ui/icon.dart';
 import '../../ui/illustration.dart';
+import '../../ui/list_row.dart';
 import '../../ui/meta.dart';
 import '../../ui/pressable.dart';
 import '../../ui/progress_thread.dart';
@@ -33,7 +35,7 @@ import '../../ui/toast.dart';
 import '../../ui/top_bar.dart';
 import '../../ui/video_preview.dart';
 import '../help/help_routes.dart';
-import '../more/more_widgets.dart' show CodeBox;
+import '../more/more_widgets.dart' show CodeBox, RowGroup;
 import '../profile/profile_routes.dart';
 import '../profile/your_details_screen.dart' show DetailField;
 import '../settings/restore_account_screen.dart' show showClosingAccount;
@@ -832,19 +834,14 @@ class _AskForHelp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return RowGroup(
+      outlined: true,
       children: [
-        Text(
-          'Stuck on a step?',
-          style: IqText.bodyStrong.copyWith(color: IqColors.fg3),
-        ),
-        const SizedBox(height: IqSpace.s2),
-        IqButton(
+        IqListRow(
           label: 'Ask for help',
-          kind: IqButtonKind.secondary,
-          showIcon: false,
-          width: double.infinity,
+          showDescription: false,
+          icon: IqIcons.help,
+          divider: false,
           onTap: onTap,
         ),
       ],

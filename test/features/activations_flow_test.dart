@@ -572,6 +572,10 @@ void main() {
     expect(find.textContaining('Proof not accepted'), findsNothing);
     await tester.pump(const Duration(seconds: 4));
     await tester.pumpAndSettle();
+    // A checked proof confirms its own step; Kudi Box’s app confirms the last.
+    expect(find.text('Step 2 of 3 confirmed'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
     expect(find.text('₦1,500.00 is yours'), findsOneWidget);
   });
 

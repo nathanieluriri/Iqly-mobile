@@ -340,6 +340,113 @@ void main() {
     });
   });
 
+  group('the rules of 19 Oct', () {
+    List<Activation> byStep(DateTime now, ActivationProgress? run) {
+      final demo = DemoActivations(now);
+      return [
+        run == null
+            ? demo.orchidFoodsByStep
+            : demo.orchidFoodsByStep.withProgress(run),
+        demo.kudiBox,
+        demo.unibooks,
+      ];
+    }
+
+    testWidgets('proof mode, just started: record step 1 now', (tester) async {
+      await _golden(
+        tester,
+        'activations_proof_mode_started',
+        activationPath('a1'),
+        now: thursday,
+        service: instantActivations(
+          now: thursday,
+          seed: Figma.world(thursday, orchidFoods: Figma.orchidStarted),
+        ),
+      );
+    });
+
+    testWidgets('paid step by step: the offer reads Up to', (tester) async {
+      await _golden(
+        tester,
+        'activations_detail_per_step',
+        activationPath('a1'),
+        now: thursday,
+        service: instantActivations(now: thursday, seed: byStep(thursday, null)),
+      );
+    });
+
+    testWidgets('paid step by step: step 1 paid, step 2 to record', (
+      tester,
+    ) async {
+      await _golden(
+        tester,
+        'activations_per_step_next',
+        activationPath('a1'),
+        now: thursday,
+        service: instantActivations(
+          now: thursday,
+          seed: byStep(thursday, Figma.orchidStep1Paid()),
+        ),
+      );
+    });
+
+    testWidgets('paid step by step: Upload proof promises the step', (
+      tester,
+    ) async {
+      await _golden(
+        tester,
+        'activations_per_step_proof',
+        proofPath('a1'),
+        now: thursday,
+        service: instantActivations(
+          now: thursday,
+          seed: byStep(thursday, Figma.orchidStep1Paid()),
+        ),
+      );
+    });
+
+    testWidgets('paid step by step: Your proof pays the step', (tester) async {
+      await _golden(
+        tester,
+        'activations_per_step_checking',
+        activationPath('a1'),
+        now: thursday,
+        service: instantActivations(
+          now: thursday,
+          seed: byStep(thursday, Figma.orchidStep1Paid(proof: true)),
+        ),
+      );
+    });
+
+    testWidgets('postback mode: the run’s code with Copy', (tester) async {
+      await _golden(
+        tester,
+        'activations_run_code',
+        activationPath('a2'),
+        now: thursday,
+        service: instantActivations(
+          now: thursday,
+          seed: Figma.world(thursday, kudiBox: Figma.step1WithCode),
+        ),
+      );
+    });
+
+    testWidgets('postback mode: step 1 a day unconfirmed can be proven', (
+      tester,
+    ) async {
+      await _golden(
+        tester,
+        'activations_first_step_not_confirmed',
+        activationPath('a2'),
+        now: friday,
+        service: instantActivations(
+          now: friday,
+          seed: Figma.world(friday, kudiBox: Figma.started),
+        ),
+      );
+    });
+  });
+
   test('the Discover row counts what the list shows closing today', () {
     final open = DemoActivations(figmaNow).all;
     final today = open.where(

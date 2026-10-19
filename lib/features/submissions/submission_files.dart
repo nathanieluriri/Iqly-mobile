@@ -17,6 +17,7 @@ import '../../ui/icon.dart';
 import '../../ui/list_row.dart';
 import '../../ui/toast.dart';
 import '../../ui/top_bar.dart';
+import '../more/more_widgets.dart' show RowGroup;
 import 'submissions_routes.dart';
 
 /// [file] from the account's folder, downloaded with the session token
@@ -74,38 +75,30 @@ class SubmissionFiles extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final count = files.length == 1 ? '1 file' : '${files.length} files';
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: IqColors.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: IqColors.line),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+    return RowGroup(
+      outlined: true,
+      children: [
+        IqListRow(
+          label: 'Attachments',
+          description: count,
+          icon: IqIcons.document,
+          showChevron: false,
+        ),
+        for (final (i, file) in files.indexed)
           IqListRow(
-            label: 'Attachments',
-            description: count,
-            icon: IqIcons.document,
-            showChevron: false,
+            key: ValueKey(file.id),
+            label: file.label,
+            showDescription: false,
+            icon: file.image ? IqIcons.background : IqIcons.download,
+            divider: i < files.length - 1,
+            onTap: file.image
+                ? () => context.open(
+                    submissionFilePath(submissionId),
+                    extra: file,
+                  )
+                : () => _save(context, ref, file),
           ),
-          for (final (i, file) in files.indexed)
-            IqListRow(
-              key: ValueKey(file.id),
-              label: file.label,
-              showDescription: false,
-              icon: file.image ? IqIcons.background : IqIcons.download,
-              divider: i < files.length - 1,
-              onTap: file.image
-                  ? () => context.open(
-                      submissionFilePath(submissionId),
-                      extra: file,
-                    )
-                  : () => _save(context, ref, file),
-            ),
-        ],
-      ),
+      ],
     );
   }
 }
