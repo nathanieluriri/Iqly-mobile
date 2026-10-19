@@ -30,6 +30,7 @@ import 'package:iqly_mobile/features/help/help_thread_screen.dart';
 import 'package:iqly_mobile/features/help/support_screen.dart';
 import 'package:iqly_mobile/features/notifications/notifications_state.dart';
 import 'package:iqly_mobile/features/referrals/referrals_state.dart';
+import 'package:iqly_mobile/features/submissions/submission_files.dart';
 import 'package:iqly_mobile/features/submissions/submissions_routes.dart';
 import 'package:iqly_mobile/features/wallet/wallet_routes.dart';
 import 'package:iqly_mobile/router.dart';
@@ -183,6 +184,10 @@ Map<String, Object?> _row(Map<String, Object?> thread) {
 }
 
 class _Saver implements FileSaver {
+  _Saver({this.answer = true});
+
+  /// False as when the person cancels the save dialog.
+  final bool answer;
   final saved = <(String, String, int)>[];
 
   @override
@@ -192,7 +197,7 @@ class _Saver implements FileSaver {
     required String mime,
   }) async {
     saved.add((name, mime, file.lengthSync()));
-    return true;
+    return answer;
   }
 }
 
@@ -1264,7 +1269,18 @@ void main() {
 
       await tester.pageBack();
       await tester.pumpAndSettle();
-      await open('PDF attachment');
+      await tester.scrollUntilVisible(find.text('PDF attachment'), 100);
+      await tester.tap(find.text('PDF attachment'));
+      await tester.pump();
+      for (var i = 0; i < 20 && saver.saved.isEmpty; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump();
+      }
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('PDF saved'), findsOneWidget);
+      await tester.pumpAndSettle();
       expect(
         api
             .to('/submissions/files/f_2', method: 'GET')
@@ -1272,7 +1288,143 @@ void main() {
             .headers['authorization'],
         'Bearer session.signed',
       );
-      expect(saver.saved, [('attachment.pdf', 'application/pdf', 8)]);
+      expect(saver.saved, [
+        ('Why do people stop saving.pdf', 'application/pdf', 8),
+      ]);
+    });
+
+    test('a saved PDF is named after the brief, numbered when there are '
+        'more, and after its id without a title', () {
+      const image = SubmissionFile(id: 'f_1', type: 'image', url: 'u');
+      const pdf = SubmissionFile(id: 'f_2', type: 'pdf', url: 'u');
+      const other = SubmissionFile(id: 'f_3', type: 'pdf', url: 'u');
+      expect(
+        submissionPdfName('Weeknight dinner: why noodles win?', pdf, [
+          image,
+          pdf,
+        ]),
+        'Weeknight dinner why noodles win.pdf',
+      );
+      expect(
+        submissionPdfName('Data / plans', other, [image, pdf, other]),
+        'Data plans 2.pdf',
+      );
+      expect(submissionPdfName(null, pdf, [pdf]), 'f_2.pdf');
+      expect(submissionPdfName('  ?  ', pdf, [pdf]), 'f_2.pdf');
+      expect(submissionPdfName('a' * 120, pdf, [pdf]), '${'a' * 80}.pdf');
+    });
+
+    testWidgets('a cancelled save says nothing', (tester) async {
+      final saver = _Saver(answer: false);
+      final root = await tester.runAsync(
+        () => Directory.systemTemp.createTemp('iqly-files-test'),
+      );
+      addTearDown(() => tester.runAsync(() => root!.delete(recursive: true)));
+      final api = _api()
+        ..data('GET', '/submissions/s_1', submissionJson({'files': files}))
+        ..on(
+          'GET',
+          '/submissions/files/f_2',
+          (_) => http.Response.bytes(
+            utf8.encode('%PDF-1.4'),
+            200,
+            headers: {'content-type': 'application/pdf'},
+          ),
+        );
+      await _launch(
+        tester,
+        api,
+        submissionPath('s_1'),
+        overrides: [
+          signedInFilesProvider.overrideWith(
+            (ref) =>
+                SignedInFiles(api: ref.watch(apiClientProvider)!, root: root),
+          ),
+          fileSaverProvider.overrideWithValue(saver),
+        ],
+      );
+      await tester.scrollUntilVisible(find.text('PDF attachment'), 100);
+      await tester.tap(find.text('PDF attachment'));
+      await tester.pump();
+      for (var i = 0; i < 20 && saver.saved.isEmpty; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump();
+      }
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(saver.saved, hasLength(1));
+      expect(find.text('PDF saved'), findsNothing);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('a picture opened from a link finds its file by id; without '
+        'one, or for a file that is not a picture, back to the submission', (
+      tester,
+    ) async {
+      final root = await tester.runAsync(
+        () => Directory.systemTemp.createTemp('iqly-files-test'),
+      );
+      addTearDown(() => tester.runAsync(() => root!.delete(recursive: true)));
+      final api = _api()
+        ..data('GET', '/submissions/s_1', submissionJson({'files': files}))
+        ..on(
+          'GET',
+          '/submissions/files/f_1',
+          (_) => http.Response.bytes(
+            _png,
+            200,
+            headers: {'content-type': 'image/png'},
+          ),
+        );
+      final container = await _launch(
+        tester,
+        api,
+        submissionFilePath('s_1', 'f_1'),
+        overrides: [
+          signedInFilesProvider.overrideWith(
+            (ref) =>
+                SignedInFiles(api: ref.watch(apiClientProvider)!, root: root),
+          ),
+        ],
+      );
+      for (var i = 0; i < 20; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump();
+      }
+      await tester.pumpAndSettle();
+      expect(find.byType(SubmissionFileScreen), findsOneWidget);
+      expect(find.text('Image attachment'), findsOneWidget);
+      final image = tester.widget<Image>(find.byType(Image)).image;
+      expect((image as FileImage).file.path, startsWith('${root!.path}/u_1/'));
+
+      final router = container.read(routerProvider);
+      for (final location in [
+        '/submissions/s_1/file',
+        submissionFilePath('s_1', 'f_2'),
+        submissionFilePath('s_1', 'f_9'),
+      ]) {
+        router.go(location);
+        for (var i = 0; i < 10; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 20)),
+          );
+          await tester.pump();
+        }
+        await tester.pumpAndSettle();
+        expect(
+          find.byType(SubmissionFileScreen),
+          findsNothing,
+          reason: location,
+        );
+        expect(
+          router.routerDelegate.currentConfiguration.uri.path,
+          submissionPath('s_1'),
+          reason: location,
+        );
+      }
     });
   });
 

@@ -295,6 +295,7 @@ class _Body extends StatelessWidget {
                       child: SubmissionFiles(
                         submissionId: item.submission.id,
                         files: files,
+                        briefTitle: item.brief?.title,
                       ),
                     ),
                   ],
