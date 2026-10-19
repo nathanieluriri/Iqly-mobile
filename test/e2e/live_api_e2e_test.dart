@@ -3985,8 +3985,8 @@ void _rules19OctOff(String? base) {
         },
       );
 
-      test('activations read as before: no modes, step amounts, code or '
-          'held steps, and no proof right after Start', () async {
+      test('activations read as before: no modes, step amounts or code, '
+          'and no proof right after Start', () async {
         final service = walk.activations;
         for (final a in await service.activations()) {
           expect(a.confirmationMode, isNull, reason: a.title);
