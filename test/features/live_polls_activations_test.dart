@@ -23,6 +23,7 @@ import 'package:iqly_mobile/features/activations/activations_state.dart';
 import 'package:iqly_mobile/features/activations/my_activations_screen.dart';
 import 'package:iqly_mobile/features/activations/proof_screen.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
+import 'package:iqly_mobile/features/help/help_request_screen.dart';
 import 'package:iqly_mobile/features/polls/poll_sheet.dart';
 import 'package:iqly_mobile/features/profile/edit_detail_screen.dart';
 import 'package:iqly_mobile/features/polls/polls_routes.dart';
@@ -518,6 +519,41 @@ void main() {
         expect(find.text('Code copied'), findsOneWidget);
         await tester.pumpAndSettle();
       });
+
+      for (final names in [true, false]) {
+        testWidgets('a run under way asks for help, '
+            '${names ? 'from its business by name' : 'from support'}', (
+          tester,
+        ) async {
+          final run = _json.activationJson(
+            progress: _json.runJson(started: Duration.zero),
+          );
+          final api = _Api({
+            'GET /activations': (_) => _ok({
+              'items': [run],
+            }),
+            'GET /activations/a_1': (_) => _ok(run),
+          });
+          await pumpLiveLaunch(
+            tester,
+            activationPath('a_1'),
+            api: api.client,
+            mode: Backend.of({
+              ..._on.live,
+              LiveFeature.support,
+              if (names) LiveFeature.helpAuthorNames,
+            }),
+          );
+          await tester.pumpAndSettle();
+          await tester.scrollUntilVisible(find.text('Ask for help'), 100);
+          await _tap(tester, find.text('Ask for help'));
+          expect(find.byType(HelpRequestScreen), findsOneWidget);
+          expect(
+            _button(names ? 'Send to Harbour Telecom' : 'Send to support'),
+            findsOneWidget,
+          );
+        });
+      }
 
       testWidgets('paid by step: Up to on the offer, Paid on a paid step', (
         tester,

@@ -27,6 +27,7 @@ import 'package:iqly_mobile/features/more/more_screen.dart';
 import 'package:iqly_mobile/features/help/help_routes.dart';
 import 'package:iqly_mobile/features/help/help_state.dart';
 import 'package:iqly_mobile/features/help/help_thread_screen.dart';
+import 'package:iqly_mobile/features/help/support_screen.dart';
 import 'package:iqly_mobile/features/notifications/notifications_state.dart';
 import 'package:iqly_mobile/features/referrals/referrals_state.dart';
 import 'package:iqly_mobile/features/submissions/submissions_routes.dart';
@@ -124,6 +125,8 @@ Map<String, Object?> _attachment([Map<String, Object?> change = const {}]) => {
   ...change,
 };
 
+const _at0 = '2026-10-17T08:00:00.000Z';
+
 Map<String, Object?> _thread({
   String id = 't_1',
   String status = 'replied',
@@ -172,10 +175,25 @@ Map<String, Object?> _row(Map<String, Object?> thread) {
       if (e.key != 'messages' && e.key != 'credit') e.key: e.value,
     'lastMessage': {
       'author': last['author'],
+      'authorName': last['authorName'],
       'body': last['body'],
       'at': last['at'],
     },
   };
+}
+
+class _Saver implements FileSaver {
+  final saved = <(String, String, int)>[];
+
+  @override
+  Future<bool> save(
+    File file, {
+    required String name,
+    required String mime,
+  }) async {
+    saved.add((name, mime, file.lengthSync()));
+    return true;
+  }
 }
 
 class _FakeRecording extends VideoPlayerController {
@@ -229,6 +247,184 @@ void main() {
 
       final row = helpTicketFromJson(_row(_thread()))!;
       expect(row.messages.single.body, 'Access Bank is still confirming it.');
+    });
+
+    test('replies name who wrote them; only the person’s own are theirs', () {
+      final thread = helpTicketFromJson(
+        _thread(
+          messages: [
+            {'author': 'you', 'authorName': 'Ada', 'body': 'Hi', 'at': _at0},
+            {
+              'author': 'support',
+              'authorName': 'Harbour Telecom',
+              'body': 'We see it.',
+              'at': _at0,
+            },
+            {
+              'author': 'support',
+              'authorName': 'iQLY support',
+              'body': 'Stepping in.',
+              'at': _at0,
+            },
+            {'author': 'brand', 'body': 'From an older build', 'at': _at0},
+          ],
+        ),
+      )!;
+      final [you, business, staff, unknown] = thread.messages;
+      expect(you.author, HelpAuthor.you);
+      expect(you.authorName, isNull);
+      expect(business.fromBusiness, isTrue);
+      expect(business.authorName, 'Harbour Telecom');
+      expect(staff.fromBusiness, isFalse);
+      expect(unknown.author, HelpAuthor.support, reason: 'never the person’s');
+      expect(unknown.fromBusiness, isFalse);
+      expect(thread.business, 'Harbour Telecom');
+      expect(thread.lastReply, same(unknown));
+
+      final row = helpTicketFromJson(
+        _row(
+            _thread(
+              messages: [
+                {
+                  'author': 'support',
+                  'authorName': 'Harbour Telecom',
+                  'body': 'We see it.',
+                  'at': _at0,
+                },
+              ],
+            ),
+          )
+          ..['lastMessage'] = {
+            'author': 'support',
+            'authorName': 'Harbour Telecom',
+            'body': 'We see it.',
+            'at': _at0,
+          },
+      )!;
+      expect(row.messages.single.authorName, 'Harbour Telecom');
+    });
+
+    test('times a week old or more show their date', () {
+      final saturday = DateTime(2026, 10, 17, 15);
+      expect(
+        supportTime(DateTime(2026, 10, 17, 15, 6), saturday),
+        'Sat, 3:06 pm',
+      );
+      expect(
+        supportTime(DateTime(2026, 10, 11, 15, 6), saturday),
+        'Sun, 3:06 pm',
+      );
+      expect(
+        supportTime(DateTime(2026, 10, 10, 15, 6), saturday),
+        '10 Oct, 3:06 pm',
+      );
+      expect(
+        supportTime(DateTime(2026, 10, 12, 15, 6), DateTime(2026, 10, 19, 9)),
+        '12 Oct, 3:06 pm',
+      );
+    });
+
+    for (final names in [true, false]) {
+      testWidgets(
+        'a business reply ${names ? 'names the business' : 'reads '
+                  'as iQLY support without helpAuthorNames'}',
+        (tester) async {
+          final thread = {
+            ..._thread(
+              subject: 'Harbour Telecom activation',
+              messages: [
+                {
+                  'author': 'you',
+                  'body': 'Stuck on step 2.',
+                  'at': '2026-10-09T07:00:00.000Z',
+                },
+                {
+                  'author': 'support',
+                  'authorName': 'Harbour Telecom',
+                  'body': 'We see your run. Try again now.',
+                  'at': '2026-10-17T08:00:00.000Z',
+                },
+              ],
+            ),
+            'activationId': 'a_1',
+          };
+          final api = _api()
+            ..on('GET', '/support/unread', (_) => ok({'unread': 1}))
+            ..data('GET', '/support/tickets', page([_row(thread)]))
+            ..data('GET', '/support/tickets/t_1', thread)
+            ..on('POST', '/support/tickets/t_1/read', (_) => ok({'unread': 0}));
+          await _launch(
+            tester,
+            api,
+            Routes.support,
+            mode: _with({
+              LiveFeature.support,
+              if (names) LiveFeature.helpAuthorNames,
+            }),
+          );
+          expect(
+            find.textContaining(
+              names ? 'Harbour Telecom replied · ' : 'Support replied · ',
+            ),
+            findsOneWidget,
+          );
+          await tester.tap(find.text('Harbour Telecom activation'));
+          await tester.pumpAndSettle();
+          expect(find.text('We see your run. Try again now.'), findsOneWidget);
+          expect(find.textContaining('9 Oct, '), findsOneWidget);
+          if (names) {
+            expect(find.text('Harbour Telecom'), findsOneWidget);
+            expect(find.text('iQLY support'), findsNothing);
+            expect(find.text('iQ'), findsNothing);
+            expect(find.text('Harbour Telecom replied'), findsOneWidget);
+            expect(find.text('Write to Harbour Telecom'), findsOneWidget);
+          } else {
+            expect(find.text('iQLY support'), findsOneWidget);
+            expect(find.text('Support replied'), findsOneWidget);
+            expect(find.text('Write to support'), findsOneWidget);
+          }
+        },
+      );
+    }
+
+    testWidgets('iQLY support stepping into a business thread keeps its name '
+        'and sticker', (tester) async {
+      final thread = {
+        ..._thread(
+          subject: 'Harbour Telecom activation',
+          messages: [
+            {'author': 'you', 'body': 'Stuck.', 'at': _at0},
+            {
+              'author': 'support',
+              'authorName': 'Harbour Telecom',
+              'body': 'Looking.',
+              'at': _at0,
+            },
+            {
+              'author': 'support',
+              'authorName': 'iQLY support',
+              'body': 'We confirmed it for you.',
+              'at': _at0,
+            },
+          ],
+        ),
+        'activationId': 'a_1',
+      };
+      final api = _api()
+        ..data('GET', '/support/unread', {'unread': 0})
+        ..data('GET', '/support/tickets/t_1', thread)
+        ..on('POST', '/support/tickets/t_1/read', (_) => ok({'unread': 0}));
+      await _launch(
+        tester,
+        api,
+        helpThreadPath('t_1'),
+        mode: _with({LiveFeature.support, LiveFeature.helpAuthorNames}),
+      );
+      expect(find.text('iQLY support'), findsOneWidget);
+      expect(find.text('iQ'), findsOneWidget);
+      expect(find.text('Harbour Telecom'), findsOneWidget);
+      expect(find.text('Support replied'), findsOneWidget);
+      expect(find.text('Write to Harbour Telecom'), findsOneWidget);
     });
 
     testWidgets('preview: the samples, both ways to support and no badge', (
@@ -965,6 +1161,118 @@ void main() {
       final submission = submissionFromJson(submissionJson({'note': note}))!;
       expect(submission.note!.business, 'Sunline Foods');
       expect(submissionFromJson(submissionJson())!.note, isNull);
+    });
+  });
+
+  group('submission files', () {
+    final files = [
+      {
+        'id': 'f_1',
+        'type': 'image',
+        'url': 'https://api.test/submissions/files/f_1',
+      },
+      {
+        'id': 'f_2',
+        'type': 'pdf',
+        'url': 'https://api.test/submissions/files/f_2',
+      },
+    ];
+
+    test(
+      'a submission item lists its files; one without a url is left out',
+      () {
+        final submission = submissionFromJson(
+          submissionJson({
+            'files': [
+              ...files,
+              {'id': 'f_3', 'type': 'pdf'},
+            ],
+          }),
+        )!;
+        expect(
+          [for (final f in submission.files) (f.id, f.label)],
+          [('f_1', 'Image attachment'), ('f_2', 'PDF attachment')],
+        );
+        expect(
+          submissionFromJson(submissionJson({'files': null}))!.files,
+          isEmpty,
+        );
+      },
+    );
+
+    testWidgets('Submission detail lists them; a picture opens read with the '
+        'session token, a PDF goes to the save dialog', (tester) async {
+      final root = await tester.runAsync(
+        () => Directory.systemTemp.createTemp('iqly-files-test'),
+      );
+      addTearDown(() => tester.runAsync(() => root!.delete(recursive: true)));
+      final saver = _Saver();
+      final api = _api()
+        ..data('GET', '/submissions/s_1', submissionJson({'files': files}))
+        ..on(
+          'GET',
+          '/submissions/files/f_1',
+          (_) => http.Response.bytes(
+            _png,
+            200,
+            headers: {'content-type': 'image/png'},
+          ),
+        )
+        ..on(
+          'GET',
+          '/submissions/files/f_2',
+          (_) => http.Response.bytes(
+            utf8.encode('%PDF-1.4'),
+            200,
+            headers: {'content-type': 'application/pdf'},
+          ),
+        );
+      await _launch(
+        tester,
+        api,
+        submissionPath('s_1'),
+        overrides: [
+          signedInFilesProvider.overrideWith(
+            (ref) =>
+                SignedInFiles(api: ref.watch(apiClientProvider)!, root: root),
+          ),
+          fileSaverProvider.overrideWithValue(saver),
+        ],
+      );
+      expect(find.text('Attachments'), findsOneWidget);
+      expect(find.text('2 files'), findsOneWidget);
+
+      Future<void> open(String label) async {
+        await tester.scrollUntilVisible(find.text(label), 100);
+        await tester.tap(find.text(label));
+        await tester.pump();
+        for (var i = 0; i < 20; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 20)),
+          );
+          await tester.pump();
+        }
+        await tester.pumpAndSettle();
+      }
+
+      await open('Image attachment');
+      final read = api.to('/submissions/files/f_1', method: 'GET');
+      expect(read.single.headers['authorization'], 'Bearer session.signed');
+      final image = tester.widget<Image>(find.byType(Image)).image;
+      expect(image, isA<FileImage>());
+      expect((image as FileImage).file.path, startsWith('${root!.path}/u_1/'));
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await open('PDF attachment');
+      expect(
+        api
+            .to('/submissions/files/f_2', method: 'GET')
+            .single
+            .headers['authorization'],
+        'Bearer session.signed',
+      );
+      expect(saver.saved, [('attachment.pdf', 'application/pdf', 8)]);
     });
   });
 
