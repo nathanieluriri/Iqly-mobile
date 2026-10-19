@@ -38,7 +38,8 @@ import 'help_state.dart';
 /// optional and goes up before it can be sent. Send to support opens the
 /// thread in its place, so back from the thread returns to the activation.
 /// On an API that routes a request about an activation to the business
-/// behind it (owner decision D4), the button names that business.
+/// behind it (owner decision D4), the button names that business, and
+/// iQLY's reply promise goes: a business makes none (owner decision).
 ///
 /// Where the build parts from the frame: the message box is Exp/Field (the
 /// one text entry component) where Figma draws a plain frame, so focus
@@ -122,9 +123,10 @@ class _HelpRequestScreenState extends ConsumerState<HelpRequestScreen> {
         ? null
         : ref.watch(activationProvider(about));
     final draft = ref.watch(helpDraftProvider);
-    final to = ref.watch(helpAuthorNamesProvider) && activation != null
+    final business = ref.watch(helpAuthorNamesProvider) && activation != null
         ? activation.business
-        : 'support';
+        : null;
+    final to = business ?? 'support';
     final count = _thousands.format(draft.message.characters.length);
     final limit = _thousands.format(HelpRequestScreen.maxLength);
 
@@ -160,11 +162,13 @@ class _HelpRequestScreenState extends ConsumerState<HelpRequestScreen> {
                             title: helpFailureText(draft.failure),
                           ),
                         ),
-                        Text(
-                          DemoHelp.replyLine,
-                          style: IqText.body.copyWith(color: IqColors.fg2),
-                        ),
-                        const SizedBox(height: IqSpace.s4),
+                        if (business == null) ...[
+                          Text(
+                            DemoHelp.replyLine,
+                            style: IqText.body.copyWith(color: IqColors.fg2),
+                          ),
+                          const SizedBox(height: IqSpace.s4),
+                        ],
                         IqField(
                           label: 'What happened?',
                           value: '',
@@ -222,11 +226,13 @@ class _HelpRequestScreenState extends ConsumerState<HelpRequestScreen> {
                         loading: draft.sending,
                         onTap: () => _send(activation),
                       ),
-                      const SizedBox(height: IqSpace.s2),
-                      Text(
-                        'We reply here and by notification.',
-                        style: IqText.small.copyWith(color: IqColors.fg3),
-                      ),
+                      if (business == null) ...[
+                        const SizedBox(height: IqSpace.s2),
+                        Text(
+                          'We reply here and by notification.',
+                          style: IqText.small.copyWith(color: IqColors.fg3),
+                        ),
+                      ],
                     ],
                   ),
                 ),
