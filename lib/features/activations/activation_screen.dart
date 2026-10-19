@@ -29,9 +29,11 @@ import '../../ui/progress_thread.dart';
 import '../../ui/section_title.dart';
 import '../../ui/step_row.dart';
 import '../../ui/timeline_row.dart';
+import '../../ui/toast.dart';
 import '../../ui/top_bar.dart';
 import '../../ui/video_preview.dart';
 import '../help/help_routes.dart';
+import '../more/more_widgets.dart' show CodeBox;
 import '../profile/profile_routes.dart';
 import '../profile/your_details_screen.dart' show DetailField;
 import '../settings/restore_account_screen.dart' show showClosingAccount;
@@ -49,7 +51,8 @@ _Layout _layoutOf(ActivationPhase phase) => switch (phase) {
   ActivationPhase.offer || ActivationPhase.expired => _Layout.offer,
   ActivationPhase.started ||
   ActivationPhase.confirming ||
-  ActivationPhase.notConfirmed => _Layout.steps,
+  ActivationPhase.notConfirmed ||
+  ActivationPhase.recording => _Layout.steps,
   ActivationPhase.checking || ActivationPhase.notAccepted => _Layout.proof,
   ActivationPhase.credited => _Layout.credited,
 };
@@ -69,6 +72,14 @@ _Layout _layoutOf(ActivationPhase phase) => switch (phase) {
 /// haptic; paid while a page covers the screen, it is already there when
 /// that page leaves. Tapping the waiting step or the Checking row asks for
 /// the latest state.
+///
+/// The rules of 19 Oct (no frame draws them): in proof mode the steps page
+/// marks the step to do and record next, with Upload proof of it, from the
+/// start; once its proof is accepted the next one is. In postback mode the
+/// run's code sits under the title with Copy (owner decision D2), drawn as
+/// B20 draws the invite code. A per-step activation reads "Up to" on its
+/// offer and each paying step its amount, "Paid" once paid (Round 18).
+/// While steps are under way the person can ask for help about the run.
 class ActivationScreen extends ConsumerStatefulWidget {
   const ActivationScreen({super.key, required this.id});
 
@@ -134,7 +145,9 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
         before.phaseAt(now) != ActivationPhase.credited) {
       setState(() => _paidHere = !covered(context));
     }
-    final next = after.waitingStep;
+    final next = after.confirmationMode == ConfirmationMode.proof
+        ? after.proofStep
+        : after.waitingStep;
     if (after.confirmed > before.confirmed && next != null) {
       final beat = motion(context, IqDurations.chain);
       if (beat == Duration.zero) return;
@@ -150,8 +163,10 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
   /// turns to step not confirmed while it is open.
   void _watchWindow(Activation activation, DateTime now) {
     final since = activation.waitingSince;
+    final phase = activation.phaseAt(now);
     if (since == null ||
-        activation.phaseAt(now) != ActivationPhase.confirming) {
+        (phase != ActivationPhase.confirming &&
+            phase != ActivationPhase.started)) {
       _window?.cancel();
       _window = null;
       _windowFor = null;
@@ -300,10 +315,12 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
           phase: phase,
           now: now,
           chained: _chained,
+          support: ref.watch(supportShownProvider),
           onBack: _back,
           onRefresh: _refresh,
           onOpen: () => _open(activation),
           onProof: () => context.open(proofPath(activation.id)),
+          onHelp: () => context.open(helpPath(about: activation.id)),
         ),
         _Layout.proof => _ProofPage(
           activation: activation,
@@ -485,7 +502,7 @@ class _OfferPage extends StatelessWidget {
                   spacing: IqSpace.s1p5,
                   runSpacing: IqSpace.s1p5,
                   children: [
-                    IqMeta(kind: IqMetaKind.reward, label: rewardChip(a)),
+                    IqMeta(kind: IqMetaKind.reward, label: offerReward(a)),
                     IqMeta(kind: IqMetaKind.time, label: minutesText(a)),
                     IqMeta(
                       kind: closingSoon(a, now)
@@ -507,6 +524,8 @@ class _OfferPage extends StatelessWidget {
                     title: step.title,
                     body: step.howTo ?? step.hint,
                     divider: i < a.steps.length - 1,
+                    showReward: showsStepReward(a, i),
+                    reward: stepRewardText(a, i),
                   ),
               ], 14),
             ),
@@ -600,35 +619,53 @@ class _Header extends StatelessWidget {
 /// Just started (179:8001), in progress (141:5090) and step not confirmed
 /// (154:6202): the thread pinned under the top bar, the steps as they
 /// stand, the reward, and the bar for the business's app (and the proof
-/// once a step is past its window).
+/// once a step is past its window, or from the start in proof mode).
 class _StepsPage extends StatelessWidget {
   const _StepsPage({
     required this.activation,
     required this.phase,
     required this.now,
     required this.chained,
+    required this.support,
     required this.onBack,
     required this.onRefresh,
     required this.onOpen,
     required this.onProof,
+    required this.onHelp,
   });
 
   final Activation activation;
   final ActivationPhase phase;
   final DateTime now;
   final int? chained;
+
+  /// Whether this launch has support to ask, so Ask for help shows.
+  final bool support;
   final VoidCallback onBack;
   final VoidCallback onRefresh;
   final VoidCallback onOpen;
   final VoidCallback onProof;
+  final VoidCallback onHelp;
 
   bool get _stuck => phase == ActivationPhase.notConfirmed;
+
+  bool get _recording => phase == ActivationPhase.recording;
+
+  /// The step that is the person's or the business's now. Just started,
+  /// none is: the first step waits to be done.
+  int? get _activeStep => _recording
+      ? activation.proofStep
+      : phase == ActivationPhase.started
+      ? null
+      : activation.waitingStep;
 
   Widget _step(int i) {
     final a = activation;
     final step = a.steps[i];
     final divider = i < a.steps.length - 1;
     final number = '${i + 1}';
+    final showReward = showsStepReward(a, i);
+    final reward = stepRewardText(a, i);
     if (i < a.confirmed) {
       return IqStepRow(
         state: IqStepRowState.done,
@@ -637,19 +674,25 @@ class _StepsPage extends StatelessWidget {
         body:
             'Confirmed by ${a.business} · ${dayTime(a.progress!.confirmedAt[i])}',
         divider: divider,
+        showReward: showReward,
+        reward: reward,
       );
     }
-    if (i == a.waitingStep && i != chained) {
+    if (i == _activeStep && i != chained) {
       final row = IqStepRow(
         state: IqStepRowState.active,
         number: number,
         title: step.title,
-        body: _stuck
+        body: _recording
+            ? step.hint
+            : _stuck
             ? 'Not confirmed after a day'
             : '${a.business} is checking. Usually a few minutes.',
         divider: divider,
+        showReward: showReward,
+        reward: reward,
       );
-      if (_stuck) return row;
+      if (_stuck || _recording) return row;
       return MergeSemantics(
         child: IqPressable(
           onTap: onRefresh,
@@ -662,6 +705,8 @@ class _StepsPage extends StatelessWidget {
       title: step.title,
       body: step.hint,
       divider: divider,
+      showReward: showReward,
+      reward: reward,
     );
   }
 
@@ -669,6 +714,10 @@ class _StepsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final a = activation;
     final waiting = a.waitingStep;
+    final proving = _stuck || _recording;
+    final code = a.confirmationMode == ConfirmationMode.postback
+        ? a.progress?.refCode
+        : null;
     return _Page(
       title: 'Activation',
       onBack: onBack,
@@ -688,6 +737,7 @@ class _StepsPage extends StatelessWidget {
         padding: _padding,
         children: _gapped([
           _Header(activation: a),
+          if (code != null) _RunCode(code: code),
           const IqSectionTitle(title: 'What to do', showLink: false),
           for (var i = 0; i < a.steps.length; i++) _step(i),
           MergeSemantics(
@@ -695,35 +745,107 @@ class _StepsPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Earn ${reward(a)}',
+                  a.perStep ? 'Earn up to ${reward(a)}' : 'Earn ${reward(a)}',
                   style: IqText.bodyStrong.copyWith(color: IqColors.brand),
                 ),
                 const SizedBox(width: IqSpace.s2),
                 Flexible(
                   child: Text(
-                    'when all ${a.steps.length} steps are confirmed',
+                    a.perStep
+                        ? 'paid step by step'
+                        : 'when all ${a.steps.length} steps are confirmed',
                     style: IqText.small.copyWith(color: IqColors.fg2),
                   ),
                 ),
               ],
             ),
           ),
+          if (support) _AskForHelp(onTap: onHelp),
         ], IqSpace.s4),
       ),
       actions: [
-        if (_stuck)
+        if (proving)
           IqButton(
-            label: 'Upload proof of step ${waiting! + 1}',
+            label: 'Upload proof of step ${a.proofStep! + 1}',
             showIcon: false,
             width: double.infinity,
             onTap: onProof,
           ),
         IqButton(
           label: 'Open ${a.business}',
-          kind: _stuck ? IqButtonKind.ghost : IqButtonKind.primary,
+          kind: proving ? IqButtonKind.ghost : IqButtonKind.primary,
           showIcon: false,
           width: double.infinity,
           onTap: onOpen,
+        ),
+      ],
+    );
+  }
+}
+
+/// Postback mode: the run's code, for a business's app that asks for it
+/// (one opened from the App Store gets no link), with Copy.
+class _RunCode extends StatefulWidget {
+  const _RunCode({required this.code});
+
+  final String code;
+
+  @override
+  State<_RunCode> createState() => _RunCodeState();
+}
+
+class _RunCodeState extends State<_RunCode> {
+  static const _copiedFor = Duration(seconds: 2);
+
+  bool _copied = false;
+  Timer? _reset;
+
+  @override
+  void dispose() {
+    _reset?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _copy() async {
+    await Clipboard.setData(ClipboardData(text: widget.code));
+    IqHaptics.success.play();
+    if (!mounted) return;
+    IqToast.show(context, 'Code copied');
+    setState(() => _copied = true);
+    _reset?.cancel();
+    _reset = Timer(_copiedFor, () {
+      if (mounted) setState(() => _copied = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      CodeBox(code: widget.code, copied: _copied, onCopy: _copy);
+}
+
+/// A run under way asks for help about itself: the help request, which
+/// goes to the business behind it on an API that routes it there.
+class _AskForHelp extends StatelessWidget {
+  const _AskForHelp({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Stuck on a step?',
+          style: IqText.bodyStrong.copyWith(color: IqColors.fg3),
+        ),
+        const SizedBox(height: IqSpace.s2),
+        IqButton(
+          label: 'Ask for help',
+          kind: IqButtonKind.secondary,
+          showIcon: false,
+          width: double.infinity,
+          onTap: onTap,
         ),
       ],
     );
@@ -762,6 +884,7 @@ class _ProofPage extends StatelessWidget {
     final refused = proof.notAccepted;
     final label = IqText.bodyStrong.copyWith(color: IqColors.fg3);
     final ended = refused != null && !a.canProveAt(now);
+    final pays = a.paysFor(proof.step);
     return _Page(
       title: 'Your proof',
       onBack: onBack,
@@ -808,16 +931,18 @@ class _ProofPage extends StatelessWidget {
                       state: IqTimelineRowState.current,
                       title: 'Checking with ${a.business}',
                       meta: 'Usually within 24 hours',
+                      showLine: pays > 0,
                     ),
                   ),
                 ),
               ),
-              IqTimelineRow(
-                state: IqTimelineRowState.upcoming,
-                title: 'Paid to your wallet',
-                meta: '${naira(a.rewardKobo)} after confirmation',
-                showLine: false,
-              ),
+              if (pays > 0)
+                IqTimelineRow(
+                  state: IqTimelineRowState.upcoming,
+                  title: 'Paid to your wallet',
+                  meta: '${naira(pays)} after confirmation',
+                  showLine: false,
+                ),
             ],
           ),
           Text('Your proof', style: label),

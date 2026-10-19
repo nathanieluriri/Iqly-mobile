@@ -3,6 +3,13 @@
 /// sends (B9), behind Flags.activations. demo.ts has no rows for them, so
 /// the demo values below come from the Figma frames; a live launch reads
 /// the API's (contract 11.2).
+///
+/// An activation whose [Activation.confirmationMode] is known follows the
+/// owner's rules of 19 Oct (D1, D3): in proof mode each step is recorded in
+/// order from the start and the business confirms each recording; in
+/// postback mode the business's app confirms each step, and a step it
+/// leaves unconfirmed for a day (the first one from the start) can be
+/// proven. Without a mode the rules before them hold.
 library;
 
 import 'app_config.dart';
@@ -28,8 +35,25 @@ abstract final class ActivationRules {
   static int get proofBytes => AppConfig.current.proofVideoMaxBytes;
 }
 
+/// How the business confirms each step.
+enum ConfirmationMode {
+  /// The person records each step and the business confirms the recording.
+  proof,
+
+  /// The business's app confirms each step with the run's code.
+  postback,
+}
+
+/// When the reward is paid: once for the whole run, or step by step.
+enum RewardMode { perRun, perStep }
+
 class ActivationStep {
-  const ActivationStep({required this.title, required this.hint, this.howTo});
+  const ActivationStep({
+    required this.title,
+    required this.hint,
+    this.howTo,
+    this.rewardKobo,
+  });
 
   final String title;
 
@@ -39,6 +63,26 @@ class ActivationStep {
   /// The body on the offer, before it starts, when it says more than [hint]
   /// ("Settings → Verification. About 2 min").
   final String? howTo;
+
+  /// What confirming this step pays, on a per-step activation.
+  final int? rewardKobo;
+}
+
+/// A step paid on its own, on a per-step activation.
+class ActivationStepPayout {
+  const ActivationStepPayout({
+    required this.step,
+    required this.kobo,
+    required this.paidAt,
+    this.ledgerId,
+  });
+
+  final int step;
+  final int kobo;
+  final DateTime paidAt;
+
+  /// The wallet credit that paid it, as the API names it.
+  final String? ledgerId;
 }
 
 /// The recording picked as proof. [length] is null when the picker cannot
@@ -115,6 +159,8 @@ class ActivationProgress {
     this.proof,
     this.paidAt,
     this.ledgerId,
+    this.refCode,
+    this.stepPayouts = const [],
   });
 
   final DateTime startedAt;
@@ -130,16 +176,26 @@ class ActivationProgress {
   /// The wallet credit that paid it, as the API names it.
   final String? ledgerId;
 
+  /// The run's code ("IQ-7K3P2"), which the business's app receives through
+  /// the link in postback mode.
+  final String? refCode;
+
+  /// What each step paid so far, on a per-step activation.
+  final List<ActivationStepPayout> stepPayouts;
+
   ActivationProgress copyWith({
     List<DateTime>? confirmedAt,
     ActivationProof? proof,
     DateTime? paidAt,
+    List<ActivationStepPayout>? stepPayouts,
   }) => ActivationProgress(
     startedAt: startedAt,
     confirmedAt: confirmedAt ?? this.confirmedAt,
     proof: proof ?? this.proof,
     paidAt: paidAt ?? this.paidAt,
     ledgerId: ledgerId,
+    refCode: refCode,
+    stepPayouts: stepPayouts ?? this.stepPayouts,
   );
 }
 
@@ -155,8 +211,11 @@ enum ActivationPhase {
   confirming,
 
   /// That step has waited past [ActivationRules.confirmWindow]: proof can
-  /// be sent.
+  /// be sent. In postback mode the first step waits from the start.
   notConfirmed,
+
+  /// Proof mode: the next step is yours to do and record.
+  recording,
 
   /// Proof sent; iQLY is checking it with the business.
   checking,
@@ -188,11 +247,18 @@ class Activation {
     this.logoUrl,
     this.imageUrl,
     this.paused = false,
+    this.confirmationMode,
+    this.rewardMode = RewardMode.perRun,
   });
 
   final String id;
   final String business;
   final String title;
+
+  /// How its steps are confirmed; null keeps the rules from before the
+  /// modes (the API does not say, or the launch does not run them).
+  final ConfirmationMode? confirmationMode;
+  final RewardMode rewardMode;
 
   /// From the API: its art is [logoUrl] and [imageUrl], never a sample
   /// business's, and the anonymous mark when it has none.
@@ -235,14 +301,57 @@ class Activation {
   /// as the run ended with the activation.
   bool canProveAt(DateTime now) => started && !credited && !closedAt(now);
 
-  /// The step the business is confirming, once one step is confirmed and
-  /// until the last is, while no accepted proof stands in for it.
+  bool get perStep => rewardMode == RewardMode.perStep;
+
+  /// What confirming step [i] pays: its own amount on a per-step
+  /// activation, the reward on a per-run one.
+  int paysFor(int i) =>
+      perStep ? (i < steps.length ? steps[i].rewardKobo ?? 0 : 0) : rewardKobo;
+
+  /// Round 18: once more than one step pays, each paying step shows its
+  /// amount.
+  bool get showsStepRewards =>
+      perStep && steps.where((s) => (s.rewardKobo ?? 0) > 0).length > 1;
+
+  /// What step [i] was paid, once it was.
+  ActivationStepPayout? payoutOf(int i) =>
+      progress?.stepPayouts.where((p) => p.step == i).firstOrNull;
+
+  /// The proof that still stands: with a mode, one whose step is already
+  /// confirmed is done with.
+  ActivationProof? get pendingProof {
+    final run = progress;
+    final proof = run?.proof;
+    if (run == null || proof == null) return null;
+    if (confirmationMode == null) return proof;
+    return proof.step >= run.confirmedAt.length ? proof : null;
+  }
+
+  /// The step the business is confirming, while no accepted proof stands in
+  /// for it: from the first confirmation on, and in postback mode from the
+  /// start. Proof mode has none: each step waits on its recording.
   int? get waitingStep {
     final run = progress;
-    if (run == null || credited || (run.proof?.accepted ?? false)) return null;
+    if (run == null || credited || (pendingProof?.accepted ?? false)) {
+      return null;
+    }
     final done = run.confirmedAt.length;
-    if (done == 0 || done >= steps.length) return null;
-    return done;
+    if (done >= steps.length) return null;
+    return switch (confirmationMode) {
+      null => done == 0 ? null : done,
+      ConfirmationMode.postback => done,
+      ConfirmationMode.proof => null,
+    };
+  }
+
+  /// The step a recording proves: the next one in proof mode, else the one
+  /// waiting on the business.
+  int? get proofStep {
+    if (confirmationMode != ConfirmationMode.proof) return waitingStep;
+    final run = progress;
+    if (run == null || credited) return null;
+    final done = run.confirmedAt.length;
+    return done < steps.length ? done : null;
   }
 
   /// The ledger row its reward lands as, whoever pays it (the business's
@@ -252,14 +361,19 @@ class Activation {
   /// [creditId] for the activation with [activationId].
   static String creditIdOf(String activationId) => 'activation-$activationId';
 
-  /// Since when [waitingStep] has waited: its predecessor's confirmation.
-  DateTime? get waitingSince =>
-      waitingStep == null ? null : progress!.confirmedAt.last;
+  /// Since when [waitingStep] has waited: its predecessor's confirmation,
+  /// or the start for the first step.
+  DateTime? get waitingSince {
+    final step = waitingStep;
+    if (step == null) return null;
+    final run = progress!;
+    return step == 0 ? run.startedAt : run.confirmedAt.last;
+  }
 
   ActivationPhase phaseAt(DateTime now) {
     final run = progress;
     if (credited) return ActivationPhase.credited;
-    final proof = run?.proof;
+    final proof = pendingProof;
     if (proof != null) {
       return proof.accepted
           ? ActivationPhase.checking
@@ -267,14 +381,18 @@ class Activation {
     }
     if (closedAt(now)) return ActivationPhase.expired;
     if (run == null) return ActivationPhase.offer;
-    final since = waitingSince;
-    if (since == null) {
-      return run.confirmedAt.isEmpty
-          ? ActivationPhase.started
-          : ActivationPhase.confirming;
+    if (confirmationMode == ConfirmationMode.proof) {
+      return proofStep == null
+          ? ActivationPhase.confirming
+          : ActivationPhase.recording;
     }
-    return now.difference(since) >= ActivationRules.confirmWindow
-        ? ActivationPhase.notConfirmed
+    final since = waitingSince;
+    if (since != null &&
+        now.difference(since) >= ActivationRules.confirmWindow) {
+      return ActivationPhase.notConfirmed;
+    }
+    return run.confirmedAt.isEmpty
+        ? ActivationPhase.started
         : ActivationPhase.confirming;
   }
 
@@ -294,13 +412,20 @@ class Activation {
     logoUrl: logoUrl,
     imageUrl: imageUrl,
     paused: paused,
+    confirmationMode: confirmationMode,
+    rewardMode: rewardMode,
   );
 }
 
 /// The activations of the Figma frames (rows B8 and B9) at [now]: rewards,
 /// times left and Kudi Box's steps are the frames'. Orchid Foods and
 /// Unibooks have no detail frame, so their steps reuse Kudi Box's first step
-/// and add their own (written for the demo, listed for the owner).
+/// and add their own (written for the demo, listed for the owner). Kudi Box
+/// and Unibooks are confirmed by the business's app, as B8 and B9 draw it;
+/// Orchid Foods takes a recording of each step, so the preview walks the
+/// proof flow of 19 Oct. Each pays per run, as the sample wallet foots;
+/// [orchidFoodsByStep] is the same activation paid step by step (amounts
+/// written for the demo).
 class DemoActivations {
   DemoActivations(this.now);
 
@@ -332,6 +457,31 @@ class DemoActivations {
       ),
     ],
     link: Uri.parse('https://orchidfoods.example/app'),
+    confirmationMode: ConfirmationMode.proof,
+  );
+
+  /// Orchid Foods paying ₦100, ₦200 and ₦200 as each step is confirmed.
+  late final orchidFoodsByStep = Activation(
+    id: orchidFoods.id,
+    business: orchidFoods.business,
+    title: orchidFoods.title,
+    minutes: orchidFoods.minutes,
+    rewardKobo: orchidFoods.rewardKobo,
+    closesAt: orchidFoods.closesAt,
+    spotsLeft: orchidFoods.spotsLeft,
+    spotsTotal: orchidFoods.spotsTotal,
+    steps: [
+      for (final (i, step) in orchidFoods.steps.indexed)
+        ActivationStep(
+          title: step.title,
+          hint: step.hint,
+          howTo: step.howTo,
+          rewardKobo: const [10000, 20000, 20000][i],
+        ),
+    ],
+    link: orchidFoods.link,
+    confirmationMode: ConfirmationMode.proof,
+    rewardMode: RewardMode.perStep,
   );
 
   late final kudiBox = Activation(
@@ -356,6 +506,7 @@ class DemoActivations {
       ),
     ],
     link: Uri.parse('https://kudibox.example/app'),
+    confirmationMode: ConfirmationMode.postback,
   );
 
   late final unibooks = Activation(
@@ -372,14 +523,19 @@ class DemoActivations {
       ActivationStep(title: 'Place an order', hint: 'Any book counts.'),
     ],
     link: Uri.parse('https://unibooks.example/app'),
+    confirmationMode: ConfirmationMode.postback,
   );
 
   /// The B9 situation: started yesterday, step 1 confirmed 24 h 20 min ago
   /// (Figma: Thu, 1:52 pm, seen on Friday afternoon), step 2 still waiting.
+  /// Its code is the one the owner's brief quotes.
   ActivationProgress get stuckAtStep2 => ActivationProgress(
     startedAt: now.subtract(const Duration(days: 1, hours: 1)),
     confirmedAt: [now.subtract(const Duration(days: 1, minutes: 20))],
+    refCode: runCode,
   );
+
+  static const runCode = 'IQ-7K3P2';
 
   /// Why the business turns a proof down (B9 · Proof · not accepted).
   static const endsEarly = 'The recording ends before the Verification page.';

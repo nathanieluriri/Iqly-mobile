@@ -80,6 +80,25 @@ String rewardChip(Activation activation) {
   return '₦${digits}k';
 }
 
+/// The offer's reward: "Up to ₦1,000" when it pays step by step (Round 18),
+/// else the chip.
+String offerReward(Activation activation) =>
+    activation.perStep ? 'Up to ${reward(activation)}' : rewardChip(activation);
+
+/// Whether step [i]'s row shows an amount: a paying step, once more than one
+/// step pays (Round 18).
+bool showsStepReward(Activation activation, int i) =>
+    activation.showsStepRewards && (activation.steps[i].rewardKobo ?? 0) > 0;
+
+/// Step [i]'s amount at the right of its row: "₦50", then "Paid ₦50" once
+/// it was paid.
+String stepRewardText(Activation activation, int i) {
+  final payout = activation.payoutOf(i);
+  return payout == null
+      ? rewardPool(activation.steps[i].rewardKobo ?? 0)
+      : 'Paid ${rewardPool(payout.kobo)}';
+}
+
 /// "5 min".
 String minutesText(Activation activation) => '${activation.minutes} min';
 
