@@ -218,6 +218,104 @@ void main() {
       expect(paid.progress!.ledgerId, 'l_9');
     });
 
+    group('the rules of 19 Oct (activationStepProof)', () {
+      Activation gated(Map<String, Object?> json, {bool stepProof = true}) =>
+          activationFromJson(json, now: _now, stepProof: stepProof)!;
+
+      final proofByStep = _f.activationJson(
+        confirmationMode: 'proof',
+        rewardMode: 'per_step',
+        stepRewards: [0, 50000, 100000],
+        progress: _f.runJson(
+          confirmedAt: [_at(const Duration(hours: 3)), _at(Duration.zero)],
+          proof: _f.proofJson(status: 'accepted', step: 1),
+          refCode: 'IQ-AB12C',
+          stepPayouts: [_f.payoutJson(1, 50000, Duration.zero)],
+        ),
+      );
+
+      test('a proof-mode run paid by step reads its modes and payouts', () {
+        final a = gated(proofByStep);
+        expect(a.confirmationMode, ConfirmationMode.proof);
+        expect(a.rewardMode, RewardMode.perStep);
+        expect([for (final s in a.steps) s.rewardKobo], [0, 50000, 100000]);
+        final run = a.progress!;
+        expect(run.refCode, 'IQ-AB12C');
+        final payout = run.stepPayouts.single;
+        expect(
+          (payout.step, payout.kobo, payout.ledgerId),
+          (1, 50000, 'l_step_1'),
+        );
+        expect(payout.paidAt.isAtSameMomentAs(_now), isTrue);
+        expect(a.phaseAt(_now.toLocal()), ActivationPhase.recording);
+        expect(a.proofStep, 2);
+        expect(a.showsStepRewards, isTrue);
+      });
+
+      test('a postback run per run reads its code', () {
+        final a = gated(
+          _f.activationJson(
+            confirmationMode: 'postback',
+            rewardMode: 'per_run',
+            progress: _f.runJson(
+              started: const Duration(hours: 25),
+              refCode: 'IQ-7K3P2',
+            ),
+          ),
+        );
+        expect(a.confirmationMode, ConfirmationMode.postback);
+        expect(a.rewardMode, RewardMode.perRun);
+        expect(a.progress!.refCode, 'IQ-7K3P2');
+        expect(a.phaseAt(_now.toLocal()), ActivationPhase.notConfirmed);
+        expect(a.proofStep, 0);
+      });
+
+      test('with the gate off they read as before, so today’s rules hold', () {
+        final a = gated(proofByStep, stepProof: false);
+        expect(a.confirmationMode, isNull);
+        expect(a.rewardMode, RewardMode.perRun);
+        expect([for (final s in a.steps) s.rewardKobo], [null, null, null]);
+        expect(a.progress!.refCode, isNull);
+        expect(a.progress!.stepPayouts, isEmpty);
+        expect(a.phaseAt(_now.toLocal()), ActivationPhase.checking);
+        expect(read(proofByStep).confirmationMode, isNull);
+      });
+
+      test('missing or unknown fields keep today’s meaning', () {
+        final bare = gated(_f.activationJson(progress: _f.runJson()));
+        expect(bare.confirmationMode, isNull);
+        expect(bare.rewardMode, RewardMode.perRun);
+        expect(bare.progress!.stepPayouts, isEmpty);
+        expect(bare.phaseAt(_now.toLocal()), ActivationPhase.started);
+        final odd = gated(
+          _f.activationJson(
+            confirmationMode: 'carrier_pigeon',
+            rewardMode: 'per_minute',
+          ),
+        );
+        expect(odd.confirmationMode, isNull);
+        expect(odd.rewardMode, RewardMode.perRun);
+      });
+
+      test('a malformed payout is left out', () {
+        final a = gated(
+          _f.activationJson(
+            confirmationMode: 'proof',
+            rewardMode: 'per_step',
+            progress: {
+              ..._f.runJson(),
+              'stepPayouts': [
+                {'step': 0, 'kobo': 100},
+                _f.payoutJson(1, 200, Duration.zero),
+                'nonsense',
+              ],
+            },
+          ),
+        );
+        expect([for (final p in a.progress!.stepPayouts) p.step], [1]);
+      });
+    });
+
     test('closed early: ended from the run’s end, never still open', () {
       final ended = read(
         _f.activationJson(

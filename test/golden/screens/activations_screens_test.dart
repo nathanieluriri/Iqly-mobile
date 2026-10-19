@@ -371,7 +371,10 @@ void main() {
         'activations_detail_per_step',
         activationPath('a1'),
         now: thursday,
-        service: instantActivations(now: thursday, seed: byStep(thursday, null)),
+        service: instantActivations(
+          now: thursday,
+          seed: byStep(thursday, null),
+        ),
       );
     });
 

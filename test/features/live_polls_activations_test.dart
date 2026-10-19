@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -146,7 +147,7 @@ String _at(GoRouter router) =>
 
 /// Hands every upload straight back as landed, or refused with [refusal].
 class _Uploads extends LiveActivationsService {
-  _Uploads(super.link, {this.refusal});
+  _Uploads(super.link, {this.refusal, super.stepProof});
 
   final ApiRefused? refusal;
 
@@ -353,6 +354,214 @@ void main() {
       expect(api.to('POST /activations/a_1/start'), hasLength(1));
       expect(find.text('Open Harbour Telecom'), findsOneWidget);
       expect(find.text('Not started · 3 steps'), findsOneWidget);
+    });
+
+    group('the rules of 19 Oct', () {
+      final gated = Backend.of({..._on.live, LiveFeature.activationStepProof});
+
+      Map<String, Object?> proofMode({Map<String, Object?>? progress}) =>
+          _json.activationJson(confirmationMode: 'proof', progress: progress);
+
+      testWidgets('proof mode: step 1 is recorded right after Start', (
+        tester,
+      ) async {
+        var started = false;
+        final api = _Api({
+          'GET /activations': (_) => _ok({
+            'items': [proofMode()],
+          }),
+          'GET /activations/a_1': (_) => _ok(
+            proofMode(
+              progress: started ? _json.runJson(started: Duration.zero) : null,
+            ),
+          ),
+          'POST /activations/a_1/start': (_) {
+            started = true;
+            return _ok(
+              proofMode(progress: _json.runJson(started: Duration.zero)),
+              status: 201,
+            );
+          },
+          'POST /activations/a_1/proof': (_) => _ok(
+            proofMode(
+              progress: _json.runJson(
+                started: Duration.zero,
+                proof: _json.proofJson(step: 0),
+              ),
+            ),
+          ),
+        });
+        await pumpLiveLaunch(
+          tester,
+          activationPath('a_1'),
+          api: api.client,
+          mode: gated,
+          overrides: [
+            activationsServiceProvider.overrideWith(
+              (ref) =>
+                  _Uploads(ref.watch(accountLinkProvider)!, stepProof: true),
+            ),
+          ],
+        );
+        await tester.pumpAndSettle();
+        await _tap(tester, _button('Start activation'));
+        expect(_button('Upload proof of step 1'), findsOneWidget);
+        expect(find.text('Not confirmed after a day'), findsNothing);
+        await _tap(tester, _button('Upload proof of step 1'));
+        expect(find.byType(ProofScreen), findsOneWidget);
+        expect(
+          find.text(
+            'Record step 1. Harbour Telecom confirms it, then we pay ₦1,500.',
+          ),
+          findsOneWidget,
+        );
+        await _tap(tester, find.text('Choose a video'));
+        await _tap(tester, _button('Send proof'));
+        final sent = jsonDecode(
+          api.to('POST /activations/a_1/proof').single.body,
+        );
+        expect(sent['step'], 0);
+        expect(find.byType(ActivationScreen), findsOneWidget);
+        expect(find.text('Checking with Harbour Telecom'), findsWidgets);
+      });
+
+      testWidgets('proof mode: once step 1 is accepted, step 2 is next', (
+        tester,
+      ) async {
+        final next = proofMode(
+          progress: _json.runJson(
+            confirmedAt: [_json.at(Duration.zero)],
+            proof: _json.proofJson(status: 'accepted', step: 0),
+          ),
+        );
+        final api = _Api({
+          'GET /activations': (_) => _ok({
+            'items': [next],
+          }),
+          'GET /activations/a_1': (_) => _ok(next),
+        });
+        await pumpLiveLaunch(
+          tester,
+          activationPath('a_1'),
+          api: api.client,
+          mode: gated,
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Step 1 of 3 confirmed'), findsOneWidget);
+        expect(_button('Upload proof of step 2'), findsOneWidget);
+        expect(find.text('Your proof'), findsNothing);
+      });
+
+      testWidgets('without the gate the same run keeps today’s steps page', (
+        tester,
+      ) async {
+        final started = proofMode(
+          progress: _json.runJson(started: Duration.zero),
+        );
+        final api = _Api({
+          'GET /activations': (_) => _ok({
+            'items': [started],
+          }),
+          'GET /activations/a_1': (_) => _ok(started),
+        });
+        await pumpLiveLaunch(
+          tester,
+          activationPath('a_1'),
+          api: api.client,
+          mode: _on,
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Not started · 3 steps'), findsOneWidget);
+        expect(find.textContaining('Upload proof'), findsNothing);
+        expect(_button('Open Harbour Telecom'), findsOneWidget);
+      });
+
+      testWidgets('postback mode: the run’s code shows and copies', (
+        tester,
+      ) async {
+        final calls = <String>[];
+        final messenger = tester.binding.defaultBinaryMessenger;
+        messenger.setMockMethodCallHandler(SystemChannels.platform, (
+          call,
+        ) async {
+          calls.add('${call.method} ${call.arguments}');
+          return null;
+        });
+        addTearDown(
+          () =>
+              messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+        );
+        final run = _json.activationJson(
+          confirmationMode: 'postback',
+          progress: _json.runJson(started: Duration.zero, refCode: 'IQ-7K3P2'),
+        );
+        final api = _Api({
+          'GET /activations': (_) => _ok({
+            'items': [run],
+          }),
+          'GET /activations/a_1': (_) => _ok(run),
+        });
+        await pumpLiveLaunch(
+          tester,
+          activationPath('a_1'),
+          api: api.client,
+          mode: gated,
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('IQ-7K3P2'), findsOneWidget);
+        expect(find.text('YOUR CODE'), findsOneWidget);
+        calls.clear();
+        await tester.tap(_button('Copy'));
+        await tester.pump();
+        await tester.pump();
+        expect(calls.first, contains('IQ-7K3P2'));
+        expect(find.text('Code copied'), findsOneWidget);
+        await tester.pumpAndSettle();
+      });
+
+      testWidgets('paid by step: Up to on the offer, Paid on a paid step', (
+        tester,
+      ) async {
+        Map<String, Object?> byStep({Map<String, Object?>? progress}) =>
+            _json.activationJson(
+              confirmationMode: 'postback',
+              rewardMode: 'per_step',
+              stepRewards: [0, 50000, 100000],
+              progress: progress,
+            );
+        var run = byStep();
+        final api = _Api({
+          'GET /activations': (_) => _ok({
+            'items': [run],
+          }),
+          'GET /activations/a_1': (_) => _ok(run),
+        });
+        final (container, router) = await pumpLiveLaunch(
+          tester,
+          activationPath('a_1'),
+          api: api.client,
+          mode: gated,
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Up to ₦1,500'), findsOneWidget);
+        expect(find.text('₦500'), findsOneWidget);
+        expect(find.text('₦1,000'), findsOneWidget);
+        expect(find.text('₦0'), findsNothing, reason: 'a step paying nothing');
+
+        run = byStep(
+          progress: _json.runJson(
+            confirmedAt: [_json.at(Duration.zero), _json.at(Duration.zero)],
+            stepPayouts: [_json.payoutJson(1, 50000, Duration.zero)],
+          ),
+        );
+        await container.read(activationsProvider.notifier).refresh('a_1');
+        await tester.pumpAndSettle();
+        expect(find.text('Paid ₦500'), findsOneWidget);
+        expect(find.text('₦1,000'), findsOneWidget);
+        await tester.scrollUntilVisible(find.text('paid step by step'), 100);
+        expect(find.text('Earn up to ₦1,500'), findsOneWidget);
+        expect(find.text('paid step by step'), findsOneWidget);
+      });
     });
 
     testWidgets('a full activation: "Couldn\'t start." and Start goes grey', (

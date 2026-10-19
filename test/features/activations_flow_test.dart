@@ -13,11 +13,13 @@ import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/activations/activation_screen.dart';
 import 'package:iqly_mobile/features/activations/activations_routes.dart';
 import 'package:iqly_mobile/features/activations/activations_screen.dart';
+import 'package:iqly_mobile/features/activations/activations_state.dart';
 import 'package:iqly_mobile/features/activations/activations_widgets.dart';
 import 'package:iqly_mobile/features/activations/my_activations_screen.dart';
 import 'package:iqly_mobile/features/activations/proof_player_screen.dart';
 import 'package:iqly_mobile/features/activations/proof_screen.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
+import 'package:iqly_mobile/features/help/help_request_screen.dart';
 import 'package:iqly_mobile/features/wallet/wallet_screen.dart';
 import 'package:iqly_mobile/features/wallet/wallet_state.dart';
 import 'package:iqly_mobile/router.dart';
@@ -577,6 +579,86 @@ void main() {
     await tester.pump(const Duration(seconds: 4));
     await tester.pumpAndSettle();
     expect(find.text('₦1,500.00 is yours'), findsOneWidget);
+  });
+
+  testWidgets('proof mode (Orchid Foods): step 1 is recorded right after '
+      'Start, each accepted proof moves to the next, the last pays', (
+    tester,
+  ) async {
+    final container = await pumpActivations(
+      tester,
+      activationPath('a1'),
+      now: thursday,
+      service: instantActivations(
+        now: thursday,
+        step: const Duration(seconds: 4),
+      ),
+    );
+    await _tap(tester, find.text('Start activation'));
+    expect(find.text('Not started · 3 steps'), findsOneWidget);
+    for (var step = 1; step <= 3; step++) {
+      await _tap(tester, find.text('Upload proof of step $step'));
+      expect(find.byType(ProofScreen), findsOneWidget);
+      expect(find.text('Proof of step $step · up to 60 seconds'), findsOne);
+      await _tap(tester, find.byType(IqProofTile));
+      await _tap(tester, find.text('Send proof'));
+      expect(find.text('Your proof'), findsWidgets);
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      if (step < 3) {
+        expect(find.text('Step $step of 3 confirmed'), findsOneWidget);
+        expect(
+          container.read(activationProvider('a1'))!.credited,
+          isFalse,
+          reason: 'it pays on the last',
+        );
+      }
+    }
+    expect(find.text('₦500.00 is yours'), findsOneWidget);
+    expect(_awards(container), {'activation-a1': 50000});
+  });
+
+  testWidgets('paid by step: each accepted proof puts its step on the wallet', (
+    tester,
+  ) async {
+    final container = await pumpActivations(
+      tester,
+      activationPath('a1'),
+      now: thursday,
+      service: instantActivations(
+        now: thursday,
+        seed: [DemoActivations(thursday).orchidFoodsByStep],
+        step: const Duration(seconds: 4),
+      ),
+    );
+    await _tap(tester, find.text('Start activation'));
+    await _tap(tester, find.text('Upload proof of step 1'));
+    expect(
+      find.text('Record step 1. Orchid Foods confirms it, then we pay ₦100.'),
+      findsOneWidget,
+    );
+    await _tap(tester, find.byType(IqProofTile));
+    await _tap(tester, find.text('Send proof'));
+    expect(find.text('₦100.00 after confirmation'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+    expect(find.text('Paid ₦100'), findsOneWidget);
+    expect(_awards(container), {'activation-a1-step-0': 10000});
+  });
+
+  testWidgets('a run under way asks for help about itself', (tester) async {
+    await pumpActivations(
+      tester,
+      activationPath('a2'),
+      now: thursday,
+      service: instantActivations(
+        now: thursday,
+        seed: Figma.world(thursday, kudiBox: Figma.step1),
+      ),
+    );
+    await _tap(tester, find.text('Ask for help'));
+    expect(find.byType(HelpRequestScreen), findsOneWidget);
+    expect(find.text('Send to support'), findsOneWidget);
   });
 
   testWidgets('B9: play opens the recording; back returns', (tester) async {
