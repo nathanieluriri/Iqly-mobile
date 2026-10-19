@@ -265,7 +265,7 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
     final heldBack = activation == null || ended || paid
         ? null
         : proofHeldBack(activation, now);
-    final banner = _failed ?? heldBack;
+    final banner = heldBack ?? _failed;
     final refused = draft.stage == ProofStage.refused ? draft.video : null;
     final refusal = refused == null ? null : _refusal(refused, draft.refusal);
 
