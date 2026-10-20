@@ -520,6 +520,47 @@ void main() {
     expect(find.byType(BriefDetailScreen), findsOneWidget);
   });
 
+  for (final (block, change, label) in [
+    (
+      SubmitBlock.notInAudience,
+      {'inAudience': false},
+      'For a different audience',
+    ),
+    (SubmitBlock.closed, {'status': 'closed'}, 'Closed · results soon'),
+    (SubmitBlock.full, {'spotsLeft': 0}, 'Capacity reached'),
+  ]) {
+    testWidgets('B3: a send refused for good (${block.name}) reads the brief '
+        'again, which stops offering Start', (tester) async {
+      final repository = readyToSend();
+      await pumpApp(
+        tester,
+        Routes.brief('c5'),
+        repository: repository,
+        overrides: [
+          submitServiceProvider.overrideWith(
+            (ref) => _Refusing(repository.data, block: block),
+          ),
+          attachmentPickerProvider.overrideWithValue(DemoAttachmentPicker()),
+          attachmentUploaderProvider.overrideWithValue(ScriptedUploader()),
+        ],
+      );
+      await _tap(tester, find.text('Start your submission'));
+      final briefs = repository.data.briefs;
+      final i = briefs.indexWhere((b) => b.id == 'c5');
+      briefs[i] = Brief.fromJson({...briefs[i].toJson(), ...change});
+      await _tap(tester, find.text('Submit'));
+      expect(find.text("Can't submit right now"), findsOneWidget);
+      await _tap(tester, find.text('Back to the brief'));
+      expect(find.byType(BriefDetailScreen), findsOneWidget);
+      final shown = find.byWidgetPredicate(
+        (w) => w is IqButton && w.label == label,
+      );
+      expect(shown, findsOneWidget);
+      expect(tester.widget<IqButton>(shown).disabled, isTrue);
+      expect(find.text('Start your submission'), findsNothing);
+    });
+  }
+
   testWidgets('B1: a brief outside the audience cannot be started', (
     tester,
   ) async {
@@ -740,10 +781,13 @@ void _outside(DemoRepository repository, String id) {
   briefs[i] = Brief.fromJson({...briefs[i].toJson(), 'inAudience': false});
 }
 
-/// Opens as the demo does; every send is refused as outside the audience.
+/// Opens as the demo does; every send is refused with [block], outside the
+/// audience unless said.
 class _Refusing extends DemoSubmitService {
-  _Refusing(super.data) : super(delay: Duration.zero, clock: () => figmaNow);
+  _Refusing(super.data, {this.block = SubmitBlock.notInAudience})
+    : super(delay: Duration.zero, clock: () => figmaNow);
 
+  final SubmitBlock block;
   int opened = 0;
 
   @override
@@ -754,10 +798,7 @@ class _Refusing extends DemoSubmitService {
 
   @override
   Future<SubmitResult> submit(SubmitRequest request) async =>
-      const SubmitResult.failure(
-        SubmitFailure.blocked,
-        block: SubmitBlock.notInAudience,
-      );
+      SubmitResult.failure(SubmitFailure.blocked, block: block);
 }
 
 /// Opening the brief fails until [fail] is cleared.

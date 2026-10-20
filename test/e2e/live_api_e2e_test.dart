@@ -3982,12 +3982,63 @@ void _rules19OctOn(String? base) {
         expect(closed.phaseAt(now), ActivationPhase.confirming);
         expect(closed.canProveAt(now), isFalse);
         expect(closed.paysFor(0), 20000);
+        expect(closed.stillPayable, 20000);
+        expect(earnedLine(closed, now: now), '₦0 earned of up to ₦200');
+        expect(
+          [closed.stepEndedAt(0, now), closed.stepEndedAt(1, now)],
+          [false, true],
+        );
         expect(
           proofHeldBack(closed, now),
           'Sunline Foods has reported this step. It counts when its hold '
           'ends.',
         );
+        final late = await walk.postback(code, 1);
+        expect(late['status'], 'flagged');
+        expect(late['reason'], 'run_ended');
       });
+
+      for (final (name, stepRewards) in [
+        ('per_run with a step still to do', null),
+        ('per_step whose held step pays nothing', [0, 50000]),
+      ]) {
+        test('closed while a step is held that cannot pay the run ($name): '
+            'the API and the app read it as ended', () async {
+          final service = walk.activations;
+          final id = await walk.publish(
+            'Held a day, then closed: $name',
+            mode: 'postback',
+            stepRewards: stepRewards,
+            holdHours: 24,
+          );
+          final offer = await service.refresh(id);
+          expect(
+            [for (final step in offer.steps) step.rewardKobo],
+            stepRewards ?? <int?>[null, null],
+            reason: 'step rewards on per_step only, 0 for a step paying none',
+          );
+          final code = (await service.start(id)).progress!.refCode!;
+          await startedAgo(await walk.runOf(id), '25 hours');
+          expect((await walk.postback(code, 0))['payAfter'], isNotNull);
+          final open = await service.refresh(id);
+          expect(open.phaseAt(DateTime.now()), ActivationPhase.confirming);
+          await walk.asOwner('POST', '/activations/owner/$id/close');
+
+          final raw = (await walk.api.get('/activations/$id')).data;
+          expect(raw['phase'], 'expired');
+          final closed = await service.refresh(id);
+          final now = DateTime.now();
+          expect(closed.sentPhase, ActivationPhase.expired);
+          expect(closed.stillPayable, 0);
+          expect(closed.phaseAt(now), ActivationPhase.expired);
+          expect(
+            closed.withProgress(closed.progress!).phaseAt(now),
+            ActivationPhase.expired,
+            reason: 'worked out on the phone the same way',
+          );
+          expect(proofHeldBack(closed, now), isNull);
+        });
+      }
 
       test('a brief outside the audience: not in the feed, blocked on the '
           'brief and at opening, and refused on send', () async {

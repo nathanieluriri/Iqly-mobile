@@ -139,8 +139,7 @@ String progressLine(Activation activation) => activation.confirmed == 0
 /// business has reported waits out its hold; in postback mode, or without
 /// a mode, a step first waits a day for the business.
 String? proofHeldBack(Activation activation, DateTime now) {
-  final waiting = activation.waitingStep;
-  if (waiting != null && activation.heldAt(waiting)) return _held(activation);
+  if (activation.holdsNextAt(now)) return _held(activation);
   if (activation.confirmationMode == ConfirmationMode.proof) return null;
   return switch (activation.phaseAt(now)) {
     ActivationPhase.started ||

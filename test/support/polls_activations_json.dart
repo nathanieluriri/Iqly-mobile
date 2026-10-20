@@ -53,7 +53,8 @@ class PollsActivationsJson {
 
   /// A contract 11.2 activation with [progress]. [confirmationMode],
   /// [rewardMode] and the [stepRewards] of a per-step one are there only
-  /// when given, as on an API from before 19 Oct.
+  /// when given, as on an API from before 19 Oct; so is the [phase] the API
+  /// worked out.
   Map<String, Object?> activationJson({
     String id = 'a_1',
     String status = 'live',
@@ -64,6 +65,7 @@ class PollsActivationsJson {
     String? confirmationMode,
     String? rewardMode,
     List<int>? stepRewards,
+    String? phase,
   }) => {
     'id': id,
     'businessId': 'org_harbour',
@@ -101,7 +103,7 @@ class PollsActivationsJson {
     'link': 'https://harbour.example/app',
     'proofTypes': ['video'],
     'progress': progress,
-    'phase': 'offer',
+    'phase': ?phase,
     'confirmationMode': ?confirmationMode,
     'rewardMode': ?rewardMode,
   };

@@ -298,7 +298,6 @@ void main() {
         ConfirmationMode.postback,
         run(proof: refused, held: [0]),
       );
-      expect(heldBack.pendingProof, isNull);
       expect(heldBack.phaseAt(_now), ActivationPhase.confirming);
       expect(heldBack.proofStep, isNull);
       expect(
@@ -315,7 +314,6 @@ void main() {
         ConfirmationMode.postback,
         run(proof: _proof(0), held: [0]),
       );
-      expect(waiting.pendingProof, isNull);
       expect(
         waiting.phaseAt(_now),
         ActivationPhase.confirming,
@@ -357,33 +355,92 @@ void main() {
       );
     });
 
-    test('closed while a step is held: it still waits on the business, '
-        'since it pays when the hold ends', () {
+    group('closed while a step is held (contract 11.2: the hold counts '
+        'only while it can still pay the run)', () {
       final a = _demo.kudiBox;
-      Activation closed(ActivationProgress run) => Activation(
+      Activation closed(
+        ActivationProgress run, {
+        List<int>? rewards,
+        int rewardKobo = 150000,
+      }) => Activation(
         id: a.id,
         business: a.business,
         title: a.title,
         minutes: a.minutes,
-        rewardKobo: a.rewardKobo,
+        rewardKobo: rewardKobo,
         closesAt: _now.subtract(const Duration(minutes: 5)),
         spotsLeft: a.spotsLeft,
         spotsTotal: a.spotsTotal,
-        steps: a.steps,
+        steps: [
+          for (final (i, step) in a.steps.indexed)
+            ActivationStep(
+              title: step.title,
+              hint: step.hint,
+              rewardKobo: rewards?[i],
+            ),
+        ],
         link: a.link,
         confirmationMode: ConfirmationMode.postback,
+        rewardMode: rewards == null ? RewardMode.perRun : RewardMode.perStep,
       ).withProgress(run);
-      final held = closed(_run(started: const Duration(hours: 30), held: [0]));
-      expect(held.closedAt(_now), isTrue);
-      expect(held.phaseAt(_now), ActivationPhase.confirming);
-      expect(held.canProveAt(_now), isFalse);
-      expect(
-        proofHeldBack(held, _now),
-        'Kudi Box has reported this step. It counts when its hold ends.',
-      );
-      final ended = closed(_run(started: const Duration(hours: 30)));
-      expect(ended.phaseAt(_now), ActivationPhase.expired);
-      expect(proofHeldBack(ended, _now), isNull);
+      const held =
+          'Kudi Box has reported this step. It counts when its hold ends.';
+
+      test('per_run with steps still to do: it can no longer finish, so it '
+          'has ended', () {
+        final run = closed(_run(started: const Duration(hours: 30), held: [0]));
+        expect(run.stillPayable, 0);
+        expect(run.phaseAt(_now), ActivationPhase.expired);
+        expect(proofHeldBack(run, _now), isNull);
+      });
+
+      test('per_run whose held step is the last: it still pays the run', () {
+        final run = closed(
+          _run(
+            started: const Duration(hours: 30),
+            confirmed: [const Duration(hours: 4), const Duration(hours: 3)],
+            held: [2],
+          ),
+        );
+        expect(run.stillPayable, 150000);
+        expect(run.phaseAt(_now), ActivationPhase.confirming);
+        expect(run.canProveAt(_now), isFalse);
+        expect(proofHeldBack(run, _now), held);
+        expect(run.stepEndedAt(2, _now), isFalse);
+      });
+
+      test('per_step with a paying step held: it waits, counting only what '
+          'can still be paid, and the steps left have ended', () {
+        final run = closed(
+          _run(started: const Duration(hours: 30), held: [0]),
+          rewards: [20000, 30000, 0],
+          rewardKobo: 50000,
+        );
+        expect(run.stillPayable, 20000);
+        expect(run.phaseAt(_now), ActivationPhase.confirming);
+        expect(earnedLine(run, now: _now), '₦0 earned of up to ₦200');
+        expect(earnedLine(run), '₦0 earned of up to ₦500');
+        expect(
+          [for (var i = 0; i < 3; i++) run.stepEndedAt(i, _now)],
+          [false, true, true],
+        );
+      });
+
+      test('per_step whose held step pays nothing: it has ended', () {
+        final run = closed(
+          _run(started: const Duration(hours: 30), held: [0]),
+          rewards: [0, 50000, 0],
+          rewardKobo: 50000,
+        );
+        expect(run.stillPayable, 0);
+        expect(run.phaseAt(_now), ActivationPhase.expired);
+      });
+
+      test('nothing held: ended', () {
+        final run = closed(_run(started: const Duration(hours: 30)));
+        expect(run.phaseAt(_now), ActivationPhase.expired);
+        expect(proofHeldBack(run, _now), isNull);
+      });
     });
 
     test('held steps count in postback mode only', () {

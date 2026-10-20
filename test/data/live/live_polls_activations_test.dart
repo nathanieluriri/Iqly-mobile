@@ -334,18 +334,34 @@ void main() {
         expect(today.phaseAt(_now.toLocal()), ActivationPhase.notConfirmed);
         expect(today.proofStep, 0);
 
-        final closedHeld = gated(
+        Activation closedHeld({List<int>? stepRewards}) => gated(
           _f.activationJson(
             status: 'closed',
             confirmationMode: 'postback',
+            rewardMode: stepRewards == null ? null : 'per_step',
+            stepRewards: stepRewards,
             progress: _f.runJson(
               started: const Duration(hours: 30),
               heldSteps: [_f.heldJson(0, const Duration(hours: 2))],
             ),
           ),
         );
-        expect(closedHeld.closedAt(_now.toLocal()), isTrue);
-        expect(closedHeld.phaseAt(_now.toLocal()), ActivationPhase.confirming);
+        final perRun = closedHeld();
+        expect(perRun.closedAt(_now.toLocal()), isTrue);
+        expect(
+          perRun.phaseAt(_now.toLocal()),
+          ActivationPhase.expired,
+          reason: 'per_run with steps still to do cannot finish',
+        );
+        expect(
+          closedHeld(stepRewards: [50000, 50000, 50000])
+              .phaseAt(_now.toLocal()),
+          ActivationPhase.confirming,
+        );
+        expect(
+          closedHeld(stepRewards: [0, 75000, 75000]).phaseAt(_now.toLocal()),
+          ActivationPhase.expired,
+        );
 
         final off = activationFromJson(
           _f.activationJson(
@@ -358,6 +374,71 @@ void main() {
           now: _now,
         )!;
         expect(off.progress!.heldSteps, isEmpty);
+      });
+
+      test('the phase the API sent stands until time moves the run on', () {
+        final now = _now.toLocal();
+        Activation sent(String phase, Map<String, Object?> progress) => gated(
+          _f.activationJson(
+            confirmationMode: 'postback',
+            phase: phase,
+            progress: progress,
+          ),
+        );
+        final early = sent(
+          'started',
+          _f.runJson(started: const Duration(hours: 2)),
+        );
+        expect(early.sentPhase, ActivationPhase.started);
+        expect(early.phaseAt(now), ActivationPhase.started);
+        expect(
+          early.phaseAt(now.add(const Duration(hours: 23))),
+          ActivationPhase.notConfirmed,
+          reason: 'a day after the start, step 1 can be proven',
+        );
+
+        final ended = sent(
+          'expired',
+          _f.runJson(started: const Duration(hours: 2)),
+        );
+        expect(
+          ended.phaseAt(now),
+          ActivationPhase.expired,
+          reason: 'the API has passed the close the phone has not',
+        );
+
+        final noProof = sent(
+          'checking',
+          _f.runJson(started: const Duration(hours: 2)),
+        );
+        expect(
+          noProof.phaseAt(now),
+          ActivationPhase.started,
+          reason: 'a phase the activation cannot draw is not taken',
+        );
+
+        final recording = gated(
+          _f.activationJson(
+            confirmationMode: 'proof',
+            phase: 'not_confirmed',
+            progress: _f.runJson(started: Duration.zero),
+          ),
+        );
+        expect(recording.sentPhase, ActivationPhase.recording);
+
+        final off = activationFromJson(
+          _f.activationJson(
+            confirmationMode: 'postback',
+            phase: 'expired',
+            progress: _f.runJson(started: const Duration(hours: 2)),
+          ),
+          now: _now,
+        )!;
+        expect(off.sentPhase, isNull);
+        expect(off.phaseAt(now), ActivationPhase.started);
+
+        final local = early.withProgress(early.progress!);
+        expect(local.sentPhase, isNull);
       });
 
       test('a malformed payout is left out', () {

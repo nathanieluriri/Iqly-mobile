@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:iqly_mobile/core/backend.dart';
+import 'package:iqly_mobile/core/deadline.dart';
 import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/data/activations_data.dart';
 import 'package:iqly_mobile/data/activations_service.dart';
@@ -161,7 +162,7 @@ String _at(GoRouter router) =>
 
 /// Hands every upload straight back as landed, or refused with [refusal].
 class _Uploads extends LiveActivationsService {
-  _Uploads(super.link, {this.refusal, super.stepProof});
+  _Uploads(super.link, {this.refusal, super.clock, super.stepProof});
 
   final ApiRefused? refusal;
 
@@ -412,8 +413,11 @@ void main() {
           mode: gated,
           overrides: [
             activationsServiceProvider.overrideWith(
-              (ref) =>
-                  _Uploads(ref.watch(accountLinkProvider)!, stepProof: true),
+              (ref) => _Uploads(
+                ref.watch(accountLinkProvider)!,
+                clock: ref.watch(clockProvider),
+                stepProof: true,
+              ),
             ),
           ],
         );
@@ -765,8 +769,11 @@ void main() {
             mode: gated,
             overrides: [
               activationsServiceProvider.overrideWith(
-                (ref) =>
-                    _Uploads(ref.watch(accountLinkProvider)!, stepProof: true),
+                (ref) => _Uploads(
+                  ref.watch(accountLinkProvider)!,
+                  clock: ref.watch(clockProvider),
+                  stepProof: true,
+                ),
               ),
             ],
           );
@@ -808,8 +815,11 @@ void main() {
           mode: gated,
           overrides: [
             activationsServiceProvider.overrideWith(
-              (ref) =>
-                  _Uploads(ref.watch(accountLinkProvider)!, stepProof: true),
+              (ref) => _Uploads(
+                ref.watch(accountLinkProvider)!,
+                clock: ref.watch(clockProvider),
+                stepProof: true,
+              ),
             ),
           ],
         );
@@ -855,8 +865,11 @@ void main() {
           mode: gated,
           overrides: [
             activationsServiceProvider.overrideWith(
-              (ref) =>
-                  _Uploads(ref.watch(accountLinkProvider)!, stepProof: true),
+              (ref) => _Uploads(
+                ref.watch(accountLinkProvider)!,
+                clock: ref.watch(clockProvider),
+                stepProof: true,
+              ),
             ),
           ],
         );
@@ -882,13 +895,15 @@ void main() {
         expect(find.byType(ProofScreen), findsOneWidget);
       });
 
-      testWidgets('closed while a step is held: the step still waits on the '
-          'business, with what it pays, and nothing ended', (tester) async {
+      testWidgets('closed while a paying step is held: that step still '
+          'waits on the business, with what it pays; the steps left have '
+          'ended and pay nothing', (tester) async {
         final closedHeld = _json.activationJson(
           status: 'closed',
           confirmationMode: 'postback',
           rewardMode: 'per_step',
-          stepRewards: [50000, 50000, 50000],
+          stepRewards: [20000, 30000, 100000],
+          phase: 'confirming',
           progress: _json.runJson(
             started: const Duration(hours: 30),
             refCode: 'IQ-7K3P2',
@@ -912,43 +927,122 @@ void main() {
           find.text('Waiting for Harbour Telecom to confirm.'),
           findsOneWidget,
         );
-        expect(find.text('₦500'), findsWidgets);
+        expect(find.text('₦200'), findsOneWidget);
+        expect(find.text('₦300'), findsNothing);
+        expect(find.text('₦1,000'), findsNothing);
+        expect(find.text('Ended with the activation'), findsNWidgets(2));
+        await tester.scrollUntilVisible(find.text('Your progress:'), 100);
+        expect(find.text('₦0 earned of up to ₦200'), findsOneWidget);
         expect(_button('This activation has ended'), findsNothing);
         expect(_button('Open Harbour Telecom'), findsNothing);
         expect(find.textContaining('IQ-7K3P2'), findsNothing);
         expect(find.textContaining('Upload proof'), findsNothing);
       });
 
-      testWidgets('Upload proof of a held step says why, and offers nothing '
-          'to pick, upload or send, even closed', (tester) async {
-        final run = {...refusedThenHeld(), 'status': 'closed'};
-        final api = _Api({
-          'GET /activations': (_) => _ok({
-            'items': [run],
-          }),
-          'GET /activations/a_1': (_) => _ok(run),
-        });
-        await pumpLiveLaunch(
-          tester,
-          proofPath('a_1'),
-          api: api.client,
-          mode: gated,
-          overrides: [
-            activationsServiceProvider.overrideWith(
-              (ref) =>
-                  _Uploads(ref.watch(accountLinkProvider)!, stepProof: true),
+      for (final (name, stepRewards, phase) in [
+        ('per_run with steps still to do, as the API says', null, 'expired'),
+        ('per_run with steps still to do, worked out here', null, null),
+        ('per_step whose held step pays nothing', [0, 75000, 75000], null),
+      ]) {
+        testWidgets('closed while a step is held that cannot pay ($name): '
+            'the run has ended, with no money promised', (tester) async {
+          final closedHeld = _json.activationJson(
+            status: 'closed',
+            confirmationMode: 'postback',
+            rewardMode: stepRewards == null ? null : 'per_step',
+            stepRewards: stepRewards,
+            phase: phase,
+            progress: _json.runJson(
+              started: const Duration(hours: 30),
+              refCode: 'IQ-7K3P2',
+              heldSteps: [_json.heldJson(0, const Duration(hours: 20))],
             ),
-          ],
-        );
-        await tester.pumpAndSettle();
-        expect(find.byType(ProofScreen), findsOneWidget);
-        expect(find.text(held), findsOneWidget);
-        expect(find.textContaining('Record step'), findsNothing);
-        expect(find.text('Choose a video'), findsNothing);
-        expect(_button('Send proof'), findsNothing);
-        expect(_button('This activation has ended'), findsNothing);
-        expect(api.paths.where((p) => p.contains('/proof')), isEmpty);
-      });
+          );
+          final api = _Api({
+            'GET /activations': (_) => _ok({
+              'items': [closedHeld],
+            }),
+            'GET /activations/a_1': (_) => _ok(closedHeld),
+          });
+          final (container, _) = await pumpLiveLaunch(
+            tester,
+            activationPath('a_1'),
+            api: api.client,
+            mode: gated,
+          );
+          await tester.pumpAndSettle();
+          expect(_button('This activation has ended'), findsOneWidget);
+          expect(
+            find.textContaining('Waiting for Harbour Telecom'),
+            findsNothing,
+          );
+          expect(
+            find.textContaining('when all 3 steps are confirmed'),
+            findsNothing,
+          );
+          expect(find.textContaining('earned of up to'), findsNothing);
+          final a = container.read(activationProvider('a_1'))!;
+          expect(a.phaseAt(DateTime.now()), ActivationPhase.expired);
+        });
+      }
+
+      for (final (name, stepRewards, ended) in [
+        ('a step that still pays', [20000, 30000, 100000], false),
+        ('a run it can no longer pay', null, true),
+      ]) {
+        testWidgets('Upload proof after the close of a held step ($name): '
+            '${ended ? 'the activation has ended' : 'says why'}, with '
+            'nothing to pick, upload or send', (tester) async {
+          final run = _json.activationJson(
+            status: 'closed',
+            confirmationMode: 'postback',
+            rewardMode: stepRewards == null ? null : 'per_step',
+            stepRewards: stepRewards,
+            progress: _json.runJson(
+              started: const Duration(hours: 26),
+              refCode: 'IQ-7K3P2',
+              proof: _json.proofJson(
+                status: 'rejected',
+                reason: 'The recording ends too soon.',
+                step: 0,
+              ),
+              heldSteps: [_json.heldJson(0, const Duration(hours: 20))],
+            ),
+          );
+          final api = _Api({
+            'GET /activations': (_) => _ok({
+              'items': [run],
+            }),
+            'GET /activations/a_1': (_) => _ok(run),
+          });
+          await pumpLiveLaunch(
+            tester,
+            proofPath('a_1'),
+            api: api.client,
+            mode: gated,
+            overrides: [
+              activationsServiceProvider.overrideWith(
+                (ref) => _Uploads(
+                  ref.watch(accountLinkProvider)!,
+                  clock: ref.watch(clockProvider),
+                  stepProof: true,
+                ),
+              ),
+            ],
+          );
+          await tester.pumpAndSettle();
+          expect(find.byType(ProofScreen), findsOneWidget);
+          expect(find.text(held), ended ? findsNothing : findsOneWidget);
+          expect(
+            _button('This activation has ended'),
+            ended ? findsOneWidget : findsNothing,
+          );
+          expect(find.textContaining('Record step'), findsNothing);
+          expect(find.text('Choose a video'), findsNothing);
+          expect(_button('Send proof'), findsNothing);
+          expect(api.paths.where((p) => p.contains('/proof')), isEmpty);
+        });
+      }
 
       for (final (name, details, words) in [
         (
@@ -981,8 +1075,11 @@ void main() {
             mode: gated,
             overrides: [
               activationsServiceProvider.overrideWith(
-                (ref) =>
-                    _Uploads(ref.watch(accountLinkProvider)!, stepProof: true),
+                (ref) => _Uploads(
+                  ref.watch(accountLinkProvider)!,
+                  clock: ref.watch(clockProvider),
+                  stepProof: true,
+                ),
               ),
             ],
           );
