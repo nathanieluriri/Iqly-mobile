@@ -75,10 +75,11 @@ void main() {
     await _tap(tester, find.text('Not selected'));
     await _tap(tester, find.text('One counter for quick jobs'));
     expect(find.byType(ResultScreen), findsOneWidget);
-    await _tap(tester, find.text('Your submission'));
-    await _tap(tester, find.text('View the brief'));
+    await _tap(tester, find.text('View your submission'));
+    await _tap(tester, find.text('See what won'));
+    await _tap(tester, find.text('Open the brief'));
     final deep = _stack(tester);
-    expect(deep, hasLength(4));
+    expect(deep, hasLength(5));
 
     await _tap(tester, find.text('View your submission'));
     expect(find.byType(SubmissionDetailScreen), findsOneWidget);
@@ -104,8 +105,9 @@ void main() {
     await pumpApp(tester, Routes.submissions, reducedMotion: false);
     await _tap(tester, find.text('Not selected'));
     await _tap(tester, find.text('One counter for quick jobs'));
-    await _tap(tester, find.text('Your submission'));
-    await _tap(tester, find.text('View the brief'));
+    await _tap(tester, find.text('View your submission'));
+    await _tap(tester, find.text('See what won'));
+    await _tap(tester, find.text('Open the brief'));
     final brief = find.byType(BriefDetailScreen);
 
     await tester.tap(find.text('View your submission'));
@@ -116,7 +118,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(brief, findsNothing);
 
-    await _tap(tester, find.text('View the brief'));
+    await _tap(tester, find.text('See what won'));
+    await _tap(tester, find.text('Open the brief'));
     _router(tester).open(_stack(tester)[1]);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 120));

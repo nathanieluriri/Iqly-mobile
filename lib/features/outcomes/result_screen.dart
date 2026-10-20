@@ -458,11 +458,9 @@ class _WinnerViewState extends ConsumerState<WinnerView>
 /// B13 · Result · Not selected (193:9681), calm: the parts settle in with
 /// the push and the business's note bubble arrives at +200 (MOTION-SPEC
 /// §5.33); no haptic. The note is a proposal behind Flags.businessNote. No
-/// answer text (designer doc rev 57): Your submission is one truncated row
-/// that pushes Submission detail. See what won opens the leaderboard, the
+/// answer shows here (20 Oct): View your submission pushes the person's own
+/// Submission detail (1639:125902). See what won opens the leaderboard, the
 /// For you ticket its brief, and Find your next brief the For you feed.
-///
-/// Doc over Figma: the frame wraps the row's line in two; the doc says one.
 ///
 /// Figma: the eyebrow is the entry's title ("ONE COUNTER FOR QUICK JOBS");
 /// the "Not selected" Highlight in the status row is hidden.
@@ -510,9 +508,8 @@ class NotSelectedView extends ConsumerWidget {
                   settle(
                     RowCard(
                       child: IqListRow(
-                        label: 'Your submission',
-                        description: data.item.submission.body,
-                        descriptionMaxLines: 1,
+                        label: 'View your submission',
+                        showDescription: false,
                         icon: IqIcons.document,
                         divider: false,
                         onTap: () => context.open(submissionPath(data.item.id)),

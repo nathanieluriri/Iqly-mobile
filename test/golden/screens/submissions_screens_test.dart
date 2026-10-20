@@ -59,6 +59,10 @@ void main() {
     await _golden(tester, 'detail', submissionPath('s4'));
   });
 
+  testWidgets('submission detail, not selected (1639:125902)', (tester) async {
+    await _golden(tester, 'detail_not_selected', submissionPath('s5'));
+  });
+
   testWidgets('submission detail with the files sent (no frame)', (
     tester,
   ) async {

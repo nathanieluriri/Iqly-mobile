@@ -1,5 +1,4 @@
 import 'package:flutter/services.dart';
-import 'package:flutter/material.dart' show Text, TextOverflow;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/responsive.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
@@ -278,15 +277,8 @@ void main() {
       );
       expect(find.text('Not selected this time'), findsOneWidget);
       expect(find.text('Your answer'), findsNothing);
-      expect(find.text('Your submission'), findsOneWidget);
-      final line = tester.widget<Text>(
-        find.text(
-          'A quick lane for airtime and bills, with the queue number sent '
-          'by SMS.',
-        ),
-      );
-      expect(line.maxLines, 1);
-      expect(line.overflow, TextOverflow.ellipsis);
+      expect(find.text('View your submission'), findsOneWidget);
+      expect(find.textContaining('Split deposits under'), findsNothing);
       expect(find.text('A note from the business'), findsOneWidget);
       expect(find.text('Harbour Microfinance'), findsOneWidget);
       expect(
@@ -344,13 +336,13 @@ void main() {
   );
 
   testWidgets(
-    'B13: Your submission on Not selected pushes Submission detail and Back '
-    'returns to the result',
+    'B13: View your submission on Not selected pushes Submission detail and '
+    'Back returns to the result',
     (tester) async {
       await pumpApp(tester, Routes.submissions);
       await _tap(tester, find.text('Not selected'));
       await _tap(tester, find.text('One counter for quick jobs'));
-      await _tap(tester, find.text('Your submission'));
+      await _tap(tester, find.text('View your submission'));
       expect(find.byType(SubmissionDetailScreen), findsOneWidget);
       expect(find.byType(NotSelectedView), findsNothing);
       await _tap(tester, find.bySemanticsLabel('Back'));
@@ -364,7 +356,7 @@ void main() {
       await pumpApp(tester, resultPath('s2'));
       await tester.pumpAndSettle();
       expect(find.byType(IqShareCard), findsOneWidget);
-      expect(find.text('Your submission'), findsNothing);
+      expect(find.text('View your submission'), findsNothing);
     },
   );
 

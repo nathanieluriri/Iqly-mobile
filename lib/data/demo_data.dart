@@ -313,7 +313,7 @@ class DemoData {
       id: 's5',
       briefId: 'c7',
       title: 'One counter for quick jobs',
-      body: 'A quick lane for airtime and bills, with the queue number sent by SMS.',
+      body: 'Split deposits under ₦50,000 to a fast counter and send everything else to the main line.',
       status: SubmissionStatus.filteredOut,
       createdAt: at(-20),
     ),
