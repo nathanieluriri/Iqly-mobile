@@ -65,7 +65,7 @@ class WelcomeScreen extends ConsumerWidget {
         ),
       ],
       primary: 'Start',
-      onPrimary: () => goToStep(context, ref, OnboardingStep.aboutYou),
+      onPrimary: () => goToStep(context, ref, OnboardingStep.gender),
       ghost: 'Skip for now',
       onGhost: () {
         ref.read(onboardingDraftProvider.notifier).defer();

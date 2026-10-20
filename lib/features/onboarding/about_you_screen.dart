@@ -54,7 +54,7 @@ class AboutYouScreen extends ConsumerWidget {
       step: OnboardingStep.aboutYou.mark,
       title: 'What do you do?',
       banner: tooYoung || onboarding.underAge ? underAge : null,
-      onBack: () => leaveStep(context, Routes.onboarding),
+      onBack: () => leaveToPrevious(context, ref, OnboardingStep.aboutYou),
       onSkip: next,
       onNext: next,
       nextEnabled: occupation != null && born != null && !tooYoung,

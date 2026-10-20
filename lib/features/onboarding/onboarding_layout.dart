@@ -69,7 +69,7 @@ class OnboardingStepScaffold extends StatefulWidget {
     required this.title,
     required this.child,
     required this.onBack,
-    required this.onSkip,
+    this.onSkip,
     required this.onNext,
     required this.nextEnabled,
     this.caption,
@@ -83,7 +83,9 @@ class OnboardingStepScaffold extends StatefulWidget {
   final String? banner;
   final Widget child;
   final VoidCallback onBack;
-  final VoidCallback onSkip;
+
+  /// Null on a step that must be answered: no Skip for now.
+  final VoidCallback? onSkip;
   final VoidCallback onNext;
   final bool nextEnabled;
   final String nextLabel;
@@ -210,13 +212,14 @@ class _OnboardingStepScaffoldState extends State<OnboardingStepScaffold> {
                                 : () => setState(() => _missing++),
                           ),
                         ),
-                        ChromeHero(
-                          tag: ChromeTags.skip,
-                          child: GhostAction(
-                            label: 'Skip for now',
-                            onTap: widget.onSkip,
+                        if (widget.onSkip case final skip?)
+                          ChromeHero(
+                            tag: ChromeTags.skip,
+                            child: GhostAction(
+                              label: 'Skip for now',
+                              onTap: skip,
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),

@@ -37,6 +37,7 @@ Iterable<String> placeSpellings(String city) =>
 /// The screens of first run; OnboardingFlow says their order. [label] is
 /// what Resume shows after "Next:", [mark] the step mark's part.
 enum OnboardingStep {
+  gender('Your gender', Routes.onboardingGender, IqStepMarkStep.oneOfThree),
   aboutYou('About you', Routes.onboardingAboutYou, IqStepMarkStep.oneOfThree),
   whereYouStudied(
     'Where you study',
@@ -129,6 +130,7 @@ class OnboardingDraft {
     'phone': profile.phone,
     'sector': profile.sector,
     'otherSector': profile.otherSector,
+    'gender': profile.gender,
     'lastStep': lastStep?.name,
     'deferred': deferred,
     'underAge': underAge,
@@ -148,6 +150,7 @@ class OnboardingDraft {
       phone: json['phone'] as String? ?? '',
       sector: json['sector'] as String?,
       otherSector: json['otherSector'] as String? ?? '',
+      gender: json['gender'] as String?,
     ),
     lastStep: OnboardingStep.values
         .where((s) => s.name == json['lastStep'])
@@ -183,6 +186,8 @@ class OnboardingDraftNotifier extends Notifier<OnboardingDraft> {
       profile: OnboardingFlow.current.tidy(_p.withOccupation(value)),
     ),
   );
+
+  void setGender(String value) => _save(_profile(gender: value));
 
   void setSector(String value) => _save(_profile(sector: value));
 
@@ -252,7 +257,7 @@ class OnboardingDraftNotifier extends Notifier<OnboardingDraft> {
   void defer() => _save(state.copyWith(deferred: true));
 
   void startOver() =>
-      _save(const OnboardingDraft(lastStep: OnboardingStep.aboutYou));
+      _save(const OnboardingDraft(lastStep: OnboardingStep.gender));
 
   OnboardingDraft _profile({
     String? occupation,
@@ -266,6 +271,7 @@ class OnboardingDraftNotifier extends Notifier<OnboardingDraft> {
     String? phone,
     String? sector,
     String? otherSector,
+    String? gender,
   }) => this.state.copyWith(
     profile: _p.copyWith(
       occupation: occupation,
@@ -279,6 +285,7 @@ class OnboardingDraftNotifier extends Notifier<OnboardingDraft> {
       phone: phone,
       sector: sector,
       otherSector: otherSector,
+      gender: gender,
     ),
   );
 

@@ -46,7 +46,19 @@ enum LiveFeature {
   briefAudience,
 
   /// Help replies name who wrote them, a business or iQLY support.
-  helpAuthorNames;
+  helpAuthorNames,
+
+  /// Help threads say which of the three channels they are on, who answers
+  /// them and when that side last read them (contract 12.1).
+  supportChannels,
+
+  /// A poll can ask up to three questions, a later one only after some
+  /// answers to an earlier one.
+  pollsV2,
+
+  /// The account takes `prefer_not_to_say` as a gender, on the profile and
+  /// at first run.
+  genderPreferNotToSay;
 
   /// The features this one calls into, which have to be live with it.
   Set<LiveFeature> get needs => switch (this) {
@@ -76,7 +88,10 @@ enum LiveFeature {
     LiveFeature.avatarPhoto => const {LiveFeature.avatar},
     LiveFeature.activationStepProof => const {LiveFeature.activations},
     LiveFeature.briefAudience => const {LiveFeature.briefs},
-    LiveFeature.helpAuthorNames => const {LiveFeature.support},
+    LiveFeature.helpAuthorNames ||
+    LiveFeature.supportChannels => const {LiveFeature.support},
+    LiveFeature.pollsV2 => const {LiveFeature.polls},
+    LiveFeature.genderPreferNotToSay => const {LiveFeature.profile},
     LiveFeature.profile ||
     LiveFeature.briefs ||
     LiveFeature.notifications ||
