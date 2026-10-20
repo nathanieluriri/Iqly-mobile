@@ -79,18 +79,24 @@ final signedInFilesProvider = Provider<SignedInFiles?>((ref) {
   return api == null ? null : SignedInFiles(api: api);
 });
 
+/// How a save to the phone went.
+enum FileSave { saved, cancelled, failed }
+
 /// Hands a downloaded file the app cannot show (a PDF) to the phone's own
-/// save dialog, so the person keeps it where they can open it. False when
-/// it was not saved.
+/// save dialog, so the person keeps it where they can open it.
 abstract class FileSaver {
-  Future<bool> save(File file, {required String name, required String mime});
+  Future<FileSave> save(
+    File file, {
+    required String name,
+    required String mime,
+  });
 }
 
 class DeviceFileSaver implements FileSaver {
   const DeviceFileSaver();
 
   @override
-  Future<bool> save(
+  Future<FileSave> save(
     File file, {
     required String name,
     required String mime,
@@ -101,9 +107,9 @@ class DeviceFileSaver implements FileSaver {
         bytes: await file.readAsBytes(),
         mimeType: mime,
       );
-      return saved != null;
+      return saved == null ? FileSave.cancelled : FileSave.saved;
     } on Exception {
-      return false;
+      return FileSave.failed;
     }
   }
 }

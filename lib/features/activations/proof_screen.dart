@@ -49,11 +49,13 @@ import 'activations_widgets.dart';
 /// reward on a per-run activation, as the frames say, and the step's own
 /// amount on a per-step one (nothing when the step pays nothing).
 ///
-/// When no proof can go (a step the business has reported and holds, or
-/// one that has not waited its day), the error banner says why in place of
-/// that line and Send proof stays off; a send the API refuses as not due
-/// says why the same way. A proof already waiting, or a paid run, goes back
-/// to the activation, which shows it.
+/// When no proof can go (a step the business has reported and holds, even
+/// after the close, or one that has not waited its day), the error banner
+/// says why and nothing offers to record or send; a send the API refuses as
+/// not due says why the same way. A recording picked for a step that is no
+/// longer the one to prove comes out of the slot, its upload dropped. A
+/// proof already waiting, or a paid run, goes back to the activation, which
+/// shows it.
 ///
 /// Figma over this build: 141:5492 shows the phone field's placeholder as
 /// "e.g. 0801 234 5678"; the build keeps "0801 234 5678" of the other
@@ -69,12 +71,8 @@ class ProofScreen extends ConsumerStatefulWidget {
 }
 
 class _ProofScreenState extends ConsumerState<ProofScreen> {
-  late final _phone = TextEditingController(
-    text: ref.read(proofDraftProvider(widget.id)).phone,
-  );
-  late final _note = TextEditingController(
-    text: ref.read(proofDraftProvider(widget.id)).note,
-  );
+  late final TextEditingController _phone;
+  late final TextEditingController _note;
   int _shakes = 0;
   bool _sending = false;
 
@@ -94,10 +92,34 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
       ref.read(proofDraftProvider(widget.id).notifier);
 
   @override
+  void initState() {
+    super.initState();
+    final draft = ref.read(proofDraftProvider(widget.id));
+    _phone = TextEditingController(text: draft.phone);
+    _note = TextEditingController(text: draft.note);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _dropStale(ref.read(activationProvider(widget.id)));
+    });
+  }
+
+  @override
   void dispose() {
     _phone.dispose();
     _note.dispose();
     super.dispose();
+  }
+
+  /// A recording picked for a step other than the one that can be proven
+  /// now, or kept while none can, never goes: it comes out of the slot and
+  /// its upload is dropped.
+  void _dropStale(Activation? activation) {
+    if (activation == null || _sending) return;
+    final draft = ref.read(proofDraftProvider(widget.id));
+    if (!draft.hasVideo) return;
+    if (draft.step != activation.proofStep ||
+        proofHeldBack(activation, ref.read(clockProvider)()) != null) {
+      _draft.remove();
+    }
   }
 
   /// The frame's photos prompt before the first pick, then the picker.
@@ -233,6 +255,7 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(activationProvider(widget.id), (_, next) => _dropStale(next));
     ref.listen(proofDraftProvider(widget.id), (previous, next) {
       if (next.stage == ProofStage.refused &&
           previous?.stage != ProofStage.refused) {
@@ -250,11 +273,15 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
     if (paid && !_sending) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _toActivation());
     }
+    final heldBack = activation == null || paid
+        ? null
+        : proofHeldBack(activation, now);
     // Closed or never started: no proof can go, so nothing offers to
     // record or send one.
     final ended =
         activation != null &&
         !paid &&
+        heldBack == null &&
         (_ended ||
             draft.refusal == ProofRefusal.ended ||
             draft.refusal == ProofRefusal.paid ||
@@ -262,9 +289,6 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
     final index = activation?.proofStep ?? activation?.confirmed ?? 0;
     final step = index + 1;
     final pays = activation?.paysFor(index) ?? 0;
-    final heldBack = activation == null || ended || paid
-        ? null
-        : proofHeldBack(activation, now);
     final banner = heldBack ?? _failed;
     final refused = draft.stage == ProofStage.refused ? draft.video : null;
     final refusal = refused == null ? null : _refusal(refused, draft.refusal);
@@ -321,65 +345,68 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
                                 ),
                               ),
                               const SizedBox(height: IqSpace.s4),
-                            ],
-                            Text(
-                              'Proof of step $step · up to '
-                              '${ActivationRules.proofLength.inSeconds} seconds',
-                              style: IqText.label.copyWith(color: IqColors.fg2),
-                            ),
-                            const SizedBox(height: IqSpace.s4),
-                            Shake(
-                              trigger: _shakes,
-                              child: _ProofSlot(
-                                draft: draft,
-                                heroTag: proofHeroTag(activation.id),
-                                onPick: _pick,
-                                onRetry: () => _again(draft),
-                                onRemove: _remove,
-                                onPlay: () => context.open(
-                                  proofPlayerPath(activation.id),
+                              Text(
+                                'Proof of step $step · up to '
+                                '${ActivationRules.proofLength.inSeconds} '
+                                'seconds',
+                                style: IqText.label.copyWith(
+                                  color: IqColors.fg2,
                                 ),
                               ),
-                            ),
-                            if (refusal != null) ...[
                               const SizedBox(height: IqSpace.s4),
-                              IqBanner(
-                                kind: IqBannerKind.error,
-                                title: refusal,
-                                showAction: false,
+                              Shake(
+                                trigger: _shakes,
+                                child: _ProofSlot(
+                                  draft: draft,
+                                  heroTag: proofHeroTag(activation.id),
+                                  onPick: _pick,
+                                  onRetry: () => _again(draft),
+                                  onRemove: _remove,
+                                  onPlay: () => context.open(
+                                    proofPlayerPath(activation.id),
+                                  ),
+                                ),
                               ),
-                            ],
-                            const SizedBox(height: IqSpace.s4),
-                            IqField(
-                              label:
-                                  '${activation.business} account phone '
-                                  'number (optional)',
-                              value: '0801 234 5678',
-                              controller: _phone,
-                              keyboardType: TextInputType.phone,
-                              textInputAction: TextInputAction.next,
-                              inputFormatters: [
-                                FilteringTextInputFormatter.allow(
-                                  RegExp(r'[0-9+ ]'),
+                              if (refusal != null) ...[
+                                const SizedBox(height: IqSpace.s4),
+                                IqBanner(
+                                  kind: IqBannerKind.error,
+                                  title: refusal,
+                                  showAction: false,
                                 ),
                               ],
-                              autofillHints: const [
-                                AutofillHints.telephoneNumber,
-                              ],
-                              onChanged: _draft.setPhone,
-                            ),
-                            const SizedBox(height: IqSpace.s4),
-                            IqField(
-                              label: 'Anything we should know? (optional)',
-                              value: 'e.g. I used a different phone number',
-                              controller: _note,
-                              textInputAction: TextInputAction.done,
-                              onChanged: _draft.setNote,
-                            ),
+                              const SizedBox(height: IqSpace.s4),
+                              IqField(
+                                label:
+                                    '${activation.business} account phone '
+                                    'number (optional)',
+                                value: '0801 234 5678',
+                                controller: _phone,
+                                keyboardType: TextInputType.phone,
+                                textInputAction: TextInputAction.next,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp(r'[0-9+ ]'),
+                                  ),
+                                ],
+                                autofillHints: const [
+                                  AutofillHints.telephoneNumber,
+                                ],
+                                onChanged: _draft.setPhone,
+                              ),
+                              const SizedBox(height: IqSpace.s4),
+                              IqField(
+                                label: 'Anything we should know? (optional)',
+                                value: 'e.g. I used a different phone number',
+                                controller: _note,
+                                textInputAction: TextInputAction.done,
+                                onChanged: _draft.setNote,
+                              ),
+                            ],
                           ],
                         ),
                 ),
-                if (paid)
+                if (paid || heldBack != null)
                   const SizedBox.shrink()
                 else if (ended)
                   const ActionBar(
@@ -400,7 +427,7 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
                         showIcon: false,
                         width: double.infinity,
                         loading: _sending,
-                        disabled: !draft.hasVideo || heldBack != null,
+                        disabled: !draft.hasVideo,
                         onTap: activation == null
                             ? null
                             : () => _send(activation, draft),

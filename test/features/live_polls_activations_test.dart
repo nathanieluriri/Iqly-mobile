@@ -733,9 +733,8 @@ void main() {
         );
       });
 
-      testWidgets('Upload proof of a held step says why, and sends nothing', (
-        tester,
-      ) async {
+      testWidgets('Upload proof of a held step says why, and offers nothing '
+          'to pick, upload or send', (tester) async {
         final run = refusedThenHeld();
         final api = _Api({
           'GET /activations': (_) => _ok({
@@ -759,12 +758,10 @@ void main() {
         expect(find.byType(ProofScreen), findsOneWidget);
         expect(find.text(held), findsOneWidget);
         expect(find.textContaining('Record step'), findsNothing);
-        await _tap(tester, find.text('Choose a video'));
-        expect(tester.widget<IqButton>(_button('Send proof')).disabled, isTrue);
-        await tester.tap(_button('Send proof'));
-        await tester.pumpAndSettle();
-        expect(api.to('POST /activations/a_1/proof'), isEmpty);
-        expect(find.text(held), findsOneWidget);
+        expect(find.text('Choose a video'), findsNothing);
+        expect(_button('Send proof'), findsNothing);
+        expect(_button('This activation has ended'), findsNothing);
+        expect(api.paths.where((p) => p.contains('/proof')), isEmpty);
       });
 
       for (final (name, details, words) in [

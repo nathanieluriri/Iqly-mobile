@@ -34,6 +34,7 @@ import 'package:iqly_mobile/features/submissions/submission_files.dart';
 import 'package:iqly_mobile/features/submissions/submissions_routes.dart';
 import 'package:iqly_mobile/features/wallet/wallet_routes.dart';
 import 'package:iqly_mobile/router.dart';
+import 'package:iqly_mobile/ui/toast.dart';
 import 'package:iqly_mobile/ui/avatar.dart';
 import 'package:iqly_mobile/ui/list_row.dart';
 import 'package:iqly_mobile/ui/recording_player.dart';
@@ -184,14 +185,13 @@ Map<String, Object?> _row(Map<String, Object?> thread) {
 }
 
 class _Saver implements FileSaver {
-  _Saver({this.answer = true});
+  _Saver({this.answer = FileSave.saved});
 
-  /// False as when the person cancels the save dialog.
-  final bool answer;
+  final FileSave answer;
   final saved = <(String, String, int)>[];
 
   @override
-  Future<bool> save(
+  Future<FileSave> save(
     File file, {
     required String name,
     required String mime,
@@ -1314,48 +1314,109 @@ void main() {
       expect(submissionPdfName('a' * 120, pdf, [pdf]), '${'a' * 80}.pdf');
     });
 
-    testWidgets('a cancelled save says nothing', (tester) async {
-      final saver = _Saver(answer: false);
+    for (final (name, answer, status, toast) in [
+      ('a cancelled save says nothing', FileSave.cancelled, 200, null),
+      (
+        'a save that fails says so',
+        FileSave.failed,
+        200,
+        'PDF not saved. Try again.',
+      ),
+      (
+        'a PDF the API no longer has says so, not to check the connection',
+        FileSave.saved,
+        404,
+        'This file is no longer available.',
+      ),
+    ]) {
+      testWidgets(name, (tester) async {
+        final saver = _Saver(answer: answer);
+        final root = await tester.runAsync(
+          () => Directory.systemTemp.createTemp('iqly-files-test'),
+        );
+        addTearDown(() => tester.runAsync(() => root!.delete(recursive: true)));
+        final api = _api()
+          ..data('GET', '/submissions/s_1', submissionJson({'files': files}))
+          ..on(
+            'GET',
+            '/submissions/files/f_2',
+            (_) => http.Response.bytes(
+              utf8.encode('%PDF-1.4'),
+              status,
+              headers: {'content-type': 'application/pdf'},
+            ),
+          );
+        await _launch(
+          tester,
+          api,
+          submissionPath('s_1'),
+          overrides: [
+            signedInFilesProvider.overrideWith(
+              (ref) =>
+                  SignedInFiles(api: ref.watch(apiClientProvider)!, root: root),
+            ),
+            fileSaverProvider.overrideWithValue(saver),
+          ],
+        );
+        await tester.scrollUntilVisible(find.text('PDF attachment'), 100);
+        await tester.tap(find.text('PDF attachment'));
+        await tester.pump();
+        for (var i = 0; i < 20; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 20)),
+          );
+          await tester.pump();
+          if (saver.saved.isNotEmpty ||
+              find.byType(IqToast).evaluate().isNotEmpty) {
+            break;
+          }
+        }
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(saver.saved, hasLength(status == 200 ? 1 : 0));
+        expect(find.text('PDF saved'), findsNothing);
+        expect(
+          find.text('Couldn’t load. Check your connection.'),
+          findsNothing,
+        );
+        if (toast == null) {
+          expect(find.byType(IqToast), findsNothing);
+        } else {
+          expect(find.text(toast), findsOneWidget);
+        }
+        await tester.pumpAndSettle();
+      });
+    }
+
+    testWidgets('a picture the API no longer has says so, with nothing to '
+        'try again', (tester) async {
       final root = await tester.runAsync(
         () => Directory.systemTemp.createTemp('iqly-files-test'),
       );
       addTearDown(() => tester.runAsync(() => root!.delete(recursive: true)));
       final api = _api()
         ..data('GET', '/submissions/s_1', submissionJson({'files': files}))
-        ..on(
-          'GET',
-          '/submissions/files/f_2',
-          (_) => http.Response.bytes(
-            utf8.encode('%PDF-1.4'),
-            200,
-            headers: {'content-type': 'application/pdf'},
-          ),
-        );
+        ..on('GET', '/submissions/files/f_1', (_) => http.Response('', 404));
       await _launch(
         tester,
         api,
-        submissionPath('s_1'),
+        submissionFilePath('s_1', 'f_1'),
         overrides: [
           signedInFilesProvider.overrideWith(
             (ref) =>
                 SignedInFiles(api: ref.watch(apiClientProvider)!, root: root),
           ),
-          fileSaverProvider.overrideWithValue(saver),
         ],
       );
-      await tester.scrollUntilVisible(find.text('PDF attachment'), 100);
-      await tester.tap(find.text('PDF attachment'));
-      await tester.pump();
-      for (var i = 0; i < 20 && saver.saved.isEmpty; i++) {
+      for (var i = 0; i < 20; i++) {
         await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 20)),
         );
         await tester.pump();
       }
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(saver.saved, hasLength(1));
-      expect(find.text('PDF saved'), findsNothing);
       await tester.pumpAndSettle();
+      expect(find.text('This file is no longer available.'), findsOneWidget);
+      expect(find.text('Try again'), findsNothing);
+      expect(find.byType(Image), findsNothing);
     });
 
     testWidgets('a picture opened from a link finds its file by id; without '

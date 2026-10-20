@@ -337,6 +337,7 @@ class ApiClient {
     } on IOException catch (error) {
       throw ApiUnreachable(nothingSent: _beforeSending(error));
     }
+    await _signedOutBy(request, response.statusCode);
     return ApiBytes(
       response.statusCode,
       response.bodyBytes,
@@ -359,6 +360,7 @@ class ApiClient {
       final response = await _client.send(request).timeout(timeout);
       if (response.statusCode < 200 || response.statusCode >= 300) {
         await response.stream.drain<void>();
+        await _signedOutBy(request, response.statusCode);
         throw ApiRefused(response.statusCode);
       }
       final total = response.contentLength;
@@ -384,6 +386,19 @@ class ApiClient {
       throw ApiUnreachable(nothingSent: _beforeSending(error));
     }
     onProgress?.call(1);
+  }
+
+  /// A file read with a session token the API no longer takes ends the
+  /// session, as any other request does.
+  Future<void> _signedOutBy(http.BaseRequest request, int status) async {
+    final sent = request.headers['authorization'];
+    final token = await tokens.read();
+    if (status == 401 &&
+        sent != null &&
+        token != null &&
+        sent == 'Bearer $token') {
+      _unauthorized.add(null);
+    }
   }
 
   Future<http.Request> _fileRequest(String url) async {

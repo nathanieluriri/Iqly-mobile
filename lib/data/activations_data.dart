@@ -415,7 +415,8 @@ class Activation {
           ? ActivationPhase.checking
           : ActivationPhase.notAccepted;
     }
-    if (closedAt(now)) return ActivationPhase.expired;
+    // A step the business holds still pays when the hold ends, close or not.
+    if (closedAt(now) && !holding) return ActivationPhase.expired;
     if (run == null) return ActivationPhase.offer;
     if (confirmationMode == ConfirmationMode.proof) {
       return proofStep == null

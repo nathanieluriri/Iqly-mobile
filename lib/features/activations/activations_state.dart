@@ -317,6 +317,7 @@ class ProofDraft {
     this.phone = '',
     this.note = '',
     this.refusal,
+    this.step,
   });
 
   final ProofStage stage;
@@ -325,6 +326,9 @@ class ProofDraft {
   final String? uploadId;
   final String phone;
   final String note;
+
+  /// The step that could be proven when the recording was picked.
+  final int? step;
 
   /// Set while [stage] is [ProofStage.refused].
   final ProofRefusal? refusal;
@@ -340,6 +344,7 @@ class ProofDraft {
     String? phone,
     String? note,
     ProofRefusal? refusal,
+    int? step,
   }) {
     final next = stage ?? this.stage;
     return ProofDraft(
@@ -350,6 +355,7 @@ class ProofDraft {
       phone: phone ?? this.phone,
       note: note ?? this.note,
       refusal: next == ProofStage.refused ? refusal ?? this.refusal : null,
+      step: step ?? this.step,
     );
   }
 }
@@ -375,15 +381,18 @@ class ProofDraftNotifier extends Notifier<ProofDraft> {
         .read(mediaServiceProvider)
         .pickVideo(about: ref.read(activationProvider(id))?.business);
     if (!ref.mounted || !scope.open || video == null) return;
+    final step = ref.read(activationProvider(id))?.proofStep;
     if (video.refused) {
       state = state.copyWith(
         stage: ProofStage.refused,
         video: video,
         uploadId: () => null,
         refusal: ProofRefusal.of(video),
+        step: step,
       );
       return;
     }
+    state = state.copyWith(step: step);
     _send(video);
   }
 

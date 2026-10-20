@@ -84,7 +84,9 @@ _Layout _layoutOf(ActivationPhase phase) => switch (phase) {
 /// read as the design profile's round 18 has them: "₦1,500 per
 /// completion", or "Up to" with each paying step's amount, "Paid" once
 /// paid, and "Your progress" on a per-step run. While steps are under way
-/// the person can ask for help about the run.
+/// the person can ask for help about the run. A step the business has
+/// reported and holds waits on it, even once the activation has closed,
+/// since it still pays when the hold ends; closed, the code and Open go.
 class ActivationScreen extends ConsumerStatefulWidget {
   const ActivationScreen({super.key, required this.id});
 
@@ -725,7 +727,8 @@ class _StepsPage extends StatelessWidget {
     final a = activation;
     final waiting = a.waitingStep;
     final proving = _stuck || _recording;
-    final code = a.confirmationMode == ConfirmationMode.postback
+    final closed = a.closedAt(now);
+    final code = a.confirmationMode == ConfirmationMode.postback && !closed
         ? a.progress?.refCode
         : null;
     return _Page(
@@ -797,13 +800,14 @@ class _StepsPage extends StatelessWidget {
             width: double.infinity,
             onTap: onProof,
           ),
-        IqButton(
-          label: 'Open ${a.business}',
-          kind: proving ? IqButtonKind.ghost : IqButtonKind.primary,
-          showIcon: false,
-          width: double.infinity,
-          onTap: onOpen,
-        ),
+        if (!closed)
+          IqButton(
+            label: 'Open ${a.business}',
+            kind: proving ? IqButtonKind.ghost : IqButtonKind.primary,
+            showIcon: false,
+            width: double.infinity,
+            onTap: onOpen,
+          ),
       ],
     );
   }

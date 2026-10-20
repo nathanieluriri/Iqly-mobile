@@ -37,6 +37,13 @@ Future<File> fetchSubmissionFile(WidgetRef ref, SubmissionFile file) {
   );
 }
 
+/// Why a file sent with an entry could not be read: gone from the API
+/// (404), or no answer.
+String submissionFileError(Object error) =>
+    error is ApiRefused && error.status == 404
+    ? 'This file is no longer available.'
+    : 'Couldn’t load. Check your connection.';
+
 /// The name a PDF sent with an entry is saved under: the brief's title
 /// without the characters file names cannot hold, numbered when the entry
 /// has more than one PDF; the file's id when there is no title.
@@ -64,7 +71,8 @@ String submissionPdfName(
 /// attachments group (481:21544): the Attachments row with the count, then
 /// a row per file in iqly.net's words. A picture opens in the app; a PDF,
 /// which the app cannot show, goes to the phone's save dialog under the
-/// brief's title, and a toast says when it is saved.
+/// brief's title, and a toast says whether it was saved (nothing when the
+/// person cancels), or that the file is no longer there.
 class SubmissionFiles extends ConsumerWidget {
   const SubmissionFiles({
     super.key,
@@ -85,11 +93,11 @@ class SubmissionFiles extends ConsumerWidget {
     final File downloaded;
     try {
       downloaded = await fetchSubmissionFile(ref, file);
-    } on Exception {
+    } on Exception catch (error) {
       if (context.mounted) {
         IqToast.show(
           context,
-          'Couldn’t load. Check your connection.',
+          submissionFileError(error),
           kind: IqToastKind.error,
         );
       }
@@ -102,7 +110,19 @@ class SubmissionFiles extends ConsumerWidget {
           name: submissionPdfName(briefTitle, file, files),
           mime: 'application/pdf',
         );
-    if (saved && context.mounted) IqToast.show(context, 'PDF saved');
+    if (!context.mounted) return;
+    switch (saved) {
+      case FileSave.saved:
+        IqToast.show(context, 'PDF saved');
+      case FileSave.failed:
+        IqToast.show(
+          context,
+          'PDF not saved. Try again.',
+          kind: IqToastKind.error,
+        );
+      case FileSave.cancelled:
+        break;
+    }
   }
 
   @override
@@ -162,7 +182,9 @@ class SubmissionFileScreen extends ConsumerStatefulWidget {
 class _SubmissionFileScreenState extends ConsumerState<SubmissionFileScreen> {
   late SubmissionFile? _file = widget.file;
   File? _downloaded;
-  bool _failed = false;
+
+  /// Why the picture is not showing, once reading it failed.
+  Object? _failed;
 
   @override
   void initState() {
@@ -171,7 +193,7 @@ class _SubmissionFileScreenState extends ConsumerState<SubmissionFileScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _failed = false);
+    setState(() => _failed = null);
     try {
       final file = _file ??= await _find();
       if (file == null || !file.image) {
@@ -180,8 +202,8 @@ class _SubmissionFileScreenState extends ConsumerState<SubmissionFileScreen> {
       }
       final downloaded = await fetchSubmissionFile(ref, file);
       if (mounted) setState(() => _downloaded = downloaded);
-    } on Exception {
-      if (mounted) setState(() => _failed = true);
+    } on Exception catch (error) {
+      if (mounted) setState(() => _failed = error);
     }
   }
 
@@ -213,13 +235,15 @@ class _SubmissionFileScreenState extends ConsumerState<SubmissionFileScreen> {
   Widget build(BuildContext context) {
     final downloaded = _downloaded;
     final Widget body;
-    if (_failed) {
+    if (_failed case final failed?) {
+      final gone = failed is ApiRefused && failed.status == 404;
       body = Align(
         alignment: Alignment.topCenter,
         child: IqBanner(
           kind: IqBannerKind.error,
-          title: 'Couldn’t load. Check your connection.',
+          title: submissionFileError(failed),
           action: 'Try again',
+          showAction: !gone,
           onAction: _load,
         ),
       );

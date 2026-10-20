@@ -437,6 +437,32 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(fired, 1);
     });
+
+    test('fires for a file read with the session token; a 404 is the '
+        'file gone, not the session', () async {
+      final api = _Api((_) => _json(401, {'success': false}));
+      final client = _client(api.client, token: 'abc.signed');
+      var fired = 0;
+      client.unauthorized.listen((_) => fired++);
+      final folder = Directory.systemTemp.createTempSync('iqly-api-test');
+      addTearDown(() => folder.deleteSync(recursive: true));
+      final target = File('${folder.path}/file.pdf');
+      await expectLater(
+        client.downloadTo('https://api.test/submissions/files/f_1', target),
+        throwsA(isA<ApiRefused>().having((r) => r.status, 'status', 401)),
+      );
+      expect((await client.download('/support/attachments/up_1')).status, 401);
+      await Future<void>.delayed(Duration.zero);
+      expect(fired, 2);
+
+      api.answer = (_) => _json(404, {'success': false});
+      await expectLater(
+        client.downloadTo('https://api.test/submissions/files/f_1', target),
+        throwsA(isA<ApiRefused>().having((r) => r.status, 'status', 404)),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(fired, 2);
+    });
   });
 
   test('reachable fires once when the API answers after no network', () async {
