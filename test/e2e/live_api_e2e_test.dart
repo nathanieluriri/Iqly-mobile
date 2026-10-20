@@ -3924,6 +3924,70 @@ void _rules19OctOn(String? base) {
         await service.discard(id, upload);
       });
 
+      test('proof mode: the business confirms a step by hand while its '
+          'recording waits; the send is refused as not due, the next step is '
+          'the one to prove, and the upload can be dropped', () async {
+        final service = walk.activations;
+        final id = await walk.publish('Rate a recipe, confirmed by hand');
+        expect((await service.start(id)).proofStep, 0);
+        final video = walk.recording('by-hand.mp4');
+        final upload = await walk.upload(id, video);
+        final run = await walk.runOf(id);
+        await walk.asOwner(
+          'POST',
+          '/activations/owner/$id/completions/$run/confirm-step',
+          {'step': 0},
+        );
+        try {
+          await service.sendProof(id, step: 0, uploadId: upload, video: video);
+          fail('a proof of a confirmed step went through');
+        } on ApiRefused catch (refusal) {
+          expect(refusal.code, 'ACTIVATION_PROOF_NOT_DUE');
+          expect(refusal.details?['step'], 1);
+        }
+        final next = await service.refresh(id);
+        expect(next.proofStep, 1, reason: 'the draft for step 1 is stale');
+        expect(next.phaseAt(DateTime.now()), ActivationPhase.recording);
+        await service.discard(id, upload);
+        final gone = await walk.api.delete(
+          '/activations/$id/proof/uploads/$upload',
+        );
+        expect(gone.code, 'ACTIVATION_UPLOAD_NOT_FOUND');
+      });
+
+      test('closed while a step is held: the step still waits on the '
+          'business and pays when its hold ends', () async {
+        final service = walk.activations;
+        final id = await walk.publish(
+          'Open the app, held a day, then closed',
+          mode: 'postback',
+          stepRewards: [20000, 30000],
+          holdHours: 24,
+        );
+        final code = (await service.start(id)).progress!.refCode!;
+        await startedAgo(await walk.runOf(id), '25 hours');
+        final held = await walk.postback(code, 0);
+        expect(held['status'], 'accepted');
+        expect(held['payAfter'], isNotNull);
+        await walk.asOwner('POST', '/activations/owner/$id/close');
+
+        final raw = (await walk.api.get('/activations/$id')).data;
+        expect(raw['status'], 'closed');
+        expect((raw['progress'] as Map)['status'], 'started');
+        final closed = await service.refresh(id);
+        final now = DateTime.now();
+        expect(closed.closedAt(now), isTrue);
+        expect(closed.progress!.heldSteps.single.step, 0);
+        expect(closed.phaseAt(now), ActivationPhase.confirming);
+        expect(closed.canProveAt(now), isFalse);
+        expect(closed.paysFor(0), 20000);
+        expect(
+          proofHeldBack(closed, now),
+          'Sunline Foods has reported this step. It counts when its hold '
+          'ends.',
+        );
+      });
+
       test('a brief outside the audience: not in the feed, blocked on the '
           'brief and at opening, and refused on send', () async {
         final submit = walk.container.read(submitServiceProvider);
