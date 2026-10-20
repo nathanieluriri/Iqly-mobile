@@ -414,6 +414,12 @@ void main() {
         );
         expect(run.stillPayable, 20000);
         expect(run.phaseAt(_now), ActivationPhase.confirming);
+        expect(
+          perStepLine(run),
+          'Rewards land in your iQLY wallet as each step is confirmed. Finish '
+          'every step by 2 Oct, when the activation ends.',
+          reason: 'the design profile\'s rules, whoever confirms the steps',
+        );
         expect(earnedLine(run, now: _now), '₦0 earned of up to ₦200');
         expect(earnedLine(run), '₦0 earned of up to ₦500');
         expect(
