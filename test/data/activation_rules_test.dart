@@ -315,10 +315,12 @@ void main() {
         ConfirmationMode.postback,
         run(proof: _proof(0), held: [0]),
       );
+      expect(waiting.pendingProof, isNull);
       expect(
         waiting.phaseAt(_now),
-        ActivationPhase.checking,
-        reason: 'a proof still waiting stands, as the API reads it',
+        ActivationPhase.confirming,
+        reason:
+            'the hold stands over a proof still waiting, as the API reads it',
       );
     });
 

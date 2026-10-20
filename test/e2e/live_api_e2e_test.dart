@@ -3896,7 +3896,7 @@ void _rules19OctOn(String? base) {
         expect(held['status'], 'accepted');
         expect(held['payAfter'], isNotNull);
         final raw = (await walk.api.get('/activations/$id')).data;
-        expect(raw['phase'], 'not_accepted', reason: 'the API reads it so');
+        expect(raw['phase'], 'confirming', reason: 'the API reads it so too');
         expect(
           (((raw['progress'] as Map)['heldSteps'] as List).single
               as Map)['step'],
@@ -3974,6 +3974,7 @@ void _rules19OctOn(String? base) {
         final raw = (await walk.api.get('/activations/$id')).data;
         expect(raw['status'], 'closed');
         expect((raw['progress'] as Map)['status'], 'started');
+        expect(raw['phase'], 'confirming');
         final closed = await service.refresh(id);
         final now = DateTime.now();
         expect(closed.closedAt(now), isTrue);
