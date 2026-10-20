@@ -10,6 +10,7 @@ import '../../data/drafts_data.dart';
 import '../../data/live/submit_queue.dart';
 import '../../data/submit_data.dart';
 import '../../data/submit_service.dart';
+import '../discover/discover_state.dart' show briefDetailProvider;
 import '../drafts/drafts_state.dart';
 
 enum SubmitStep { answer, questions, sent }
@@ -438,6 +439,8 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
         files: state.files,
         blocked: result.block ?? SubmitBlock.closed,
       );
+      // Refused for good: the brief reads again, so it stops offering Start.
+      ref.invalidate(briefDetailProvider(briefId));
     } else if (result.failure == SubmitFailure.uploadsGone) {
       state = state.copyWith(sending: false, failed: true);
       for (final a in state.files) {

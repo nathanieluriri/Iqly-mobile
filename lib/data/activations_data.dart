@@ -171,6 +171,7 @@ class ActivationProgress {
     this.refCode,
     this.stepPayouts = const [],
     this.heldSteps = const [],
+    this.ended = false,
   });
 
   final DateTime startedAt;
@@ -196,6 +197,9 @@ class ActivationProgress {
   /// Steps the business's server confirmed that are waiting out its hold.
   final List<ActivationHeldStep> heldSteps;
 
+  /// The run ended unpaid (the API's `expired`).
+  final bool ended;
+
   ActivationProgress copyWith({
     List<DateTime>? confirmedAt,
     ActivationProof? proof,
@@ -211,6 +215,7 @@ class ActivationProgress {
     refCode: refCode,
     stepPayouts: stepPayouts ?? this.stepPayouts,
     heldSteps: heldSteps ?? this.heldSteps,
+    ended: ended,
   );
 }
 
@@ -264,6 +269,8 @@ class Activation {
     this.paused = false,
     this.confirmationMode,
     this.rewardMode = RewardMode.perRun,
+    this.sentPhase,
+    this.sentAt,
   });
 
   final String id;
@@ -274,6 +281,11 @@ class Activation {
   /// modes (the API does not say, or the launch does not run them).
   final ConfirmationMode? confirmationMode;
   final RewardMode rewardMode;
+
+  /// The phase the API sent, and when it was read: it stands until time
+  /// moves the run on ([phaseAt]).
+  final ActivationPhase? sentPhase;
+  final DateTime? sentAt;
 
   /// From the API: its art is [logoUrl] and [imageUrl], never a sample
   /// business's, and the anonymous mark when it has none.
@@ -348,18 +360,67 @@ class Activation {
       (progress?.heldSteps.isNotEmpty ?? false);
 
   /// The proof that still stands: with a mode, one accepted or whose step
-  /// is already confirmed is done with, as the API reads it, and so is any
-  /// for a step the business has since reported and holds: the hold
-  /// stands, as the API reads it too.
+  /// is already confirmed is done with, as the API reads it.
   ActivationProof? get pendingProof {
     final run = progress;
     final proof = run?.proof;
     if (run == null || proof == null) return null;
     if (confirmationMode == null) return proof;
-    if (heldAt(proof.step)) return null;
     final accepted = proof.accepted && proof.checkedAt != null;
     return proof.step >= run.confirmedAt.length && !accepted ? proof : null;
   }
+
+  /// How many steps from the next one on held postbacks or a proof still
+  /// waiting can confirm without the person: all a run kept open after the
+  /// close can still finish.
+  int get _reach {
+    final run = progress;
+    if (run == null) return 0;
+    final done = run.confirmedAt.length;
+    final proof = run.proof;
+    final covered = {
+      for (final held in run.heldSteps) held.step,
+      if (proof != null && proof.accepted && proof.checkedAt == null)
+        proof.step,
+    };
+    var reach = 0;
+    while (done + reach < steps.length && covered.contains(done + reach)) {
+      reach++;
+    }
+    return reach;
+  }
+
+  /// What a run kept open after the close can still be paid, as the API
+  /// counts it: on per_run the reward when the steps in [_reach] finish the
+  /// run, else nothing; on per_step their rewards not yet paid.
+  int get stillPayable {
+    final run = progress;
+    if (run == null || credited) return 0;
+    final done = run.confirmedAt.length;
+    final reach = _reach;
+    if (!perStep) {
+      return reach > 0 && done + reach >= steps.length ? rewardKobo : 0;
+    }
+    var kobo = 0;
+    for (var i = done; i < done + reach; i++) {
+      if (payoutOf(i) == null) kobo += steps[i].rewardKobo ?? 0;
+    }
+    return kobo;
+  }
+
+  /// Whether the next step's postback is in its hold, as the phase counts
+  /// it: once the activation has closed, only while that can still pay.
+  bool holdsNextAt(DateTime now) {
+    final run = progress;
+    if (run == null || credited || run.ended) return false;
+    if (!heldAt(run.confirmedAt.length)) return false;
+    return !closedAt(now) || stillPayable > 0;
+  }
+
+  /// Step [i] can no longer be done: the activation closed before it was,
+  /// and nothing already under way confirms it.
+  bool stepEndedAt(int i, DateTime now) =>
+      started && closedAt(now) && i >= confirmed + _reach;
 
   /// The step the business is confirming, while no accepted proof stands in
   /// for it: from the first confirmation on, and in postback mode from the
@@ -407,25 +468,44 @@ class Activation {
     return step == 0 ? run.startedAt : run.confirmedAt.last;
   }
 
+  /// The phase the API sent while time has not moved the run on since it
+  /// was read (a day's wait running out, the close passing), else the
+  /// phase worked out here as the API works it out, which is all a sample
+  /// or older answer has.
   ActivationPhase phaseAt(DateTime now) {
+    final here = _phaseAt(now);
+    final sent = sentPhase;
+    final at = sentAt;
+    if (sent == null || at == null || !_drawable(sent)) return here;
+    return _phaseAt(at) == here ? sent : here;
+  }
+
+  /// Whether this activation holds what [phase]'s page shows.
+  bool _drawable(ActivationPhase phase) => switch (phase) {
+    ActivationPhase.offer || ActivationPhase.expired => true,
+    ActivationPhase.credited => progress?.paidAt != null,
+    ActivationPhase.checking ||
+    ActivationPhase.notAccepted => progress?.proof != null,
+    _ => progress != null,
+  };
+
+  ActivationPhase _phaseAt(DateTime now) {
     final run = progress;
     if (credited) return ActivationPhase.credited;
+    if (holdsNextAt(now)) return ActivationPhase.confirming;
     final proof = pendingProof;
     if (proof != null) {
       return proof.accepted
           ? ActivationPhase.checking
           : ActivationPhase.notAccepted;
     }
-    // A step the business holds still pays when the hold ends, close or not.
-    if (closedAt(now) && !holding) return ActivationPhase.expired;
+    if (closedAt(now)) return ActivationPhase.expired;
     if (run == null) return ActivationPhase.offer;
     if (confirmationMode == ConfirmationMode.proof) {
       return proofStep == null
           ? ActivationPhase.confirming
           : ActivationPhase.recording;
     }
-    final waiting = waitingStep;
-    if (waiting != null && heldAt(waiting)) return ActivationPhase.confirming;
     final since = waitingSince;
     if (since != null &&
         now.difference(since) >= ActivationRules.confirmWindow) {

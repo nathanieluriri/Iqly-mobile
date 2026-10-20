@@ -87,12 +87,15 @@ String offerReward(Activation activation) => activation.showsStepRewards
     : '${reward(activation)} per completion';
 
 /// What a per-step run has earned so far: "₦50 earned of up to ₦1,000".
-String earnedLine(Activation activation) {
-  final earned = activation.progress?.stepPayouts.fold(
-    0,
-    (sum, p) => sum + p.kobo,
-  );
-  return '${rewardPool(earned ?? 0)} earned of up to ${reward(activation)}';
+/// Once the activation has closed ([now]), "up to" is only what it can
+/// still be paid: the steps a hold or a waiting proof can still confirm.
+String earnedLine(Activation activation, {DateTime? now}) {
+  final earned =
+      activation.progress?.stepPayouts.fold(0, (sum, p) => sum + p.kobo) ?? 0;
+  final most = now != null && activation.closedAt(now)
+      ? earned + activation.stillPayable
+      : activation.rewardKobo;
+  return '${rewardPool(earned)} earned of up to ${rewardPool(most)}';
 }
 
 /// The offer's line on how a per-step activation pays: B8's mobile preview

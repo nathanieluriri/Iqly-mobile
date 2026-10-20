@@ -605,8 +605,9 @@ String videoMediaType(String name) {
 /// or a close. The app works its phase out from the run as the API does;
 /// an activation the business closed early, or a run that ended, counts as
 /// closed from then ([now] when the API does not say when). Its modes, step
-/// amounts, run code, step payouts and held steps are read with [stepProof]
-/// only; a mode the build does not know reads as none.
+/// amounts, run code, step payouts, held steps and the phase the API worked
+/// out (kept with [now]) are read with [stepProof] only; a mode the build
+/// does not know reads as none.
 Activation? activationFromJson(
   Object? json, {
   required DateTime now,
@@ -623,6 +624,13 @@ Activation? activationFromJson(
   final run = json['progress'];
   final progress = run is Map ? _progress(run, stepProof: stepProof) : null;
   final perStep = stepProof && json['rewardMode'] == 'per_step';
+  final mode = stepProof
+      ? switch (json['confirmationMode']) {
+          'proof' => ConfirmationMode.proof,
+          'postback' => ConfirmationMode.postback,
+          _ => null,
+        }
+      : null;
   final ended = run is Map && run['status'] == 'expired';
   if ((json['status'] == 'closed' || ended) && closesAt.isAfter(now)) {
     final at = run is Map ? apiTime(run['expiredAt']) : null;
@@ -654,16 +662,29 @@ Activation? activationFromJson(
     logoUrl: apiText(json['logoUrl']),
     imageUrl: apiText(json['imageUrl']),
     paused: json['status'] == 'paused',
-    confirmationMode: stepProof
-        ? switch (json['confirmationMode']) {
-            'proof' => ConfirmationMode.proof,
-            'postback' => ConfirmationMode.postback,
-            _ => null,
-          }
-        : null,
+    confirmationMode: mode,
     rewardMode: perStep ? RewardMode.perStep : RewardMode.perRun,
+    sentPhase: stepProof ? _phase(json['phase'], mode) : null,
+    sentAt: stepProof ? now : null,
   );
 }
+
+/// The API's `phase` as the app names it: `not_confirmed` is the step to
+/// record in proof mode.
+ActivationPhase? _phase(Object? phase, ConfirmationMode? mode) =>
+    switch (phase) {
+      'offer' => ActivationPhase.offer,
+      'started' => ActivationPhase.started,
+      'confirming' => ActivationPhase.confirming,
+      'not_confirmed' when mode == ConfirmationMode.proof =>
+        ActivationPhase.recording,
+      'not_confirmed' => ActivationPhase.notConfirmed,
+      'checking' => ActivationPhase.checking,
+      'not_accepted' => ActivationPhase.notAccepted,
+      'credited' => ActivationPhase.credited,
+      'expired' => ActivationPhase.expired,
+      _ => null,
+    };
 
 ActivationProgress? _progress(
   Map<dynamic, dynamic> json, {
@@ -695,6 +716,7 @@ ActivationProgress? _progress(
               if (apiInt(step['step']) case final int i)
                 ActivationHeldStep(step: i, until: apiTime(step['until'])),
     ],
+    ended: json['status'] == 'expired',
   );
 }
 

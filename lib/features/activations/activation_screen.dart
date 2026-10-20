@@ -86,7 +86,9 @@ _Layout _layoutOf(ActivationPhase phase) => switch (phase) {
 /// paid, and "Your progress" on a per-step run. While steps are under way
 /// the person can ask for help about the run. A step the business has
 /// reported and holds waits on it, even once the activation has closed,
-/// since it still pays when the hold ends; closed, the code and Open go.
+/// while it can still pay (else the run has ended); closed, the code and
+/// Open go, the steps nothing can confirm any more read "Ended with the
+/// activation", and the progress counts only what can still be paid.
 class ActivationScreen extends ConsumerStatefulWidget {
   const ActivationScreen({super.key, required this.id});
 
@@ -688,6 +690,14 @@ class _StepsPage extends StatelessWidget {
         reward: amount,
       );
     }
+    if (a.stepEndedAt(i, now)) {
+      return IqStepRow(
+        number: number,
+        title: step.title,
+        body: 'Ended with the activation',
+        divider: divider,
+      );
+    }
     if (i == _activeStep && i != chained) {
       final row = IqStepRow(
         state: IqStepRowState.active,
@@ -765,7 +775,7 @@ class _StepsPage extends StatelessWidget {
                       const SizedBox(width: IqSpace.s2),
                       Flexible(
                         child: Text(
-                          earnedLine(a),
+                          earnedLine(a, now: now),
                           style: IqText.bodyStrong.copyWith(
                             color: IqColors.brand,
                           ),

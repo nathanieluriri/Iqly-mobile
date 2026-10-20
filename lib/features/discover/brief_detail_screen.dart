@@ -33,7 +33,8 @@ import 'discover_widgets.dart';
 /// results soon" disabled once closed (480:22572). A brief the API says the
 /// person is not in the audience for is disabled too, "For a different
 /// audience" (no frame draws it), so no one starts writing an entry it will
-/// refuse. A saved brief that is still open offers "Remind me".
+/// refuse, and so is a full one, "Capacity reached" (the submit block's
+/// words). A saved brief that is still open offers "Remind me".
 ///
 /// Motion (spec 6.22, 4.3): the page pushes in already drawn from [initial],
 /// the brief the person tapped (or one already loaded), and its content
@@ -149,6 +150,7 @@ class _ActionBar extends ConsumerWidget {
     final closed = !brief.isLive || (left != null && left <= Duration.zero);
     final outside =
         brief.inAudience == false && ref.watch(briefAudienceProvider);
+    final full = brief.spotsLeft == 0;
     final sent = ref.watch(briefSubmissionProvider(brief.id));
     final Widget button;
     if (sent != null) {
@@ -164,9 +166,11 @@ class _ActionBar extends ConsumerWidget {
             ? 'Closed · results soon'
             : outside
             ? 'For a different audience'
+            : full
+            ? 'Capacity reached'
             : 'Start your submission',
         width: double.infinity,
-        disabled: closed || outside,
+        disabled: closed || outside || full,
         onTap: () => context.open(Routes.submitTo(brief.id)),
       );
     }
