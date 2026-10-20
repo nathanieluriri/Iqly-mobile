@@ -733,9 +733,195 @@ void main() {
         );
       });
 
+      for (final (name, run, words) in [
+        ('held', refusedThenHeld(), held),
+        (
+          'not a day yet',
+          _json.activationJson(
+            confirmationMode: 'postback',
+            progress: _json.runJson(
+              started: const Duration(hours: 2),
+              refCode: 'IQ-7K3P2',
+            ),
+          ),
+          'Proof can be sent once a step has waited a day for Harbour '
+              'Telecom.',
+        ),
+      ]) {
+        testWidgets('Upload proof of a step that cannot be proven ($name) '
+            'says why, and offers nothing to pick, upload or send', (
+          tester,
+        ) async {
+          final api = _Api({
+            'GET /activations': (_) => _ok({
+              'items': [run],
+            }),
+            'GET /activations/a_1': (_) => _ok(run),
+          });
+          await pumpLiveLaunch(
+            tester,
+            proofPath('a_1'),
+            api: api.client,
+            mode: gated,
+            overrides: [
+              activationsServiceProvider.overrideWith(
+                (ref) =>
+                    _Uploads(ref.watch(accountLinkProvider)!, stepProof: true),
+              ),
+            ],
+          );
+          await tester.pumpAndSettle();
+          expect(find.byType(ProofScreen), findsOneWidget);
+          expect(find.text(words), findsOneWidget);
+          expect(find.textContaining('Record step'), findsNothing);
+          expect(find.text('Choose a video'), findsNothing);
+          expect(_button('Send proof'), findsNothing);
+          expect(_button('This activation has ended'), findsNothing);
+          expect(api.paths.where((p) => p.contains('/proof')), isEmpty);
+        });
+      }
+
+      testWidgets('proof mode: the business confirms the step by hand while '
+          'its recording is picked; the refused send takes the recording out '
+          'and drops its upload', (tester) async {
+        var confirmed = false;
+        Map<String, Object?> run() => proofMode(
+          progress: _json.runJson(
+            started: Duration.zero,
+            confirmedAt: [if (confirmed) _json.at(Duration.zero)],
+          ),
+        );
+        final api = _Api({
+          'GET /activations': (_) => _ok({
+            'items': [run()],
+          }),
+          'GET /activations/a_1': (_) => _ok(run()),
+          'POST /activations/a_1/proof': (_) {
+            confirmed = true;
+            return _notDue({'step': 1, 'dueAt': null});
+          },
+        });
+        await pumpLiveLaunch(
+          tester,
+          proofPath('a_1'),
+          api: api.client,
+          mode: gated,
+          overrides: [
+            activationsServiceProvider.overrideWith(
+              (ref) =>
+                  _Uploads(ref.watch(accountLinkProvider)!, stepProof: true),
+            ),
+          ],
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Proof of step 1 · up to 60 seconds'), findsOneWidget);
+        await _tap(tester, find.text('Choose a video'));
+        expect(find.text('Choose a video'), findsNothing);
+        await _tap(tester, _button('Send proof'));
+        expect(api.to('POST /activations/a_1/proof'), hasLength(1));
+        expect(find.byType(ProofScreen), findsOneWidget);
+        expect(
+          find.text('Send proof of the next step, one step at a time.'),
+          findsOneWidget,
+        );
+        expect(find.text('Proof of step 2 · up to 60 seconds'), findsOneWidget);
+        expect(find.text('Choose a video'), findsOneWidget);
+        expect(tester.widget<IqButton>(_button('Send proof')).disabled, isTrue);
+        expect(
+          api.to('DELETE /activations/a_1/proof/uploads/up_1'),
+          hasLength(1),
+        );
+      });
+
+      testWidgets('a recording kept from before the step changed is taken '
+          'out when Upload proof opens again', (tester) async {
+        var confirmed = false;
+        Map<String, Object?> run() => proofMode(
+          progress: _json.runJson(
+            started: Duration.zero,
+            confirmedAt: [if (confirmed) _json.at(Duration.zero)],
+          ),
+        );
+        final api = _Api({
+          'GET /activations': (_) => _ok({
+            'items': [run()],
+          }),
+          'GET /activations/a_1': (_) => _ok(run()),
+        });
+        final (container, _) = await pumpLiveLaunch(
+          tester,
+          activationPath('a_1'),
+          api: api.client,
+          mode: gated,
+          overrides: [
+            activationsServiceProvider.overrideWith(
+              (ref) =>
+                  _Uploads(ref.watch(accountLinkProvider)!, stepProof: true),
+            ),
+          ],
+        );
+        await tester.pumpAndSettle();
+        await _tap(tester, _button('Upload proof of step 1'));
+        await _tap(tester, find.text('Choose a video'));
+        expect(container.read(proofDraftProvider('a_1')).step, 0);
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+        expect(container.read(proofDraftProvider('a_1')).hasVideo, isTrue);
+
+        confirmed = true;
+        await container.read(activationsProvider.notifier).refresh('a_1');
+        await tester.pumpAndSettle();
+        await _tap(tester, _button('Upload proof of step 2'));
+        expect(find.text('Proof of step 2 · up to 60 seconds'), findsOneWidget);
+        expect(find.text('Choose a video'), findsOneWidget);
+        expect(container.read(proofDraftProvider('a_1')).hasVideo, isFalse);
+        expect(
+          api.to('DELETE /activations/a_1/proof/uploads/up_1'),
+          hasLength(1),
+        );
+        expect(find.byType(ProofScreen), findsOneWidget);
+      });
+
+      testWidgets('closed while a step is held: the step still waits on the '
+          'business, with what it pays, and nothing ended', (tester) async {
+        final closedHeld = _json.activationJson(
+          status: 'closed',
+          confirmationMode: 'postback',
+          rewardMode: 'per_step',
+          stepRewards: [50000, 50000, 50000],
+          progress: _json.runJson(
+            started: const Duration(hours: 30),
+            refCode: 'IQ-7K3P2',
+            heldSteps: [_json.heldJson(0, const Duration(hours: 20))],
+          ),
+        );
+        final api = _Api({
+          'GET /activations': (_) => _ok({
+            'items': [closedHeld],
+          }),
+          'GET /activations/a_1': (_) => _ok(closedHeld),
+        });
+        await pumpLiveLaunch(
+          tester,
+          activationPath('a_1'),
+          api: api.client,
+          mode: gated,
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.text('Waiting for Harbour Telecom to confirm.'),
+          findsOneWidget,
+        );
+        expect(find.text('₦500'), findsWidgets);
+        expect(_button('This activation has ended'), findsNothing);
+        expect(_button('Open Harbour Telecom'), findsNothing);
+        expect(find.textContaining('IQ-7K3P2'), findsNothing);
+        expect(find.textContaining('Upload proof'), findsNothing);
+      });
+
       testWidgets('Upload proof of a held step says why, and offers nothing '
-          'to pick, upload or send', (tester) async {
-        final run = refusedThenHeld();
+          'to pick, upload or send, even closed', (tester) async {
+        final run = {...refusedThenHeld(), 'status': 'closed'};
         final api = _Api({
           'GET /activations': (_) => _ok({
             'items': [run],

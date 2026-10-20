@@ -355,6 +355,35 @@ void main() {
       );
     });
 
+    test('closed while a step is held: it still waits on the business, '
+        'since it pays when the hold ends', () {
+      final a = _demo.kudiBox;
+      Activation closed(ActivationProgress run) => Activation(
+        id: a.id,
+        business: a.business,
+        title: a.title,
+        minutes: a.minutes,
+        rewardKobo: a.rewardKobo,
+        closesAt: _now.subtract(const Duration(minutes: 5)),
+        spotsLeft: a.spotsLeft,
+        spotsTotal: a.spotsTotal,
+        steps: a.steps,
+        link: a.link,
+        confirmationMode: ConfirmationMode.postback,
+      ).withProgress(run);
+      final held = closed(_run(started: const Duration(hours: 30), held: [0]));
+      expect(held.closedAt(_now), isTrue);
+      expect(held.phaseAt(_now), ActivationPhase.confirming);
+      expect(held.canProveAt(_now), isFalse);
+      expect(
+        proofHeldBack(held, _now),
+        'Kudi Box has reported this step. It counts when its hold ends.',
+      );
+      final ended = closed(_run(started: const Duration(hours: 30)));
+      expect(ended.phaseAt(_now), ActivationPhase.expired);
+      expect(proofHeldBack(ended, _now), isNull);
+    });
+
     test('held steps count in postback mode only', () {
       final run = _run(started: const Duration(hours: 25), held: [0]);
       final proof = _kudiBox(ConfirmationMode.proof, run);

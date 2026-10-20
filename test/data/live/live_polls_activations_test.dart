@@ -334,6 +334,19 @@ void main() {
         expect(today.phaseAt(_now.toLocal()), ActivationPhase.notConfirmed);
         expect(today.proofStep, 0);
 
+        final closedHeld = gated(
+          _f.activationJson(
+            status: 'closed',
+            confirmationMode: 'postback',
+            progress: _f.runJson(
+              started: const Duration(hours: 30),
+              heldSteps: [_f.heldJson(0, const Duration(hours: 2))],
+            ),
+          ),
+        );
+        expect(closedHeld.closedAt(_now.toLocal()), isTrue);
+        expect(closedHeld.phaseAt(_now.toLocal()), ActivationPhase.confirming);
+
         final off = activationFromJson(
           _f.activationJson(
             confirmationMode: 'postback',
