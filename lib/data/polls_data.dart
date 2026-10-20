@@ -22,6 +22,9 @@ List<int> wholeShares(List<int> votes) {
   return whole;
 }
 
+/// One answer of `POST /polls/:id/answers` (contract 14.1).
+typedef PollAnswer = ({int question, int choice});
+
 /// When a later question shows: only after one of [choices] was picked on
 /// the question at [question] (its index in the poll).
 class PollBranch {
@@ -69,7 +72,7 @@ class PollQuestion {
 /// One poll a business runs (Exp/PollCard), behind Flags.polls: the
 /// preview's illustrative figures, or the API's (contract 11.1). The poll's
 /// own [question] is its first; [followUps] are the second and third a
-/// poll can ask (health's `pollsV2`), each perhaps shown only after some
+/// poll can ask (health's `pollQuestions`), each perhaps shown only after some
 /// answers to an earlier one. [votes] counts each choice, the person's own
 /// vote included once [chosen] is set; the API sends no counts until the
 /// person has voted or the poll has closed, so they read as zeros until then.
@@ -151,6 +154,37 @@ class Poll {
   bool closedAt(DateTime now) => closed || !closesAt.isAfter(now);
 
   List<int> get shares => wholeShares(votes);
+
+  /// This poll with [choice] picked on its question at [question], not yet
+  /// sent, so nothing is counted: the walk's answers before Done.
+  Poll withPick(int choice, {int question = 0}) => Poll(
+    id: id,
+    question: this.question,
+    choices: choices,
+    votes: votes,
+    closesAt: closesAt,
+    chosen: question == 0 ? choice : chosen,
+    closed: closed,
+    followUps: [
+      for (final (i, q) in followUps.indexed)
+        i + 1 == question
+            ? PollQuestion(
+                question: q.question,
+                choices: q.choices,
+                votes: q.votes,
+                chosen: choice,
+                showIf: q.showIf,
+              )
+            : q,
+    ],
+  );
+
+  /// The answers to send: each question asked, with its pick.
+  List<PollAnswer> get answers => [
+    for (var i = 0; i < questions.length; i++)
+      if (asks(i) && questions[i].chosen != null)
+        (question: i, choice: questions[i].chosen!),
+  ];
 
   /// This poll with the person's vote for [choice] on its question at
   /// [question] counted.

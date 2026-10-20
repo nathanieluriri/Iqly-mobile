@@ -7,6 +7,8 @@ import 'core/backend.dart';
 import 'core/edge_haptics.dart';
 import 'core/patches.dart';
 import 'core/updates.dart';
+import 'data/onboarding_service.dart' show genderAskedProvider;
+import 'features/onboarding/onboarding_flow.dart';
 import 'data/live/live_repository.dart';
 import 'features/activations/activations_state.dart';
 import 'features/splash/patch_dialog.dart';
@@ -53,6 +55,7 @@ class _IqlyAppState extends ConsumerState<IqlyApp> {
   @override
   Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
+    OnboardingFlow.askGender = ref.watch(genderAskedProvider);
     return MaterialApp.router(
       title: 'iQLY',
       theme: buildTheme(),

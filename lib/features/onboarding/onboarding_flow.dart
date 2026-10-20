@@ -39,6 +39,10 @@ class OnboardingFlow {
     OnboardingStep.whatYouLike: (_) => null,
   });
 
+  /// Whether first run asks for a gender (health's `genderRequired`, and
+  /// the preview). The app keeps it in step with [genderAskedProvider].
+  static bool askGender = true;
+
   static OnboardingFlow get current =>
       Flags.onboardingByOccupation ? byOccupation : classic;
 
@@ -51,7 +55,9 @@ class OnboardingFlow {
   /// The steps these answers walk, first to last.
   List<OnboardingStep> path(OnboardingProfile answers) => [
     for (
-      OnboardingStep? step = OnboardingStep.gender;
+      OnboardingStep? step = askGender
+          ? OnboardingStep.gender
+          : OnboardingStep.aboutYou;
       step != null;
       step = next(step, answers)
     )
@@ -88,7 +94,7 @@ class OnboardingFlow {
     OnboardingStep step,
     OnboardingProfile a,
   ) => switch (step) {
-    OnboardingStep.gender => a.gender != null,
+    OnboardingStep.gender => !askGender || a.gender != null,
     OnboardingStep.aboutYou => a.occupation != null && isAdult(a.dateOfBirth),
     OnboardingStep.whereYouStudied => a.education != null,
     OnboardingStep.yourWork => workAnswered(a),

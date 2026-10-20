@@ -213,8 +213,14 @@ final onboardingServiceProvider = Provider<OnboardingService>((ref) {
   return LiveOnboardingService(
     link,
     clock: ref.watch(clockProvider),
-    preferNotToSay: ref
-        .watch(liveModeProvider)
-        .isLive(LiveFeature.genderPreferNotToSay),
+    askGender: ref.watch(liveModeProvider).isLive(LiveFeature.genderRequired),
   );
+});
+
+/// Whether first run asks for a gender and Your details shows it: in the
+/// preview, and on an API whose health says `genderRequired` (contract
+/// 14.2). Without it the app behaves as before.
+final genderAskedProvider = Provider<bool>((ref) {
+  final mode = ref.watch(liveModeProvider);
+  return mode.isPreview || mode.isLive(LiveFeature.genderRequired);
 });

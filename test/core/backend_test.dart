@@ -120,8 +120,8 @@ void main() {
           LiveFeature.briefAudience,
           LiveFeature.helpAuthorNames,
           LiveFeature.supportChannels,
-          LiveFeature.pollsV2,
-          LiveFeature.genderPreferNotToSay,
+          LiveFeature.pollQuestions,
+          LiveFeature.genderRequired,
         }),
       );
     });
@@ -273,8 +273,8 @@ void main() {
         'activationStepProof',
         'helpAuthorNames',
         'supportChannels',
-        'pollsV2',
-        'genderPreferNotToSay',
+        'pollQuestions',
+        'genderRequired',
       ]);
     });
 
@@ -575,8 +575,8 @@ void main() {
         'briefAudience',
         'helpAuthorNames',
         'supportChannels',
-        'pollsV2',
-        'genderPreferNotToSay',
+        'pollQuestions',
+        'genderRequired',
       ]);
       expect(backend.checkedAt, now);
       await backend.lock();
@@ -602,8 +602,8 @@ void main() {
         'briefAudience',
         'helpAuthorNames',
         'supportChannels',
-        'pollsV2',
-        'genderPreferNotToSay',
+        'pollQuestions',
+        'genderRequired',
       ]);
     });
 

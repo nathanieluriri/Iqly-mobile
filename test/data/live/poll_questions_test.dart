@@ -35,7 +35,7 @@ void main() {
     ],
   };
 
-  test('pollsV2 reads up to three questions with their branches', () {
+  test('pollQuestions reads up to three questions with their branches', () {
     final poll = pollFromJson(json, questions: true)!;
     expect(poll.questions, hasLength(3));
     expect(poll.followUps.first.showIf!.choices, [0]);
@@ -44,7 +44,7 @@ void main() {
     expect(poll.followUps.first.votes, [0, 0]);
   });
 
-  test('without pollsV2 a poll is its one question', () {
+  test('without pollQuestions a poll is its one question', () {
     final poll = pollFromJson(json)!;
     expect(poll.questions, hasLength(1));
     expect(poll.voted, isTrue);

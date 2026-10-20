@@ -42,7 +42,6 @@ void main() {
         'interestOther': '',
         'dateOfBirth': '2001-04-09',
         'phone': '+2348012345678',
-        'gender': null,
       });
     });
 

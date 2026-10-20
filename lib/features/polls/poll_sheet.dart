@@ -48,7 +48,7 @@ class PollSheet extends ConsumerWidget {
         ?.where((b) => b.id == businessId)
         .firstOrNull;
     final media = MediaQuery.of(context);
-    final done = pollsDone(business, ref.watch(pollsWalkingProvider));
+    final done = pollsDone(business);
 
     final lift = IqSheetRoute.liftOf(context);
     return CenteredContent(
@@ -130,7 +130,7 @@ class PollPage extends ConsumerWidget {
                 Expanded(
                   child: _Polls(
                     business: business,
-                    done: pollsDone(business, ref.watch(pollsWalkingProvider)),
+                    done: pollsDone(business),
                     layout: IqBrandHeaderLayout.leading,
                     padding: EdgeInsets.only(
                       bottom: IqSpace.s6 + MediaQuery.paddingOf(context).bottom,
@@ -147,10 +147,9 @@ class PollPage extends ConsumerWidget {
   }
 }
 
-/// Whether the sheet says "You’re done": every question answered, and a
-/// walk through the questions ended with Done.
-bool pollsDone(PollBusiness? business, Set<String> walking) =>
-    business != null && business.allAnswered && !walking.contains(business.id);
+/// Whether the sheet says "You’re done": every question answered.
+bool pollsDone(PollBusiness? business) =>
+    business != null && business.allAnswered;
 
 class _Polls extends ConsumerStatefulWidget {
   const _Polls({
@@ -181,20 +180,53 @@ class _PollsState extends ConsumerState<_Polls> {
 
   static String _key(Poll poll, int question) => '${poll.id}#$question';
 
-  Future<void> _vote(Poll poll, int choice, {int question = 0}) async {
-    if (_picks.isNotEmpty) return;
-    final key = _key(poll, question);
-    final business = widget.business;
-    if (business != null && business.stepped) {
-      ref.read(pollsWalkingProvider.notifier).walk(business.id);
+  /// The walk's picks by poll and question, sent together with Done
+  /// (contract 14.1: the API takes a poll's answers at once).
+  final _held = <String, Map<int, int>>{};
+  bool _sending = false;
+
+  /// [poll] with the walk's picks on it, nothing counted.
+  Poll _view(Poll poll) {
+    if (poll.voted) return poll;
+    var view = poll;
+    for (final MapEntry(key: q, value: choice)
+        in (_held[poll.id] ?? const {}).entries) {
+      view = view.withPick(choice, question: q);
     }
+    return view;
+  }
+
+  Future<void> _vote(Poll poll, int choice) async {
+    if (_picks.isNotEmpty) return;
+    final key = _key(poll, 0);
     setState(() => _picks[key] = choice);
     final outcome = await ref
         .read(pollsProvider.notifier)
-        .vote(poll.id, choice, question: question);
+        .vote(poll.id, choice);
     if (!mounted) return;
+    setState(() => _picks.remove(key));
+    await _counted(outcome);
+  }
+
+  /// Done: each poll's answers go together; the results show once in.
+  Future<void> _sendWalk(PollBusiness business) async {
+    if (_sending) return;
+    setState(() => _sending = true);
+    var outcome = VoteOutcome.counted;
+    for (final poll in business.polls) {
+      if (poll.voted) continue;
+      outcome = await ref
+          .read(pollsProvider.notifier)
+          .answer(poll.id, _view(poll).answers);
+      if (outcome != VoteOutcome.counted) break;
+    }
+    if (!mounted) return;
+    setState(() => _sending = false);
+    await _counted(outcome);
+  }
+
+  Future<void> _counted(VoteOutcome outcome) async {
     setState(() {
-      _picks.remove(key);
       _failed = switch (outcome) {
         VoteOutcome.counted => null,
         VoteOutcome.offline => 'Couldn’t send. Check your connection.',
@@ -270,10 +302,32 @@ class _PollsState extends ConsumerState<_Polls> {
     );
   }
 
-  Widget _card(Poll poll, DateTime now, {int question = 0}) {
+  Widget _card(Poll poll, DateTime now, {int question = 0, Poll? walking}) {
     final asked = poll.questions[question];
     final closed = poll.closedAt(now);
     final shares = asked.shares;
+    if (walking != null && !poll.voted) {
+      return IqPollCard(
+        key: ValueKey(_key(poll, question)),
+        question: asked.question,
+        state: closed ? IqPollCardState.closed : IqPollCardState.open,
+        options: [
+          for (final (i, choice) in asked.choices.indexed)
+            IqPollCardOption(choice, shares[i] / 100),
+        ],
+        votes: asked.total,
+        timeLeft: closed
+            ? ''
+            : 'Closes in ${pollTimeLeft(timeLeft(poll.closesAt, now)!)}',
+        chosen: 0,
+        selected: walking.questions[question].chosen,
+        hint: 'Pick one',
+        onVote: closed || _sending
+            ? null
+            : (choice) =>
+                  setState(() => (_held[poll.id] ??= {})[question] = choice),
+      );
+    }
     final voting = !asked.answered && !closed && _picks.isEmpty;
     return IqPollCard(
       key: ValueKey(_key(poll, question)),
@@ -294,9 +348,7 @@ class _PollsState extends ConsumerState<_Polls> {
       chosen: asked.chosen ?? 0,
       selected: _picks[_key(poll, question)],
       hint: 'Pick one',
-      onVote: voting
-          ? (choice) => _vote(poll, choice, question: question)
-          : null,
+      onVote: voting && question == 0 ? (choice) => _vote(poll, choice) : null,
     );
   }
 
@@ -313,7 +365,8 @@ class _PollsState extends ConsumerState<_Polls> {
   ) {
     final steps = [
       for (final poll in business.polls)
-        for (var q = 0; q < poll.questions.length; q++) (poll: poll, q: q),
+        for (var q = 0; q < poll.questions.length; q++)
+          (poll: _view(poll), sent: poll, q: q),
     ];
     bool skipped(int i) => steps[i].poll.skips(steps[i].q);
     bool open(int i) =>
@@ -327,8 +380,7 @@ class _PollsState extends ConsumerState<_Polls> {
       at =
           [for (var i = 0; i < steps.length; i++) i].where(open).firstOrNull ??
           0;
-      // The walk holds this question until Next or Back moves it, so a
-      // vote shows its results here first.
+      // The walk holds this question until Next or Back moves it.
       _at = (poll: steps[at].poll.id, question: steps[at].q);
     }
     final step = steps[at];
@@ -354,9 +406,8 @@ class _PollsState extends ConsumerState<_Polls> {
       showIcon: false,
       width: double.infinity,
       disabled: !ready,
-      onTap: () => next == null
-          ? ref.read(pollsWalkingProvider.notifier).finish(business.id)
-          : go(next),
+      loading: next == null && _sending,
+      onTap: () => next == null ? _sendWalk(business) : go(next),
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -404,7 +455,9 @@ class _PollsState extends ConsumerState<_Polls> {
                   ),
                 ],
                 const SizedBox(height: IqSpace.s3),
-                inset(_card(step.poll, now, question: step.q)),
+                inset(
+                  _card(step.sent, now, question: step.q, walking: step.poll),
+                ),
               ],
             ),
           ),

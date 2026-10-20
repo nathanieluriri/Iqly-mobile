@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/core/backend.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:iqly_mobile/data/activations_data.dart';
@@ -118,6 +119,57 @@ void main() {
       expect(businesses.first.allAnswered, isTrue);
       expect(businesses.last.unanswered, 2);
     });
+
+    test(
+      'pollQuestions: the walk\'s answers go together to /answers',
+      () async {
+        final api = _Api({
+          'POST /polls/p_1/answers': (_) => _ok({
+            ..._f.pollJson(chosen: 0, votes: [96, 71, 47]),
+            'answered': true,
+            'questions': [
+              {
+                'index': 0,
+                'question': 'Q',
+                'choices': ['a', 'b', 'c'],
+              },
+              {
+                'index': 1,
+                'question': 'How much ginger?',
+                'choices': ['A little', 'A lot'],
+                'showIf': {
+                  'question': 0,
+                  'choices': [0],
+                },
+                'chosen': 1,
+                'votes': [10, 30],
+                'shares': [25, 75],
+                'total': 40,
+              },
+            ],
+          }),
+        });
+        final answered = await LivePollsService(
+          api.link,
+          questions: true,
+        ).answer('p_1', [(question: 0, choice: 0), (question: 1, choice: 1)]);
+        expect(jsonDecode(api.to('POST /polls/p_1/answers').single.body), {
+          'answers': [
+            {'question': 0, 'choice': 0},
+            {'question': 1, 'choice': 1},
+          ],
+        });
+        expect(answered.voted, isTrue);
+        expect(answered.questions[1].shares, [25, 75]);
+
+        await expectLater(
+          LivePollsService(
+            api.link,
+          ).answer('p_1', [(question: 0, choice: 0), (question: 1, choice: 1)]),
+          throwsA(isA<FeaturePaused>()),
+        );
+      },
+    );
 
     test('detail, vote and a refusal', () async {
       final api = _Api({

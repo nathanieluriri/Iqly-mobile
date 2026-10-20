@@ -3,39 +3,53 @@ import 'package:iqly_mobile/data/live/live_onboarding_service.dart';
 import 'package:iqly_mobile/data/live/live_profile_service.dart';
 import 'package:iqly_mobile/data/onboarding_service.dart';
 import 'package:iqly_mobile/data/profile_service.dart';
+import 'package:iqly_mobile/features/onboarding/onboarding_draft.dart';
+import 'package:iqly_mobile/features/onboarding/onboarding_flow.dart';
 
 void main() {
   final today = DateTime(2026, 10, 20);
 
-  group('Prefer not to say goes only to an API that takes it', () {
-    test('first run sends it with genderPreferNotToSay', () {
-      const answers = OnboardingProfile(gender: 'prefer_not_to_say');
-      expect(
-        onboardingBody(answers, today: today, preferNotToSay: true)['gender'],
-        'prefer_not_to_say',
-      );
-      expect(onboardingBody(answers, today: today)['gender'], isNull);
-    });
-
-    test('male and female always go', () {
-      for (final gender in ['male', 'female']) {
+  group('gender (contract 14.2)', () {
+    test('first run sends it, Prefer not to say included, with '
+        'genderRequired', () {
+      for (final gender in ['male', 'female', 'prefer_not_to_say']) {
         expect(
           onboardingBody(
             OnboardingProfile(gender: gender),
             today: today,
+            askGender: true,
           )['gender'],
           gender,
         );
       }
     });
 
-    test('the profile sends no answer in its place before then', () {
-      const details = AccountDetails(gender: 'prefer_not_to_say');
-      const answers = OnboardingProfile();
-      expect(profileFields(details, answers)['gender'], isNull);
+    test('without genderRequired first run sends none, as before', () {
       expect(
-        profileFields(details, answers, preferNotToSay: true)['gender'],
+        onboardingBody(
+          const OnboardingProfile(gender: 'female'),
+          today: today,
+        ).containsKey('gender'),
+        isFalse,
+      );
+    });
+
+    test('the profile takes it as it is', () {
+      expect(
+        profileFields(
+          const AccountDetails(gender: 'prefer_not_to_say'),
+          const OnboardingProfile(),
+        )['gender'],
         'prefer_not_to_say',
+      );
+    });
+
+    test('without genderRequired first run does not ask', () {
+      addTearDown(() => OnboardingFlow.askGender = true);
+      OnboardingFlow.askGender = false;
+      expect(
+        OnboardingFlow.byOccupation.path(const OnboardingProfile()).first,
+        OnboardingStep.aboutYou,
       );
     });
   });

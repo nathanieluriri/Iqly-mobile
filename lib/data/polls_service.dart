@@ -17,10 +17,13 @@ abstract class PollsService {
   /// One poll the person may see, under its business with that poll alone.
   Future<PollBusiness> poll(String pollId);
 
-  /// Casts the person's vote for [choice] on [pollId]'s question at
-  /// [question] (0 for its first) and answers with the poll as it stands
-  /// after it, so the shares include it.
-  Future<Poll> vote(String pollId, int choice, {int question = 0});
+  /// Casts the person's vote for [choice] on [pollId]'s first question and
+  /// answers with the poll as it stands after it, so the shares include it.
+  Future<Poll> vote(String pollId, int choice);
+
+  /// Answers every question [pollId] asks at once, its first included,
+  /// and answers with the poll and its results (contract 14.1).
+  Future<Poll> answer(String pollId, List<PollAnswer> answers);
 }
 
 class DemoPollsService implements PollsService {
@@ -54,18 +57,23 @@ class DemoPollsService implements PollsService {
   }
 
   @override
-  Future<Poll> vote(String pollId, int choice, {int question = 0}) async {
+  Future<Poll> vote(String pollId, int choice) =>
+      answer(pollId, [(question: 0, choice: choice)]);
+
+  @override
+  Future<Poll> answer(String pollId, List<PollAnswer> answers) async {
     await _wait();
     for (final business in _businesses) {
       for (final poll in business.polls) {
         if (poll.id != pollId) continue;
-        if (question >= poll.questions.length ||
-            poll.questions[question].answered ||
-            !poll.asks(question) ||
-            poll.closedAt(_clock())) {
-          return poll;
+        if (poll.voted || poll.closedAt(_clock())) return poll;
+        var counted = poll;
+        for (final (:question, :choice) in answers) {
+          if (question < counted.questions.length &&
+              !counted.questions[question].answered) {
+            counted = counted.withVote(choice, question: question);
+          }
         }
-        final counted = poll.withVote(choice, question: question);
         _businesses = [
           for (final b in _businesses) b == business ? b.withPoll(counted) : b,
         ];
@@ -84,7 +92,7 @@ class LivePollsService implements PollsService {
 
   final AccountLink link;
 
-  /// Health's `pollsV2`: a poll's later questions are read and answered.
+  /// Health's `pollQuestions`: a poll's later questions are read and answered.
   final bool questions;
 
   @override
@@ -111,18 +119,35 @@ class LivePollsService implements PollsService {
     return business;
   }
 
-  /// A later question goes only to an API that asks them.
   @override
-  Future<Poll> vote(String pollId, int choice, {int question = 0}) async {
-    if (question > 0 && !questions) {
-      throw const FeaturePaused(LiveFeature.pollsV2);
+  Future<Poll> vote(String pollId, int choice) => _send(
+    link.api.post('/polls/${Uri.encodeComponent(pollId)}/vote', {
+      'choice': choice,
+    }),
+  );
+
+  /// Only an API with `pollQuestions` takes the answers together; before
+  /// it a poll has its one question, which goes as a vote.
+  @override
+  Future<Poll> answer(String pollId, List<PollAnswer> answers) async {
+    if (!questions) {
+      if (answers.length == 1 && answers.single.question == 0) {
+        return vote(pollId, answers.single.choice);
+      }
+      throw const FeaturePaused(LiveFeature.pollQuestions);
     }
-    final res = await link.scope.guard(
-      link.api.post('/polls/${Uri.encodeComponent(pollId)}/vote', {
-        'choice': choice,
-        if (question > 0) 'question': question,
+    return _send(
+      link.api.post('/polls/${Uri.encodeComponent(pollId)}/answers', {
+        'answers': [
+          for (final (:question, :choice) in answers)
+            {'question': question, 'choice': choice},
+        ],
       }),
     );
+  }
+
+  Future<Poll> _send(Future<ApiResponse> request) async {
+    final res = await link.scope.guard(request);
     final poll = res.ok ? pollFromJson(res.data, questions: questions) : null;
     if (poll == null) throw ApiRefused.of(res);
     return poll;
@@ -143,7 +168,10 @@ class PausedPollsService implements PollsService {
   Future<PollBusiness> poll(String pollId) => _paused();
 
   @override
-  Future<Poll> vote(String pollId, int choice, {int question = 0}) => _paused();
+  Future<Poll> vote(String pollId, int choice) => _paused();
+
+  @override
+  Future<Poll> answer(String pollId, List<PollAnswer> answers) => _paused();
 }
 
 List<String> _choices(Object? json) => [
@@ -162,10 +190,10 @@ int? _pick(Object? json, int length) {
   return chosen != null && chosen >= 0 && chosen < length ? chosen : null;
 }
 
-/// A later question of a `pollsV2` poll: `{question, choices, chosen,
-/// votes, showIf: {question, choices} | null}`, `showIf.question` the index
-/// of the earlier question it follows. Null when it has no question or
-/// choices.
+/// A question of a `pollQuestions` poll (contract 14.1): `{index,
+/// question, choices, showIf: {question, choices} | null, chosen, votes,
+/// shares, total}`, `showIf.question` the index of the earlier question it
+/// follows. Null when it has no question or choices.
 PollQuestion? pollQuestionFromJson(Object? json) {
   if (json is! Map) return null;
   final question = apiText(json['question']);
@@ -191,7 +219,7 @@ PollQuestion? pollQuestionFromJson(Object? json) {
 }
 
 /// A contract 11.1 poll, or null without an id, a question, choices or a
-/// close. With [questions] (health's `pollsV2`) up to three questions are
+/// close. With [questions] (health's `pollQuestions`) up to three questions are
 /// read from `questions`, whose first is the poll's own; a later question
 /// that does not read, or one past the third, ends them there.
 Poll? pollFromJson(Object? json, {bool questions = false}) {
@@ -272,6 +300,8 @@ final pollsServiceProvider = Provider<PollsService>((ref) {
       ? const PausedPollsService()
       : LivePollsService(
           link,
-          questions: ref.watch(liveModeProvider).isLive(LiveFeature.pollsV2),
+          questions: ref
+              .watch(liveModeProvider)
+              .isLive(LiveFeature.pollQuestions),
         );
 });

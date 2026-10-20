@@ -53,12 +53,12 @@ enum LiveFeature {
   supportChannels,
 
   /// A poll can ask up to three questions, a later one only after some
-  /// answers to an earlier one.
-  pollsV2,
+  /// answers to an earlier one, answered together (contract 14.1).
+  pollQuestions,
 
-  /// The account takes `prefer_not_to_say` as a gender, on the profile and
-  /// at first run.
-  genderPreferNotToSay;
+  /// First run asks for a gender before it ends, `prefer_not_to_say`
+  /// among the answers (contract 14.2).
+  genderRequired;
 
   /// The features this one calls into, which have to be live with it.
   Set<LiveFeature> get needs => switch (this) {
@@ -90,8 +90,8 @@ enum LiveFeature {
     LiveFeature.briefAudience => const {LiveFeature.briefs},
     LiveFeature.helpAuthorNames ||
     LiveFeature.supportChannels => const {LiveFeature.support},
-    LiveFeature.pollsV2 => const {LiveFeature.polls},
-    LiveFeature.genderPreferNotToSay => const {LiveFeature.profile},
+    LiveFeature.pollQuestions => const {LiveFeature.polls},
+    LiveFeature.genderRequired => const {LiveFeature.profile},
     LiveFeature.profile ||
     LiveFeature.briefs ||
     LiveFeature.notifications ||

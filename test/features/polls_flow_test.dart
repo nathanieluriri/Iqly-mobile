@@ -79,35 +79,41 @@ void main() {
 
     await _tap(tester, find.text('Zobo and ginger'));
     expect(haptics, [_light, _light, _select]);
-    expect(_card(tester, _flavour).state, IqPollCardState.voted);
-    expect(find.text('You voted · 214 votes'), findsOneWidget);
-    expect(find.text('45%'), findsOneWidget);
-    expect(find.text('33%'), findsOneWidget);
-    expect(find.text('22%'), findsOneWidget);
-    final chosen = tester.widget<IqPollOption>(
-      find.byWidgetPredicate(
-        (w) => w is IqPollOption && w.label == 'Zobo and ginger',
-      ),
-    );
-    expect(chosen.state, IqPollOptionState.chosen);
+    expect(_card(tester, _flavour).selected, 0);
+    expect(find.text('You voted · 214 votes'), findsNothing);
 
     await _tap(tester, find.text('Next question'));
     expect(find.text('QUESTION 2 OF 3'), findsOneWidget);
     expect(find.text('Because you picked Zobo and ginger'), findsOneWidget);
     await _tap(tester, find.text('Back'));
     expect(find.text('QUESTION 1 OF 3'), findsOneWidget);
-    expect(_card(tester, _flavour).state, IqPollCardState.voted);
+    expect(_card(tester, _flavour).selected, 0);
     await _tap(tester, find.text('Next question'));
 
     await _tap(tester, find.text('A little'));
-    expect(find.text('You voted · 96 votes'), findsOneWidget);
     await _tap(tester, find.text('Next question'));
     expect(find.text('QUESTION 3 OF 3'), findsOneWidget);
 
     await _tap(tester, find.text('1 litre bottle'));
-    expect(find.text('You voted · 198 votes'), findsOneWidget);
     expect(find.text('Quick polls'), findsWidgets);
+    expect(
+      container
+          .read(pollsProvider)
+          .value!
+          .firstWhere((b) => b.id == 'orchid-foods')
+          .allAnswered,
+      isFalse,
+    );
     await _tap(tester, find.text('Done'));
+    expect(find.text('You voted · 214 votes'), findsOneWidget);
+    expect(find.text('45%'), findsOneWidget);
+    expect(find.text('You voted · 96 votes'), findsOneWidget);
+    final chosen = tester.widget<IqPollOption>(
+      find.byWidgetPredicate(
+        (w) => w is IqPollOption && w.label == 'Zobo and ginger',
+      ),
+    );
+    expect(chosen.state, IqPollOptionState.chosen);
     expect(find.text('You’re done'), findsOneWidget);
     expect(
       find.text(
@@ -186,7 +192,7 @@ void main() {
     expect(find.byType(PollSheet), findsNothing);
     expect(find.byType(PollPage), findsOneWidget);
     await _tap(tester, find.text('Zobo and ginger'));
-    expect(find.text('You voted · 214 votes'), findsOneWidget);
+    expect(_card(tester, _flavour).selected, 0);
   });
 
   group('B2: the sheet dragged up', () {

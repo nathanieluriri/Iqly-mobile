@@ -110,6 +110,7 @@ bool detailShown(DetailField field, OnboardingProfile answers) =>
       DetailField.university =>
         detailShown(DetailField.education, answers) &&
             Reference.namesUniversity(answers.occupation, answers.education),
+      DetailField.gender => OnboardingFlow.askGender,
       _ => true,
     };
 

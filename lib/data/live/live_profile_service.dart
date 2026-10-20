@@ -6,7 +6,6 @@ import '../onboarding_service.dart';
 import '../profile_service.dart';
 import '../reference_data.dart';
 import 'live_account.dart';
-import 'live_onboarding_service.dart' show sentGender;
 
 /// The contributor profile as the API answers it (contract 3.2), the
 /// fields the app reads. A value the app does not know reads as
@@ -80,15 +79,14 @@ class ContributorProfile {
 /// the first-run answers (contract 3.2). Blank text is null.
 Map<String, Object?> profileFields(
   AccountDetails details,
-  OnboardingProfile answers, {
-  bool preferNotToSay = false,
-}) => {
+  OnboardingProfile answers,
+) => {
   'phone': apiText(details.phone),
   'dateOfBirth': switch (details.dateOfBirth) {
     final born? => apiDay(born),
     null => null,
   },
-  'gender': sentGender(details.gender, preferNotToSay: preferNotToSay),
+  'gender': details.gender,
   'stateOfOrigin': apiText(details.stateOfOrigin),
   'stateOfResidence': apiText(answers.state),
   'city': apiText(answers.city),
@@ -133,12 +131,9 @@ Map<String, Object?> preferencesJson(Map<NotificationTopic, bool> switches) => {
 /// and show at once, the server copy with the edits still to go laid over
 /// it. Close and restore are online only.
 class LiveProfileService implements ProfileService {
-  LiveProfileService(this.link, {this.account, this.preferNotToSay = false});
+  LiveProfileService(this.link, {this.account});
 
   final AccountLink link;
-
-  /// Health's `genderPreferNotToSay`.
-  final bool preferNotToSay;
 
   /// Null while this launch pauses `account`: close and restore then refuse
   /// with [FeaturePaused] before anything is sent.
@@ -175,19 +170,11 @@ class LiveProfileService implements ProfileService {
     AccountDetails? before,
     OnboardingProfile? answersBefore,
   }) async {
-    final after = profileFields(
-      details,
-      answers,
-      preferNotToSay: preferNotToSay,
-    );
+    final after = profileFields(details, answers);
     final changed = before == null && answersBefore == null
         ? after
         : changedFields(
-            profileFields(
-              before ?? details,
-              answersBefore ?? answers,
-              preferNotToSay: preferNotToSay,
-            ),
+            profileFields(before ?? details, answersBefore ?? answers),
             after,
           );
     if (changed.isEmpty) return;

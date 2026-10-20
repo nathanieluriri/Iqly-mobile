@@ -236,8 +236,5 @@ final profileServiceProvider = Provider<ProfileService>((ref) {
   return LiveProfileService(
     link,
     account: account == null ? null : LiveAccount(account),
-    preferNotToSay: ref
-        .watch(liveModeProvider)
-        .isLive(LiveFeature.genderPreferNotToSay),
   );
 });

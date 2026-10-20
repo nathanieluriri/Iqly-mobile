@@ -44,18 +44,19 @@ class PollsNotifier extends AsyncNotifier<List<PollBusiness>> {
     } catch (_) {}
   }
 
-  /// Votes [choice] on [pollId]'s question at [question].
-  Future<VoteOutcome> vote(
-    String pollId,
-    int choice, {
-    int question = 0,
-  }) async {
+  /// Votes [choice] on [pollId]'s one question.
+  Future<VoteOutcome> vote(String pollId, int choice) =>
+      _counting(pollId, ref.read(pollsServiceProvider).vote(pollId, choice));
+
+  /// Sends the walk's [answers] to [pollId] together (contract 14.1).
+  Future<VoteOutcome> answer(String pollId, List<PollAnswer> answers) =>
+      _counting(pollId, ref.read(pollsServiceProvider).answer(pollId, answers));
+
+  Future<VoteOutcome> _counting(String pollId, Future<Poll> sent) async {
     final scope = ref.read(accountScopeProvider);
     final Poll poll;
     try {
-      poll = await ref
-          .read(pollsServiceProvider)
-          .vote(pollId, choice, question: question);
+      poll = await sent;
     } on ApiRefused catch (refusal) {
       if (unanswered(refusal)) return VoteOutcome.offline;
       if (refusal.code == 'ACCOUNT_CLOSING') return VoteOutcome.closing;
@@ -173,28 +174,6 @@ String pollDoneDetail(PollBusiness business) {
 /// stops taking taps (480:22779).
 bool pollsClosed(PollBusiness business, DateTime now) =>
     business.polls.every((p) => p.closedAt(now));
-
-/// The businesses whose questions the person is walking one at a time
-/// this session: from their first vote in the walk until they press Done,
-/// the sheet stays on the question rather than turn to "You’re done".
-class PollsWalkingNotifier extends Notifier<Set<String>> {
-  @override
-  Set<String> build() {
-    ref.watch(accountProvider);
-    return const {};
-  }
-
-  void walk(String businessId) {
-    if (!state.contains(businessId)) state = {...state, businessId};
-  }
-
-  void finish(String businessId) => state = {...state}..remove(businessId);
-}
-
-final pollsWalkingProvider =
-    NotifierProvider<PollsWalkingNotifier, Set<String>>(
-      PollsWalkingNotifier.new,
-    );
 
 /// "QUESTION 2 OF 3", or "LAST QUESTION" once a branch skipped one so the
 /// count would mislead.
