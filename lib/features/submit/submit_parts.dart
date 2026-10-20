@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../../core/deadline.dart';
+import '../../core/motion.dart';
 import '../../data/models.dart';
 import '../../data/submit_data.dart';
 import '../../theme/theme.dart';
-import '../../ui/brief_card.dart';
 import '../../ui/icon.dart';
 import '../../ui/list_row.dart';
-import '../../ui/meta.dart';
-import '../../ui/sample_cover.dart';
 import '../../ui/sample_logo.dart';
 
 /// The sample set's mark for a brief's business; an anonymous brief gets
@@ -35,35 +32,6 @@ String poolShort(int kobo) {
 String _trim(double value) {
   final text = value.toStringAsFixed(1);
   return text.endsWith('.0') ? text.substring(0, text.length - 2) : text;
-}
-
-/// Exp/BriefCard row kind as the brief context on step 1 (34:24): the
-/// cover, the business, the ask, the pool and the time left.
-class BriefContext extends StatelessWidget {
-  const BriefContext({super.key, required this.brief, required this.now});
-
-  final Brief brief;
-  final DateTime now;
-
-  @override
-  Widget build(BuildContext context) {
-    final brand = sampleBrandOf(brief);
-    final deadline = brief.deadline;
-    return IqBriefCard(
-      kind: IqBriefCardKind.row,
-      brand: brief.businessName ?? 'Private business',
-      title: brief.title,
-      cover: IqSampleCover(brand),
-      logo: IqSampleLogo(brand),
-      meta: [
-        IqMeta(kind: IqMetaKind.reward, label: poolShort(brief.rewardPoolKobo)),
-        IqMeta(
-          kind: IqMetaKind.urgent,
-          label: closesIn(deadline?.difference(now)),
-        ),
-      ],
-    );
-  }
 }
 
 String _mb(int bytes) => '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
@@ -141,6 +109,47 @@ class AttachmentsGroup extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// [AttachmentsGroup] with iqly.net's words for a file it turns away.
+class AttachmentsPanel extends StatelessWidget {
+  const AttachmentsPanel({
+    super.key,
+    required this.files,
+    required this.error,
+    required this.onAdd,
+    required this.onRetry,
+  });
+
+  final List<Attachment> files;
+  final String? error;
+  final VoidCallback onAdd;
+  final ValueChanged<AttachmentFile> onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final error = this.error;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AttachmentsGroup(files: files, onAdd: onAdd, onRetry: onRetry),
+        if (error != null)
+          Padding(
+            padding: const EdgeInsets.only(top: IqSpace.s1p5),
+            child: Reveal(
+              key: ValueKey(error),
+              child: Semantics(
+                liveRegion: true,
+                child: Text(
+                  error,
+                  style: IqText.small.copyWith(color: IqColors.errStrong),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

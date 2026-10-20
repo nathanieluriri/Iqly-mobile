@@ -25,6 +25,8 @@ import '../settings/restore_account_screen.dart';
 import '../submissions/submissions_routes.dart';
 import '../submissions/submissions_state.dart';
 import 'brief_sheet.dart';
+import 'more_sheet.dart';
+import 'submit_header.dart';
 import 'submit_sent.dart';
 import 'submit_state.dart';
 import 'submit_steps.dart';
@@ -33,9 +35,10 @@ import 'submit_widgets.dart';
 /// Row B3, the submit flow, a sub page: the answer (34:24, 34:121), the
 /// quick questions (34:186, 490:24270) when the brief asks any, then the
 /// sent moment (34:269). It opens on the brief's saved draft at the step
-/// the draft reached (B17 313:13650), so Drafts resumes it here. The top
-/// bar and the thread hold still while the steps slide; sending dissolves
-/// into the moment. A brief that cannot take a response says why, and one
+/// the draft reached (B17 313:13650), so Drafts resumes it here. The
+/// cover header (B17 313:13650, collapsing to 313:13631 as the page
+/// scrolls or the answer is written) and the guide under it hold still
+/// while the steps slide; sending dissolves into the moment. A brief that cannot take a response says why, and one
 /// already answered opens that submission instead.
 ///
 /// Back pops to whichever page opened it, and from the questions it returns
@@ -226,6 +229,14 @@ class _FlowState extends ConsumerState<_Flow> {
     }
   }
 
+  void _more() => showSubmitMore(
+    context,
+    brief: widget.brief,
+    form: _form,
+    onViewBrief: () => showBriefSheet(context, widget.brief),
+    onDrafts: () => context.open<void>(Routes.drafts),
+  );
+
   @override
   Widget build(BuildContext context) {
     final flow = ref.watch(submitFlowProvider(_id));
@@ -233,64 +244,74 @@ class _FlowState extends ConsumerState<_Flow> {
     final block = flow.blocked;
     final sent =
         flow.step == SubmitStep.sent && (receipt != null || flow.queued);
+    final Widget body;
+    if (block != null) {
+      body = Column(
+        key: const ValueKey('blocked'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _TopBar(onBack: _back),
+          Expanded(
+            child: _Blocked(
+              block: block,
+              onBack: () => leaveSubmit(context, _id),
+            ),
+          ),
+        ],
+      );
+    } else if (sent) {
+      body = Column(
+        key: const ValueKey('sent'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _TopBar(onBack: _back),
+          Expanded(
+            child: SentMoment(
+              receipt: receipt,
+              onView: receipt == null
+                  ? null
+                  : () => context.go(submissionPath(receipt.submission.id)),
+              onDiscover: () => context.go(Routes.home),
+            ),
+          ),
+        ],
+      );
+    } else {
+      body = _Form(
+        key: const ValueKey('form'),
+        brief: widget.brief,
+        form: _form,
+        flow: flow,
+        canSend: ref.read(submitFlowProvider(_id).notifier).canSend(_form),
+        onBack: _back,
+        onMore: _more,
+        onContinue: _continue,
+        onSend: _send,
+      );
+    }
     return PopScope(
       canPop: flow.step != SubmitStep.questions || block != null,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _back();
       },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _TopBar(onBack: _back),
-          Expanded(
-            child: Dissolve(
-              child: block != null
-                  ? _Blocked(
-                      key: const ValueKey('blocked'),
-                      block: block,
-                      onBack: () => leaveSubmit(context, _id),
-                    )
-                  : sent
-                  ? SentMoment(
-                      key: const ValueKey('sent'),
-                      receipt: receipt,
-                      onView: receipt == null
-                          ? null
-                          : () => context.go(
-                              submissionPath(receipt.submission.id),
-                            ),
-                      onDiscover: () => context.go(Routes.home),
-                    )
-                  : _Form(
-                      key: const ValueKey('form'),
-                      brief: widget.brief,
-                      form: _form,
-                      flow: flow,
-                      canSend: ref
-                          .read(submitFlowProvider(_id).notifier)
-                          .canSend(_form),
-                      onContinue: _continue,
-                      onSend: _send,
-                    ),
-            ),
-          ),
-        ],
-      ),
+      child: Dissolve(child: body),
     );
   }
 }
 
-/// The steps under the pinned thread (form-status: 8 above and below) and
-/// over the action bar: Continue on step 1, Submit on the last step,
-/// disabled until every question is answered (#37), then View the brief,
-/// which opens the brief sheet over the draft (designer doc rev 57).
-class _Form extends StatelessWidget {
+/// The steps under the cover header and the pinned guide, over the action
+/// bar with its one button: Continue on step 1, Submit on the last step,
+/// disabled until every question is answered (#37). Everything else is
+/// under More (481:21544).
+class _Form extends StatefulWidget {
   const _Form({
     super.key,
     required this.brief,
     required this.form,
     required this.flow,
     required this.canSend,
+    required this.onBack,
+    required this.onMore,
     required this.onContinue,
     required this.onSend,
   });
@@ -299,44 +320,132 @@ class _Form extends StatelessWidget {
   final SubmitForm form;
   final SubmitFlow flow;
   final bool canSend;
+  final VoidCallback onBack;
+  final VoidCallback onMore;
   final VoidCallback onContinue;
   final VoidCallback onSend;
 
   @override
+  State<_Form> createState() => _FormState();
+}
+
+class _FormState extends State<_Form> {
+  final _scroll = ScrollController();
+  CoverMetrics? _metrics;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.flow.step == SubmitStep.questions) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _reveal(0, animate: false),
+      );
+    }
+  }
+
+  @override
+  void didUpdateWidget(_Form old) {
+    super.didUpdateWidget(old);
+    if (old.flow.step != widget.flow.step &&
+        widget.flow.step == SubmitStep.questions) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _reveal(0));
+    }
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  /// Brings [y] of the content, under the bar and guide, into view.
+  void _reveal(double y, {bool animate = true}) {
+    final metrics = _metrics;
+    if (!mounted || metrics == null || !_scroll.hasClients) return;
+    final position = _scroll.position;
+    final target = (metrics.range + y).clamp(0.0, position.maxScrollExtent);
+    if ((target - position.pixels).abs() < 1) return;
+    final duration = animate
+        ? motion(context, IqDurations.screen)
+        : Duration.zero;
+    if (duration == Duration.zero) {
+      _scroll.jumpTo(target);
+    } else {
+      _scroll.animateTo(target, duration: duration, curve: IqCurves.easeOut);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final flow = widget.flow;
+    final form = widget.form;
     final answering = flow.step == SubmitStep.answer;
     final sends = !answering || !form.hasQuestions;
     final label = sends ? 'Submit' : 'Continue';
+    final guide = SubmitGuide.extentOf(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            IqSpace.s4,
-            IqSpace.s2,
-            IqSpace.s4,
-            IqSpace.s2,
-          ),
-          child: threadOf(flow, form),
-        ),
         Expanded(
-          child: StepSwitcher(
-            back: flow.back,
-            child: answering
-                ? AnswerStep(
-                    key: const ValueKey(SubmitStep.answer),
-                    brief: brief,
-                    flow: flow,
-                    settle: !flow.back,
-                    onRetry: onSend,
-                  )
-                : QuestionsStep(
-                    key: const ValueKey(SubmitStep.questions),
-                    briefId: brief.id,
-                    form: form,
-                    flow: flow,
-                    onRetry: onSend,
+          child: LayoutBuilder(
+            builder: (context, box) {
+              final metrics = _metrics = CoverMetrics.of(
+                context,
+                widget.brief,
+                box.maxWidth,
+              );
+              final page = box.maxHeight - CoverMetrics.bar - guide;
+              return CustomScrollView(
+                controller: _scroll,
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                slivers: [
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: CoverHeader(
+                      brief: widget.brief,
+                      metrics: metrics,
+                      onBack: widget.onBack,
+                      onMore: widget.onMore,
+                    ),
                   ),
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: GuideHeader(
+                      guide: guideOf(flow, form),
+                      extent: guide,
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: page > 0 ? page : 0,
+                      ),
+                      child: StepSwitcher(
+                        back: flow.back,
+                        child: answering
+                            ? AnswerStep(
+                                key: const ValueKey(SubmitStep.answer),
+                                brief: widget.brief,
+                                flow: flow,
+                                settle: !flow.back,
+                                fill: page - IqSpace.s5,
+                                reveal: _reveal,
+                                onRetry: widget.onSend,
+                              )
+                            : QuestionsStep(
+                                key: const ValueKey(SubmitStep.questions),
+                                briefId: widget.brief.id,
+                                form: form,
+                                flow: flow,
+                                onRetry: widget.onSend,
+                              ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
         SubmitActionBar(
@@ -351,16 +460,9 @@ class _Form extends StatelessWidget {
                 showIcon: !sends,
                 width: double.infinity,
                 loading: flow.sending,
-                disabled: sends && form.hasQuestions && !canSend,
-                onTap: sends ? onSend : onContinue,
+                disabled: sends && form.hasQuestions && !widget.canSend,
+                onTap: sends ? widget.onSend : widget.onContinue,
               ),
-            ),
-            IqButton(
-              label: 'View the brief',
-              kind: IqButtonKind.ghost,
-              showIcon: false,
-              width: double.infinity,
-              onTap: () => showBriefSheet(context, brief),
             ),
           ],
         ),

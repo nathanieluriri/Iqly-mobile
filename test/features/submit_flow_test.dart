@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/core/motion.dart';
 import 'package:iqly_mobile/core/responsive.dart';
+import 'package:iqly_mobile/core/transitions.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/drafts_data.dart';
 import 'package:iqly_mobile/data/models.dart';
@@ -12,15 +14,15 @@ import 'package:iqly_mobile/features/discover/home_screen.dart';
 import 'package:iqly_mobile/features/submissions/my_submissions_screen.dart';
 import 'package:iqly_mobile/features/submissions/submission_detail_screen.dart';
 import 'package:iqly_mobile/features/submissions/submissions_routes.dart';
-import 'package:iqly_mobile/core/motion.dart';
-import 'package:iqly_mobile/core/transitions.dart';
 import 'package:iqly_mobile/features/submit/brief_sheet.dart';
+import 'package:iqly_mobile/features/submit/more_sheet.dart';
+import 'package:iqly_mobile/features/submit/submit_field.dart';
+import 'package:iqly_mobile/features/submit/submit_header.dart';
 import 'package:iqly_mobile/features/submit/submit_screen.dart';
 import 'package:iqly_mobile/features/submit/submit_state.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/confirm_sheet.dart';
-import 'package:iqly_mobile/ui/field.dart';
 import 'package:iqly_mobile/ui/poll_option.dart';
 import 'package:iqly_mobile/ui/skeleton.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -42,12 +44,14 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
 }
 
 Finder _field(String label) =>
-    find.byWidgetPredicate((w) => w is IqField && w.label == label);
+    find.byWidgetPredicate((w) => w is SubmitField && w.label == label);
 
-Finder _answer() => find.descendant(
-  of: find.byType(SubmitScreen),
-  matching: find.byWidgetPredicate((w) => w is TextField && w.maxLines == null),
-);
+Finder _answer() => _field('Your answer');
+
+Finder _round(String label) =>
+    find.byWidgetPredicate((w) => w is RoundIconButton && w.label == label);
+
+Future<void> _more(WidgetTester tester) => _tap(tester, _round('More'));
 
 Finder _button(String label) =>
     find.byWidgetPredicate((w) => w is IqButton && w.label == label);
@@ -71,8 +75,8 @@ List<Draft> _drafts(DemoRepository repository) => repository.data.drafts;
 
 void main() {
   testWidgets(
-    'B3: View the brief opens the brief sheet; Back to writing and the scrim '
-    'return to the draft as it was',
+    'B3: More holds View the brief, which opens the brief sheet; Back to '
+    'writing and the scrim return to the draft as it was',
     (tester) async {
       await pumpApp(
         tester,
@@ -84,7 +88,10 @@ void main() {
       await _type(tester, _field('Title'), SubmitCopy.title);
       await _type(tester, _answer(), SubmitCopy.shortAnswer);
 
-      await _tap(tester, _button('View the brief'));
+      await _more(tester);
+      expect(find.byType(SubmitMoreSheet), findsOneWidget);
+      await _tap(tester, find.text('View the brief'));
+      expect(find.byType(SubmitMoreSheet), findsNothing);
       expect(find.byType(BriefSheet), findsOneWidget);
       final route =
           ModalRoute.of(tester.element(find.byType(BriefSheet)))!
@@ -107,7 +114,8 @@ void main() {
       expect(find.text(SubmitCopy.shortAnswer), findsOneWidget);
       expect(find.text(SubmitCopy.title), findsOneWidget);
 
-      await _tap(tester, _button('View the brief'));
+      await _more(tester);
+      await _tap(tester, find.text('View the brief'));
       await tester.tapAt(const Offset(20, 80));
       await tester.pumpAndSettle();
       expect(find.byType(BriefSheet), findsNothing);
@@ -133,20 +141,22 @@ void main() {
 
       await _tap(tester, find.text('Start your submission'));
       expect(find.byType(SubmitScreen), findsOneWidget);
-      expect(find.text('Your submission'), findsOneWidget);
-      expect(find.text('Sunline'), findsOneWidget);
-      expect(find.text('₦150k'), findsOneWidget);
-      expect(find.text('Closes in 6h'), findsOneWidget);
-      expect(find.text("What's your take?"), findsOneWidget);
+      expect(find.text('Sunline'), findsWidgets);
+      expect(find.text(SubmitCopy.briefTitle), findsWidgets);
+      expect(_field('Title'), findsOneWidget);
+      expect(find.text('At least 5 characters'), findsOneWidget);
+      expect(find.text('At least 20 characters'), findsOneWidget);
       expect(find.text('20 more characters to go'), findsOneWidget);
-      expect(find.text('1 of 2'), findsOneWidget);
-      expect(find.text('0/5,000 characters'), findsOneWidget);
-      expect(find.text('Drafts autosave until you send.'), findsOneWidget);
+      expect(find.text('Step 1 of 2'), findsOneWidget);
+      expect(find.text('0/5,000'), findsOneWidget);
+      expect(find.text('View the brief'), findsNothing);
+      expect(tester.widget<SubmitField>(_field('Title')).error, isFalse);
       expect(haptics, [_commit]);
 
       await _tap(tester, find.text('Continue'));
-      expect(find.text("What's your take?"), findsOneWidget);
-      expect(tester.widget<IqField>(_field('Title')).state, IqFieldState.error);
+      expect(_field('Title'), findsOneWidget);
+      expect(tester.widget<SubmitField>(_field('Title')).error, isTrue);
+      expect(tester.widget<SubmitField>(_answer()).error, isTrue);
       expect(find.text('5 more characters'), findsOneWidget);
       expect(find.text('20 more characters'), findsOneWidget);
       expect(haptics, [_commit, _error]);
@@ -154,26 +164,27 @@ void main() {
       await _type(tester, _field('Title'), SubmitCopy.title);
       await _type(tester, _answer(), SubmitCopy.shortAnswer);
       expect(find.text('4 more characters'), findsOneWidget);
-      expect(find.text('16/5,000 characters'), findsOneWidget);
-      expect(tester.widget<IqField>(_field('Title')).note, '25/120');
+      expect(find.text('16/5,000'), findsOneWidget);
+      expect(tester.widget<SubmitField>(_field('Title')).counter, '25/120');
       expect(_drafts(repository).single.title, SubmitCopy.title);
       expect(_drafts(repository).single.step, DraftSteps.answer);
 
       await _type(tester, _answer(), SubmitCopy.answer);
       expect(find.text('Ready for the next step'), findsOneWidget);
-      expect(find.text('74/5,000 characters'), findsOneWidget);
+      expect(find.text('74/5,000'), findsOneWidget);
+      expect(tester.widget<SubmitField>(_answer()).error, isFalse);
 
       await _tap(tester, find.text('Continue'));
       expect(find.text('A few quick questions'), findsOneWidget);
       expect(find.text('Which language should lead? (pick one)'), findsOne);
       expect(find.text('Question 1 needs an answer'), findsOneWidget);
-      expect(find.text('2 of 2'), findsOneWidget);
-      expect(find.text('Up to 5 files · 10 MB each'), findsOneWidget);
+      expect(find.text('Step 2 of 2'), findsOneWidget);
+      expect(find.text('Attachments'), findsNothing);
       expect(tester.widget<IqButton>(_button('Submit')).disabled, isTrue);
       expect(_drafts(repository).single.step, DraftSteps.questions);
 
       await _tap(tester, find.bySemanticsLabel('Back'));
-      expect(find.text("What's your take?"), findsOneWidget);
+      expect(_answer(), findsOneWidget);
       expect(find.text('Ready for the next step'), findsOneWidget);
       await _tap(tester, find.text('Continue'));
       haptics.clear();
@@ -193,16 +204,21 @@ void main() {
       expect(find.text('Ready to send'), findsOneWidget);
       FocusManager.instance.primaryFocus?.unfocus();
       await tester.pumpAndSettle();
-      expect(find.text('19/500 · required'), findsOneWidget);
+      expect(find.text('19/500'), findsOneWidget);
       expect(tester.widget<IqButton>(_button('Submit')).disabled, isFalse);
       expect(_drafts(repository).single.step, DraftSteps.ready);
 
+      await _more(tester);
+      expect(find.text('Up to 5 files · 10 MB each'), findsOneWidget);
+      expect(find.text('Saved on this phone as you type'), findsOneWidget);
       await _tap(tester, find.text('Attachments'));
       expect(picker.picks, hasLength(1));
       expect(find.text('3 files · 4.1 MB'), findsOneWidget);
       expect(find.text('sunline-tagline.pdf'), findsOneWidget);
       expect(find.text('Added · 1.2 MB'), findsOneWidget);
       expect(find.text('Added · 0:42'), findsOneWidget);
+      await _tap(tester, _round('Close'));
+      expect(find.byType(SubmitMoreSheet), findsNothing);
       haptics.clear();
 
       await _tap(tester, find.text('Submit'));
@@ -325,7 +341,7 @@ void main() {
     expect(find.text('A few quick questions'), findsOneWidget);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
-    expect(find.text("What's your take?"), findsOneWidget);
+    expect(_answer(), findsOneWidget);
     await _tap(tester, find.text('Continue'));
     await _tap(tester, find.text('Submit'));
     await tester.binding.handlePopRoute();
@@ -352,8 +368,8 @@ void main() {
   ) async {
     final haptics = recordHaptics(tester);
     await pumpApp(tester, Routes.submitTo('c9'), overrides: instantSubmit());
-    expect(find.text('Swapit'), findsOneWidget);
-    expect(find.text('1 of 1'), findsOneWidget);
+    expect(find.text('Swapit'), findsWidgets);
+    expect(find.text('One step'), findsOneWidget);
     expect(find.text('Continue'), findsNothing);
 
     await _type(tester, _field('Title'), 'Show the IMEI check');
@@ -369,9 +385,8 @@ void main() {
     expect(haptics, [_success]);
   });
 
-  testWidgets('B3: a short title says what is missing when it loses focus', (
-    tester,
-  ) async {
+  testWidgets('B3: a short title stays calm until Continue, then says what '
+      'is missing', (tester) async {
     await pumpApp(
       tester,
       Routes.submitTo('c5'),
@@ -379,15 +394,19 @@ void main() {
       overrides: instantSubmit(),
     );
     await _type(tester, _field('Title'), 'Hi');
-    expect(tester.widget<IqField>(_field('Title')).state, isNull);
     await tester.tap(_answer());
     await tester.pumpAndSettle();
-    expect(tester.widget<IqField>(_field('Title')).state, IqFieldState.error);
+    expect(tester.widget<SubmitField>(_field('Title')).error, isFalse);
+    expect(find.text('3 more characters'), findsNothing);
+    expect(find.text('2/120'), findsOneWidget);
+
+    await _tap(tester, find.text('Continue'));
+    expect(tester.widget<SubmitField>(_field('Title')).error, isTrue);
     expect(find.text('3 more characters'), findsOneWidget);
+    expect(tester.getRect(_field('Title')).top, greaterThan(0));
+
     await _type(tester, _field('Title'), 'Hi there');
-    await tester.tap(_answer());
-    await tester.pumpAndSettle();
-    expect(tester.widget<IqField>(_field('Title')).state, IqFieldState.valid);
+    expect(tester.widget<SubmitField>(_field('Title')).error, isFalse);
     expect(find.text('8/120'), findsOneWidget);
   });
 
@@ -399,11 +418,7 @@ void main() {
     expect(find.text(SubmitCopy.title), findsOneWidget);
     expect(find.text(SubmitCopy.shortAnswer), findsOneWidget);
     expect(find.text('4 more characters to go'), findsOneWidget);
-    expect(
-      find.text('Welcome back. Your draft is here, saved 1d ago.'),
-      findsOneWidget,
-    );
-    expect(find.text('Drafts autosave until you send.'), findsNothing);
+    expect(find.text('Step 1 of 2'), findsOneWidget);
   });
 
   testWidgets('B17: a draft past the answer opens on the questions', (
@@ -593,7 +608,7 @@ void main() {
     );
     expect(find.text("Can't submit right now"), findsOneWidget);
     expect(find.text('This brief is for a different audience.'), findsOne);
-    expect(find.text("What's your take?"), findsNothing);
+    expect(_field('Title'), findsNothing);
   });
 
   testWidgets('B3: attachments upload, fail, retry and stop at five of '
@@ -610,6 +625,7 @@ void main() {
       repository: readyToSend(),
       overrides: instantSubmit(picker: picker, uploader: uploader),
     );
+    await _more(tester);
     await _tap(tester, find.text('Attachments'));
     expect(find.text('Uploading · 60%'), findsOneWidget);
     expect(find.text('Failed · tap to retry'), findsOneWidget);
@@ -644,6 +660,7 @@ void main() {
       repository: readyToSend(),
       overrides: instantSubmit(picker: picker, uploader: ScriptedUploader()),
     );
+    await _more(tester);
     picker.next = const [
       AttachmentFile(name: 'deck.pdf', bytes: 9 * 1024 * 1024),
       AttachmentFile(name: 'photos.pdf', bytes: 9 * 1024 * 1024),
@@ -665,7 +682,7 @@ void main() {
       overrides: instantSubmit(),
     );
     await _type(tester, _answer(), 'a' * (SubmitLimits.answerMax + 20));
-    expect(find.text('5000/5,000 characters'), findsOneWidget);
+    expect(find.text('5,000/5,000'), findsOneWidget);
   });
 
   // A field's text input is its one-line value box inside the larger area
@@ -717,7 +734,7 @@ void main() {
 
     service.fail = false;
     await _tap(tester, find.text('Try again'));
-    expect(find.text("What's your take?"), findsOneWidget);
+    expect(_field('Title'), findsOneWidget);
   });
 
   test('signing out forgets the autosaves of earlier builds', () async {

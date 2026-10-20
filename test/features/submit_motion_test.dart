@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/motion.dart';
+import 'package:iqly_mobile/features/submit/submit_field.dart';
+import 'package:iqly_mobile/features/submit/submit_header.dart';
 import 'package:iqly_mobile/features/submit/submit_sent.dart';
 import 'package:iqly_mobile/features/submit/submit_steps.dart';
 import 'package:iqly_mobile/features/submit/submit_widgets.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/theme/theme.dart';
-import 'package:iqly_mobile/ui/field.dart';
 import 'package:iqly_mobile/ui/poll_option.dart';
 
 import '../golden/screens/app_harness.dart';
@@ -135,12 +136,22 @@ void main() {
         repository: readyToSend(),
         overrides: instantSubmit(),
       );
-      await tester.ensureVisible(find.text('Attachments'));
+      await tester.tap(
+        find.byWidgetPredicate(
+          (w) => w is RoundIconButton && w.label == 'More',
+        ),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Attachments'));
       await tester.pumpAndSettle();
       const file = 'voice-note.m4a';
       expect(find.text(file), findsOneWidget);
+      await tester.tap(
+        find.byWidgetPredicate(
+          (w) => w is RoundIconButton && w.label == 'Close',
+        ),
+      );
+      await tester.pumpAndSettle();
 
       await tester.tap(find.text('Submit'));
       await tester.pump();
@@ -160,18 +171,17 @@ void main() {
           everyElement(IqPollOptionState.selected),
           reason: 'at $at ms',
         );
-        expect(find.text(file), findsOneWidget, reason: 'at $at ms');
         expect(
           tester
-              .widget<IqField>(
+              .widget<SubmitField>(
                 find.byWidgetPredicate(
                   (w) =>
-                      w is IqField &&
+                      w is SubmitField &&
                       w.label == 'Where would you put this line first?',
                 ),
               )
-              .state,
-          IqFieldState.valid,
+              .counter,
+          '56/500',
           reason: 'at $at ms',
         );
       }
@@ -190,21 +200,24 @@ void main() {
     });
   });
 
-  testWidgets('the answer rule crosses from err to ok over 160 ms', (
-    tester,
-  ) async {
+  testWidgets('a field\'s line crosses to err over 160 ms, only once it '
+      'is told', (tester) async {
     final controller = TextEditingController();
     final focus = FocusNode();
     addTearDown(controller.dispose);
     addTearDown(focus.dispose);
-    Future<void> area(AnswerLook look) => tester.pumpWidget(
+    Future<void> field({required bool error}) => tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: AnswerArea(
+          body: SubmitField(
+            label: 'Your answer',
+            requirement: 'At least 20 characters',
+            placeholder: 'Write your answer',
+            counter: '0/5,000',
             controller: controller,
             focusNode: focus,
-            look: look,
-            length: 0,
+            error: error,
+            many: true,
           ),
         ),
       ),
@@ -221,13 +234,13 @@ void main() {
                 as BoxDecoration)
             .color!;
 
-    await area(AnswerLook.error);
-    expect(rule(), IqColors.err);
-    await area(AnswerLook.ready);
+    await field(error: false);
+    expect(rule(), IqColors.line);
+    await field(error: true);
     await tester.pump(const Duration(milliseconds: 80));
+    expect(rule(), isNot(IqColors.line));
     expect(rule(), isNot(IqColors.err));
-    expect(rule(), isNot(IqColors.ok));
     await tester.pump(const Duration(milliseconds: 80));
-    expect(rule(), IqColors.ok);
+    expect(rule(), IqColors.err);
   });
 }
