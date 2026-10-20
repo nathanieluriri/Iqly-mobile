@@ -3725,6 +3725,49 @@ void _rules19OctOn(String? base) {
         expect(told, unorderedEquals([20000, 30000]));
       });
 
+      test('proof mode, paid by step: step 1 confirmed, then a proof of '
+          'step 2 turned down after the close ends the run, and nothing more '
+          'is promised', () async {
+        final service = walk.activations;
+        final id = await walk.publish(
+          'Rate a recipe, closed while step 2 waits',
+          stepRewards: [20000, 30000],
+        );
+        await service.start(id);
+        final run = await walk.runOf(id);
+        await walk.asOwner(
+          'POST',
+          '/activations/owner/$id/completions/$run/confirm-step',
+          {'step': 0},
+        );
+        final one = await service.refresh(id);
+        expect(one.payoutOf(0)!.kobo, 20000);
+        final video = walk.recording('closing.mp4');
+        final checking = await service.sendProof(
+          id,
+          step: 1,
+          uploadId: await walk.upload(id, video),
+          video: video,
+        );
+        expect(checking.phaseAt(DateTime.now()), ActivationPhase.checking);
+        await walk.asOwner('POST', '/activations/owner/$id/close');
+        await walk.asOwner(
+          'POST',
+          '/activations/owner/$id/completions/$run/reject',
+          {'reason': 'The recording ends too soon.'},
+        );
+
+        final raw = (await walk.api.get('/activations/$id')).data;
+        expect((raw['progress'] as Map)['status'], 'expired');
+        expect(raw['phase'], 'not_accepted');
+        final ended = await service.refresh(id);
+        final now = DateTime.now();
+        expect(ended.progress!.ended, isTrue);
+        expect(ended.phaseAt(now), ActivationPhase.notAccepted);
+        expect(ended.canProveAt(now), isFalse, reason: 'Your proof says ended');
+        expect(ended.stillPayable, 0);
+      });
+
       test('postback mode: the run\'s code, one signed postback per step, '
           'and the run paid on the last', () async {
         final service = walk.activations;
@@ -3857,16 +3900,8 @@ void _rules19OctOn(String? base) {
           'confirming',
         );
 
-        final video = walk.recording('held.mp4');
-        final upload = await walk.upload(id, video);
-        final refused = await walk.api.post('/activations/$id/proof', {
-          'step': 0,
-          'uploadId': upload,
-        });
-        expect(refused.code, 'ACTIVATION_PROOF_NOT_DUE');
-        final details = (refused.body['error'] as Map)['details'] as Map;
-        expect(details['heldUntil'], isNotNull);
-        await service.discard(id, upload);
+        // The refusal of a proof for a held step, heldUntil and all, is the
+        // next test's; proof uploads are limited to ten a minute.
 
         await walk.asOwner(
           'POST',
