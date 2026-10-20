@@ -17,9 +17,10 @@ abstract class PollsService {
   /// One poll the person may see, under its business with that poll alone.
   Future<PollBusiness> poll(String pollId);
 
-  /// Casts the person's vote for [choice] on [pollId] and answers with the
-  /// poll as it stands after it, so the shares include it.
-  Future<Poll> vote(String pollId, int choice);
+  /// Casts the person's vote for [choice] on [pollId]'s question at
+  /// [question] (0 for its first) and answers with the poll as it stands
+  /// after it, so the shares include it.
+  Future<Poll> vote(String pollId, int choice, {int question = 0});
 }
 
 class DemoPollsService implements PollsService {
@@ -53,13 +54,18 @@ class DemoPollsService implements PollsService {
   }
 
   @override
-  Future<Poll> vote(String pollId, int choice) async {
+  Future<Poll> vote(String pollId, int choice, {int question = 0}) async {
     await _wait();
     for (final business in _businesses) {
       for (final poll in business.polls) {
         if (poll.id != pollId) continue;
-        if (poll.voted || poll.closedAt(_clock())) return poll;
-        final counted = poll.withVote(choice);
+        if (question >= poll.questions.length ||
+            poll.questions[question].answered ||
+            !poll.asks(question) ||
+            poll.closedAt(_clock())) {
+          return poll;
+        }
+        final counted = poll.withVote(choice, question: question);
         _businesses = [
           for (final b in _businesses) b == business ? b.withPoll(counted) : b,
         ];
@@ -74,36 +80,50 @@ class DemoPollsService implements PollsService {
 /// vote goes online only, since its answer is the results to show. A
 /// refusal throws [ApiRefused] with the API's code.
 class LivePollsService implements PollsService {
-  LivePollsService(this.link);
+  LivePollsService(this.link, {this.questions = false});
 
   final AccountLink link;
 
+  /// Health's `pollsV2`: a poll's later questions are read and answered.
+  final bool questions;
+
   @override
-  Future<List<PollBusiness>> businesses() async =>
-      pollBusinessesFromJson(await link.fetch('/polls', AccountKeys.polls));
+  Future<List<PollBusiness>> businesses() async => pollBusinessesFromJson(
+    await link.fetch('/polls', AccountKeys.polls),
+    questions: questions,
+  );
 
   /// What the phone kept from the last list, without asking the API.
-  Future<List<PollBusiness>> kept() async =>
-      pollBusinessesFromJson(await link.kept(AccountKeys.polls) ?? const {});
+  Future<List<PollBusiness>> kept() async => pollBusinessesFromJson(
+    await link.kept(AccountKeys.polls) ?? const {},
+    questions: questions,
+  );
 
   @override
   Future<PollBusiness> poll(String pollId) async {
     final res = await link.scope.guard(
       link.api.get('/polls/${Uri.encodeComponent(pollId)}'),
     );
-    final business = res.ok ? pollAloneFromJson(res.data) : null;
+    final business = res.ok
+        ? pollAloneFromJson(res.data, questions: questions)
+        : null;
     if (business == null) throw ApiRefused.of(res);
     return business;
   }
 
+  /// A later question goes only to an API that asks them.
   @override
-  Future<Poll> vote(String pollId, int choice) async {
+  Future<Poll> vote(String pollId, int choice, {int question = 0}) async {
+    if (question > 0 && !questions) {
+      throw const FeaturePaused(LiveFeature.pollsV2);
+    }
     final res = await link.scope.guard(
       link.api.post('/polls/${Uri.encodeComponent(pollId)}/vote', {
         'choice': choice,
+        if (question > 0) 'question': question,
       }),
     );
-    final poll = res.ok ? pollFromJson(res.data) : null;
+    final poll = res.ok ? pollFromJson(res.data, questions: questions) : null;
     if (poll == null) throw ApiRefused.of(res);
     return poll;
   }
@@ -123,40 +143,84 @@ class PausedPollsService implements PollsService {
   Future<PollBusiness> poll(String pollId) => _paused();
 
   @override
-  Future<Poll> vote(String pollId, int choice) => _paused();
+  Future<Poll> vote(String pollId, int choice, {int question = 0}) => _paused();
+}
+
+List<String> _choices(Object? json) => [
+  if (json case final List<Object?> list)
+    for (final choice in list)
+      if (choice is String) choice,
+];
+
+List<int> _counts(Object? counted, int length) => [
+  for (var i = 0; i < length; i++)
+    counted is List && i < counted.length ? apiInt(counted[i]) ?? 0 : 0,
+];
+
+int? _pick(Object? json, int length) {
+  final chosen = apiInt(json);
+  return chosen != null && chosen >= 0 && chosen < length ? chosen : null;
+}
+
+/// A later question of a `pollsV2` poll: `{question, choices, chosen,
+/// votes, showIf: {question, choices} | null}`, `showIf.question` the index
+/// of the earlier question it follows. Null when it has no question or
+/// choices.
+PollQuestion? pollQuestionFromJson(Object? json) {
+  if (json is! Map) return null;
+  final question = apiText(json['question']);
+  final choices = _choices(json['choices']);
+  if (question == null || choices.isEmpty) return null;
+  final branch = json['showIf'];
+  final after = branch is Map ? apiInt(branch['question']) : null;
+  return PollQuestion(
+    question: question,
+    choices: choices,
+    votes: _counts(json['votes'], choices.length),
+    chosen: _pick(json['chosen'], choices.length),
+    showIf: branch is Map && after != null
+        ? PollBranch(
+            question: after,
+            choices: [
+              if (branch['choices'] case final List<Object?> picks)
+                for (final pick in picks) ?apiInt(pick),
+            ],
+          )
+        : null,
+  );
 }
 
 /// A contract 11.1 poll, or null without an id, a question, choices or a
-/// close.
-Poll? pollFromJson(Object? json) {
+/// close. With [questions] (health's `pollsV2`) up to three questions are
+/// read from `questions`, whose first is the poll's own; a later question
+/// that does not read, or one past the third, ends them there.
+Poll? pollFromJson(Object? json, {bool questions = false}) {
   if (json is! Map) return null;
   final id = apiText(json['id']);
   final question = apiText(json['question']);
   final closesAt = apiTime(json['closesAt']);
-  final choices = [
-    if (json['choices'] case final List<Object?> list)
-      for (final choice in list)
-        if (choice is String) choice,
-  ];
+  final choices = _choices(json['choices']);
   if (id == null || question == null || closesAt == null || choices.isEmpty) {
     return null;
   }
-  final counted = json['votes'];
-  final votes = [
-    for (var i = 0; i < choices.length; i++)
-      counted is List && i < counted.length ? apiInt(counted[i]) ?? 0 : 0,
-  ];
-  final chosen = apiInt(json['chosen']);
+  final followUps = <PollQuestion>[];
+  final asked = json['questions'];
+  if (questions && asked is List) {
+    for (final item in asked.skip(1).take(2)) {
+      final next = pollQuestionFromJson(item);
+      if (next == null) break;
+      followUps.add(next);
+    }
+  }
   return Poll(
     id: id,
     question: question,
     choices: choices,
-    votes: votes,
+    votes: _counts(json['votes'], choices.length),
     closesAt: closesAt,
-    chosen: chosen != null && chosen >= 0 && chosen < choices.length
-        ? chosen
-        : null,
+    chosen: _pick(json['chosen'], choices.length),
     closed: json['closed'] == true,
+    followUps: followUps,
   );
 }
 
@@ -176,19 +240,25 @@ PollBusiness? _business(Object? json, List<Poll> polls) {
 }
 
 /// `GET /polls`, in the API's order.
-List<PollBusiness> pollBusinessesFromJson(Map<String, dynamic> json) => [
+List<PollBusiness> pollBusinessesFromJson(
+  Map<String, dynamic> json, {
+  bool questions = false,
+}) => [
   if (json['businesses'] case final List<Object?> businesses)
     for (final business in businesses)
       if (business is Map)
         ?_business(business, [
           if (business['polls'] case final List<Object?> polls)
-            for (final poll in polls) ?pollFromJson(poll),
+            for (final poll in polls) ?pollFromJson(poll, questions: questions),
         ]),
 ];
 
 /// `GET /polls/:id`: the poll under the business it names.
-PollBusiness? pollAloneFromJson(Map<String, dynamic> json) {
-  final poll = pollFromJson(json);
+PollBusiness? pollAloneFromJson(
+  Map<String, dynamic> json, {
+  bool questions = false,
+}) {
+  final poll = pollFromJson(json, questions: questions);
   return poll == null ? null : _business(json['business'], [poll]);
 }
 
@@ -198,5 +268,10 @@ final pollsServiceProvider = Provider<PollsService>((ref) {
   ref.watch(accountProvider);
   if (ref.watch(liveModeProvider).isPreview) return DemoPollsService();
   final link = ref.watch(liveLinkProvider(LiveFeature.polls));
-  return link == null ? const PausedPollsService() : LivePollsService(link);
+  return link == null
+      ? const PausedPollsService()
+      : LivePollsService(
+          link,
+          questions: ref.watch(liveModeProvider).isLive(LiveFeature.pollsV2),
+        );
 });

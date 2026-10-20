@@ -20,7 +20,7 @@ class FailingPollsService extends DemoPollsService {
   FailingPollsService() : super(delay: Duration.zero, clock: () => figmaNow);
 
   @override
-  Future<Poll> vote(String pollId, int choice) async =>
+  Future<Poll> vote(String pollId, int choice, {int question = 0}) async =>
       throw Exception('offline');
 }
 
@@ -33,9 +33,9 @@ class HeldPollsService extends DemoPollsService {
   void release() => _gate.complete();
 
   @override
-  Future<Poll> vote(String pollId, int choice) async {
+  Future<Poll> vote(String pollId, int choice, {int question = 0}) async {
     await _gate.future;
-    return super.vote(pollId, choice);
+    return super.vote(pollId, choice, question: question);
   }
 }
 

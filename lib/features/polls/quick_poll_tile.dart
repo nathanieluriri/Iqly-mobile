@@ -27,7 +27,7 @@ class QuickPollTile extends ConsumerWidget {
       question: business.headline,
       meta: business.allAnswered
           ? 'Answered'
-          : questions(business.polls.length),
+          : questions(business.questionCount),
       cover: businessCover(business.cover),
       logo: businessLogo(business.logo),
       onTap: closed ? null : onTap,

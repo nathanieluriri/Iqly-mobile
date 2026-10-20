@@ -44,12 +44,18 @@ class PollsNotifier extends AsyncNotifier<List<PollBusiness>> {
     } catch (_) {}
   }
 
-  /// Votes [choice] on [pollId].
-  Future<VoteOutcome> vote(String pollId, int choice) async {
+  /// Votes [choice] on [pollId]'s question at [question].
+  Future<VoteOutcome> vote(
+    String pollId,
+    int choice, {
+    int question = 0,
+  }) async {
     final scope = ref.read(accountScopeProvider);
     final Poll poll;
     try {
-      poll = await ref.read(pollsServiceProvider).vote(pollId, choice);
+      poll = await ref
+          .read(pollsServiceProvider)
+          .vote(pollId, choice, question: question);
     } on ApiRefused catch (refusal) {
       if (unanswered(refusal)) return VoteOutcome.offline;
       if (refusal.code == 'ACCOUNT_CLOSING') return VoteOutcome.closing;
@@ -148,10 +154,10 @@ String pollTimeLeft(Duration left) {
 
 String questions(int count) => '$count question${count == 1 ? '' : 's'}';
 
-/// The poll sheet's BrandHeader line: "1 poll · 2 questions · about 10
+/// The poll sheet's BrandHeader line: "1 poll · 3 questions · about 15
 /// seconds", five seconds a question.
 String pollDetail(PollBusiness business) {
-  final count = business.polls.length;
+  final count = business.questionCount;
   return '1 poll · ${questions(count)} · about ${count * 5} seconds';
 }
 
@@ -167,3 +173,35 @@ String pollDoneDetail(PollBusiness business) {
 /// stops taking taps (480:22779).
 bool pollsClosed(PollBusiness business, DateTime now) =>
     business.polls.every((p) => p.closedAt(now));
+
+/// The businesses whose questions the person is walking one at a time
+/// this session: from their first vote in the walk until they press Done,
+/// the sheet stays on the question rather than turn to "You’re done".
+class PollsWalkingNotifier extends Notifier<Set<String>> {
+  @override
+  Set<String> build() {
+    ref.watch(accountProvider);
+    return const {};
+  }
+
+  void walk(String businessId) {
+    if (!state.contains(businessId)) state = {...state, businessId};
+  }
+
+  void finish(String businessId) => state = {...state}..remove(businessId);
+}
+
+final pollsWalkingProvider =
+    NotifierProvider<PollsWalkingNotifier, Set<String>>(
+      PollsWalkingNotifier.new,
+    );
+
+/// "QUESTION 2 OF 3", or "LAST QUESTION" once a branch skipped one so the
+/// count would mislead.
+String pollStepLabel({
+  required int at,
+  required int count,
+  required bool last,
+  required bool skipped,
+}) => (last && skipped ? 'Last question' : 'Question ${at + 1} of $count')
+    .toUpperCase();

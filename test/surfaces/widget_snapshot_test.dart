@@ -27,7 +27,7 @@ void main() {
 
   test('Small: unanswered polls and the soonest close', () {
     final s = WidgetSnapshot.of(briefs: data.briefs, polls: polls, now: now);
-    expect(s.pollsOpen, 3);
+    expect(s.pollsOpen, 2);
     expect(s.pollsLabel, 'polls open');
     expect(s.pollsLine, 'Sunline closes in 6h');
     final hidden = WidgetSnapshot.of(
@@ -51,7 +51,7 @@ void main() {
     expect(json['version'], 1);
     final first = (json['entries']! as List).first as Map;
     expect(first['at'], now.millisecondsSinceEpoch);
-    expect((first['polls'] as Map)['count'], '3');
+    expect((first['polls'] as Map)['count'], '2');
     expect(t.thumbs, containsAll(['thumb_sunline.png', 'thumb_kudi-box.png']));
   });
 

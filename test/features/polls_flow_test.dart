@@ -46,9 +46,8 @@ const _books = 'Where do you buy your course books?';
 const _kiosk = 'When should a kiosk open in the morning?';
 
 void main() {
-  testWidgets('B2: See all, Orchid Foods, two votes, done, back to Discover', (
-    tester,
-  ) async {
+  testWidgets('B2: See all, Orchid Foods, three questions one at a time, '
+      'done, back to Discover', (tester) async {
     final haptics = recordHaptics(tester);
     final container = await pumpApp(
       tester,
@@ -56,7 +55,7 @@ void main() {
       overrides: pollsLane(),
     );
     expect(find.text('Quick polls'), findsOneWidget);
-    expect(_tile(tester, _flavour).meta, '2 questions');
+    expect(_tile(tester, _flavour).meta, '3 questions');
     expect(_tile(tester, _flavour).state, IqPollTileState.open);
     expect(_tile(tester, _books).meta, '1 question');
     expect(_tile(tester, _kiosk).state, IqPollTileState.answered);
@@ -69,12 +68,13 @@ void main() {
     await _tap(tester, find.text(_flavour));
     expect(find.byType(PollSheet), findsOneWidget);
     expect(
-      find.text('1 poll · 2 questions · about 10 seconds'),
+      find.text('1 poll · 3 questions · about 15 seconds'),
       findsOneWidget,
     );
-    expect(find.text('Pick one'), findsNWidgets(2));
-    expect(find.text('Closes in 2 days'), findsOneWidget);
-    expect(find.text('Closes in 5 days'), findsOneWidget);
+    expect(find.text('QUESTION 1 OF 3'), findsOneWidget);
+    expect(find.text('Pick one'), findsOneWidget);
+    expect(find.text('Back'), findsNothing);
+    expect(find.text(_size), findsNothing);
     expect(_card(tester, _flavour).state, IqPollCardState.open);
 
     await _tap(tester, find.text('Zobo and ginger'));
@@ -90,18 +90,31 @@ void main() {
       ),
     );
     expect(chosen.state, IqPollOptionState.chosen);
-    expect(_card(tester, _size).state, IqPollCardState.open);
-    expect(find.text('Quick polls'), findsWidgets);
+
+    await _tap(tester, find.text('Next question'));
+    expect(find.text('QUESTION 2 OF 3'), findsOneWidget);
+    expect(find.text('Because you picked Zobo and ginger'), findsOneWidget);
+    await _tap(tester, find.text('Back'));
+    expect(find.text('QUESTION 1 OF 3'), findsOneWidget);
+    expect(_card(tester, _flavour).state, IqPollCardState.voted);
+    await _tap(tester, find.text('Next question'));
+
+    await _tap(tester, find.text('A little'));
+    expect(find.text('You voted · 96 votes'), findsOneWidget);
+    await _tap(tester, find.text('Next question'));
+    expect(find.text('QUESTION 3 OF 3'), findsOneWidget);
 
     await _tap(tester, find.text('1 litre bottle'));
+    expect(find.text('You voted · 198 votes'), findsOneWidget);
+    expect(find.text('Quick polls'), findsWidgets);
+    await _tap(tester, find.text('Done'));
     expect(find.text('You’re done'), findsOneWidget);
     expect(
       find.text(
-        '2 answers sent. Orchid Foods shares the results in about a week.',
+        '3 answers sent. Orchid Foods shares the results in about a week.',
       ),
       findsOneWidget,
     );
-    expect(find.text('You voted · 198 votes'), findsOneWidget);
     expect(find.text('Pick one'), findsNothing);
     expect(
       container
@@ -122,6 +135,26 @@ void main() {
     expect(find.byType(HomeScreen), findsOneWidget);
     expect(_tile(tester, _flavour).state, IqPollTileState.answered);
     expect(_tile(tester, _books).state, IqPollTileState.open);
+  });
+
+  testWidgets('B2: Tiger nut skips the ginger question to the last one', (
+    tester,
+  ) async {
+    await pumpApp(tester, pollsOf('orchid-foods'), overrides: pollsLane());
+    await _tap(tester, find.text('Tiger nut'));
+    await _tap(tester, find.text('Next question'));
+    expect(find.text('LAST QUESTION'), findsOneWidget);
+    expect(find.text('How much ginger should it have?'), findsNothing);
+    expect(find.text(_size), findsOneWidget);
+    await _tap(tester, find.text('50cl can'));
+    await _tap(tester, find.text('Done'));
+    expect(
+      find.text(
+        '2 answers sent. Orchid Foods shares the results in about a week.',
+      ),
+      findsOneWidget,
+    );
+    await _tap(tester, _labelled('Close'));
   });
 
   testWidgets('B2: a tile raises its business over the Quick polls page', (

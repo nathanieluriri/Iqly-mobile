@@ -51,19 +51,29 @@ void main() {
     test('the tiles read as the frames do', () {
       final [orchid, unibooks, sunline] = demoPolls(figmaNow);
       expect(orchid.headline, 'Which flavour should we launch first?');
-      expect(questions(orchid.polls.length), '2 questions');
+      expect(questions(orchid.questionCount), '3 questions');
       expect(unibooks.headline, 'Where do you buy your course books?');
-      expect(questions(unibooks.polls.length), '1 question');
+      expect(questions(unibooks.questionCount), '1 question');
       expect(sunline.headline, 'When should a kiosk open in the morning?');
       expect(sunline.allAnswered, isTrue);
-      expect(pollDetail(orchid), '1 poll · 2 questions · about 10 seconds');
-      final done = orchid
-          .withPoll(orchid.polls.first.withVote(0))
-          .withPoll(orchid.polls.last.withVote(1));
+      expect(pollDetail(orchid), '1 poll · 3 questions · about 15 seconds');
+      final poll = orchid.polls.single;
+      expect(poll.asks(1), isFalse);
+      final zobo = poll.withVote(0);
+      expect(zobo.asks(1), isTrue);
+      expect(zobo.voted, isFalse);
+      final ginger = zobo.withVote(0, question: 1);
+      expect(ginger.questions[1].total, 96);
+      expect(ginger.questions[1].shares, [26, 48, 26]);
+      final done = orchid.withPoll(ginger.withVote(2, question: 2));
+      expect(done.allAnswered, isTrue);
       expect(
         pollDoneDetail(done),
-        '2 answers sent. Orchid Foods shares the results in about a week.',
+        '3 answers sent. Orchid Foods shares the results in about a week.',
       );
+      final tiger = poll.withVote(1);
+      expect(tiger.skips(1), isTrue);
+      expect(tiger.withVote(0, question: 2).voted, isTrue);
       expect(pollsClosed(sunline, figmaNow), isFalse);
       expect(
         pollsClosed(sunline, figmaNow.add(const Duration(days: 2))),
