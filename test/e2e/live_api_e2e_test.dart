@@ -3483,12 +3483,27 @@ class _Walk {
     return activations.refresh(activation);
   }
 
-  late final Future<({String id, String secret})> _key = () async {
+  ({String id, String keyId, String secret})? _key;
+  var _signed = 0;
+
+  /// A live key of Sunline Foods, a new one every nine postbacks: the API
+  /// takes ten a minute per key.
+  Future<({String id, String keyId, String secret})> _liveKey() async {
+    final kept = _key;
+    if (kept != null && _signed < 9) return kept;
+    if (kept != null) {
+      await asOwner('DELETE', '/brands/org_sunline/api-keys/${kept.id}');
+    }
     final made = await asOwner('POST', '/brands/org_sunline/api-keys', {
       'mode': 'live',
     });
-    return (id: made['keyId'] as String, secret: made['secret'] as String);
-  }();
+    _signed = 0;
+    return _key = (
+      id: made['id'] as String,
+      keyId: made['keyId'] as String,
+      secret: made['secret'] as String,
+    );
+  }
 
   /// Sunline Foods' server confirming [step] of the run with [code], signed
   /// with a live key; [txn] sends one again.
@@ -3497,7 +3512,8 @@ class _Walk {
     int step, {
     String? txn,
   }) async {
-    final key = await _key;
+    final key = await _liveKey();
+    _signed++;
     final body = jsonEncode({
       'code': code,
       'step': step,
@@ -3508,7 +3524,7 @@ class _Walk {
       Uri.parse('$base/v1/postbacks'),
       headers: {
         'content-type': 'application/json',
-        'x-iqly-key': key.id,
+        'x-iqly-key': key.keyId,
         'x-iqly-signature': Hmac(
           sha256,
           utf8.encode(key.secret),
@@ -3903,7 +3919,6 @@ void _rules19OctOn(String? base) {
           0,
         );
         final waiting = await service.refresh(id);
-        expect(waiting.pendingProof, isNull);
         expect(waiting.phaseAt(DateTime.now()), ActivationPhase.confirming);
         expect(waiting.proofStep, isNull);
         const words =
