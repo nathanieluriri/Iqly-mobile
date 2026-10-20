@@ -300,10 +300,7 @@ void main() {
       );
       expect(heldBack.phaseAt(_now), ActivationPhase.confirming);
       expect(heldBack.proofStep, isNull);
-      expect(
-        proofHeldBack(heldBack, _now),
-        'Kudi Box has reported this step. It counts when its hold ends.',
-      );
+      expect(proofHeldBack(heldBack, _now), 'Waiting for Kudi Box to confirm.');
 
       final open = _kudiBox(ConfirmationMode.postback, run(proof: refused));
       expect(open.phaseAt(_now), ActivationPhase.notAccepted);
@@ -343,7 +340,7 @@ void main() {
           'dueAt': null,
           'heldUntil': '2026-10-03T14:10:00.000Z',
         }),
-        'Kudi Box has reported this step. It counts when its hold ends.',
+        'Waiting for Kudi Box to confirm.',
       );
       expect(
         proofNotDueText(early, {'step': 0, 'dueAt': '2026-10-03T14:10:00Z'}),
@@ -383,8 +380,7 @@ void main() {
         confirmationMode: ConfirmationMode.postback,
         rewardMode: rewards == null ? RewardMode.perRun : RewardMode.perStep,
       ).withProgress(run);
-      const held =
-          'Kudi Box has reported this step. It counts when its hold ends.';
+      const held = 'Waiting for Kudi Box to confirm.';
 
       test('per_run with steps still to do: it can no longer finish, so it '
           'has ended', () {

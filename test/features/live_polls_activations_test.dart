@@ -618,6 +618,148 @@ void main() {
         });
       }
 
+      for (final (name, stepRewards, confirmed, step, pays) in [
+        ('per_step', [20000, 30000, 100000], 1, 1, '₦300.00'),
+        ('per_run, on its last step', null, 2, 2, '₦1,500.00'),
+      ]) {
+        testWidgets('Your proof of a run that has ended promises no money '
+            '($name)', (tester) async {
+          Map<String, Object?> refused({required bool ended}) =>
+              _json.activationJson(
+                status: ended ? 'closed' : 'live',
+                confirmationMode: 'proof',
+                rewardMode: stepRewards == null ? null : 'per_step',
+                stepRewards: stepRewards,
+                phase: 'not_accepted',
+                progress: _json.runJson(
+                  status: ended ? 'expired' : 'started',
+                  expiredAt: ended ? _json.at(Duration.zero) : null,
+                  confirmedAt: [
+                    for (var i = 0; i < confirmed; i++)
+                      _json.at(const Duration(hours: 2)),
+                  ],
+                  stepPayouts: stepRewards == null
+                      ? null
+                      : [
+                          for (var i = 0; i < confirmed; i++)
+                            _json.payoutJson(
+                              i,
+                              stepRewards[i],
+                              const Duration(hours: 2),
+                            ),
+                        ],
+                  proof: _json.proofJson(
+                    status: 'rejected',
+                    reason: 'The recording ends too soon.',
+                    step: step,
+                  ),
+                ),
+              );
+          var run = refused(ended: false);
+          final api = _Api({
+            'GET /activations': (_) => _ok({
+              'items': [run],
+            }),
+            'GET /activations/a_1': (_) => _ok(run),
+          });
+          final (container, _) = await pumpLiveLaunch(
+            tester,
+            activationPath('a_1'),
+            api: api.client,
+            mode: Backend.of({...gated.live, LiveFeature.support}),
+          );
+          await tester.pumpAndSettle();
+          expect(find.text('Record again'), findsOneWidget);
+          expect(find.text('Paid to your wallet'), findsOneWidget);
+          expect(find.text('$pays after confirmation'), findsOneWidget);
+
+          run = refused(ended: true);
+          await container.read(activationsProvider.notifier).refresh('a_1');
+          await tester.pumpAndSettle();
+          expect(
+            find.text('Proof not accepted. The recording ends too soon.'),
+            findsOneWidget,
+          );
+          expect(_button('This activation has ended'), findsOneWidget);
+          expect(find.text('Record again'), findsNothing);
+          expect(find.text('Paid to your wallet'), findsNothing);
+          expect(find.textContaining('after confirmation'), findsNothing);
+          await tester.scrollUntilVisible(find.text('Ask for help'), 100);
+          expect(find.text('Not credited yet?'), findsNothing);
+          expect(find.textContaining('Support usually replies'), findsNothing);
+        });
+      }
+
+      testWidgets('a mode this build does not know, with the API reading '
+          'not_confirmed before any step is confirmed, draws the run as '
+          'before without failing', (tester) async {
+        final odd = _json.activationJson(
+          confirmationMode: 'carrier_pigeon',
+          phase: 'not_confirmed',
+          progress: _json.runJson(started: const Duration(hours: 25)),
+        );
+        final api = _Api({
+          'GET /activations': (_) => _ok({
+            'items': [odd],
+          }),
+          'GET /activations/a_1': (_) => _ok(odd),
+        });
+        await pumpLiveLaunch(
+          tester,
+          activationPath('a_1'),
+          api: api.client,
+          mode: gated,
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(find.text('Not started · 3 steps'), findsOneWidget);
+        expect(find.textContaining('Upload proof'), findsNothing);
+        expect(_button('Open Harbour Telecom'), findsOneWidget);
+      });
+
+      testWidgets('a per-step activation\'s card reads Up to, as its page '
+          'does; one paying per run keeps the chip', (tester) async {
+        final api = _Api({
+          'GET /activations': (_) => _ok({
+            'items': [
+              _json.activationJson(
+                confirmationMode: 'proof',
+                rewardMode: 'per_step',
+                stepRewards: [20000, 30000, 100000],
+                closesAt: _json.inn(const Duration(days: 1)),
+              ),
+              _json.activationJson(
+                id: 'a_2',
+                title: 'Top up ₦500 with the Harbour app',
+                confirmationMode: 'proof',
+              ),
+            ],
+          }),
+          'GET /challenges/browse': (_) => _ok({
+            'items': [
+              challengeJson({
+                'brandName': 'Lagoon Data',
+                'audienceFilters': {},
+              }),
+            ],
+            'pageCount': 1,
+          }),
+        });
+        final (_, router) = await pumpLiveLaunch(
+          tester,
+          Routes.activations,
+          api: api.client,
+          mode: gated,
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Up to ₦1,500'), findsOneWidget);
+        expect(find.text('₦1.5k'), findsOneWidget);
+
+        router.go(Routes.home);
+        await tester.pumpAndSettle();
+        expect(find.text('Up to ₦1,500', skipOffstage: false), findsOneWidget);
+      });
+
       testWidgets('paid by step: Up to on the offer, Paid on a paid step', (
         tester,
       ) async {
@@ -662,9 +804,7 @@ void main() {
         expect(find.text('₦500 earned of up to ₦1,500'), findsOneWidget);
       });
 
-      const held =
-          'Harbour Telecom has reported this step. It counts when its hold '
-          'ends.';
+      const held = 'Waiting for Harbour Telecom to confirm.';
 
       /// Postback mode, a day after the start: step 1's proof was turned
       /// down, then the business's server reported the step, which it holds.

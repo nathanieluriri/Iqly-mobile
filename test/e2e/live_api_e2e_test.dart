@@ -3921,9 +3921,7 @@ void _rules19OctOn(String? base) {
         final waiting = await service.refresh(id);
         expect(waiting.phaseAt(DateTime.now()), ActivationPhase.confirming);
         expect(waiting.proofStep, isNull);
-        const words =
-            'Sunline Foods has reported this step. It counts when its hold '
-            'ends.';
+        const words = 'Waiting for Sunline Foods to confirm.';
         expect(proofHeldBack(waiting, DateTime.now()), words);
 
         final again = walk.recording('again.mp4');
@@ -4005,8 +4003,7 @@ void _rules19OctOn(String? base) {
         );
         expect(
           proofHeldBack(closed, now),
-          'Sunline Foods has reported this step. It counts when its hold '
-          'ends.',
+          'Waiting for Sunline Foods to confirm.',
         );
         final late = await walk.postback(code, 1);
         expect(late['status'], 'flagged');

@@ -441,6 +441,59 @@ void main() {
         expect(local.sentPhase, isNull);
       });
 
+      test(
+        'a kept copy of the list is read as of when it was fetched, so '
+        'the phone\'s own reading wins once time has moved past it',
+        () async {
+          var clock = _now;
+          var offline = false;
+          final api = ApiClient(
+            tokens: MemoryTokenStore('signed.token'),
+            baseUrl: 'https://api.test',
+            client: MockClient((r) async {
+              if (offline) throw http.ClientException('offline', r.url);
+              return switch ('${r.method} ${r.url.path}') {
+                'GET /activations' => _ok({
+                  'items': [
+                    _f.activationJson(
+                      confirmationMode: 'proof',
+                      phase: 'not_confirmed',
+                      closesAt: _f.inn(const Duration(hours: 1)),
+                      progress: _f.runJson(started: Duration.zero),
+                    ),
+                  ],
+                }),
+                _ => _ok({'items': <Object>[], 'nextCursor': null}),
+              };
+            }),
+          );
+          final service = LiveActivationsService(
+            AccountLink(
+              api: api,
+              store: MemoryLocalStore(clock: () => clock),
+              outbox: Outbox(MemoryLocalStore()),
+              userId: () => 'u_1',
+            ),
+            clock: () => clock,
+            stepProof: true,
+          );
+          final fresh = (await service.activations()).single;
+          expect(fresh.phaseAt(clock), ActivationPhase.recording);
+
+          clock = _now.add(const Duration(hours: 2));
+          offline = true;
+          final kept = (await service.activations()).single;
+          expect(kept.sentPhase, ActivationPhase.recording);
+          expect(kept.sentAt!.isAtSameMomentAs(_now), isTrue);
+          expect(
+            kept.phaseAt(clock),
+            ActivationPhase.expired,
+            reason: 'it has closed since the copy was fetched',
+          );
+          expect(kept.phaseAt(_now), ActivationPhase.recording);
+        },
+      );
+
       test('a malformed payout is left out', () {
         final a = gated(
           _f.activationJson(
