@@ -135,7 +135,6 @@ class IqChatMedia extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(width: IqSpace.s1),
         ],
       ),
     );
@@ -173,7 +172,6 @@ class IqChatMedia extends StatelessWidget {
                   color: _ink ? IqColors.sidebarFg : IqColors.fg,
                 ),
               ),
-              const SizedBox(height: IqSpace.s0p5),
               Text(
                 meta,
                 maxLines: 1,

@@ -10,6 +10,8 @@ import 'package:iqly_mobile/data/activations_service.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/repository.dart';
+import 'package:iqly_mobile/data/help_service.dart'
+    show supportChannelsProvider;
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/theme/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -61,7 +63,8 @@ bool _overrides(List<Override> overrides, Object provider) =>
 /// activations Discover shows answer at once unless [overrides] swap them;
 /// [overrides] swap services (an instant wallet service, say). [settle]
 /// false stops after the first frame, for motion tests. Returns the
-/// container so a test can drive providers.
+/// container so a test can drive providers. The help screens are the ones
+/// before the chat redesign unless [supportChannels].
 Future<ProviderContainer> pumpApp(
   WidgetTester tester,
   String location, {
@@ -72,6 +75,7 @@ Future<ProviderContainer> pumpApp(
   bool settle = true,
   DateTime Function()? clock,
   TransitionBuilder? builder,
+  bool supportChannels = false,
 }) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
@@ -99,6 +103,8 @@ Future<ProviderContainer> pumpApp(
             delay: Duration.zero,
           ),
         ),
+      if (!_overrides(overrides, supportChannelsProvider))
+        supportChannelsProvider.overrideWithValue(supportChannels),
       ...overrides,
     ],
   );

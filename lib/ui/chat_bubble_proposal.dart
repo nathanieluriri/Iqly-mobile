@@ -93,6 +93,7 @@ class IqChatBubbleProposal extends StatelessWidget {
               ],
             )
           : Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 ?text,
@@ -116,6 +117,7 @@ class IqChatBubbleProposal extends StatelessWidget {
       ),
       child: IntrinsicWidth(
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (!_you && name != null)

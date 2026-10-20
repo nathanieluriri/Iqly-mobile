@@ -43,6 +43,7 @@ Future<void> _golden(
     tester,
     location,
     clock: () => chatNow,
+    supportChannels: true,
     overrides: [
       ...laneOverrides(help: help ?? chatHelp()),
       ...helpActivations(),

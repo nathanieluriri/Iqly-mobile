@@ -171,7 +171,9 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
                     controller: _search,
                   ),
                   const SizedBox(height: IqSpace.s3),
-                  Row(
+                  Wrap(
+                    spacing: IqSpace.s2,
+                    runSpacing: IqSpace.s2,
                     children: [
                       IqChip(
                         label: 'Open · ${open.length}',
@@ -180,7 +182,6 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
                             : IqChipState.selected,
                         onChanged: (_) => setState(() => _resolved = false),
                       ),
-                      const SizedBox(width: IqSpace.s2),
                       IqChip(
                         label: 'Resolved · ${resolved.length}',
                         state: _resolved

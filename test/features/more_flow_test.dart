@@ -333,7 +333,7 @@ void main() {
     await _tap(tester, find.text('Still stuck? Chat with us'));
     expect(_path(tester), Routes.support);
     expect(find.text('Withdrawal to Access Bank'), findsOneWidget);
-    expect(find.text('Kudi Box · step 2 proof'), findsOneWidget);
+    expect(find.text('Kudi Box activation'), findsOneWidget);
     await _tap(tester, find.text('Start a new conversation'));
     await tester.enterText(find.byType(EditableText), 'My bank changed.');
     await tester.pumpAndSettle();
