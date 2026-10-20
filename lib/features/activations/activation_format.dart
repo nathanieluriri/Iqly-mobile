@@ -86,6 +86,11 @@ String offerReward(Activation activation) => activation.showsStepRewards
     ? 'Up to ${reward(activation)}'
     : '${reward(activation)} per completion';
 
+/// The reward on a list's card: the chip ("₦1.5k"), or the offer's "Up to
+/// ₦1,500" once several steps pay, as the detail page words it.
+String cardReward(Activation activation, String chip) =>
+    activation.showsStepRewards ? offerReward(activation) : chip;
+
 /// What a per-step run has earned so far: "₦50 earned of up to ₦1,000".
 /// Once the activation has closed ([now]), "up to" is only what it can
 /// still be paid: the steps a hold or a waiting proof can still confirm.
@@ -98,15 +103,12 @@ String earnedLine(Activation activation, {DateTime? now}) {
   return '${rewardPool(earned)} earned of up to ${rewardPool(most)}';
 }
 
-/// The offer's line on how a per-step activation pays: B8's mobile preview
-/// when the business's app confirms each step, else the round 18 rules.
+/// The offer's line on how a per-step activation pays, in the design
+/// profile's rules for step rewards (round 18), whoever confirms the steps.
 String perStepLine(Activation activation) {
   final by = DateFormat('d MMM').format(activation.closesAt);
-  return activation.confirmationMode == ConfirmationMode.postback
-      ? 'Each step pays when the ${activation.business} app confirms it. '
-            'Finish every step by $by.'
-      : 'Rewards land in your iQLY wallet as each step is confirmed. '
-            'Finish every step by $by, when the activation ends.';
+  return 'Rewards land in your iQLY wallet as each step is confirmed. '
+      'Finish every step by $by, when the activation ends.';
 }
 
 /// Whether step [i]'s row shows an amount: a paying step, once more than one
@@ -139,7 +141,7 @@ String progressLine(Activation activation) => activation.confirmed == 0
 /// business has reported waits out its hold; in postback mode, or without
 /// a mode, a step first waits a day for the business.
 String? proofHeldBack(Activation activation, DateTime now) {
-  if (activation.holdsNextAt(now)) return _held(activation);
+  if (activation.holdsNextAt(now)) return heldLine(activation);
   if (activation.confirmationMode == ConfirmationMode.proof) return null;
   return switch (activation.phaseAt(now)) {
     ActivationPhase.started ||
@@ -152,15 +154,16 @@ String? proofHeldBack(Activation activation, DateTime now) {
 /// the API words it with the business named: held when it sends
 /// `heldUntil`, else the rule of the activation's mode.
 String proofNotDueText(Activation activation, Map<String, dynamic>? details) {
-  if (details?['heldUntil'] != null) return _held(activation);
+  if (details?['heldUntil'] != null) return heldLine(activation);
   return activation.confirmationMode == ConfirmationMode.proof
       ? 'Send proof of the next step, one step at a time.'
       : _notDue(activation);
 }
 
-String _held(Activation activation) =>
-    '${activation.business} has reported this step. It counts when its hold '
-    'ends.';
+/// The design profile's words for a step the business has reported and
+/// holds, wherever it shows.
+String heldLine(Activation activation) =>
+    'Waiting for ${activation.business} to confirm.';
 
 String _notDue(Activation activation) =>
     'Proof can be sent once a step has waited a day for '

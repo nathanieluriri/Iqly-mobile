@@ -480,12 +480,15 @@ class Activation {
     return _phaseAt(at) == here ? sent : here;
   }
 
-  /// Whether this activation holds what [phase]'s page shows.
+  /// Whether this activation holds what [phase]'s page shows: a step
+  /// waiting or one to prove where the page names it, say.
   bool _drawable(ActivationPhase phase) => switch (phase) {
     ActivationPhase.offer || ActivationPhase.expired => true,
     ActivationPhase.credited => progress?.paidAt != null,
     ActivationPhase.checking ||
     ActivationPhase.notAccepted => progress?.proof != null,
+    ActivationPhase.notConfirmed => waitingStep != null && proofStep != null,
+    ActivationPhase.recording => proofStep != null,
     _ => progress != null,
   };
 

@@ -708,7 +708,7 @@ class _StepsPage extends StatelessWidget {
             : _stuck
             ? 'Not confirmed after a day'
             : a.heldAt(i)
-            ? 'Waiting for ${a.business} to confirm.'
+            ? heldLine(a)
             : '${a.business} is checking. Usually a few minutes.',
         divider: divider,
         showReward: showReward,
@@ -736,7 +736,8 @@ class _StepsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final a = activation;
     final waiting = a.waitingStep;
-    final proving = _stuck || _recording;
+    final proof = a.proofStep;
+    final proving = (_stuck || _recording) && proof != null;
     final closed = a.closedAt(now);
     final code = a.confirmationMode == ConfirmationMode.postback && !closed
         ? a.progress?.refCode
@@ -750,10 +751,12 @@ class _StepsPage extends StatelessWidget {
           vertical: IqSpace.s2,
         ),
         child: IqProgressThread(
-          status: _stuck
-              ? 'Step ${waiting! + 1} not confirmed yet'
+          status: _stuck && waiting != null
+              ? 'Step ${waiting + 1} not confirmed yet'
               : progressLine(a),
-          count: _stuck ? waitingCount(a, now) : deadlineText(a, now),
+          count: _stuck && waiting != null
+              ? waitingCount(a, now)
+              : deadlineText(a, now),
         ),
       ),
       body: ListView(
@@ -805,7 +808,7 @@ class _StepsPage extends StatelessWidget {
       actions: [
         if (proving)
           IqButton(
-            label: 'Upload proof of step ${a.proofStep! + 1}',
+            label: 'Upload proof of step ${proof + 1}',
             showIcon: false,
             width: double.infinity,
             onTap: onProof,
@@ -967,7 +970,8 @@ class _ProofPage extends StatelessWidget {
     final refused = proof.notAccepted;
     final label = IqText.bodyStrong.copyWith(color: IqColors.fg3);
     final ended = refused != null && !a.canProveAt(now);
-    final pays = a.paysFor(proof.step);
+    // A run that has ended pays nothing more, whatever the step was worth.
+    final pays = ended ? 0 : a.paysFor(proof.step);
     void help() => context.open(helpPath(about: a.id));
     return _Page(
       title: 'Your proof',

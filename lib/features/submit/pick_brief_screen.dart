@@ -363,7 +363,7 @@ class _ActivationCard extends StatelessWidget {
       meta: [
         IqMeta(
           kind: IqMetaKind.reward,
-          label: poolShort(activation.rewardKobo),
+          label: cardReward(activation, poolShort(activation.rewardKobo)),
         ),
         IqMeta(
           kind: IqMetaKind.urgent,

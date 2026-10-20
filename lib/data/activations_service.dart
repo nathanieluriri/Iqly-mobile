@@ -387,8 +387,11 @@ class LiveActivationsService implements ActivationsService {
   /// of theirs that list left out.
   @override
   Future<List<Activation>> activations() async {
-    final json = await link.fetch('/activations', AccountKeys.activations);
-    final listed = _items(json);
+    final (:json, :fetchedAt) = await link.fetchDated(
+      '/activations',
+      AccountKeys.activations,
+    );
+    final listed = _items(json, at: fetchedAt);
     await _authorize();
     final mine = await _mine().catchError((Object _) => const <Activation>[]);
     final ids = {for (final a in listed) a.id};
@@ -414,10 +417,12 @@ class LiveActivationsService implements ActivationsService {
     return runs;
   }
 
-  List<Activation> _items(Map<String, dynamic> json) => [
+  /// The activations of [json], read as of [at] when it is a copy kept
+  /// from then: its phases stand only until time moves on from it.
+  List<Activation> _items(Map<String, dynamic> json, {DateTime? at}) => [
     if (json['items'] case final List<Object?> items)
       for (final item in items)
-        ?activationFromJson(item, now: _clock(), stepProof: stepProof),
+        ?activationFromJson(item, now: at ?? _clock(), stepProof: stepProof),
   ];
 
   Future<Activation> _one(Future<ApiResponse> sending) async {

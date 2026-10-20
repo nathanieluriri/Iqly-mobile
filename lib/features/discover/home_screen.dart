@@ -731,7 +731,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               meta: [
                 IqMeta(
                   kind: IqMetaKind.reward,
-                  label: rewardShort(open.first.rewardKobo),
+                  label: cardReward(
+                    open.first,
+                    rewardShort(open.first.rewardKobo),
+                  ),
                 ),
                 IqMeta(
                   kind: IqMetaKind.urgent,
