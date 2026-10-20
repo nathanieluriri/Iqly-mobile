@@ -23,6 +23,7 @@ import '../../ui/option_row.dart';
 import '../more/more_widgets.dart';
 import '../onboarding/onboarding_draft.dart';
 import '../onboarding/onboarding_flow.dart';
+import '../onboarding/gender_screen.dart' show genderHelp;
 import '../onboarding/onboarding_sheets.dart';
 import '../onboarding/what_you_like_screen.dart';
 import '../onboarding/your_work_screen.dart';
@@ -32,7 +33,7 @@ import 'your_details_screen.dart';
 
 /// The B7 Edit pages (429:18775 phone, 429:18828 date of birth, 429:18881
 /// state, 484:22641 university, 429:18966 interests, 484:22898 occupation,
-/// 484:22728 city, 484:22815 education): one value, Save in the action bar
+/// 484:22728 city, 484:22815 education, 1599:33111 gender): one value, Save in the action bar
 /// (designer answer 40). Back leaves without saving. A save the account
 /// refuses keeps the page and says so on the error banner.
 ///
@@ -50,6 +51,7 @@ class EditDetailScreen extends StatelessWidget {
     DetailField.dateOfBirth => const _DateOfBirthEdit(),
     DetailField.interests => const _InterestsEdit(),
     DetailField.occupation => const _OccupationEdit(),
+    DetailField.gender => const _GenderEdit(),
     DetailField.state ||
     DetailField.university ||
     DetailField.city ||
@@ -912,3 +914,56 @@ OnboardingProfile _answers(
   university: university,
   interests: interests,
 );
+
+/// B7 · Edit · Gender (1599:33111): the three choices as option rows, the
+/// one held ticked, and why it is asked under them.
+class _GenderEdit extends ConsumerStatefulWidget {
+  const _GenderEdit();
+
+  @override
+  ConsumerState<_GenderEdit> createState() => _GenderEditState();
+}
+
+class _GenderEditState extends ConsumerState<_GenderEdit> {
+  String? _choice;
+
+  @override
+  Widget build(BuildContext context) {
+    final held = profileGender(
+      ref.watch(accountDetailsProvider).value,
+      ref.watch(profileAnswersProvider),
+    );
+    final picked = _choice ?? held;
+    return _EditPage(
+      title: DetailField.gender.label,
+      canSave: picked != null,
+      onSave: () async {
+        final choice = picked;
+        if (choice != null) {
+          await saveProfile(
+            ref,
+            details: (d) => d.copyWith(gender: choice),
+            answers: (a) => a.copyWith(gender: choice),
+          );
+        }
+        return true;
+      },
+      body: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          for (final option in Reference.genders)
+            IqOptionRow(
+              label: option.label,
+              showNote: false,
+              state: option.value == picked
+                  ? IqOptionRowState.selected
+                  : IqOptionRowState.standard,
+              onTap: () => setState(() => _choice = option.value),
+            ),
+          const SizedBox(height: IqSpace.s2),
+          Text(genderHelp, style: IqText.small.copyWith(color: IqColors.fg3)),
+        ],
+      ),
+    );
+  }
+}

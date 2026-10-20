@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/backend.dart';
+import '../core/deadline.dart';
 import '../core/money.dart';
 import '../core/session.dart';
 import 'activations_data.dart';
@@ -87,12 +88,14 @@ abstract class HelpService {
   /// [ticketId] now and as support answers it: typing, then the reply.
   Stream<HelpTicket> watch(String ticketId);
 
-  /// Adds the person's [body] to [ticketId]. [idempotencyKey] stays the
-  /// same for a reply sent again after its answer was lost.
+  /// Adds the person's [body] to [ticketId], with the uploaded
+  /// [attachments]; a resolved thread opens again. [idempotencyKey] stays
+  /// the same for a reply sent again after its answer was lost.
   Future<HelpTicket> reply(
     String ticketId,
     String body, {
     String? idempotencyKey,
+    List<HelpAttachment> attachments = const [],
   });
 
   /// The person marks [ticketId] as resolved.
@@ -130,9 +133,13 @@ class DemoHelpService implements HelpService {
     this.replyAfter = const Duration(milliseconds: 2400),
     String? firstName,
     DateTime Function()? clock,
+    DateTime? seededAt,
   }) : firstName = firstName ?? DemoData.user.firstName,
        _clock = clock ?? DateTime.now {
-    for (final ticket in DemoHelp.conversations(this.firstName)) {
+    for (final ticket in DemoHelp.conversations(
+      this.firstName,
+      seededAt ?? DateTime.now(),
+    )) {
       _save(ticket);
     }
   }
@@ -187,11 +194,14 @@ class DemoHelpService implements HelpService {
   Future<HelpTicket> send(HelpRequest request) async {
     await _wait(delay);
     requests.add(request);
+    final about = request.activation;
     final ticket = HelpTicket(
       id: 't${_next++}',
       subject: request.subject,
       status: HelpTicketStatus.open,
-      activationId: request.activation?.id,
+      activationId: about?.id,
+      channel: about == null ? HelpChannel.iqly : HelpChannel.business,
+      withName: about?.business,
       messages: [
         HelpMessage(
           author: HelpAuthor.you,
@@ -238,6 +248,8 @@ class DemoHelpService implements HelpService {
           ...current.messages,
           HelpMessage(
             author: HelpAuthor.support,
+            side: HelpSide.business,
+            authorName: about.business,
             body: DemoHelp.reply(
               firstName,
               steps: about.steps.length,
@@ -255,15 +267,23 @@ class DemoHelpService implements HelpService {
     String ticketId,
     String body, {
     String? idempotencyKey,
+    List<HelpAttachment> attachments = const [],
   }) async {
     await _wait(delay);
     final ticket = _ticket(ticketId);
     return _save(
       ticket.copyWith(
         status: HelpTicketStatus.open,
+        resolvedBy: () => null,
         messages: [
           ...ticket.messages,
-          HelpMessage(author: HelpAuthor.you, body: body, at: _clock()),
+          HelpMessage(
+            author: HelpAuthor.you,
+            body: body,
+            at: _clock(),
+            attachment: attachments.firstOrNull,
+            more: attachments.skip(1).toList(),
+          ),
         ],
       ),
     );
@@ -296,7 +316,12 @@ class DemoHelpService implements HelpService {
   @override
   Future<HelpTicket> resolve(String ticketId) async {
     await _wait(delay);
-    return _save(_ticket(ticketId).copyWith(status: HelpTicketStatus.resolved));
+    return _save(
+      _ticket(ticketId).copyWith(
+        status: HelpTicketStatus.resolved,
+        resolvedBy: () => HelpSide.you,
+      ),
+    );
   }
 }
 
@@ -304,7 +329,9 @@ class DemoHelpService implements HelpService {
 /// launch without it reads and sends nothing.
 final helpServiceProvider = Provider<HelpService>((ref) {
   ref.watch(accountProvider);
-  if (ref.watch(liveModeProvider).isPreview) return DemoHelpService();
+  if (ref.watch(liveModeProvider).isPreview) {
+    return DemoHelpService(seededAt: ref.read(clockProvider)());
+  }
   final link = ref.watch(liveLinkProvider(LiveFeature.support));
   if (link == null) return const PausedHelpService();
   return LiveHelpService(link, files: ref.watch(supportFilesProvider));
@@ -329,3 +356,13 @@ final supportLiveProvider = Provider<bool>(
 final helpAuthorNamesProvider = Provider<bool>(
   (ref) => ref.watch(liveModeProvider).isLive(LiveFeature.helpAuthorNames),
 );
+
+/// Whether the chats of the three channels run this launch (health's
+/// `supportChannels`): the inbox of iQLY and business threads, threads on
+/// the chat canvas, and Ask for help opening the business's thread. The
+/// preview draws them as the frames do; a live API without them keeps the
+/// screens before.
+final supportChannelsProvider = Provider<bool>((ref) {
+  final mode = ref.watch(liveModeProvider);
+  return mode.isPreview || mode.isLive(LiveFeature.supportChannels);
+});

@@ -20,7 +20,7 @@ class ResumeScreen extends ConsumerWidget {
     final firstName = ref.watch(greetingNameProvider);
     final next =
         ref.watch(onboardingDraftProvider.select((d) => d.lastStep)) ??
-        OnboardingStep.aboutYou;
+        OnboardingStep.gender;
     return OnboardingHeroScaffold(
       figure: IqFigures.cheer,
       title: firstName == null ? 'Welcome back' : 'Welcome back, $firstName',
@@ -39,7 +39,7 @@ class ResumeScreen extends ConsumerWidget {
       ghost: 'Start over',
       onGhost: () {
         ref.read(onboardingDraftProvider.notifier).startOver();
-        goToStep(context, ref, OnboardingStep.aboutYou);
+        goToStep(context, ref, OnboardingStep.gender);
       },
     );
   }

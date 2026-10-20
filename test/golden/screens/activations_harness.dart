@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:iqly_mobile/data/help_service.dart'
+    show supportChannelsProvider;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -217,6 +219,7 @@ Future<ProviderContainer> pumpActivations(
   bool reducedMotion = true,
   bool settle = true,
   List<Override> overrides = const [],
+  bool supportChannels = false,
 }) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
@@ -246,6 +249,7 @@ Future<ProviderContainer> pumpActivations(
       deviceServiceProvider.overrideWithValue(
         device ?? DemoDeviceService(delay: Duration.zero),
       ),
+      supportChannelsProvider.overrideWithValue(supportChannels),
       ...overrides,
     ],
   );

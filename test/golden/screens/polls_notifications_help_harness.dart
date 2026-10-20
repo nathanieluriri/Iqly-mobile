@@ -20,7 +20,7 @@ class FailingPollsService extends DemoPollsService {
   FailingPollsService() : super(delay: Duration.zero, clock: () => figmaNow);
 
   @override
-  Future<Poll> vote(String pollId, int choice) async =>
+  Future<Poll> answer(String pollId, List<PollAnswer> answers) async =>
       throw Exception('offline');
 }
 
@@ -33,9 +33,9 @@ class HeldPollsService extends DemoPollsService {
   void release() => _gate.complete();
 
   @override
-  Future<Poll> vote(String pollId, int choice) async {
+  Future<Poll> answer(String pollId, List<PollAnswer> answers) async {
     await _gate.future;
-    return super.vote(pollId, choice);
+    return super.answer(pollId, answers);
   }
 }
 
@@ -87,6 +87,7 @@ DemoHelpService instantHelp({Duration? replyAfter = Duration.zero}) {
     uploadStep: Duration.zero,
     typingAfter: Duration.zero,
     replyAfter: replyAfter,
+    seededAt: figmaNow,
     clock: () => times[call < times.length ? call++ : times.length - 1],
   );
 }

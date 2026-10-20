@@ -6,6 +6,7 @@ import '../../router.dart';
 import 'about_you_screen.dart';
 import 'add_university_screen.dart';
 import 'done_screen.dart';
+import 'gender_screen.dart';
 import 'resume_screen.dart';
 import 'welcome_screen.dart';
 import 'what_you_like_screen.dart';
@@ -19,6 +20,7 @@ import 'your_work_screen.dart';
 final onboardingRoutes = <RouteBase>[
   _handoff(Routes.onboarding, const WelcomeScreen()),
   _handoff(Routes.onboardingResume, const ResumeScreen()),
+  _push(Routes.onboardingGender, const GenderScreen()),
   _push(Routes.onboardingAboutYou, const AboutYouScreen()),
   _push(Routes.onboardingWhereYouLive, const WhereYouLiveScreen()),
   _push(Routes.onboardingWhereYouStudied, const WhereYouStudiedScreen()),

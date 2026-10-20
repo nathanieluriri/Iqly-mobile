@@ -138,6 +138,7 @@ class DemoProfileService implements ProfileService {
   AccountDetails details = AccountDetails(
     phone: '+234 801 234 5678',
     dateOfBirth: DateTime(1998, 3, 14),
+    gender: 'female',
     stateOfOrigin: 'Lagos',
   );
   OnboardingProfile? answers;

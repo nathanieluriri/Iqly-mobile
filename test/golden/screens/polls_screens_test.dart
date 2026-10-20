@@ -57,31 +57,93 @@ void main() {
     );
   });
 
-  testWidgets('Orchid Foods · open (33:169)', (tester) async {
-    await _golden(tester, 'orchid_open', pollsOf('orchid-foods'));
+  Future<void> tapText(WidgetTester tester, String text) async {
+    await tester.tap(find.text(text));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('Orchid Foods · 3 questions · Q1 (1600:33055)', (tester) async {
+    await _golden(tester, 'orchid_q1', pollsOf('orchid-foods'));
   });
 
-  testWidgets('Orchid Foods · voted (33:289)', (tester) async {
+  testWidgets('Orchid Foods · 3 questions · Q1 voted (1600:33231)', (
+    tester,
+  ) async {
     await _golden(
       tester,
-      'orchid_voted',
+      'orchid_q1_voted',
       pollsOf('orchid-foods'),
       act: (tester) => _vote(tester, 'Zobo and ginger'),
     );
   });
 
-  testWidgets('Orchid Foods · done (480:22679)', (tester) async {
+  testWidgets('Orchid Foods · 3 questions · Q2 (1600:33423)', (tester) async {
+    await _golden(
+      tester,
+      'orchid_q2',
+      pollsOf('orchid-foods'),
+      act: (tester) async {
+        await _vote(tester, 'Zobo and ginger');
+        await tapText(tester, 'Next question');
+      },
+    );
+  });
+
+  testWidgets('Orchid Foods · 3 questions · Q2 voted (1600:33608)', (
+    tester,
+  ) async {
+    await _golden(
+      tester,
+      'orchid_q2_voted',
+      pollsOf('orchid-foods'),
+      act: (tester) async {
+        await _vote(tester, 'Zobo and ginger');
+        await tapText(tester, 'Next question');
+        await _vote(tester, 'A little');
+      },
+    );
+  });
+
+  testWidgets('Orchid Foods · 3 questions · Q3 (1600:33807)', (tester) async {
+    await _golden(
+      tester,
+      'orchid_q3',
+      pollsOf('orchid-foods'),
+      act: (tester) async {
+        await _vote(tester, 'Zobo and ginger');
+        await tapText(tester, 'Next question');
+        await _vote(tester, 'A little');
+        await tapText(tester, 'Next question');
+      },
+    );
+  });
+
+  testWidgets('Orchid Foods · 3 questions · Q2 skipped (1600:33991)', (
+    tester,
+  ) async {
+    await _golden(
+      tester,
+      'orchid_q2_skipped',
+      pollsOf('orchid-foods'),
+      act: (tester) async {
+        await _vote(tester, 'Tiger nut');
+        await tapText(tester, 'Next question');
+      },
+    );
+  });
+
+  testWidgets('Orchid Foods · 3 questions · done (1600:34175)', (tester) async {
     await _golden(
       tester,
       'orchid_done',
       pollsOf('orchid-foods'),
       act: (tester) async {
         await _vote(tester, 'Zobo and ginger');
+        await tapText(tester, 'Next question');
+        await _vote(tester, 'A little');
+        await tapText(tester, 'Next question');
         await _vote(tester, '1 litre bottle');
-        await tester.drag(
-          find.byType(SingleChildScrollView).last,
-          const Offset(0, 2000),
-        );
+        await tapText(tester, 'Done');
       },
     );
   });

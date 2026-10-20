@@ -1327,10 +1327,7 @@ void main() {
             names ? findsNothing : findsOneWidget,
           );
           expect(
-            find.text(
-              'Usually replies within an hour on weekdays, within a day at '
-              'weekends.',
-            ),
+            find.text('Usually replies within a day'),
             names ? findsNothing : findsOneWidget,
           );
         });

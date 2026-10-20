@@ -8,6 +8,7 @@ import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
+import '../../data/models.dart' show SubmissionStatus;
 import '../../data/outcomes_data.dart' show BusinessNote;
 import '../../data/outcomes_service.dart' show businessNoteShownProvider;
 import '../../router.dart';
@@ -20,6 +21,7 @@ import '../../ui/section_title.dart';
 import '../../ui/skeleton.dart';
 import '../../ui/top_bar.dart';
 import '../outcomes/business_note.dart';
+import '../outcomes/outcomes_routes.dart' show leaderboardPath;
 import 'brief_art.dart';
 import 'submission_files.dart';
 import 'submissions_state.dart';
@@ -29,7 +31,9 @@ import 'submissions_state.dart';
 /// and the brief, the pool and deadline, your answer and when results come,
 /// what the person sent with it (no frame draws the files: they keep the submit
 /// flow's attachments group), and the business's note once its results are out
-/// (contract 12.2). View the brief opens Brief detail. From a card the
+/// (contract 12.2). View the brief opens Brief detail. Not selected
+/// (1639:125902, opened from the result's View your submission) shows the
+/// status plain, the pool alone, and See what won in place of View the brief. From a card the
 /// submission is already on the device, so it draws from the first frame; only
 /// a cold open waits behind LoadingGate.
 class SubmissionDetailScreen extends ConsumerWidget {
@@ -101,16 +105,24 @@ class SubmissionDetailScreen extends ConsumerWidget {
                       horizontal: IqSpace.s4,
                       vertical: IqSpace.s3,
                     ),
-                    child: IqButton(
-                      label: 'View the brief',
-                      kind: IqButtonKind.secondary,
-                      showIcon: false,
-                      width: double.infinity,
-                      onTap: () => context.open(
-                        Routes.brief(item.submission.briefId),
-                        extra: item.brief,
-                      ),
-                    ),
+                    child: _notSelected(item)
+                        ? IqButton(
+                            label: 'See what won',
+                            kind: IqButtonKind.secondary,
+                            showIcon: false,
+                            width: double.infinity,
+                            onTap: () => context.open(leaderboardPath(item.id)),
+                          )
+                        : IqButton(
+                            label: 'View the brief',
+                            kind: IqButtonKind.secondary,
+                            showIcon: false,
+                            width: double.infinity,
+                            onTap: () => context.open(
+                              Routes.brief(item.submission.briefId),
+                              extra: item.brief,
+                            ),
+                          ),
                   ),
               ],
             ),
@@ -120,6 +132,9 @@ class SubmissionDetailScreen extends ConsumerWidget {
     );
   }
 }
+
+bool _notSelected(SubmissionItem item) =>
+    item.submission.status == SubmissionStatus.filteredOut;
 
 class _Skeleton extends StatelessWidget {
   const _Skeleton();
@@ -211,7 +226,12 @@ class _Body extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: IqSpace.s2p5),
-                        IqMeta(kind: IqMetaKind.time, label: item.status.label),
+                        IqMeta(
+                          kind: _notSelected(item)
+                              ? IqMetaKind.plain
+                              : IqMetaKind.time,
+                          label: item.status.label,
+                        ),
                       ],
                     ),
                   ),
@@ -244,14 +264,16 @@ class _Body extends StatelessWidget {
                             kind: IqMetaKind.reward,
                             label: nairaShort(brief.rewardPoolKobo),
                           ),
-                          const SizedBox(width: IqSpace.s1p5),
-                          IqMeta(
-                            kind: IqMetaKind.deadline,
-                            label: closesIn(
-                              timeLeft(brief.deadline, now),
-                              closed: !brief.isLive,
+                          if (!_notSelected(item)) ...[
+                            const SizedBox(width: IqSpace.s1p5),
+                            IqMeta(
+                              kind: IqMetaKind.deadline,
+                              label: closesIn(
+                                timeLeft(brief.deadline, now),
+                                closed: !brief.isLive,
+                              ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
                     ),

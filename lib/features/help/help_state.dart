@@ -9,6 +9,7 @@ import '../../data/help_service.dart';
 import '../../data/local/local_rows.dart';
 import '../../data/models.dart';
 import '../../data/support_files.dart' show SupportSource;
+import '../activations/activations_state.dart' show activationProvider;
 import '../wallet/wallet_state.dart';
 
 /// The title of a thread about [activation] ("Kudi Box activation" in the
@@ -34,7 +35,7 @@ String helpFailureText(
   HelpFailure failure,
   HelpAttachmentKind? kind,
 ) => switch (kind ?? HelpAttachmentKind.video) {
-  HelpAttachmentKind.image => (
+  HelpAttachmentKind.image || HelpAttachmentKind.file => (
     title: failure == HelpFailure.tooLarge
         ? 'That picture is over 10 MB'
         : 'That picture can’t be sent',
@@ -201,6 +202,9 @@ class HelpDraftNotifier extends Notifier<HelpDraft> {
     );
   }
 
+  /// What was attached went with a message: the draft starts again.
+  void sent() => state = HelpDraft(key: LocalRows.newId());
+
   /// Drops the recording, uploaded or not; the API forgets an upload that
   /// was never sent.
   void removeRecording() {
@@ -336,12 +340,21 @@ class HelpTicketsNotifier extends Notifier<Map<String, HelpTicket>> {
     ref.invalidate(supportUnreadProvider);
   }
 
-  Future<void> reply(String id, String body, {String? idempotencyKey}) =>
-      _putting(
-        ref
-            .read(helpServiceProvider)
-            .reply(id, body, idempotencyKey: idempotencyKey),
-      );
+  Future<void> reply(
+    String id,
+    String body, {
+    String? idempotencyKey,
+    List<HelpAttachment> attachments = const [],
+  }) => _putting(
+    ref
+        .read(helpServiceProvider)
+        .reply(
+          id,
+          body,
+          idempotencyKey: idempotencyKey,
+          attachments: attachments,
+        ),
+  );
 
   Future<void> resolve(String id) =>
       _putting(ref.read(helpServiceProvider).resolve(id));
@@ -432,4 +445,10 @@ final supportUnreadProvider = FutureProvider.autoDispose<int>(
       return 0;
     }
   },
+);
+
+/// The title of the activation with [id], once the activations have
+/// loaded ("Rate 3 recipes in the Orchid Foods app").
+final helpActivationTitleProvider = Provider.family<String?, String>(
+  (ref, id) => ref.watch(activationProvider(id))?.title,
 );

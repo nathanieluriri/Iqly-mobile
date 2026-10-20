@@ -22,6 +22,7 @@ Future<void> _golden(
   DemoMediaService? media,
   IqlyRepository? repository,
   Future<void> Function(WidgetTester tester)? act,
+  bool supportChannels = false,
 }) async {
   await pumpActivations(
     tester,
@@ -30,6 +31,7 @@ Future<void> _golden(
     service: service,
     media: media,
     repository: repository,
+    supportChannels: supportChannels,
   );
   await precacheImages(tester);
   if (act != null) {
@@ -414,6 +416,21 @@ void main() {
         'activations_per_step_checking',
         activationPath('a1'),
         now: thursday,
+        service: instantActivations(
+          now: thursday,
+          seed: byStep(thursday, Figma.orchidStep1Paid(proof: true)),
+        ),
+      );
+    });
+
+    testWidgets('Not credited yet? asks the business in a chat (141:5549, '
+        'supportChannels)', (tester) async {
+      await _golden(
+        tester,
+        'activations_proof_help_channels',
+        activationPath('a1'),
+        now: thursday,
+        supportChannels: true,
         service: instantActivations(
           now: thursday,
           seed: byStep(thursday, Figma.orchidStep1Paid(proof: true)),

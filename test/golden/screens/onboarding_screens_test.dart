@@ -7,6 +7,7 @@ import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/features/onboarding/about_you_screen.dart';
 import 'package:iqly_mobile/features/onboarding/add_university_screen.dart';
 import 'package:iqly_mobile/features/onboarding/done_screen.dart';
+import 'package:iqly_mobile/features/onboarding/gender_screen.dart';
 import 'package:iqly_mobile/features/onboarding/resume_screen.dart';
 import 'package:iqly_mobile/features/onboarding/welcome_screen.dart';
 import 'package:iqly_mobile/features/onboarding/what_you_like_screen.dart';
@@ -29,6 +30,26 @@ void main() {
       tester,
       'onboarding_welcome',
       onboardingFrame(prefs, const WelcomeScreen()),
+    );
+  });
+
+  testWidgets('1599:32935 Step 1 Your gender', (tester) async {
+    final prefs = await onboardingPrefs(draft: {'lastStep': 'gender'});
+    await expectGolden(
+      tester,
+      'onboarding_gender',
+      onboardingFrame(prefs, const GenderScreen()),
+    );
+  });
+
+  testWidgets('1599:33021 Step 1 Your gender picked', (tester) async {
+    final prefs = await onboardingPrefs(
+      draft: {'lastStep': 'gender', 'gender': 'female'},
+    );
+    await expectGolden(
+      tester,
+      'onboarding_gender_picked',
+      onboardingFrame(prefs, const GenderScreen()),
     );
   });
 

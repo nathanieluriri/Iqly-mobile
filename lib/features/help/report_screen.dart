@@ -173,7 +173,7 @@ class _ReportIssueScreenState extends ConsumerState<ReportIssueScreen> {
           ),
           const SizedBox(height: IqSpace.s2),
           Text(
-            'We reply here and by email. ${DemoHelp.replyLine}',
+            'We reply here and by email. ${DemoHelp.replyLine}.',
             style: IqText.small.copyWith(color: IqColors.fg3),
           ),
         ],
@@ -215,7 +215,7 @@ class ReportSentScreen extends StatelessWidget {
           title: 'Report sent',
           body:
               'Ticket $ticket. We reply here and by email. '
-              '${DemoHelp.replyLine}',
+              '${DemoHelp.replyLine}.',
         ),
       ),
       actions: [

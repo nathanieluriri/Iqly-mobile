@@ -3,6 +3,7 @@ import 'package:iqly_mobile/data/onboarding_service.dart';
 import 'package:iqly_mobile/features/onboarding/onboarding_draft.dart';
 import 'package:iqly_mobile/features/onboarding/onboarding_flow.dart';
 
+const _gender = OnboardingStep.gender;
 const _aboutYou = OnboardingStep.aboutYou;
 const _study = OnboardingStep.whereYouStudied;
 const _work = OnboardingStep.yourWork;
@@ -11,15 +12,37 @@ const _like = OnboardingStep.whatYouLike;
 
 final _adult = DateTime(2000, 5, 1);
 
-OnboardingProfile _as(String? occupation) =>
-    OnboardingProfile(occupation: occupation, dateOfBirth: _adult);
+OnboardingProfile _as(String? occupation) => OnboardingProfile(
+  occupation: occupation,
+  dateOfBirth: _adult,
+  gender: 'female',
+);
 
 void main() {
   group('by occupation', () {
     final flow = OnboardingFlow.byOccupation;
 
+    test('gender comes first and must be answered', () {
+      const none = OnboardingProfile();
+      expect(flow.firstUnanswered(none), _gender);
+      expect(OnboardingFlow.answered(_gender, none), isFalse);
+      expect(
+        OnboardingFlow.answered(
+          _gender,
+          none.copyWith(gender: 'prefer_not_to_say'),
+        ),
+        isTrue,
+      );
+    });
+
     test('a student is asked where they study before where they live', () {
-      expect(flow.path(_as('student')), [_aboutYou, _study, _live, _like]);
+      expect(flow.path(_as('student')), [
+        _gender,
+        _aboutYou,
+        _study,
+        _live,
+        _like,
+      ]);
     });
 
     test('anyone else is asked about their work instead', () {
@@ -30,19 +53,26 @@ void main() {
         'unemployed',
         'other',
       ]) {
-        expect(flow.path(_as(occupation)), [_aboutYou, _work, _live, _like]);
+        expect(flow.path(_as(occupation)), [
+          _gender,
+          _aboutYou,
+          _work,
+          _live,
+          _like,
+        ]);
       }
     });
 
     test('with no occupation yet, neither is asked', () {
-      expect(flow.path(_as(null)), [_aboutYou, _live, _like]);
+      expect(flow.path(_as(null)), [_gender, _aboutYou, _live, _like]);
     });
 
     test('Back walks the same path', () {
       expect(flow.previous(_live, _as('student')), _study);
       expect(flow.previous(_live, _as('employed')), _work);
       expect(flow.previous(_live, _as(null)), _aboutYou);
-      expect(flow.previous(_aboutYou, _as('student')), isNull);
+      expect(flow.previous(_aboutYou, _as('student')), _gender);
+      expect(flow.previous(_gender, _as('student')), isNull);
     });
 
     test('a change of mind drops the answers the new path never asks', () {
@@ -92,7 +122,13 @@ void main() {
       'they live, and keeps no sector', () {
     final flow = OnboardingFlow.classic;
     for (final occupation in ['student', 'employed', null]) {
-      expect(flow.path(_as(occupation)), [_aboutYou, _live, _study, _like]);
+      expect(flow.path(_as(occupation)), [
+        _gender,
+        _aboutYou,
+        _live,
+        _study,
+        _like,
+      ]);
     }
     final kept = flow.tidy(
       _as('employed').copyWith(education: 'msc', sector: 'tech'),

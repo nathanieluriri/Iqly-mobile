@@ -34,6 +34,7 @@ class OnboardingProfile {
     this.phone = '',
     this.sector,
     this.otherSector = '',
+    this.gender,
   });
 
   final String? occupation;
@@ -60,7 +61,11 @@ class OnboardingProfile {
   final String otherSector;
 
   /// Nothing answered yet.
+  /// A Reference.genders value, asked first and required (owner, 20 Oct).
+  final String? gender;
+
   bool get isEmpty =>
+      gender == null &&
       occupation == null &&
       state == null &&
       city.trim().isEmpty &&
@@ -101,6 +106,7 @@ class OnboardingProfile {
     String? phone,
     String? sector,
     String? otherSector,
+    String? gender,
   }) => OnboardingProfile(
     occupation: occupation ?? this.occupation,
     state: state ?? this.state,
@@ -113,6 +119,7 @@ class OnboardingProfile {
     phone: phone ?? this.phone,
     sector: sector ?? this.sector,
     otherSector: otherSector ?? this.otherSector,
+    gender: gender ?? this.gender,
   );
 
   /// The same answers without what is never asked on this path: no
@@ -133,6 +140,7 @@ class OnboardingProfile {
     phone: phone,
     sector: keepWork ? sector : null,
     otherSector: keepWork ? otherSector : '',
+    gender: gender,
   );
 
   /// The same answers with [education] set, dropping the university when
@@ -160,6 +168,7 @@ class OnboardingProfile {
         phone: phone,
         sector: sector,
         otherSector: otherSector,
+        gender: gender,
       );
 }
 
@@ -201,5 +210,17 @@ final onboardingServiceProvider = Provider<OnboardingService>((ref) {
   }
   final link = ref.watch(liveLinkProvider(LiveFeature.profile));
   if (link == null) return const PausedOnboardingService();
-  return LiveOnboardingService(link, clock: ref.watch(clockProvider));
+  return LiveOnboardingService(
+    link,
+    clock: ref.watch(clockProvider),
+    askGender: ref.watch(liveModeProvider).isLive(LiveFeature.genderRequired),
+  );
+});
+
+/// Whether first run asks for a gender and Your details shows it: in the
+/// preview, and on an API whose health says `genderRequired` (contract
+/// 14.2). Without it the app behaves as before.
+final genderAskedProvider = Provider<bool>((ref) {
+  final mode = ref.watch(liveModeProvider);
+  return mode.isPreview || mode.isLive(LiveFeature.genderRequired);
 });

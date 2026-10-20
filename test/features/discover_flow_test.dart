@@ -263,7 +263,7 @@ void main() {
     await _tap(tester, find.text('Which flavour should we launch first?'));
     expect(find.byType(PollsScreen), findsOneWidget);
     expect(
-      find.text('1 poll · 2 questions · about 10 seconds'),
+      find.text('1 poll · 3 questions · about 15 seconds'),
       findsOneWidget,
     );
   });

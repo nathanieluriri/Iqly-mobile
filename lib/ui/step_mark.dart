@@ -7,7 +7,15 @@ enum IqStepMarkStep {
   oneOfThree(0, 3),
   twoOfThree(1, 3),
   threeOfThree(2, 3),
+  oneOfTwo(0, 2),
+  twoOfTwo(1, 2),
   single(0, 1);
+
+  /// The mark at [current] of [count] (1 to 3 steps).
+  static IqStepMarkStep at(int current, int count) => values.firstWhere(
+    (s) => s.count == count && s.current == current,
+    orElse: () => single,
+  );
 
   const IqStepMarkStep(this.current, this.count);
 

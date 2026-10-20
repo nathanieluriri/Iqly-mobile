@@ -19,6 +19,7 @@ import 'profile_state.dart';
 enum DetailField {
   phone('phone', 'Phone number', IqIcons.phone),
   dateOfBirth('date-of-birth', 'Date of birth', IqIcons.cake),
+  gender('gender', 'Gender', IqIcons.profile),
   state('state', 'State', IqIcons.pin),
   university('university', 'University', IqIcons.graduation),
   interests('interests', 'Interests', IqIcons.heart),
@@ -69,6 +70,9 @@ String detailValue(
   DetailField.phone => details?.phone ?? '',
   DetailField.dateOfBirth =>
     details?.dateOfBirth == null ? '' : birthDate(details!.dateOfBirth!),
+  DetailField.gender =>
+    optionLabel(Reference.genders, profileGender(details, answers)) ??
+        optionLabel(Reference.genders, 'prefer_not_to_say')!,
   DetailField.state => answers.state ?? '',
   DetailField.university => answers.university ?? '',
   DetailField.interests => interestsLine(answers.interests),
@@ -79,6 +83,11 @@ String detailValue(
   ].join(' · '),
   DetailField.education => educationLabel(answers.education) ?? '',
 };
+
+/// The gender the account holds, else the one given at first run. No
+/// answer at all counts as Prefer not to say (owner, 20 Oct).
+String? profileGender(AccountDetails? details, OnboardingProfile answers) =>
+    details?.gender ?? answers.gender;
 
 /// "Employed · Banking & finance": the occupation, then the sector when the
 /// occupation path asks for one and it has been given.
@@ -101,10 +110,11 @@ bool detailShown(DetailField field, OnboardingProfile answers) =>
       DetailField.university =>
         detailShown(DetailField.education, answers) &&
             Reference.namesUniversity(answers.occupation, answers.education),
+      DetailField.gender => OnboardingFlow.askGender,
       _ => true,
     };
 
-/// B7 · Your details (40:141): eight rows, each with its own filled icon
+/// B7 · Your details (40:141, Gender row 1599:33173): nine rows, each with its own filled icon
 /// (designer answer, 5 Oct) and the value under the label. A row opens its
 /// Edit page; edits come back here on Save. While the API sends SMS codes
 /// a number its code confirmed reads "· Verified" (no frame draws it).

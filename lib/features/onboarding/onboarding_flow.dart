@@ -11,13 +11,15 @@ typedef _Next = OnboardingStep? Function(OnboardingProfile answers);
 ///
 /// [byOccupation] forks after About you: a student says where they study,
 /// anyone else what their work is, and someone who has not said what they
-/// do is asked neither; then everyone says where they live. [classic] is the
+/// do is asked neither; then everyone says where they live. Every path opens
+/// on the gender step. [classic] is the
 /// order before the fork, where everyone gives an education. The app walks
 /// [current], which Flags.onboardingByOccupation picks.
 class OnboardingFlow {
   const OnboardingFlow._(this._next);
 
   static final byOccupation = OnboardingFlow._({
+    OnboardingStep.gender: (_) => OnboardingStep.aboutYou,
     OnboardingStep.aboutYou: (a) => switch (a.occupation) {
       null => OnboardingStep.whereYouLive,
       'student' => OnboardingStep.whereYouStudied,
@@ -30,11 +32,16 @@ class OnboardingFlow {
   });
 
   static final classic = OnboardingFlow._({
+    OnboardingStep.gender: (_) => OnboardingStep.aboutYou,
     OnboardingStep.aboutYou: (_) => OnboardingStep.whereYouLive,
     OnboardingStep.whereYouLive: (_) => OnboardingStep.whereYouStudied,
     OnboardingStep.whereYouStudied: (_) => OnboardingStep.whatYouLike,
     OnboardingStep.whatYouLike: (_) => null,
   });
+
+  /// Whether first run asks for a gender (health's `genderRequired`, and
+  /// the preview). The app keeps it in step with [genderAskedProvider].
+  static bool askGender = true;
 
   static OnboardingFlow get current =>
       Flags.onboardingByOccupation ? byOccupation : classic;
@@ -48,7 +55,9 @@ class OnboardingFlow {
   /// The steps these answers walk, first to last.
   List<OnboardingStep> path(OnboardingProfile answers) => [
     for (
-      OnboardingStep? step = OnboardingStep.aboutYou;
+      OnboardingStep? step = askGender
+          ? OnboardingStep.gender
+          : OnboardingStep.aboutYou;
       step != null;
       step = next(step, answers)
     )
@@ -85,6 +94,7 @@ class OnboardingFlow {
     OnboardingStep step,
     OnboardingProfile a,
   ) => switch (step) {
+    OnboardingStep.gender => !askGender || a.gender != null,
     OnboardingStep.aboutYou => a.occupation != null && isAdult(a.dateOfBirth),
     OnboardingStep.whereYouStudied => a.education != null,
     OnboardingStep.yourWork => workAnswered(a),

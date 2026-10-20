@@ -48,6 +48,7 @@ abstract final class Routes {
   static const resetLinkSent = '/forgot-password/sent';
   static const notificationsAsk = '/turn-on-notifications';
   static const onboarding = '/onboarding';
+  static const onboardingGender = '/onboarding/gender';
   static const onboardingAboutYou = '/onboarding/about-you';
   static const onboardingWhereYouLive = '/onboarding/where-you-live';
   static const onboardingWhereYouStudied = '/onboarding/where-you-studied';

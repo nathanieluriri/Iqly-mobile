@@ -55,12 +55,14 @@ const supportHeicTypes = {'heic': 'image/heic', 'heif': 'image/heif'};
 /// recording, its length.
 abstract final class SupportLimits {
   static int bytes(HelpAttachmentKind kind) => switch (kind) {
-    HelpAttachmentKind.image || HelpAttachmentKind.audio => 10 * 1024 * 1024,
+    HelpAttachmentKind.image ||
+    HelpAttachmentKind.audio ||
+    HelpAttachmentKind.file => 10 * 1024 * 1024,
     HelpAttachmentKind.video => 50000000,
   };
 
   static Duration? length(HelpAttachmentKind kind) => switch (kind) {
-    HelpAttachmentKind.image => null,
+    HelpAttachmentKind.image || HelpAttachmentKind.file => null,
     HelpAttachmentKind.video => const Duration(seconds: 60),
     HelpAttachmentKind.audio => const Duration(minutes: 5),
   };

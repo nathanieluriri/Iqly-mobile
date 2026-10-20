@@ -98,15 +98,15 @@ void main() {
 
       container
           .read(accountDetailsProvider.notifier)
-          .edit(first.copyWith(gender: 'female'));
+          .edit(first.copyWith(gender: 'male'));
       final raw = container
           .read(sharedPreferencesProvider)
           .getString('profile.details');
       expect(
         AccountDetails.fromJson(jsonDecode(raw!)),
-        first.copyWith(gender: 'female'),
+        first.copyWith(gender: 'male'),
       );
-      expect(service.details.gender, isNull);
+      expect(service.details.gender, 'female');
     });
 
     test('a broken device copy falls back to the account', () async {

@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import '../../core/deadline.dart';
 import '../../data/onboarding_service.dart';
 import '../../data/reference_data.dart';
-import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/chip.dart';
 import '../../ui/field.dart';
@@ -54,7 +53,7 @@ class AboutYouScreen extends ConsumerWidget {
       step: OnboardingStep.aboutYou.mark,
       title: 'What do you do?',
       banner: tooYoung || onboarding.underAge ? underAge : null,
-      onBack: () => leaveStep(context, Routes.onboarding),
+      onBack: () => leaveToPrevious(context, ref, OnboardingStep.aboutYou),
       onSkip: next,
       onNext: next,
       nextEnabled: occupation != null && born != null && !tooYoung,

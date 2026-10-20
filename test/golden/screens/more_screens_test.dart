@@ -133,6 +133,7 @@ void main() {
     for (final (field, frame) in [
       (DetailField.phone, '429:18775'),
       (DetailField.dateOfBirth, '429:18828'),
+      (DetailField.gender, '1599:33111'),
       (DetailField.state, '429:18881'),
       (DetailField.university, '484:22641'),
       (DetailField.interests, '429:18966'),
