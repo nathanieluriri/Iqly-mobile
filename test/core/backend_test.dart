@@ -117,6 +117,8 @@ void main() {
           LiveFeature.uploads,
           LiveFeature.etags,
           LiveFeature.config,
+          LiveFeature.briefAudience,
+          LiveFeature.helpAuthorNames,
         }),
       );
     });
@@ -231,6 +233,7 @@ void main() {
           LiveFeature.closeRemindersSync,
           LiveFeature.etags,
           LiveFeature.config,
+          LiveFeature.briefAudience,
         }),
       );
     });
@@ -264,6 +267,8 @@ void main() {
         'phoneVerification',
         'etags',
         'config',
+        'activationStepProof',
+        'helpAuthorNames',
       ]);
     });
 
@@ -561,6 +566,8 @@ void main() {
         'uploads',
         'etags',
         'config',
+        'briefAudience',
+        'helpAuthorNames',
       ]);
       expect(backend.checkedAt, now);
       await backend.lock();
@@ -583,6 +590,8 @@ void main() {
         'uploads',
         'etags',
         'config',
+        'briefAudience',
+        'helpAuthorNames',
       ]);
     });
 

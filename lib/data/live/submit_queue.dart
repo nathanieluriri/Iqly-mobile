@@ -145,6 +145,7 @@ SubmitResult submitResultFor(String? code, int status) {
     'SUBMISSION_CHALLENGE_NOT_OPEN' => SubmitBlock.closed,
     'SUBMISSION_CAP_REACHED' => SubmitBlock.full,
     'SUBMISSION_DUPLICATE' => SubmitBlock.alreadySubmitted,
+    'SUBMISSION_NOT_IN_AUDIENCE' => SubmitBlock.notInAudience,
     _ => null,
   };
   if (block != null) {

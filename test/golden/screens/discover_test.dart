@@ -199,6 +199,16 @@ void main() {
     await _golden(tester, 'brief_detail_closed');
   });
 
+  testWidgets('Brief detail, outside its audience (no frame)', (tester) async {
+    await _pump(
+      tester,
+      Routes.brief('c5'),
+      prefs: {...signedInPrefs(), 'discover.savedBriefs': '[]'},
+      repository: _OutsideRepository(),
+    );
+    await _golden(tester, 'brief_detail_outside');
+  });
+
   testWidgets('250:12333 Saved briefs', (tester) async {
     await _pump(tester, Routes.savedBriefs);
     await _golden(tester, 'saved');
@@ -230,6 +240,16 @@ void main() {
 }
 
 /// Sunline's brief once it has closed.
+/// The API's brief detail saying the person is outside its audience.
+class _OutsideRepository extends ScriptedRepository {
+  @override
+  Future<Brief?> brief(String id) async {
+    final brief = await super.brief(id);
+    if (brief == null) return null;
+    return Brief.fromJson({...brief.toJson(), 'inAudience': false});
+  }
+}
+
 class _ClosedRepository extends ScriptedRepository {
   @override
   Future<Brief?> brief(String id) async {

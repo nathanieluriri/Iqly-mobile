@@ -39,6 +39,13 @@ class ApiResponse {
     return message is String ? message : null;
   }
 
+  /// What the API's `error.details` adds to a refusal.
+  Map<String, dynamic>? get details {
+    final error = body['error'];
+    final details = error is Map ? error['details'] : null;
+    return details is Map ? details.cast<String, dynamic>() : null;
+  }
+
   /// The API's `{ success, data }` payload.
   Map<String, dynamic> get data {
     final data = body['data'];
@@ -103,13 +110,17 @@ bool unanswered(Object error) =>
 
 /// An answer the API refused, with its status, code and message.
 class ApiRefused implements Exception {
-  const ApiRefused(this.status, [this.code, this.message]);
+  const ApiRefused(this.status, [this.code, this.message, this.details]);
 
-  ApiRefused.of(ApiResponse res) : this(res.status, res.code, res.message);
+  ApiRefused.of(ApiResponse res)
+    : this(res.status, res.code, res.message, res.details);
 
   final int status;
   final String? code;
   final String? message;
+
+  /// What the API's `error.details` adds, such as when a held step counts.
+  final Map<String, dynamic>? details;
 
   @override
   String toString() => 'ApiRefused($status${code == null ? '' : ' $code'})';
@@ -326,6 +337,7 @@ class ApiClient {
     } on IOException catch (error) {
       throw ApiUnreachable(nothingSent: _beforeSending(error));
     }
+    await _signedOutBy(request, response.statusCode);
     return ApiBytes(
       response.statusCode,
       response.bodyBytes,
@@ -348,6 +360,7 @@ class ApiClient {
       final response = await _client.send(request).timeout(timeout);
       if (response.statusCode < 200 || response.statusCode >= 300) {
         await response.stream.drain<void>();
+        await _signedOutBy(request, response.statusCode);
         throw ApiRefused(response.statusCode);
       }
       final total = response.contentLength;
@@ -373,6 +386,19 @@ class ApiClient {
       throw ApiUnreachable(nothingSent: _beforeSending(error));
     }
     onProgress?.call(1);
+  }
+
+  /// A file read with a session token the API no longer takes ends the
+  /// session, as any other request does.
+  Future<void> _signedOutBy(http.BaseRequest request, int status) async {
+    final sent = request.headers['authorization'];
+    final token = await tokens.read();
+    if (status == 401 &&
+        sent != null &&
+        token != null &&
+        sent == 'Bearer $token') {
+      _unauthorized.add(null);
+    }
   }
 
   Future<http.Request> _fileRequest(String url) async {

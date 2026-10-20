@@ -36,6 +36,26 @@ void main() {
     );
   });
 
+  testWidgets('from the business behind an activation (D4)', (tester) async {
+    await expectComponentGolden(
+      tester,
+      'chat_bubble_business',
+      const SizedBox(
+        width: 358,
+        child: IqChatBubble(
+          from: IqChatBubbleFrom.support,
+          name: 'Kudi Box',
+          showSticker: false,
+          body:
+              'Thanks, Adaeze. We see your account and confirmed step 2. '
+              'Your reward is on its way.',
+          time: 'Today, 3:05 pm',
+        ),
+      ),
+      size: const Size(358, 149),
+    );
+  });
+
   testWidgets('with attachment', (tester) async {
     await expectComponentGolden(
       tester,

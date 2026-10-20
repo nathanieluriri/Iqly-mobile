@@ -145,6 +145,37 @@ void main() {
       expect(await block({}), isNull);
     });
 
+    test(
+      'outside the audience: blocked at opening with briefAudience only',
+      () async {
+        _openBrief(api, {'inAudience': false});
+        expect(
+          (await service.open('c_1')).block,
+          isNull,
+          reason: 'without the gate it opens as today',
+        );
+        final gated = LiveSubmitService(
+          api.api(),
+          clock: () => _now,
+          audience: true,
+        );
+        final outside = await gated.open('c_1');
+        expect(outside.block, SubmitBlock.notInAudience);
+        expect(outside.brief!.inAudience, isFalse);
+        expect(outside.form, isNull);
+        _openBrief(api, {'inAudience': true});
+        expect((await gated.open('c_1')).block, isNull);
+        _openBrief(api, {'inAudience': null});
+        expect((await gated.open('c_1')).block, isNull, reason: 'signed out');
+        _openBrief(api, {'inAudience': false, 'status': 'closed'});
+        expect(
+          (await gated.open('c_1')).block,
+          SubmitBlock.closed,
+          reason: 'a closed brief says so first',
+        );
+      },
+    );
+
     test('already sent names the entry, so the flow opens it', () async {
       _openBrief(api);
       api.data('GET', '/submissions/mine/by-challenge/c_1', {

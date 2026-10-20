@@ -244,7 +244,7 @@ class ActivationCard extends StatelessWidget {
       cover: activationCoverArt(a),
       logo: activationLogoArt(a),
       meta: [
-        IqMeta(kind: IqMetaKind.reward, label: rewardChip(a)),
+        IqMeta(kind: IqMetaKind.reward, label: cardReward(a, rewardChip(a))),
         if (feature) IqMeta(kind: IqMetaKind.time, label: minutesText(a)),
         if (a.credited)
           const IqMeta(kind: IqMetaKind.done, label: 'Paid to your wallet')

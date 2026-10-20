@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/data/demo_data.dart';
+import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/submissions/submissions_routes.dart';
 import 'package:iqly_mobile/features/submissions/submissions_state.dart';
@@ -57,6 +59,17 @@ void main() {
     await _golden(tester, 'detail', submissionPath('s4'));
   });
 
+  testWidgets('submission detail with the files sent (no frame)', (
+    tester,
+  ) async {
+    await _golden(
+      tester,
+      'detail_files',
+      submissionPath('s4'),
+      repository: _WithFiles(),
+    );
+  });
+
   testWidgets('loading (165:8524)', (tester) async {
     await _golden(
       tester,
@@ -83,4 +96,31 @@ void main() {
       repository: FailingSubmissionsRepository(),
     );
   });
+}
+
+/// The sample entries, s4 with a picture and a PDF sent with it.
+class _WithFiles extends DemoRepository {
+  _WithFiles() : super(DemoData(now: figmaNow));
+
+  @override
+  Future<List<Submission>> submissions() async => [
+    for (final s in await super.submissions())
+      s.id != 's4'
+          ? s
+          : Submission(
+              id: s.id,
+              briefId: s.briefId,
+              title: s.title,
+              body: s.body,
+              status: s.status,
+              createdAt: s.createdAt,
+              brief: s.brief,
+              award: s.award,
+              note: s.note,
+              files: const [
+                SubmissionFile(id: 'f_1', type: 'image', url: '/f_1'),
+                SubmissionFile(id: 'f_2', type: 'pdf', url: '/f_2'),
+              ],
+            ),
+  ];
 }

@@ -36,7 +36,17 @@ enum LiveFeature {
   closeRemindersSync,
   uploads,
   etags,
-  config;
+  config,
+
+  /// The proof and pay rules of 19 Oct: each activation says how its steps
+  /// are confirmed and paid, and carries its run's code.
+  activationStepProof,
+
+  /// A brief says whether the person is in its audience.
+  briefAudience,
+
+  /// Help replies name who wrote them, a business or iQLY support.
+  helpAuthorNames;
 
   /// The features this one calls into, which have to be live with it.
   Set<LiveFeature> get needs => switch (this) {
@@ -64,6 +74,9 @@ enum LiveFeature {
       LiveFeature.wallet,
     },
     LiveFeature.avatarPhoto => const {LiveFeature.avatar},
+    LiveFeature.activationStepProof => const {LiveFeature.activations},
+    LiveFeature.briefAudience => const {LiveFeature.briefs},
+    LiveFeature.helpAuthorNames => const {LiveFeature.support},
     LiveFeature.profile ||
     LiveFeature.briefs ||
     LiveFeature.notifications ||

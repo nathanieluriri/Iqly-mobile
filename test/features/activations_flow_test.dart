@@ -13,11 +13,13 @@ import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/activations/activation_screen.dart';
 import 'package:iqly_mobile/features/activations/activations_routes.dart';
 import 'package:iqly_mobile/features/activations/activations_screen.dart';
+import 'package:iqly_mobile/features/activations/activations_state.dart';
 import 'package:iqly_mobile/features/activations/activations_widgets.dart';
 import 'package:iqly_mobile/features/activations/my_activations_screen.dart';
 import 'package:iqly_mobile/features/activations/proof_player_screen.dart';
 import 'package:iqly_mobile/features/activations/proof_screen.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
+import 'package:iqly_mobile/features/help/help_request_screen.dart';
 import 'package:iqly_mobile/features/wallet/wallet_screen.dart';
 import 'package:iqly_mobile/features/wallet/wallet_state.dart';
 import 'package:iqly_mobile/router.dart';
@@ -383,8 +385,9 @@ void main() {
     await _tap(tester, find.text('Upload proof of step 2'));
     expect(find.byType(ProofScreen), findsOneWidget);
     expect(
-      find.text('Record step 2. Kudi Box confirms it, then we pay ₦1,500.'),
+      find.text('Record step 2. Kudi Box confirms it.'),
       findsOneWidget,
+      reason: 'step 2 of 3 pays nothing on its own (D1)',
     );
     expect(_iqButton(tester, 'Send proof').disabled, isTrue);
 
@@ -413,7 +416,7 @@ void main() {
     expect(find.byType(ProofScreen), findsNothing);
     expect(find.text('Your proof'), findsWidgets);
     expect(find.text('Checking with Kudi Box'), findsWidgets);
-    expect(find.text('₦1,500.00 after confirmation'), findsOneWidget);
+    expect(find.textContaining('after confirmation'), findsNothing);
   });
 
   testWidgets('B9: a recording over 60 s is refused; Retry picks another', (
@@ -572,7 +575,91 @@ void main() {
     expect(find.textContaining('Proof not accepted'), findsNothing);
     await tester.pump(const Duration(seconds: 4));
     await tester.pumpAndSettle();
+    // A checked proof confirms its own step; Kudi Box’s app confirms the last.
+    expect(find.text('Step 2 of 3 confirmed'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
     expect(find.text('₦1,500.00 is yours'), findsOneWidget);
+  });
+
+  testWidgets('proof mode (Orchid Foods): step 1 is recorded right after '
+      'Start, each accepted proof moves to the next, the last pays', (
+    tester,
+  ) async {
+    final container = await pumpActivations(
+      tester,
+      activationPath('a1'),
+      now: thursday,
+      service: instantActivations(
+        now: thursday,
+        step: const Duration(seconds: 4),
+      ),
+    );
+    await _tap(tester, find.text('Start activation'));
+    expect(find.text('Not started · 3 steps'), findsOneWidget);
+    for (var step = 1; step <= 3; step++) {
+      await _tap(tester, find.text('Upload proof of step $step'));
+      expect(find.byType(ProofScreen), findsOneWidget);
+      expect(find.text('Proof of step $step · up to 60 seconds'), findsOne);
+      await _tap(tester, find.byType(IqProofTile));
+      await _tap(tester, find.text('Send proof'));
+      expect(find.text('Your proof'), findsWidgets);
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      if (step < 3) {
+        expect(find.text('Step $step of 3 confirmed'), findsOneWidget);
+        expect(
+          container.read(activationProvider('a1'))!.credited,
+          isFalse,
+          reason: 'it pays on the last',
+        );
+      }
+    }
+    expect(find.text('₦500.00 is yours'), findsOneWidget);
+    expect(_awards(container), {'activation-a1': 50000});
+  });
+
+  testWidgets('paid by step: each accepted proof puts its step on the wallet', (
+    tester,
+  ) async {
+    final container = await pumpActivations(
+      tester,
+      activationPath('a1'),
+      now: thursday,
+      service: instantActivations(
+        now: thursday,
+        seed: [DemoActivations(thursday).orchidFoodsByStep],
+        step: const Duration(seconds: 4),
+      ),
+    );
+    await _tap(tester, find.text('Start activation'));
+    await _tap(tester, find.text('Upload proof of step 1'));
+    expect(
+      find.text('Record step 1. Orchid Foods confirms it, then we pay ₦100.'),
+      findsOneWidget,
+    );
+    await _tap(tester, find.byType(IqProofTile));
+    await _tap(tester, find.text('Send proof'));
+    expect(find.text('₦100.00 after confirmation'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+    expect(find.text('Paid ₦100'), findsOneWidget);
+    expect(_awards(container), {'activation-a1-step-0': 10000});
+  });
+
+  testWidgets('a run under way asks for help about itself', (tester) async {
+    await pumpActivations(
+      tester,
+      activationPath('a2'),
+      now: thursday,
+      service: instantActivations(
+        now: thursday,
+        seed: Figma.world(thursday, kudiBox: Figma.step1),
+      ),
+    );
+    await _tap(tester, find.text('Ask for help'));
+    expect(find.byType(HelpRequestScreen), findsOneWidget);
+    expect(find.text('Send to support'), findsOneWidget);
   });
 
   testWidgets('B9: play opens the recording; back returns', (tester) async {
@@ -590,12 +677,11 @@ void main() {
     expect(find.text('kudi-box-signup.mp4'), findsOneWidget);
     await _tap(tester, _button('Back'));
     expect(find.byType(ProofPlayerScreen), findsNothing);
-    expect(find.text('Not credited yet?'), findsOneWidget);
+    expect(find.text('Proof received'), findsOneWidget);
   });
 
-  testWidgets('B9: Ask for help opens the support inbox about the activation', (
-    tester,
-  ) async {
+  testWidgets('B9: Ask for help opens the support inbox about the activation; '
+      'a step that pays nothing has no "Not credited yet?"', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -633,13 +719,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(
-      find.text(
-        'Support usually replies within an hour on weekdays, within a day '
-        'at weekends.',
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('Not credited yet?'), findsNothing);
+    expect(find.textContaining('Support usually replies'), findsNothing);
     await _tap(tester, find.text('Ask for help'));
     expect(router.state.uri.path, Routes.help);
     expect(router.state.uri.queryParameters['about'], 'a2');

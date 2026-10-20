@@ -44,7 +44,9 @@ import 'submit_widgets.dart';
 ///
 /// A send the API refuses for a date of birth under 18 opens Date of birth,
 /// and one from a closing account goes to Restore; the frames have no state
-/// for either.
+/// for either. A send the brief can never take (closed, full, past its
+/// deadline or for a different audience) turns the flow into Can't submit
+/// right now with the API's reason; one already sent opens it.
 class SubmitScreen extends ConsumerWidget {
   const SubmitScreen({super.key, required this.briefId});
 
@@ -163,6 +165,7 @@ class _FlowState extends ConsumerState<_Flow> {
 
   void _back() {
     final flow = ref.read(submitFlowProvider(_id));
+    if (flow.blocked != null) return leaveSubmit(context, _id);
     switch (flow.step) {
       case SubmitStep.sent:
         leaveSubmit(context, _id);
@@ -212,7 +215,8 @@ class _FlowState extends ConsumerState<_Flow> {
     }
     IqHaptics.error.play();
     switch (result.failure) {
-      case SubmitFailure.blocked:
+      case SubmitFailure.blocked
+          when result.block == SubmitBlock.alreadySubmitted:
         ref.invalidate(submitOpeningProvider(_id));
       case SubmitFailure.underAge:
         await context.open<void>(editDetailPath(DetailField.dateOfBirth));
@@ -226,10 +230,11 @@ class _FlowState extends ConsumerState<_Flow> {
   Widget build(BuildContext context) {
     final flow = ref.watch(submitFlowProvider(_id));
     final receipt = flow.receipt;
+    final block = flow.blocked;
     final sent =
         flow.step == SubmitStep.sent && (receipt != null || flow.queued);
     return PopScope(
-      canPop: flow.step != SubmitStep.questions,
+      canPop: flow.step != SubmitStep.questions || block != null,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _back();
       },
@@ -239,7 +244,13 @@ class _FlowState extends ConsumerState<_Flow> {
           _TopBar(onBack: _back),
           Expanded(
             child: Dissolve(
-              child: sent
+              child: block != null
+                  ? _Blocked(
+                      key: const ValueKey('blocked'),
+                      block: block,
+                      onBack: () => leaveSubmit(context, _id),
+                    )
+                  : sent
                   ? SentMoment(
                       key: const ValueKey('sent'),
                       receipt: receipt,
@@ -373,6 +384,7 @@ class _Blocked extends StatelessWidget {
       SubmitBlock.deadlinePassed => "This brief's deadline has passed.",
       SubmitBlock.closed ||
       SubmitBlock.alreadySubmitted => "This brief isn't open for submissions.",
+      SubmitBlock.notInAudience => 'This brief is for a different audience.',
     };
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(

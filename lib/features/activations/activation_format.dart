@@ -80,14 +80,94 @@ String rewardChip(Activation activation) {
   return '₦${digits}k';
 }
 
+/// The offer's reward (design profile, round 18): "Up to ₦1,000" when
+/// several steps pay, else "₦1,500 per completion", as B8 now draws it.
+String offerReward(Activation activation) => activation.showsStepRewards
+    ? 'Up to ${reward(activation)}'
+    : '${reward(activation)} per completion';
+
+/// The reward on a list's card: the chip ("₦1.5k"), or the offer's "Up to
+/// ₦1,500" once several steps pay, as the detail page words it.
+String cardReward(Activation activation, String chip) =>
+    activation.showsStepRewards ? offerReward(activation) : chip;
+
+/// What a per-step run has earned so far: "₦50 earned of up to ₦1,000".
+/// Once the activation has closed ([now]), "up to" is only what it can
+/// still be paid: the steps a hold or a waiting proof can still confirm.
+String earnedLine(Activation activation, {DateTime? now}) {
+  final earned =
+      activation.progress?.stepPayouts.fold(0, (sum, p) => sum + p.kobo) ?? 0;
+  final most = now != null && activation.closedAt(now)
+      ? earned + activation.stillPayable
+      : activation.rewardKobo;
+  return '${rewardPool(earned)} earned of up to ${rewardPool(most)}';
+}
+
+/// The offer's line on how a per-step activation pays, in the design
+/// profile's rules for step rewards (round 18), whoever confirms the steps.
+String perStepLine(Activation activation) {
+  final by = DateFormat('d MMM').format(activation.closesAt);
+  return 'Rewards land in your iQLY wallet as each step is confirmed. '
+      'Finish every step by $by, when the activation ends.';
+}
+
+/// Whether step [i]'s row shows an amount: a paying step, once more than one
+/// step pays (Round 18).
+bool showsStepReward(Activation activation, int i) =>
+    activation.showsStepRewards && (activation.steps[i].rewardKobo ?? 0) > 0;
+
+/// Step [i]'s amount at the right of its row: "₦50", then "Paid ₦50" once
+/// it was paid.
+String stepRewardText(Activation activation, int i) {
+  final payout = activation.payoutOf(i);
+  return payout == null
+      ? rewardPool(activation.steps[i].rewardKobo ?? 0)
+      : 'Paid ${rewardPool(payout.kobo)}';
+}
+
 /// "5 min".
 String minutesText(Activation activation) => '${activation.minutes} min';
 
 /// The ProgressThread status: "Not started · 3 steps" until the business
-/// confirms one, then "Step 1 of 3 confirmed".
+/// confirms one ("No steps confirmed yet" when it pays step by step, or
+/// holds a step it confirmed), then "Step 1 of 3 confirmed".
 String progressLine(Activation activation) => activation.confirmed == 0
-    ? 'Not started · ${_count(activation.steps.length, 'step')}'
+    ? activation.perStep || activation.holding
+          ? 'No steps confirmed yet'
+          : 'Not started · ${_count(activation.steps.length, 'step')}'
     : 'Step ${activation.confirmed} of ${activation.steps.length} confirmed';
+
+/// Why no proof can go now, in words, or null when one can: a step the
+/// business has reported waits out its hold; in postback mode, or without
+/// a mode, a step first waits a day for the business.
+String? proofHeldBack(Activation activation, DateTime now) {
+  if (activation.holdsNextAt(now)) return heldLine(activation);
+  if (activation.confirmationMode == ConfirmationMode.proof) return null;
+  return switch (activation.phaseAt(now)) {
+    ActivationPhase.started ||
+    ActivationPhase.confirming => _notDue(activation),
+    _ => null,
+  };
+}
+
+/// A proof refused as not due (409 ACTIVATION_PROOF_NOT_DUE) in words, as
+/// the API words it with the business named: held when it sends
+/// `heldUntil`, else the rule of the activation's mode.
+String proofNotDueText(Activation activation, Map<String, dynamic>? details) {
+  if (details?['heldUntil'] != null) return heldLine(activation);
+  return activation.confirmationMode == ConfirmationMode.proof
+      ? 'Send proof of the next step, one step at a time.'
+      : _notDue(activation);
+}
+
+/// The design profile's words for a step the business has reported and
+/// holds, wherever it shows.
+String heldLine(Activation activation) =>
+    'Waiting for ${activation.business} to confirm.';
+
+String _notDue(Activation activation) =>
+    'Proof can be sent once a step has waited a day for '
+    '${activation.business}.';
 
 /// My activations: "Kudi Box · step 1 of 3 confirmed".
 String myActivationsLine(Activation activation) =>

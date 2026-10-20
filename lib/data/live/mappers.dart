@@ -68,6 +68,7 @@ Brief? briefFromJson(Object? json) {
     minutes: _int(j['minutes']),
     logo: _text(j['brandLogoUrl']),
     cover: _text(j['coverUrl']),
+    inAudience: j['inAudience'] is bool ? j['inAudience']! as bool : null,
   );
 }
 
@@ -203,7 +204,19 @@ Submission? submissionFromJson(Object? json) {
     brief: embeddedBriefFromJson(j['brief']),
     award: awardFromJson(j['award']),
     note: businessNoteFromJson(j['note']),
+    files: [
+      for (final file in _list(j['files'])) ?submissionFileFromJson(file),
+    ],
   );
+}
+
+/// A file of a submission item: `{id, type, url}`.
+SubmissionFile? submissionFileFromJson(Object? json) {
+  final j = _map(json);
+  final id = _text(j?['id']);
+  final url = _text(j?['url']);
+  if (j == null || id == null || url == null) return null;
+  return SubmissionFile(id: id, type: _text(j['type']) ?? '', url: url);
 }
 
 /// The business's note (contract 12.2): `{business, body, sentAt}`.

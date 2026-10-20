@@ -35,10 +35,18 @@ String _escape(String text) => text
 /// for the network and goes once. Retries of a send whose answer never came back carry
 /// the same Idempotency-Key, so the API can never take it twice.
 class LiveSubmitService implements SubmitService {
-  LiveSubmitService(this.api, {DateTime Function()? clock, this.queue})
-    : _clock = clock ?? DateTime.now;
+  LiveSubmitService(
+    this.api, {
+    DateTime Function()? clock,
+    this.queue,
+    this.audience = false,
+  }) : _clock = clock ?? DateTime.now;
 
   final ApiClient api;
+
+  /// Health's `briefAudience`: a brief that says the person is outside its
+  /// audience opens blocked, before anything is written.
+  final bool audience;
 
   /// While `uploads` runs live: a send naming its uploads queues here, so
   /// it can wait for the network (contract 13.4).
@@ -54,7 +62,7 @@ class LiveSubmitService implements SubmitService {
   final _keys = <String, String>{};
 
   /// The blocks as the demo checks them: already sent first, then full,
-  /// past the server's deadline, and not live.
+  /// past the server's deadline, not live, and outside its audience.
   @override
   Future<SubmitOpening> open(String briefId) async {
     final id = Uri.encodeComponent(briefId);
@@ -78,6 +86,9 @@ class LiveSubmitService implements SubmitService {
     }
     final block = _block(brief);
     if (block != null) return SubmitOpening.blocked(block, brief: brief);
+    if (audience && challenge.data['inAudience'] == false) {
+      return SubmitOpening.blocked(SubmitBlock.notInAudience, brief: brief);
+    }
     final form = submitFormFromJson(challenge.data);
     _forms[briefId] = form;
     return SubmitOpening.open(brief, form);

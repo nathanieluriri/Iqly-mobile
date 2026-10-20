@@ -4,7 +4,12 @@ import 'models.dart';
 
 enum HelpTicketStatus { open, replied, resolved }
 
+/// Who wrote a message: the person, or the other side (iQLY support or,
+/// about an activation, the business behind it).
 enum HelpAuthor { you, support }
+
+/// How iQLY's staff sign their replies.
+const iqlySupport = 'iQLY support';
 
 enum HelpAttachmentKind { image, video, audio }
 
@@ -74,6 +79,7 @@ class HelpMessage {
     required this.at,
     this.attachment,
     this.more = const [],
+    this.authorName,
   });
 
   final HelpAuthor author;
@@ -83,6 +89,17 @@ class HelpMessage {
 
   /// What else the API says was sent with it (up to three in all).
   final List<HelpAttachment> more;
+
+  /// Who signed a reply, as the API names them: the business's name, or
+  /// [iqlySupport]; null for the person's own and on an API that does not
+  /// say.
+  final String? authorName;
+
+  /// A reply the business wrote.
+  bool get fromBusiness =>
+      author == HelpAuthor.support &&
+      authorName != null &&
+      authorName != iqlySupport;
 
   List<HelpAttachment> get attachments => [?attachment, ...more];
 }
@@ -132,6 +149,15 @@ class HelpTicket {
 
   /// Support has answered.
   bool get answered => messages.any((m) => m.author == HelpAuthor.support);
+
+  /// The latest reply from the other side.
+  HelpMessage? get lastReply => messages.reversed
+      .where((m) => m.author == HelpAuthor.support)
+      .firstOrNull;
+
+  /// The business that has answered here, by its latest reply.
+  String? get business =>
+      messages.reversed.where((m) => m.fromBusiness).firstOrNull?.authorName;
 
   HelpTicket copyWith({
     HelpTicketStatus? status,

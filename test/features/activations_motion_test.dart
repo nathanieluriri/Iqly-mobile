@@ -274,7 +274,7 @@ void main() {
           seed: Figma.world(friday, kudiBox: Figma.proofSent),
         ),
       );
-      const proof = 'Not credited yet?';
+      const proof = 'Your proof';
       await tester.pump(const Duration(milliseconds: 600));
       await tester.scrollUntilVisible(
         find.text('Ask for help'),
@@ -503,7 +503,7 @@ void main() {
       expect(haptics, [_success]);
       await _run(tester, 100);
       expect(find.text('Upload proof of step 2'), findsNothing);
-      expect(find.text('Not credited yet?'), findsOneWidget);
+      expect(find.text('Proof received'), findsOneWidget);
       await _run(tester, 500);
       expect(find.text('Upload proof'), findsNothing);
     });
@@ -545,7 +545,7 @@ void main() {
         ]);
       }
       expect(find.text('Upload proof'), findsNothing);
-      expect(find.text('Not credited yet?'), findsOneWidget);
+      expect(find.text('Proof received'), findsOneWidget);
       final to = tester.getTopLeft(find.byType(ProofFrame)).dy;
       expect(flight.where((y) => y > from + 1 && y < to - 1), isNotEmpty);
     });

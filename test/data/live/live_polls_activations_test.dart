@@ -218,6 +218,301 @@ void main() {
       expect(paid.progress!.ledgerId, 'l_9');
     });
 
+    group('the rules of 19 Oct (activationStepProof)', () {
+      Activation gated(Map<String, Object?> json, {bool stepProof = true}) =>
+          activationFromJson(json, now: _now, stepProof: stepProof)!;
+
+      final proofByStep = _f.activationJson(
+        confirmationMode: 'proof',
+        rewardMode: 'per_step',
+        stepRewards: [0, 50000, 100000],
+        progress: _f.runJson(
+          confirmedAt: [_at(const Duration(hours: 3)), _at(Duration.zero)],
+          proof: _f.proofJson(status: 'accepted', step: 1),
+          refCode: 'IQ-AB12C',
+          stepPayouts: [_f.payoutJson(1, 50000, Duration.zero)],
+        ),
+      );
+
+      test('a proof-mode run paid by step reads its modes and payouts', () {
+        final a = gated(proofByStep);
+        expect(a.confirmationMode, ConfirmationMode.proof);
+        expect(a.rewardMode, RewardMode.perStep);
+        expect([for (final s in a.steps) s.rewardKobo], [0, 50000, 100000]);
+        final run = a.progress!;
+        expect(run.refCode, 'IQ-AB12C');
+        final payout = run.stepPayouts.single;
+        expect(
+          (payout.step, payout.kobo, payout.ledgerId),
+          (1, 50000, 'l_step_1'),
+        );
+        expect(payout.paidAt.isAtSameMomentAs(_now), isTrue);
+        expect(a.phaseAt(_now.toLocal()), ActivationPhase.recording);
+        expect(a.proofStep, 2);
+        expect(a.showsStepRewards, isTrue);
+      });
+
+      test('a postback run per run reads its code', () {
+        final a = gated(
+          _f.activationJson(
+            confirmationMode: 'postback',
+            rewardMode: 'per_run',
+            progress: _f.runJson(
+              started: const Duration(hours: 25),
+              refCode: 'IQ-7K3P2',
+            ),
+          ),
+        );
+        expect(a.confirmationMode, ConfirmationMode.postback);
+        expect(a.rewardMode, RewardMode.perRun);
+        expect(a.progress!.refCode, 'IQ-7K3P2');
+        expect(a.phaseAt(_now.toLocal()), ActivationPhase.notConfirmed);
+        expect(a.proofStep, 0);
+      });
+
+      test('with the gate off they read as before, so today’s rules hold', () {
+        final a = gated(proofByStep, stepProof: false);
+        expect(a.confirmationMode, isNull);
+        expect(a.rewardMode, RewardMode.perRun);
+        expect([for (final s in a.steps) s.rewardKobo], [null, null, null]);
+        expect(a.progress!.refCode, isNull);
+        expect(a.progress!.stepPayouts, isEmpty);
+        expect(a.phaseAt(_now.toLocal()), ActivationPhase.checking);
+        expect(read(proofByStep).confirmationMode, isNull);
+      });
+
+      test('missing or unknown fields keep today’s meaning', () {
+        final bare = gated(_f.activationJson(progress: _f.runJson()));
+        expect(bare.confirmationMode, isNull);
+        expect(bare.rewardMode, RewardMode.perRun);
+        expect(bare.progress!.stepPayouts, isEmpty);
+        expect(bare.phaseAt(_now.toLocal()), ActivationPhase.started);
+        final odd = gated(
+          _f.activationJson(
+            confirmationMode: 'carrier_pigeon',
+            rewardMode: 'per_minute',
+          ),
+        );
+        expect(odd.confirmationMode, isNull);
+        expect(odd.rewardMode, RewardMode.perRun);
+      });
+
+      test('a step the business holds is the business’s, never proof’s', () {
+        Activation postback({List<Object?>? held}) => gated(
+          _f.activationJson(
+            confirmationMode: 'postback',
+            progress: {
+              ..._f.runJson(
+                started: const Duration(hours: 30),
+                refCode: 'IQ-7K3P2',
+              ),
+              'heldSteps': ?held,
+            },
+          ),
+        );
+        final held = postback(
+          held: [
+            _f.heldJson(0, const Duration(hours: 2)),
+            {'until': _f.inn(const Duration(hours: 3))},
+            'nonsense',
+          ],
+        );
+        final step = held.progress!.heldSteps.single;
+        expect(step.step, 0);
+        expect(
+          step.until!.isAtSameMomentAs(_now.add(const Duration(hours: 2))),
+          isTrue,
+        );
+        expect(held.heldAt(0), isTrue);
+        expect(held.phaseAt(_now.toLocal()), ActivationPhase.confirming);
+        expect(held.proofStep, isNull, reason: 'no 24 hour fallback');
+        expect(held.waitingStep, 0);
+        expect(held.waitingSince, isNull);
+
+        final today = postback();
+        expect(today.progress!.heldSteps, isEmpty);
+        expect(today.phaseAt(_now.toLocal()), ActivationPhase.notConfirmed);
+        expect(today.proofStep, 0);
+
+        Activation closedHeld({List<int>? stepRewards}) => gated(
+          _f.activationJson(
+            status: 'closed',
+            confirmationMode: 'postback',
+            rewardMode: stepRewards == null ? null : 'per_step',
+            stepRewards: stepRewards,
+            progress: _f.runJson(
+              started: const Duration(hours: 30),
+              heldSteps: [_f.heldJson(0, const Duration(hours: 2))],
+            ),
+          ),
+        );
+        final perRun = closedHeld();
+        expect(perRun.closedAt(_now.toLocal()), isTrue);
+        expect(
+          perRun.phaseAt(_now.toLocal()),
+          ActivationPhase.expired,
+          reason: 'per_run with steps still to do cannot finish',
+        );
+        expect(
+          closedHeld(stepRewards: [50000, 50000, 50000])
+              .phaseAt(_now.toLocal()),
+          ActivationPhase.confirming,
+        );
+        expect(
+          closedHeld(stepRewards: [0, 75000, 75000]).phaseAt(_now.toLocal()),
+          ActivationPhase.expired,
+        );
+
+        final off = activationFromJson(
+          _f.activationJson(
+            confirmationMode: 'postback',
+            progress: _f.runJson(
+              started: const Duration(hours: 30),
+              heldSteps: [_f.heldJson(0, const Duration(hours: 2))],
+            ),
+          ),
+          now: _now,
+        )!;
+        expect(off.progress!.heldSteps, isEmpty);
+      });
+
+      test('the phase the API sent stands until time moves the run on', () {
+        final now = _now.toLocal();
+        Activation sent(String phase, Map<String, Object?> progress) => gated(
+          _f.activationJson(
+            confirmationMode: 'postback',
+            phase: phase,
+            progress: progress,
+          ),
+        );
+        final early = sent(
+          'started',
+          _f.runJson(started: const Duration(hours: 2)),
+        );
+        expect(early.sentPhase, ActivationPhase.started);
+        expect(early.phaseAt(now), ActivationPhase.started);
+        expect(
+          early.phaseAt(now.add(const Duration(hours: 23))),
+          ActivationPhase.notConfirmed,
+          reason: 'a day after the start, step 1 can be proven',
+        );
+
+        final ended = sent(
+          'expired',
+          _f.runJson(started: const Duration(hours: 2)),
+        );
+        expect(
+          ended.phaseAt(now),
+          ActivationPhase.expired,
+          reason: 'the API has passed the close the phone has not',
+        );
+
+        final noProof = sent(
+          'checking',
+          _f.runJson(started: const Duration(hours: 2)),
+        );
+        expect(
+          noProof.phaseAt(now),
+          ActivationPhase.started,
+          reason: 'a phase the activation cannot draw is not taken',
+        );
+
+        final recording = gated(
+          _f.activationJson(
+            confirmationMode: 'proof',
+            phase: 'not_confirmed',
+            progress: _f.runJson(started: Duration.zero),
+          ),
+        );
+        expect(recording.sentPhase, ActivationPhase.recording);
+
+        final off = activationFromJson(
+          _f.activationJson(
+            confirmationMode: 'postback',
+            phase: 'expired',
+            progress: _f.runJson(started: const Duration(hours: 2)),
+          ),
+          now: _now,
+        )!;
+        expect(off.sentPhase, isNull);
+        expect(off.phaseAt(now), ActivationPhase.started);
+
+        final local = early.withProgress(early.progress!);
+        expect(local.sentPhase, isNull);
+      });
+
+      test(
+        'a kept copy of the list is read as of when it was fetched, so '
+        'the phone\'s own reading wins once time has moved past it',
+        () async {
+          var clock = _now;
+          var offline = false;
+          final api = ApiClient(
+            tokens: MemoryTokenStore('signed.token'),
+            baseUrl: 'https://api.test',
+            client: MockClient((r) async {
+              if (offline) throw http.ClientException('offline', r.url);
+              return switch ('${r.method} ${r.url.path}') {
+                'GET /activations' => _ok({
+                  'items': [
+                    _f.activationJson(
+                      confirmationMode: 'proof',
+                      phase: 'not_confirmed',
+                      closesAt: _f.inn(const Duration(hours: 1)),
+                      progress: _f.runJson(started: Duration.zero),
+                    ),
+                  ],
+                }),
+                _ => _ok({'items': <Object>[], 'nextCursor': null}),
+              };
+            }),
+          );
+          final service = LiveActivationsService(
+            AccountLink(
+              api: api,
+              store: MemoryLocalStore(clock: () => clock),
+              outbox: Outbox(MemoryLocalStore()),
+              userId: () => 'u_1',
+            ),
+            clock: () => clock,
+            stepProof: true,
+          );
+          final fresh = (await service.activations()).single;
+          expect(fresh.phaseAt(clock), ActivationPhase.recording);
+
+          clock = _now.add(const Duration(hours: 2));
+          offline = true;
+          final kept = (await service.activations()).single;
+          expect(kept.sentPhase, ActivationPhase.recording);
+          expect(kept.sentAt!.isAtSameMomentAs(_now), isTrue);
+          expect(
+            kept.phaseAt(clock),
+            ActivationPhase.expired,
+            reason: 'it has closed since the copy was fetched',
+          );
+          expect(kept.phaseAt(_now), ActivationPhase.recording);
+        },
+      );
+
+      test('a malformed payout is left out', () {
+        final a = gated(
+          _f.activationJson(
+            confirmationMode: 'proof',
+            rewardMode: 'per_step',
+            progress: {
+              ..._f.runJson(),
+              'stepPayouts': [
+                {'step': 0, 'kobo': 100},
+                _f.payoutJson(1, 200, Duration.zero),
+                'nonsense',
+              ],
+            },
+          ),
+        );
+        expect([for (final p in a.progress!.stepPayouts) p.step], [1]);
+      });
+    });
+
     test('closed early: ended from the run’s end, never still open', () {
       final ended = read(
         _f.activationJson(

@@ -276,11 +276,42 @@ class AccountLink {
     );
   }
 
-  Future<Map<String, dynamic>?> kept(String key) async {
+  /// [fetch], with when its answer was fetched: null for one fetched now,
+  /// else when the kept copy it falls back on was.
+  Future<({Map<String, dynamic> json, DateTime? fetchedAt})> fetchDated(
+    String path,
+    String key,
+  ) {
+    final fetching = api.get(path).then((res) async {
+      if (!res.ok) throw ApiRefused.of(res);
+      await keep(key, res.data);
+      return (json: res.data, fetchedAt: null as DateTime?);
+    });
+    return scope.guard(
+      orKept(
+        fetching,
+        _keptEntry(key).then(
+          (entry) => entry == null
+              ? null
+              : (copy: (json: entry.json, fetchedAt: entry.fetchedAt)),
+        ),
+      ),
+    );
+  }
+
+  Future<Map<String, dynamic>?> kept(String key) async =>
+      (await _keptEntry(key))?.json;
+
+  Future<({Map<String, dynamic> json, DateTime fetchedAt})?> _keptEntry(
+    String key,
+  ) async {
     final user = userId();
     if (user == null) return null;
-    final json = (await store.readCache(user, key))?.json;
-    return json is Map ? json.cast<String, dynamic>() : null;
+    final entry = await store.readCache(user, key);
+    final json = entry?.json;
+    return json is Map
+        ? (json: json.cast<String, dynamic>(), fetchedAt: entry!.fetchedAt)
+        : null;
   }
 
   Future<void> keep(String key, Map<String, dynamic> json) async {

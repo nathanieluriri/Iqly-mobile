@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/responsive.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/drafts_data.dart';
+import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/data/submit_data.dart';
 import 'package:iqly_mobile/data/submit_service.dart';
@@ -490,6 +491,111 @@ void main() {
     expect(service.requests, hasLength(1));
   });
 
+  testWidgets('B3: a send refused for good says why, with no Try again', (
+    tester,
+  ) async {
+    final repository = readyToSend();
+    late _Refusing service;
+    await pumpApp(
+      tester,
+      Routes.submitTo('c5'),
+      repository: repository,
+      overrides: [
+        submitServiceProvider.overrideWith(
+          (ref) => service = _Refusing(repository.data),
+        ),
+        attachmentPickerProvider.overrideWithValue(DemoAttachmentPicker()),
+        attachmentUploaderProvider.overrideWithValue(ScriptedUploader()),
+      ],
+    );
+    await _tap(tester, find.text('Submit'));
+    expect(find.text("Can't submit right now"), findsOneWidget);
+    expect(find.text('This brief is for a different audience.'), findsOne);
+    expect(find.text('Try again'), findsNothing);
+    expect(find.textContaining('Couldn’t send'), findsNothing);
+    expect(service.opened, 1, reason: 'the refusal is the answer');
+    expect(_drafts(repository), hasLength(1), reason: 'the words stay');
+
+    await _tap(tester, find.text('Back to the brief'));
+    expect(find.byType(BriefDetailScreen), findsOneWidget);
+  });
+
+  for (final (block, change, label) in [
+    (
+      SubmitBlock.notInAudience,
+      {'inAudience': false},
+      'For a different audience',
+    ),
+    (SubmitBlock.closed, {'status': 'closed'}, 'Closed · results soon'),
+    (SubmitBlock.full, {'spotsLeft': 0}, 'Capacity reached'),
+  ]) {
+    testWidgets('B3: a send refused for good (${block.name}) reads the brief '
+        'again, which stops offering Start', (tester) async {
+      final repository = readyToSend();
+      await pumpApp(
+        tester,
+        Routes.brief('c5'),
+        repository: repository,
+        overrides: [
+          submitServiceProvider.overrideWith(
+            (ref) => _Refusing(repository.data, block: block),
+          ),
+          attachmentPickerProvider.overrideWithValue(DemoAttachmentPicker()),
+          attachmentUploaderProvider.overrideWithValue(ScriptedUploader()),
+        ],
+      );
+      await _tap(tester, find.text('Start your submission'));
+      final briefs = repository.data.briefs;
+      final i = briefs.indexWhere((b) => b.id == 'c5');
+      briefs[i] = Brief.fromJson({...briefs[i].toJson(), ...change});
+      await _tap(tester, find.text('Submit'));
+      expect(find.text("Can't submit right now"), findsOneWidget);
+      await _tap(tester, find.text('Back to the brief'));
+      expect(find.byType(BriefDetailScreen), findsOneWidget);
+      final shown = find.byWidgetPredicate(
+        (w) => w is IqButton && w.label == label,
+      );
+      expect(shown, findsOneWidget);
+      expect(tester.widget<IqButton>(shown).disabled, isTrue);
+      expect(find.text('Start your submission'), findsNothing);
+    });
+  }
+
+  testWidgets('B1: a brief outside the audience cannot be started', (
+    tester,
+  ) async {
+    final repository = draftsRepository();
+    _outside(repository, 'c5');
+    await pumpApp(
+      tester,
+      Routes.brief('c5'),
+      repository: repository,
+      overrides: instantSubmit(),
+    );
+    final start = find.byWidgetPredicate(
+      (w) => w is IqButton && w.label == 'For a different audience',
+    );
+    expect(start, findsOneWidget);
+    expect(tester.widget<IqButton>(start).disabled, isTrue);
+    expect(find.text('Start your submission'), findsNothing);
+  });
+
+  testWidgets('B3: a brief outside the audience never opens the form', (
+    tester,
+  ) async {
+    final repository = draftsRepository();
+    _outside(repository, 'c5');
+    await pumpApp(
+      tester,
+      Routes.submitTo('c5'),
+      repository: repository,
+      overrides: instantSubmit(),
+    );
+    expect(find.text("Can't submit right now"), findsOneWidget);
+    expect(find.text('This brief is for a different audience.'), findsOne);
+    expect(find.text("What's your take?"), findsNothing);
+  });
+
   testWidgets('B3: attachments upload, fail, retry and stop at five of '
       '10 MB (481:21544)', (tester) async {
     final haptics = recordHaptics(tester);
@@ -665,6 +771,34 @@ void main() {
     await tester.pump();
     expect(tester.getSize(content).height, height);
   });
+}
+
+/// Marks brief [id] of [repository] as one the person is outside the
+/// audience of.
+void _outside(DemoRepository repository, String id) {
+  final briefs = repository.data.briefs;
+  final i = briefs.indexWhere((b) => b.id == id);
+  briefs[i] = Brief.fromJson({...briefs[i].toJson(), 'inAudience': false});
+}
+
+/// Opens as the demo does; every send is refused with [block], outside the
+/// audience unless said.
+class _Refusing extends DemoSubmitService {
+  _Refusing(super.data, {this.block = SubmitBlock.notInAudience})
+    : super(delay: Duration.zero, clock: () => figmaNow);
+
+  final SubmitBlock block;
+  int opened = 0;
+
+  @override
+  Future<SubmitOpening> open(String briefId) {
+    opened++;
+    return super.open(briefId);
+  }
+
+  @override
+  Future<SubmitResult> submit(SubmitRequest request) async =>
+      SubmitResult.failure(SubmitFailure.blocked, block: block);
 }
 
 /// Opening the brief fails until [fail] is cleared.

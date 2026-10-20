@@ -12,14 +12,15 @@ import '../../data/media_service.dart';
 import '../../data/models.dart';
 import '../wallet/wallet_state.dart';
 
-/// The activations and your progress on each, kept for the session so the
-/// list opens at once the second time. Changes the service pushes land here
-/// as they happen. A reward that gets paid is credited to the wallet as a
-/// ledger award with the activation's [Activation.creditId], so it counts
-/// once whoever pays it. The wallet foots: DemoData's ledger (₦15,000.00 available, ₦65,000.00 earned,
-/// designer answer 6) plus the reward (₦1,500 makes ₦16,500.00 and
-/// ₦66,500.00; the B8 · Reward · credited frame still reads the older
-/// ₦14,000.00). The live API credits the ledger itself, so a live payment
+/// The activations and your progress on each, kept for the session so the list
+/// opens at once the second time. Changes the service pushes land here as they
+/// happen. A reward that gets paid is credited to the wallet as a ledger award
+/// with the activation's [Activation.creditId], so it counts once whoever pays
+/// it; a per-step activation credits each step as it is paid, on that payout's
+/// own row. The wallet foots: DemoData's ledger (₦15,000.00 available,
+/// ₦65,000.00 earned, designer answer 6) plus the reward (₦1,500 makes
+/// ₦16,500.00 and ₦66,500.00; the B8 · Reward · credited frame still reads the
+/// older ₦14,000.00). The live API credits the ledger itself, so a live payment
 /// reads the wallet again instead.
 class ActivationsNotifier extends AsyncNotifier<List<Activation>> {
   @override
@@ -56,9 +57,27 @@ class ActivationsNotifier extends AsyncNotifier<List<Activation>> {
       for (final id in _brought)
         if (!listed.contains(id)) ?before[id],
     ]);
-    if (fresh.any((a) => a.credited && !(before[a.id]?.credited ?? true))) {
+    if (fresh.any(
+      (a) =>
+          (a.credited && !(before[a.id]?.credited ?? true)) ||
+          (before.containsKey(a.id) && _newPayouts(before[a.id], a).isNotEmpty),
+    )) {
       _readWallet();
     }
+  }
+
+  /// The step payouts [after] has that [before] did not.
+  static List<ActivationStepPayout> _newPayouts(
+    Activation? before,
+    Activation after,
+  ) {
+    final paid = {
+      for (final p in before?.progress?.stepPayouts ?? const []) p.step,
+    };
+    return [
+      for (final p in after.progress?.stepPayouts ?? const [])
+        if (!paid.contains(p.step)) p,
+    ];
   }
 
   /// Reads [id] again behind what shows, quietly, in a live launch, once
@@ -143,9 +162,9 @@ class ActivationsNotifier extends AsyncNotifier<List<Activation>> {
       for (final a in list) a.id == activation.id ? activation : a,
       if (before == null) activation,
     ]);
-    if (activation.credited && !(before?.credited ?? false)) {
-      _credit(activation);
-    }
+    final paid = activation.credited && !(before?.credited ?? false);
+    final steps = _newPayouts(before, activation);
+    if (paid || steps.isNotEmpty) _credit(activation, steps, run: paid);
   }
 
   void _readWallet() {
@@ -154,7 +173,13 @@ class ActivationsNotifier extends AsyncNotifier<List<Activation>> {
     }
   }
 
-  Future<void> _credit(Activation activation) async {
+  /// Puts [steps] on the wallet, and with [run] the run's reward unless its
+  /// steps paid it.
+  Future<void> _credit(
+    Activation activation,
+    List<ActivationStepPayout> steps, {
+    required bool run,
+  }) async {
     if (activation.live) {
       _readWallet();
       return;
@@ -166,18 +191,30 @@ class ActivationsNotifier extends AsyncNotifier<List<Activation>> {
       return;
     }
     if (!ref.mounted || !scope.open) return;
-    ref
-        .read(walletProvider.notifier)
-        .credit(
-          LedgerEntry(
-            id: activation.creditId,
-            type: LedgerType.award,
-            amountKobo: activation.rewardKobo,
-            createdAt: activation.progress!.paidAt!,
-            business: activation.business,
-            note: 'activation',
-          ),
-        );
+    final wallet = ref.read(walletProvider.notifier);
+    for (final step in steps) {
+      wallet.credit(
+        LedgerEntry(
+          id: step.ledgerId ?? '${activation.creditId}-step-${step.step}',
+          type: LedgerType.award,
+          amountKobo: step.kobo,
+          createdAt: step.paidAt,
+          business: activation.business,
+          note: 'activation',
+        ),
+      );
+    }
+    if (!run || activation.perStep) return;
+    wallet.credit(
+      LedgerEntry(
+        id: activation.creditId,
+        type: LedgerType.award,
+        amountKobo: activation.rewardKobo,
+        createdAt: activation.progress!.paidAt!,
+        business: activation.business,
+        note: 'activation',
+      ),
+    );
   }
 }
 
@@ -280,6 +317,7 @@ class ProofDraft {
     this.phone = '',
     this.note = '',
     this.refusal,
+    this.step,
   });
 
   final ProofStage stage;
@@ -288,6 +326,9 @@ class ProofDraft {
   final String? uploadId;
   final String phone;
   final String note;
+
+  /// The step that could be proven when the recording was picked.
+  final int? step;
 
   /// Set while [stage] is [ProofStage.refused].
   final ProofRefusal? refusal;
@@ -303,6 +344,7 @@ class ProofDraft {
     String? phone,
     String? note,
     ProofRefusal? refusal,
+    int? step,
   }) {
     final next = stage ?? this.stage;
     return ProofDraft(
@@ -313,6 +355,7 @@ class ProofDraft {
       phone: phone ?? this.phone,
       note: note ?? this.note,
       refusal: next == ProofStage.refused ? refusal ?? this.refusal : null,
+      step: step ?? this.step,
     );
   }
 }
@@ -338,15 +381,18 @@ class ProofDraftNotifier extends Notifier<ProofDraft> {
         .read(mediaServiceProvider)
         .pickVideo(about: ref.read(activationProvider(id))?.business);
     if (!ref.mounted || !scope.open || video == null) return;
+    final step = ref.read(activationProvider(id))?.proofStep;
     if (video.refused) {
       state = state.copyWith(
         stage: ProofStage.refused,
         video: video,
         uploadId: () => null,
         refusal: ProofRefusal.of(video),
+        step: step,
       );
       return;
     }
+    state = state.copyWith(step: step);
     _send(video);
   }
 

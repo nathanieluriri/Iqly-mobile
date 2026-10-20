@@ -60,6 +60,8 @@ HelpAttachment? helpAttachmentFromJson(Object? json) {
   );
 }
 
+/// Only the person's own messages read as theirs: any other author, one
+/// this build does not know included, writes from the other side.
 HelpMessage? _message(Object? json) {
   final j = _map(json);
   final at = apiTime(j['at']);
@@ -68,12 +70,14 @@ HelpMessage? _message(Object? json) {
     if (j['attachments'] case final List<Object?> list)
       for (final item in list) ?helpAttachmentFromJson(item),
   ];
+  final you = j['author'] == 'you';
   return HelpMessage(
-    author: j['author'] == 'support' ? HelpAuthor.support : HelpAuthor.you,
+    author: you ? HelpAuthor.you : HelpAuthor.support,
     body: apiText(j['body']) ?? '',
     at: at,
     attachment: files.firstOrNull,
     more: files.skip(1).toList(),
+    authorName: you ? null : apiText(j['authorName']),
   );
 }
 

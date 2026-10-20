@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/activations_service.dart';
 import 'package:iqly_mobile/data/drafts_data.dart';
 import 'package:iqly_mobile/data/repository.dart';
@@ -207,6 +208,21 @@ void main() {
       tester,
       'submit_single_step',
       location: Routes.submitTo('c9'),
+    );
+  });
+
+  testWidgets('a brief outside the audience says so (no frame)', (
+    tester,
+  ) async {
+    final repository = draftsRepository();
+    final briefs = repository.data.briefs;
+    final i = briefs.indexWhere((b) => b.id == 'c5');
+    briefs[i] = Brief.fromJson({...briefs[i].toJson(), 'inAudience': false});
+    await _golden(
+      tester,
+      'submit_not_in_audience',
+      location: Routes.submitTo('c5'),
+      repository: repository,
     );
   });
 

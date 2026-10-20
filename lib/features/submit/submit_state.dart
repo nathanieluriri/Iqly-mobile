@@ -10,6 +10,7 @@ import '../../data/drafts_data.dart';
 import '../../data/live/submit_queue.dart';
 import '../../data/submit_data.dart';
 import '../../data/submit_service.dart';
+import '../discover/discover_state.dart' show briefDetailProvider;
 import '../drafts/drafts_state.dart';
 
 enum SubmitStep { answer, questions, sent }
@@ -67,6 +68,7 @@ class SubmitFlow {
     this.back = false,
     this.restored,
     this.queued = false,
+    this.blocked,
   });
 
   final SubmitStep step;
@@ -98,6 +100,9 @@ class SubmitFlow {
   /// draft stays until it lands.
   final bool queued;
 
+  /// The API refused the send for good: the brief cannot take it.
+  final SubmitBlock? blocked;
+
   bool get uploading =>
       files.any((f) => f.status == AttachmentStatus.uploading);
 
@@ -124,6 +129,7 @@ class SubmitFlow {
     back: back ?? this.back,
     restored: restored,
     queued: queued,
+    blocked: blocked,
   );
 }
 
@@ -425,6 +431,16 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
         files: state.files,
         queued: true,
       );
+    } else if (result.failure == SubmitFailure.blocked &&
+        result.block != SubmitBlock.alreadySubmitted) {
+      state = SubmitFlow(
+        draft: state.draft,
+        step: state.step,
+        files: state.files,
+        blocked: result.block ?? SubmitBlock.closed,
+      );
+      // Refused for good: the brief reads again, so it stops offering Start.
+      ref.invalidate(briefDetailProvider(briefId));
     } else if (result.failure == SubmitFailure.uploadsGone) {
       state = state.copyWith(sending: false, failed: true);
       for (final a in state.files) {

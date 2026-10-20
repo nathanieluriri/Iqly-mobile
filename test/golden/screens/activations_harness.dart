@@ -79,6 +79,41 @@ abstract final class Figma {
   static ActivationProgress get orchidStarted =>
       ActivationProgress(startedAt: DateTime(2026, 10, 1, 9, 30));
 
+  /// Kudi Box in progress with the run's code (postback mode, D2).
+  static ActivationProgress get step1WithCode => ActivationProgress(
+    startedAt: startedAt,
+    confirmedAt: [step1At],
+    refCode: DemoActivations.runCode,
+  );
+
+  /// Kudi Box's server confirmed step 1 on Thursday and the business holds
+  /// it until Friday 4 pm, so it is not to prove on Friday.
+  static ActivationProgress get step1Held => ActivationProgress(
+    startedAt: startedAt,
+    refCode: DemoActivations.runCode,
+    heldSteps: [ActivationHeldStep(step: 0, until: DateTime(2026, 10, 2, 16))],
+  );
+
+  /// When Orchid Foods confirmed its first recording on Thursday.
+  static final orchidStep1At = DateTime(2026, 10, 1, 10, 5);
+
+  /// Orchid Foods by step with its first recording confirmed and paid ₦100,
+  /// so the second is to record next; [proof] puts that one in, checking.
+  static ActivationProgress orchidStep1Paid({bool proof = false}) =>
+      ActivationProgress(
+        startedAt: DateTime(2026, 10, 1, 9, 30),
+        confirmedAt: [orchidStep1At],
+        proof: ActivationProof(
+          step: proof ? 1 : 0,
+          video: DemoMediaService.sample,
+          receivedAt: proof ? DateTime(2026, 10, 1, 13, 20) : orchidStep1At,
+          checkedAt: proof ? null : orchidStep1At,
+        ),
+        stepPayouts: [
+          ActivationStepPayout(step: 0, kobo: 10000, paidAt: orchidStep1At),
+        ],
+      );
+
   /// The proof Kudi Box turned down (B9 · Proof · not accepted).
   static ActivationProgress get proofRefused => ActivationProgress(
     startedAt: startedAt,

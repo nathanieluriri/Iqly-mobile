@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -51,10 +52,12 @@ import 'package:iqly_mobile/data/submit_service.dart';
 import 'package:iqly_mobile/data/support_files.dart';
 import 'package:iqly_mobile/data/token_store.dart';
 import 'package:iqly_mobile/data/wallet_service.dart';
+import 'package:iqly_mobile/features/activations/activation_format.dart';
 import 'package:iqly_mobile/features/activations/activations_routes.dart';
 import 'package:iqly_mobile/features/activations/activations_state.dart';
 import 'package:iqly_mobile/features/discover/discover_state.dart';
 import 'package:iqly_mobile/features/help/help_routes.dart';
+import 'package:iqly_mobile/features/help/support_screen.dart';
 import 'package:iqly_mobile/features/notifications/notifications_state.dart';
 import 'package:iqly_mobile/features/polls/polls_routes.dart';
 import 'package:iqly_mobile/features/polls/polls_state.dart';
@@ -217,7 +220,12 @@ void main() {
             city: 'Yaba',
             education: 'hnd_bsc',
             university: 'University of Lagos',
-            interests: const ['finance_fintech', 'education'],
+            // Agriculture & food keeps her in the noodles brief's audience.
+            interests: const [
+              'finance_fintech',
+              'education',
+              'agriculture_food',
+            ],
             dateOfBirth: DateTime(2001, 4, 9),
           );
           expect(answers.phone, isEmpty);
@@ -237,7 +245,11 @@ void main() {
           expect(profile.city, 'Yaba');
           expect(profile.occupations, ['student']);
           expect(profile.university, 'University of Lagos');
-          expect(profile.interests, ['finance_fintech', 'education']);
+          expect(profile.interests, [
+            'finance_fintech',
+            'education',
+            'agriculture_food',
+          ]);
           expect(profile.sector, 'tech');
         },
       );
@@ -275,6 +287,7 @@ void main() {
         );
 
         final open = briefs.singleWhere((b) => b.id == seed.liveBriefId);
+        expect(open.inAudience, isTrue);
         expect(open.title, 'Weeknight dinner: why noodles win');
         expect(open.businessName, 'Sunline Foods');
         expect(open.status, BriefStatus.live);
@@ -1073,7 +1086,15 @@ void main() {
         };
         for (final json in raw) {
           final a = all.singleWhere((a) => a.id == json['id']);
-          expect(a.phaseAt(now), phases[json['phase']], reason: a.title);
+          // In proof mode the API's not_confirmed is the step to record.
+          final recording =
+              json['phase'] == 'not_confirmed' &&
+              a.confirmationMode == ConfirmationMode.proof;
+          expect(
+            a.phaseAt(now),
+            recording ? ActivationPhase.recording : phases[json['phase']],
+            reason: a.title,
+          );
           expect(a.live, isTrue);
           expect(a.imageUrl, startsWith(base!));
         }
@@ -2092,6 +2113,8 @@ void main() {
 
   _contract13(base);
   _contract13Off(Platform.environment['IQLY_E2E_API_S13_OFF']);
+  _rules19OctOn(base);
+  _rules19OctOff(Platform.environment['IQLY_E2E_API_GATES_OFF']);
   final offApi = Platform.environment['IQLY_E2E_API_OFF'];
 
   group(
@@ -3247,6 +3270,1016 @@ void _contract13Off(String? base) {
           );
         },
       );
+    },
+  );
+}
+
+/// The switches of 19 Oct: proof one step at a time, brief audiences and
+/// help replies signed by name.
+const _rules19Oct = {
+  LiveFeature.activationStepProof,
+  LiveFeature.briefAudience,
+  LiveFeature.helpAuthorNames,
+};
+
+/// A web session for [email], as the business dashboard and the staff
+/// console sign in.
+Future<ApiClient> _webSession(
+  String base,
+  String email,
+  String password,
+) async {
+  final session = ApiClient(
+    tokens: MemoryTokenStore(),
+    baseUrl: base,
+    appVersion: '0.5.0+5',
+    platform: 'android',
+  );
+  final res = await session.post('/auth/web/sign-in/email', {
+    'email': email,
+    'password': password,
+  });
+  expect(res.ok, isTrue, reason: '$email: ${res.status} ${res.code}');
+  return session;
+}
+
+/// Ada in the app on a freshly seeded local API, with Tola acting for
+/// Sunline Foods beside her: its dashboard and its own server.
+class _Walk {
+  _Walk._(this.base, this.seed, this.api, this.client, this.container);
+
+  final String base;
+  final _Seed seed;
+  final ApiClient api;
+  final http.Client client;
+  final ProviderContainer container;
+  late final ApiClient owner;
+  final _folder = Directory.systemTemp.createTempSync('iqly-rules');
+  var _txn = 0;
+
+  static Future<_Walk> start(String base) async {
+    final seed = _Seed(await _LocalTools(base).post('/__local/seed'));
+    SharedPreferences.resetStatic();
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final client = http.Client();
+    final api = ApiClient(
+      tokens: MemoryTokenStore(),
+      client: client,
+      baseUrl: base,
+      appVersion: '0.5.0+5',
+      platform: 'android',
+    );
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        apiClientProvider.overrideWithValue(api),
+        localStoreProvider.overrideWithValue(MemoryLocalStore()),
+        healthServiceProvider.overrideWithValue(LiveHealthService(api)),
+        backendProvider.overrideWith(
+          () => LiveBackendNotifier(forgetPreview: forgetPreviewRecords),
+        ),
+        authServiceProvider.overrideWithValue(LiveAuthService(api: api)),
+      ],
+    );
+    startAccountSync(container);
+    await container.read(backendProvider.notifier).check();
+    await container.read(backendProvider.notifier).lock();
+    final result = await container
+        .read(authServiceProvider)
+        .signIn(email: seed.email, password: seed.password);
+    expect(result.ok, isTrue, reason: '${result.failure}');
+    final session = container.read(sessionProvider.notifier);
+    await session.setUserId(result.userId);
+    await session.setSignedIn(true);
+    await session.setName(result.name);
+    await session.setOnboardingDone(true);
+    return _Walk._(base, seed, api, client, container)
+      ..owner = await _webSession(base, seed.ownerEmail, seed.password);
+  }
+
+  void close() {
+    container.dispose();
+    client.close();
+    _folder.deleteSync(recursive: true);
+  }
+
+  ActivationsService get activations =>
+      container.read(activationsServiceProvider);
+
+  LiveRepository get repository =>
+      container.read(repositoryProvider) as LiveRepository;
+
+  Future<List<AppNotification>> feed() =>
+      container.read(notificationsServiceProvider).notifications();
+
+  Future<Map<String, dynamic>> asOwner(
+    String method,
+    String path, [
+    Map<String, Object?>? body,
+  ]) async {
+    final res = await owner.send(
+      method,
+      path,
+      body: body ?? (method == 'GET' ? null : const <String, Object?>{}),
+    );
+    expect(res.ok, isTrue, reason: '$method $path: ${res.code}');
+    return res.data;
+  }
+
+  /// A Sunline Foods activation of two steps for ₦500, confirmed in [mode]
+  /// and paid by step when it has [stepRewards], held [holdHours] after a
+  /// postback; paid for at the stand-in checkout and live now.
+  Future<String> publish(
+    String title, {
+    String mode = 'proof',
+    List<int>? stepRewards,
+    int holdHours = 0,
+  }) async {
+    final made = await asOwner('POST', '/activations/owner', {
+      'brandOrgId': 'org_sunline',
+      'title': title,
+      'minutes': 5,
+      'rewardKobo': 50000,
+      'slots': 10,
+      'steps': [
+        {
+          'title': 'Sign up with code IQLY',
+          'hint': 'Enter IQLY.',
+          'rewardKobo': ?stepRewards?[0],
+        },
+        {
+          'title': 'Rate a recipe',
+          'hint': 'Any recipe counts.',
+          'rewardKobo': ?stepRewards?[1],
+        },
+      ],
+      'link': mode == 'postback'
+          ? 'https://sunline.example/app?ref={code}'
+          : 'https://sunline.example/app',
+      'confirmationMode': mode,
+      'rewardMode': stepRewards == null ? 'per_run' : 'per_step',
+      'payoutHoldHours': holdHours,
+      'closesAt': DateTime.now()
+          .add(const Duration(days: 2))
+          .toUtc()
+          .toIso8601String(),
+    });
+    final id = made['id'] as String;
+    final checkout = await asOwner(
+      'POST',
+      '/activations/owner/$id/payment/initiate',
+      {'callbackUrl': 'http://localhost:3001/activations/paid'},
+    );
+    await _LocalTools(base)
+        .post('/__local/payments/${checkout['reference']}/pay');
+    await asOwner('POST', '/activations/owner/$id/publish');
+    return id;
+  }
+
+  /// Ada's run at [activation].
+  Future<String> runOf(String activation) async {
+    final res = await api.get('/activations/$activation');
+    return ((res.data['progress'] as Map)['id']) as String;
+  }
+
+  /// A short MP4 (the API reads its ftyp box).
+  ProofVideo recording(String name) {
+    final media = [
+      0,
+      0,
+      0,
+      0x18,
+      ...'ftypmp42'.codeUnits,
+      ...List.filled(512, 7),
+    ];
+    final file = File('${_folder.path}/$name')..writeAsBytesSync(media);
+    return ProofVideo(
+      name: name,
+      bytes: media.length,
+      length: const Duration(seconds: 12),
+      source: file.uri,
+    );
+  }
+
+  Future<String> upload(String activation, ProofVideo video) async =>
+      (await activations.upload(activation, video).last).id!;
+
+  /// Records [step] of [activation] and has Sunline Foods approve it.
+  Future<Activation> prove(String activation, int step) async {
+    final video = recording('step-$step.mp4');
+    final checking = await activations.sendProof(
+      activation,
+      step: step,
+      uploadId: await upload(activation, video),
+      video: video,
+    );
+    expect(checking.phaseAt(DateTime.now()), ActivationPhase.checking);
+    final run = await runOf(activation);
+    await asOwner(
+      'POST',
+      '/activations/owner/$activation/completions/$run/approve',
+    );
+    return activations.refresh(activation);
+  }
+
+  ({String id, String keyId, String secret})? _key;
+  var _signed = 0;
+
+  /// A live key of Sunline Foods, a new one every nine postbacks: the API
+  /// takes ten a minute per key.
+  Future<({String id, String keyId, String secret})> _liveKey() async {
+    final kept = _key;
+    if (kept != null && _signed < 9) return kept;
+    if (kept != null) {
+      await asOwner('DELETE', '/brands/org_sunline/api-keys/${kept.id}');
+    }
+    final made = await asOwner('POST', '/brands/org_sunline/api-keys', {
+      'mode': 'live',
+    });
+    _signed = 0;
+    return _key = (
+      id: made['id'] as String,
+      keyId: made['keyId'] as String,
+      secret: made['secret'] as String,
+    );
+  }
+
+  /// Sunline Foods' server confirming [step] of the run with [code], signed
+  /// with a live key; [txn] sends one again.
+  Future<Map<String, dynamic>> postback(
+    String code,
+    int step, {
+    String? txn,
+  }) async {
+    final key = await _liveKey();
+    _signed++;
+    final body = jsonEncode({
+      'code': code,
+      'step': step,
+      'txn_id': txn ?? 'e2e-$code-${_txn++}',
+      'ts': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+    });
+    final res = await client.post(
+      Uri.parse('$base/v1/postbacks'),
+      headers: {
+        'content-type': 'application/json',
+        'x-iqly-key': key.keyId,
+        'x-iqly-signature': Hmac(
+          sha256,
+          utf8.encode(key.secret),
+        ).convert(utf8.encode(body)).toString(),
+      },
+      body: body,
+    );
+    expect(res.statusCode, 200, reason: res.body);
+    return (jsonDecode(res.body) as Map<String, dynamic>)['data']
+        as Map<String, dynamic>;
+  }
+
+  /// Ada's onboarding answers again, with [interests]: the noodles brief is
+  /// for people into agriculture and food.
+  Future<void> answerInterests(List<String> interests) async {
+    final res = await api.post(
+      '/me/onboarding',
+      onboardingBody(
+        OnboardingProfile(
+          occupation: 'student',
+          state: 'Lagos',
+          city: 'Yaba',
+          education: 'hnd_bsc',
+          university: 'University of Lagos',
+          interests: interests,
+          dateOfBirth: DateTime(2001, 4, 9),
+        ),
+        today: DateTime.now(),
+      ),
+    );
+    expect(res.ok, isTrue, reason: '${res.status} ${res.code}');
+  }
+
+  /// Help about [activation] from Ada, answered by Sunline Foods from its
+  /// dashboard.
+  Future<HelpTicket> askSunline(String activation) async {
+    final help = container.read(helpServiceProvider);
+    expect(help, isA<LiveHelpService>());
+    final opened = await help.send(
+      HelpRequest(
+        subject: 'Sunline Foods activation',
+        message: 'My second step has not counted yet.',
+        activation: await activations.refresh(activation),
+        idempotencyKey: LocalRows.newId(),
+      ),
+    );
+    expect(opened.status, HelpTicketStatus.open);
+    final reply = await owner.post(
+      '/support/brand/tickets/${opened.id}/reply',
+      {'message': 'Thanks, Ada. It counts now.'},
+    );
+    expect(reply.ok, isTrue, reason: '${reply.status} ${reply.code}');
+    return help.watch(opened.id).single;
+  }
+}
+
+Matcher _refusedWith(String code) =>
+    throwsA(isA<ApiRefused>().having((r) => r.code, 'code', code));
+
+void _rules19OctOn(String? base) {
+  final db = Platform.environment['IQLY_E2E_DB'];
+  group(
+    'The rules of 19 Oct on the API',
+    skip: base == null || db == null
+        ? 'Set IQLY_E2E_API and IQLY_E2E_DB to the local API and its '
+              'database to run'
+        : false,
+    () {
+      late _Walk walk;
+
+      setUpAll(() async => walk = await _Walk.start(base!));
+      tearDownAll(() => walk.close());
+
+      Future<void> startedAgo(String run, String interval) => _sql(
+        db!,
+        "update activation_completions set started_at = now() - "
+        "interval '$interval' where id = '$run'",
+      );
+
+      test('health turns the three on, and the app runs them', () async {
+        final report = await LiveHealthService(walk.api).check();
+        expect(report.features, containsAll(_rules19Oct));
+        final mode = walk.container.read(liveModeProvider);
+        for (final feature in _rules19Oct) {
+          expect(mode.isLive(feature), isTrue, reason: feature.name);
+        }
+        expect(walk.container.read(briefAudienceProvider), isTrue);
+        expect(walk.container.read(helpAuthorNamesProvider), isTrue);
+      });
+
+      test('proof mode, paid by the run: each step recorded in order from '
+          'Start, and the run paid on the last', () async {
+        final service = walk.activations;
+        final id = await walk.publish('Rate a recipe, one step at a time');
+        final offer = await service.refresh(id);
+        expect(offer.confirmationMode, ConfirmationMode.proof);
+        expect(offer.rewardMode, RewardMode.perRun);
+        expect(offerReward(offer), '₦500 per completion');
+
+        final started = await service.start(id);
+        expect(started.phaseAt(DateTime.now()), ActivationPhase.recording);
+        expect(started.proofStep, 0);
+        expect(started.paysFor(0), 0, reason: 'D1: only the last step pays');
+        expect(started.paysFor(1), 50000);
+        expect(progressLine(started), 'Not started · 2 steps');
+
+        final video = walk.recording('early.mp4');
+        final early = await walk.upload(id, video);
+        await expectLater(
+          service.sendProof(id, step: 1, uploadId: early, video: video),
+          _refusedWith('ACTIVATION_PROOF_NOT_DUE'),
+        );
+        final checking = await service.sendProof(
+          id,
+          step: 0,
+          uploadId: early,
+          video: video,
+        );
+        expect(checking.phaseAt(DateTime.now()), ActivationPhase.checking);
+        final run = await walk.runOf(id);
+        await walk.asOwner(
+          'POST',
+          '/activations/owner/$id/completions/$run/approve',
+        );
+        final next = await service.refresh(id);
+        expect(next.phaseAt(DateTime.now()), ActivationPhase.recording);
+        expect(next.proofStep, 1);
+        expect(next.credited, isFalse);
+        expect(progressLine(next), 'Step 1 of 2 confirmed');
+
+        final paid = await walk.prove(id, 1);
+        expect(paid.phaseAt(DateTime.now()), ActivationPhase.credited);
+        final ledgerId = paid.progress!.ledgerId!;
+        final reward = (await walk.repository.ledger()).singleWhere(
+          (l) => l.id == ledgerId,
+        );
+        expect(reward.amountKobo, 50000);
+        expect(reward.activationId, id);
+        final told = [
+          for (final n in await walk.feed())
+            if (n.facts?.type == 'activation_approved' &&
+                n.facts?.activationId == id)
+              n.facts!.amountKobo,
+        ];
+        expect(told, [50000], reason: 'one money notice, for the run');
+      });
+
+      test('proof mode, paid by step: each step pays its own amount as it is '
+          'confirmed', () async {
+        final service = walk.activations;
+        final id = await walk.publish(
+          'Rate a recipe, paid step by step',
+          stepRewards: [20000, 30000],
+        );
+        final offer = await service.refresh(id);
+        expect(offer.rewardMode, RewardMode.perStep);
+        expect([for (final s in offer.steps) s.rewardKobo], [20000, 30000]);
+        expect(offer.showsStepRewards, isTrue);
+        expect(offerReward(offer), 'Up to ₦500');
+        expect(
+          [stepRewardText(offer, 0), stepRewardText(offer, 1)],
+          ['₦200', '₦300'],
+        );
+
+        final started = await service.start(id);
+        expect(started.phaseAt(DateTime.now()), ActivationPhase.recording);
+        expect(earnedLine(started), '₦0 earned of up to ₦500');
+        expect(progressLine(started), 'No steps confirmed yet');
+
+        final one = await walk.prove(id, 0);
+        expect(one.phaseAt(DateTime.now()), ActivationPhase.recording);
+        expect(one.proofStep, 1);
+        final first = one.payoutOf(0)!;
+        expect(first.kobo, 20000);
+        expect(stepRewardText(one, 0), 'Paid ₦200');
+        expect(earnedLine(one), '₦200 earned of up to ₦500');
+        expect(progressLine(one), 'Step 1 of 2 confirmed');
+
+        final paid = await walk.prove(id, 1);
+        expect(paid.phaseAt(DateTime.now()), ActivationPhase.credited);
+        expect(
+          [for (final p in paid.progress!.stepPayouts) p.kobo],
+          [20000, 30000],
+        );
+        expect(earnedLine(paid), '₦500 earned of up to ₦500');
+        final ledger = await walk.repository.ledger();
+        for (final payout in paid.progress!.stepPayouts) {
+          final row = ledger.singleWhere((l) => l.id == payout.ledgerId);
+          expect(row.amountKobo, payout.kobo);
+          expect(row.activationId, id);
+        }
+        final told = [
+          for (final n in await walk.feed())
+            if (n.facts?.type == 'activation_approved' &&
+                n.facts?.activationId == id)
+              n.facts!.amountKobo,
+        ];
+        expect(told, unorderedEquals([20000, 30000]));
+      });
+
+      test('proof mode, paid by step: step 1 confirmed, then a proof of '
+          'step 2 turned down after the close ends the run, and nothing more '
+          'is promised', () async {
+        final service = walk.activations;
+        final id = await walk.publish(
+          'Rate a recipe, closed while step 2 waits',
+          stepRewards: [20000, 30000],
+        );
+        await service.start(id);
+        final run = await walk.runOf(id);
+        await walk.asOwner(
+          'POST',
+          '/activations/owner/$id/completions/$run/confirm-step',
+          {'step': 0},
+        );
+        final one = await service.refresh(id);
+        expect(one.payoutOf(0)!.kobo, 20000);
+        final video = walk.recording('closing.mp4');
+        final checking = await service.sendProof(
+          id,
+          step: 1,
+          uploadId: await walk.upload(id, video),
+          video: video,
+        );
+        expect(checking.phaseAt(DateTime.now()), ActivationPhase.checking);
+        await walk.asOwner('POST', '/activations/owner/$id/close');
+        await walk.asOwner(
+          'POST',
+          '/activations/owner/$id/completions/$run/reject',
+          {'reason': 'The recording ends too soon.'},
+        );
+
+        final raw = (await walk.api.get('/activations/$id')).data;
+        expect((raw['progress'] as Map)['status'], 'expired');
+        expect(raw['phase'], 'not_accepted');
+        final ended = await service.refresh(id);
+        final now = DateTime.now();
+        expect(ended.progress!.ended, isTrue);
+        expect(ended.phaseAt(now), ActivationPhase.notAccepted);
+        expect(ended.canProveAt(now), isFalse, reason: 'Your proof says ended');
+        expect(ended.stillPayable, 0);
+      });
+
+      test('postback mode: the run\'s code, one signed postback per step, '
+          'and the run paid on the last', () async {
+        final service = walk.activations;
+        final recipes = walk.seed.recipes;
+        final offer = await service.refresh(recipes);
+        expect(offer.confirmationMode, ConfirmationMode.postback);
+        expect(offer.progress, isNull);
+
+        final started = await service.start(recipes);
+        final code = started.progress!.refCode!;
+        expect(code, matches(RegExp(r'^IQ-[A-Z0-9]{5}$')));
+        expect(started.link.queryParameters['ref'], code);
+        expect(started.phaseAt(DateTime.now()), ActivationPhase.started);
+
+        final tooSoon = await walk.postback(code, 0);
+        expect(tooSoon['status'], 'flagged');
+        expect(tooSoon['reason'], 'too_fast');
+        expect((await service.refresh(recipes)).confirmed, 0);
+
+        await startedAgo(await walk.runOf(recipes), '2 minutes');
+        final first = await walk.postback(code, 0);
+        expect(first['status'], 'accepted');
+        expect(first['paid'], isFalse);
+        final confirming = await service.refresh(recipes);
+        expect(confirming.phaseAt(DateTime.now()), ActivationPhase.confirming);
+        expect(confirming.waitingStep, 1);
+        expect(progressLine(confirming), 'Step 1 of 3 confirmed');
+
+        expect((await walk.postback(code, 1))['paid'], isFalse);
+        final last = await walk.postback(code, 2, txn: 'e2e-recipes-last');
+        expect(last['status'], 'accepted');
+        expect(last['paid'], isTrue);
+        final again = await walk.postback(code, 2, txn: 'e2e-recipes-last');
+        expect(again['duplicate'], isTrue);
+
+        final paid = await service.refresh(recipes);
+        expect(paid.phaseAt(DateTime.now()), ActivationPhase.credited);
+        final reward = (await walk.repository.ledger()).singleWhere(
+          (l) => l.id == paid.progress!.ledgerId,
+        );
+        expect(reward.amountKobo, 50000);
+        expect(reward.activationId, recipes);
+      });
+
+      test('postback mode, a day without the business: step 1 can be '
+          'proven, and the proof pays its step', () async {
+        final service = walk.activations;
+        final id = await walk.publish(
+          'Sign up and rate, counted by our app',
+          mode: 'postback',
+          stepRewards: [20000, 30000],
+        );
+        final started = await service.start(id);
+        expect(started.phaseAt(DateTime.now()), ActivationPhase.started);
+        final video = walk.recording('fallback.mp4');
+        final upload = await walk.upload(id, video);
+        await expectLater(
+          service.sendProof(id, step: 0, uploadId: upload, video: video),
+          _refusedWith('ACTIVATION_PROOF_NOT_DUE'),
+        );
+
+        final run = await walk.runOf(id);
+        await startedAgo(run, '25 hours');
+        final stuck = await service.refresh(id);
+        expect(stuck.phaseAt(DateTime.now()), ActivationPhase.notConfirmed);
+        expect(stuck.proofStep, 0);
+        final checking = await service.sendProof(
+          id,
+          step: 0,
+          uploadId: upload,
+          video: video,
+        );
+        expect(checking.phaseAt(DateTime.now()), ActivationPhase.checking);
+        await walk.asOwner(
+          'POST',
+          '/activations/owner/$id/completions/$run/approve',
+        );
+        final one = await service.refresh(id);
+        expect(one.confirmed, 1);
+        expect(one.payoutOf(0)!.kobo, 20000);
+        expect(one.phaseAt(DateTime.now()), ActivationPhase.confirming);
+
+        final rest = await walk.postback(one.progress!.refCode!, 1);
+        expect(rest['status'], 'accepted');
+        expect(rest['paid'], isTrue);
+        final paid = await service.refresh(id);
+        expect(paid.phaseAt(DateTime.now()), ActivationPhase.credited);
+        expect(
+          [for (final p in paid.progress!.stepPayouts) p.kobo],
+          [20000, 30000],
+        );
+      });
+
+      test('postback mode, a step the business holds: it waits on the '
+          'business, with no proof even a day on', () async {
+        final service = walk.activations;
+        final id = await walk.publish(
+          'Open the app, held a day',
+          mode: 'postback',
+          holdHours: 24,
+        );
+        final started = await service.start(id);
+        final code = started.progress!.refCode!;
+        expect(started.progress!.heldSteps, isEmpty);
+        final run = await walk.runOf(id);
+        await startedAgo(run, '25 hours');
+        expect(
+          (await service.refresh(id)).phaseAt(DateTime.now()),
+          ActivationPhase.notConfirmed,
+        );
+
+        final held = await walk.postback(code, 0);
+        expect(held['status'], 'accepted');
+        expect(held['payAfter'], isNotNull);
+        expect(held['paid'], isFalse);
+        final waiting = await service.refresh(id);
+        final step = waiting.progress!.heldSteps.single;
+        expect(step.step, 0);
+        expect(
+          step.until!.difference(DateTime.now()).inMinutes,
+          inInclusiveRange(23 * 60, 24 * 60),
+        );
+        expect(waiting.heldAt(0), isTrue);
+        expect(waiting.phaseAt(DateTime.now()), ActivationPhase.confirming);
+        expect(waiting.proofStep, isNull);
+        expect(waiting.waitingSince, isNull);
+        expect(progressLine(waiting), 'No steps confirmed yet');
+        expect(
+          (await walk.api.get('/activations/$id')).data['phase'],
+          'confirming',
+        );
+
+        // The refusal of a proof for a held step, heldUntil and all, is the
+        // next test's; proof uploads are limited to ten a minute.
+
+        await walk.asOwner(
+          'POST',
+          '/activations/owner/$id/completions/$run/confirm-step',
+          {'step': 0},
+        );
+        final counted = await service.refresh(id);
+        expect(counted.progress!.heldSteps, isEmpty);
+        expect(counted.confirmed, 1);
+        expect(counted.heldAt(0), isFalse);
+        expect(counted.phaseAt(DateTime.now()), ActivationPhase.confirming);
+      });
+
+      test('a proof turned down, then the step reported and held: no proof '
+          'is offered, and the API refuses one, naming the hold', () async {
+        final service = walk.activations;
+        final id = await walk.publish(
+          'Open the app, proof first, then held',
+          mode: 'postback',
+          holdHours: 24,
+        );
+        final code = (await service.start(id)).progress!.refCode!;
+        final run = await walk.runOf(id);
+        await startedAgo(run, '25 hours');
+        final video = walk.recording('turned-down.mp4');
+        final checking = await service.sendProof(
+          id,
+          step: 0,
+          uploadId: await walk.upload(id, video),
+          video: video,
+        );
+        expect(checking.phaseAt(DateTime.now()), ActivationPhase.checking);
+        await walk.asOwner(
+          'POST',
+          '/activations/owner/$id/completions/$run/reject',
+          {'reason': 'The recording ends too soon.'},
+        );
+        final refused = await service.refresh(id);
+        expect(refused.phaseAt(DateTime.now()), ActivationPhase.notAccepted);
+        expect(refused.proofStep, 0);
+
+        final held = await walk.postback(code, 0);
+        expect(held['status'], 'accepted');
+        expect(held['payAfter'], isNotNull);
+        final raw = (await walk.api.get('/activations/$id')).data;
+        expect(raw['phase'], 'confirming', reason: 'the API reads it so too');
+        expect(
+          (((raw['progress'] as Map)['heldSteps'] as List).single
+              as Map)['step'],
+          0,
+        );
+        final waiting = await service.refresh(id);
+        expect(waiting.phaseAt(DateTime.now()), ActivationPhase.confirming);
+        expect(waiting.proofStep, isNull);
+        const words = 'Waiting for Sunline Foods to confirm.';
+        expect(proofHeldBack(waiting, DateTime.now()), words);
+
+        final again = walk.recording('again.mp4');
+        final upload = await walk.upload(id, again);
+        try {
+          await service.sendProof(id, step: 0, uploadId: upload, video: again);
+          fail('a proof of a held step went through');
+        } on ApiRefused catch (refusal) {
+          expect(refusal.code, 'ACTIVATION_PROOF_NOT_DUE');
+          expect(refusal.details?['heldUntil'], isNotNull);
+          expect(proofNotDueText(waiting, refusal.details), words);
+        }
+        await service.discard(id, upload);
+      });
+
+      test('proof mode: the business confirms a step by hand while its '
+          'recording waits; the send is refused as not due, the next step is '
+          'the one to prove, and the upload can be dropped', () async {
+        final service = walk.activations;
+        final id = await walk.publish('Rate a recipe, confirmed by hand');
+        expect((await service.start(id)).proofStep, 0);
+        final video = walk.recording('by-hand.mp4');
+        final upload = await walk.upload(id, video);
+        final run = await walk.runOf(id);
+        await walk.asOwner(
+          'POST',
+          '/activations/owner/$id/completions/$run/confirm-step',
+          {'step': 0},
+        );
+        try {
+          await service.sendProof(id, step: 0, uploadId: upload, video: video);
+          fail('a proof of a confirmed step went through');
+        } on ApiRefused catch (refusal) {
+          expect(refusal.code, 'ACTIVATION_PROOF_NOT_DUE');
+          expect(refusal.details?['step'], 1);
+        }
+        final next = await service.refresh(id);
+        expect(next.proofStep, 1, reason: 'the draft for step 1 is stale');
+        expect(next.phaseAt(DateTime.now()), ActivationPhase.recording);
+        await service.discard(id, upload);
+        final gone = await walk.api.delete(
+          '/activations/$id/proof/uploads/$upload',
+        );
+        expect(gone.code, 'ACTIVATION_UPLOAD_NOT_FOUND');
+      });
+
+      test('closed while a step is held: the step still waits on the '
+          'business and pays when its hold ends', () async {
+        final service = walk.activations;
+        final id = await walk.publish(
+          'Open the app, held a day, then closed',
+          mode: 'postback',
+          stepRewards: [20000, 30000],
+          holdHours: 24,
+        );
+        final code = (await service.start(id)).progress!.refCode!;
+        await startedAgo(await walk.runOf(id), '25 hours');
+        final held = await walk.postback(code, 0);
+        expect(held['status'], 'accepted');
+        expect(held['payAfter'], isNotNull);
+        await walk.asOwner('POST', '/activations/owner/$id/close');
+
+        final raw = (await walk.api.get('/activations/$id')).data;
+        expect(raw['status'], 'closed');
+        expect((raw['progress'] as Map)['status'], 'started');
+        expect(raw['phase'], 'confirming');
+        final closed = await service.refresh(id);
+        final now = DateTime.now();
+        expect(closed.closedAt(now), isTrue);
+        expect(closed.progress!.heldSteps.single.step, 0);
+        expect(closed.phaseAt(now), ActivationPhase.confirming);
+        expect(closed.canProveAt(now), isFalse);
+        expect(closed.paysFor(0), 20000);
+        expect(closed.stillPayable, 20000);
+        expect(earnedLine(closed, now: now), '₦0 earned of up to ₦200');
+        expect(
+          [closed.stepEndedAt(0, now), closed.stepEndedAt(1, now)],
+          [false, true],
+        );
+        expect(
+          proofHeldBack(closed, now),
+          'Waiting for Sunline Foods to confirm.',
+        );
+        final late = await walk.postback(code, 1);
+        expect(late['status'], 'flagged');
+        expect(late['reason'], 'run_ended');
+      });
+
+      for (final (name, stepRewards) in [
+        ('per_run with a step still to do', null),
+        ('per_step whose held step pays nothing', [0, 50000]),
+      ]) {
+        test('closed while a step is held that cannot pay the run ($name): '
+            'the API and the app read it as ended', () async {
+          final service = walk.activations;
+          final id = await walk.publish(
+            'Held a day, then closed: $name',
+            mode: 'postback',
+            stepRewards: stepRewards,
+            holdHours: 24,
+          );
+          final offer = await service.refresh(id);
+          expect(
+            [for (final step in offer.steps) step.rewardKobo],
+            stepRewards ?? <int?>[null, null],
+            reason: 'step rewards on per_step only, 0 for a step paying none',
+          );
+          final code = (await service.start(id)).progress!.refCode!;
+          await startedAgo(await walk.runOf(id), '25 hours');
+          expect((await walk.postback(code, 0))['payAfter'], isNotNull);
+          final open = await service.refresh(id);
+          expect(open.phaseAt(DateTime.now()), ActivationPhase.confirming);
+          await walk.asOwner('POST', '/activations/owner/$id/close');
+
+          final raw = (await walk.api.get('/activations/$id')).data;
+          expect(raw['phase'], 'expired');
+          final closed = await service.refresh(id);
+          final now = DateTime.now();
+          expect(closed.sentPhase, ActivationPhase.expired);
+          expect(closed.stillPayable, 0);
+          expect(closed.phaseAt(now), ActivationPhase.expired);
+          expect(
+            closed.withProgress(closed.progress!).phaseAt(now),
+            ActivationPhase.expired,
+            reason: 'worked out on the phone the same way',
+          );
+          expect(proofHeldBack(closed, now), isNull);
+        });
+      }
+
+      test('a brief outside the audience: not in the feed, blocked on the '
+          'brief and at opening, and refused on send', () async {
+        final submit = walk.container.read(submitServiceProvider);
+        final noodles = walk.seed.liveBriefId;
+        expect((await submit.open(noodles)).block, isNull);
+
+        await walk.answerInterests(['finance_fintech', 'education']);
+        final feed = await walk.repository.briefs(load: BriefsLoad.refresh);
+        expect(feed.map((b) => b.id), isNot(contains(noodles)));
+        final brief = (await walk.repository.brief(noodles))!;
+        expect(brief.inAudience, isFalse);
+        expect(walk.container.read(briefAudienceProvider), isTrue);
+        final opening = await submit.open(noodles);
+        expect(opening.block, SubmitBlock.notInAudience);
+        expect(opening.form, isNull);
+
+        final sent = await submit.submit(
+          SubmitRequest(
+            briefId: noodles,
+            title: 'Noodles on a Friday',
+            answer: _typedAnswer,
+          ),
+        );
+        expect(sent.ok, isFalse);
+        expect(sent.failure, SubmitFailure.blocked);
+        expect(sent.block, SubmitBlock.notInAudience);
+
+        await walk.answerInterests([
+          'finance_fintech',
+          'education',
+          'agriculture_food',
+        ]);
+        expect((await submit.open(noodles)).block, isNull);
+      });
+
+      test('help about an activation: the business answers in its own name, '
+          'and staff as iQLY support', () async {
+        final thread = await walk.askSunline(walk.seed.recipes);
+        final reply = thread.messages.last;
+        expect(reply.author, HelpAuthor.support);
+        expect(reply.authorName, 'Sunline Foods');
+        expect(reply.fromBusiness, isTrue);
+        expect(thread.messages.first.authorName, isNull);
+        expect(thread.business, 'Sunline Foods');
+        final help = walk.container.read(helpServiceProvider);
+        final names = walk.container.read(helpAuthorNamesProvider);
+        final row = (await help.conversations()).singleWhere(
+          (t) => t.id == thread.id,
+        );
+        expect(
+          conversationLine(row, DateTime.now(), names: names),
+          startsWith('Sunline Foods replied · '),
+        );
+        final told = (await walk.feed()).firstWhere(
+          (n) => n.facts?.type == 'support' && n.facts?.ticketId == thread.id,
+        );
+        expect(told.facts!.title, 'Sunline Foods replied');
+
+        final staff = await _webSession(
+          walk.base,
+          'support@example.com',
+          walk.seed.password,
+        );
+        final answer = await staff.post(
+          '/admin/support/tickets/${thread.id}/reply',
+          {'message': 'iQLY here: it is in your wallet.'},
+        );
+        expect(answer.ok, isTrue, reason: '${answer.status} ${answer.code}');
+        final after = await help.watch(thread.id).single;
+        expect(after.messages.last.authorName, iqlySupport);
+        expect(after.messages.last.fromBusiness, isFalse);
+        expect(after.business, 'Sunline Foods');
+        final again = (await help.conversations()).singleWhere(
+          (t) => t.id == thread.id,
+        );
+        expect(
+          conversationLine(again, DateTime.now(), names: names),
+          startsWith('Support replied · '),
+        );
+      });
+    },
+  );
+}
+
+void _rules19OctOff(String? base) {
+  group(
+    'The rules of 19 Oct switched off on the API',
+    skip: base == null
+        ? 'Set IQLY_E2E_API_GATES_OFF to a local API started with '
+              'MOBILE_FEATURES_OFF=activationStepProof,briefAudience,'
+              'helpAuthorNames to run'
+        : false,
+    () {
+      late _Walk walk;
+
+      setUpAll(() async => walk = await _Walk.start(base!));
+      tearDownAll(() => walk.close());
+
+      test(
+        'health leaves the three out; the app keeps its older ways',
+        () async {
+          final report = await LiveHealthService(walk.api).check();
+          expect(report.features.intersection(_rules19Oct), isEmpty);
+          expect(
+            report.features,
+            containsAll({
+              LiveFeature.activations,
+              LiveFeature.briefs,
+              LiveFeature.support,
+            }),
+          );
+          final mode = walk.container.read(liveModeProvider);
+          for (final feature in _rules19Oct) {
+            expect(mode.isLive(feature), isFalse, reason: feature.name);
+          }
+          expect(mode.isLive(LiveFeature.activations), isTrue);
+          expect(walk.container.read(briefAudienceProvider), isFalse);
+          expect(walk.container.read(helpAuthorNamesProvider), isFalse);
+        },
+      );
+
+      test('activations read as before: no modes, step amounts or code, '
+          'and no proof right after Start', () async {
+        final service = walk.activations;
+        for (final a in await service.activations()) {
+          expect(a.confirmationMode, isNull, reason: a.title);
+          expect(a.rewardMode, RewardMode.perRun, reason: a.title);
+          expect(a.steps.map((s) => s.rewardKobo), everyElement(isNull));
+          expect(a.progress?.refCode, isNull, reason: a.title);
+          expect(a.progress?.stepPayouts ?? const [], isEmpty);
+        }
+
+        final id = await walk.publish(
+          'Rate a recipe, paid step by step',
+          stepRewards: [20000, 30000],
+        );
+        final offer = await service.refresh(id);
+        expect(offer.showsStepRewards, isFalse);
+        expect(offerReward(offer), '₦500 per completion');
+        final started = await service.start(id);
+        expect(
+          (await walk.api.get('/activations/$id')).data['phase'],
+          'not_confirmed',
+          reason: 'the API would take proof of step 1 now',
+        );
+        expect(started.phaseAt(DateTime.now()), ActivationPhase.started);
+        expect(started.proofStep, isNull);
+        expect(progressLine(started), 'Not started · 2 steps');
+
+        final recipes = await service.start(walk.seed.recipes);
+        expect(recipes.progress!.refCode, isNull);
+        expect(recipes.link.queryParameters['ref'], startsWith('IQ-'));
+        expect(recipes.phaseAt(DateTime.now()), ActivationPhase.started);
+      });
+
+      test('a brief outside the audience opens as before; the API refuses '
+          'the send, and the screen says why', () async {
+        final submit = walk.container.read(submitServiceProvider);
+        final noodles = walk.seed.liveBriefId;
+        expect((await submit.open(noodles)).block, isNull);
+        await walk.answerInterests(['finance_fintech', 'education']);
+        expect((await walk.repository.brief(noodles))!.inAudience, isFalse);
+        final opening = await submit.open(noodles);
+        expect(opening.block, isNull);
+        expect(opening.form, isNotNull);
+        final sent = await submit.submit(
+          SubmitRequest(
+            briefId: noodles,
+            title: 'Noodles on a Friday',
+            answer: _typedAnswer,
+          ),
+        );
+        expect(sent.block, SubmitBlock.notInAudience);
+        await walk.answerInterests([
+          'finance_fintech',
+          'education',
+          'agriculture_food',
+        ]);
+      });
+
+      test('a business reply reads as support\'s, as before', () async {
+        final thread = await walk.askSunline(walk.seed.recipes);
+        expect(thread.messages.last.author, HelpAuthor.support);
+        final names = walk.container.read(helpAuthorNamesProvider);
+        expect(names, isFalse);
+        final row =
+            (await walk.container.read(helpServiceProvider).conversations())
+                .singleWhere((t) => t.id == thread.id);
+        expect(
+          conversationLine(row, DateTime.now(), names: names),
+          startsWith('Support replied · '),
+        );
+      });
     },
   );
 }

@@ -9,6 +9,7 @@ import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../data/device.dart';
 import '../../data/models.dart';
+import '../../data/submit_service.dart' show briefAudienceProvider;
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
@@ -29,8 +30,11 @@ import 'discover_widgets.dart';
 /// bookmark beside it (192:9707 when saved), Exp/BriefHero, the business,
 /// the ask, its chips and the brief, then one button: "Start your
 /// submission", "View your submission" once sent (480:22463), or "Closed ·
-/// results soon" disabled once closed (480:22572). A saved brief that is
-/// still open offers "Remind me".
+/// results soon" disabled once closed (480:22572). A brief the API says the
+/// person is not in the audience for is disabled too, "For a different
+/// audience" (no frame draws it), so no one starts writing an entry it will
+/// refuse, and so is a full one, "Capacity reached" (the submit block's
+/// words). A saved brief that is still open offers "Remind me".
 ///
 /// Motion (spec 6.22, 4.3): the page pushes in already drawn from [initial],
 /// the brief the person tapped (or one already loaded), and its content
@@ -144,6 +148,9 @@ class _ActionBar extends ConsumerWidget {
     final now = ref.watch(clockProvider)();
     final left = timeLeft(brief.deadline, now);
     final closed = !brief.isLive || (left != null && left <= Duration.zero);
+    final outside =
+        brief.inAudience == false && ref.watch(briefAudienceProvider);
+    final full = brief.spotsLeft == 0;
     final sent = ref.watch(briefSubmissionProvider(brief.id));
     final Widget button;
     if (sent != null) {
@@ -155,9 +162,15 @@ class _ActionBar extends ConsumerWidget {
       );
     } else {
       button = IqButton(
-        label: closed ? 'Closed · results soon' : 'Start your submission',
+        label: closed
+            ? 'Closed · results soon'
+            : outside
+            ? 'For a different audience'
+            : full
+            ? 'Capacity reached'
+            : 'Start your submission',
         width: double.infinity,
-        disabled: closed,
+        disabled: closed || outside || full,
         onTap: () => context.open(Routes.submitTo(brief.id)),
       );
     }

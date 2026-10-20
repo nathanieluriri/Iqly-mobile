@@ -14,6 +14,7 @@ import 'package:iqly_mobile/data/live/live_repository.dart';
 import 'package:iqly_mobile/data/live/live_submit_service.dart';
 import 'package:iqly_mobile/data/live/live_wallet_service.dart';
 import 'package:iqly_mobile/data/live/submit_queue.dart';
+import 'package:iqly_mobile/data/local/local_store.dart' show OutboxStatus;
 import 'package:iqly_mobile/data/local/memory_local_store.dart';
 import 'package:iqly_mobile/data/local/outbox.dart';
 import 'package:iqly_mobile/data/models.dart';
@@ -815,6 +816,51 @@ void main() {
       expect(receipt.submission.id, 's_8');
       expect(receipt.entries, 14);
     });
+
+    test(
+      'outside the brief’s audience: a block, final, never sent again',
+      () async {
+        final mapped = submitResultFor('SUBMISSION_NOT_IN_AUDIENCE', 403);
+        expect(mapped.failure, SubmitFailure.blocked);
+        expect(mapped.block, SubmitBlock.notInAudience);
+        expect(
+          outboxResultFor(status: 403, code: 'SUBMISSION_NOT_IN_AUDIENCE'),
+          isA<OutboxFail>(),
+        );
+
+        final api = FakeApi();
+        api.on(
+          'POST',
+          '/submissions/challenges/c_1',
+          (_) => refused(403, 'SUBMISSION_NOT_IN_AUDIENCE'),
+        );
+        api.data('GET', '/challenges/c_1', challengeJson());
+        final store = MemoryLocalStore(clock: () => _now);
+        final outbox = Outbox(store, clock: () => _now);
+        registerSubmitWrites(outbox, api.api(), store, live: true);
+        await outbox.start('u_1');
+        final service = LiveSubmitService(
+          api.api(),
+          queue: SubmitQueue(_link(api, store, outbox)),
+        );
+        await service.open('c_1');
+        final result = await service.submit(
+          const SubmitRequest(
+            briefId: 'c_1',
+            title: 'Sunday is data day',
+            answer: 'Give a bonus bundle on Sundays, every week.',
+            uploadIds: ['up_1'],
+          ),
+        );
+        expect(result.block, SubmitBlock.notInAudience);
+        await outbox.kick();
+        expect(api.to('/submissions/challenges/c_1'), hasLength(1));
+        expect(
+          [for (final item in await store.outbox('u_1')) item.status],
+          [OutboxStatus.failed],
+        );
+      },
+    );
 
     test('a send without uploads keeps the inline path', () async {
       final api = FakeApi();

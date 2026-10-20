@@ -65,6 +65,11 @@ abstract class ActivationsService {
 /// step or the Checking row does in the prototypes. With [step] null
 /// nothing changes until [refresh].
 ///
+/// With a confirmation mode the rules of 19 Oct hold: a proof-mode run
+/// waits on its recordings, each confirming its own step; in postback mode
+/// a checked proof confirms its step and the business's app the rest
+/// [step] later. A per-step activation pays each step as it is confirmed.
+///
 /// [loadFailures], [startFailures], [uploadFailures] and [sendFailures]
 /// fail that many calls first, for the failed states; [refusals] turns that
 /// many proofs down when they are checked (B9 · Proof · not accepted).
@@ -150,23 +155,54 @@ class DemoActivationsService implements ActivationsService {
     }
     final current = this[id];
     if (current.started) return current;
+    final postback = current.confirmationMode == ConfirmationMode.postback;
     final started = current.withProgress(
-      ActivationProgress(startedAt: _clock()),
+      ActivationProgress(
+        startedAt: _clock(),
+        refCode: postback ? DemoActivations.runCode : null,
+      ),
     );
     _store[id] = started;
     final beat = step;
-    if (beat != null) {
+    if (beat != null && current.confirmationMode != ConfirmationMode.proof) {
       _later(id, beat, () => _confirmFirst(id));
       _later(id, beat * 2, () => _confirmAll(id));
     }
     return started;
   }
 
+  /// [run]'s payouts with [steps] paid at [at], on a per-step activation.
+  static List<ActivationStepPayout> _paying(
+    Activation activation,
+    ActivationProgress run,
+    Iterable<int> steps,
+    DateTime at,
+  ) => [
+    ...run.stepPayouts,
+    if (activation.perStep)
+      for (final i in steps)
+        if (activation.paysFor(i) > 0)
+          ActivationStepPayout(
+            step: i,
+            kobo: activation.paysFor(i),
+            paidAt: at,
+            ledgerId: '${activation.creditId}-step-$i',
+          ),
+  ];
+
   void _confirmFirst(String id) {
     final current = this[id];
     final run = current.progress!;
     if (current.credited || run.confirmedAt.isNotEmpty) return;
-    _put(current.withProgress(run.copyWith(confirmedAt: [_clock()])));
+    final now = _clock();
+    _put(
+      current.withProgress(
+        run.copyWith(
+          confirmedAt: [now],
+          stepPayouts: _paying(current, run, const [0], now),
+        ),
+      ),
+    );
   }
 
   void _confirmAll(String id) {
@@ -174,25 +210,28 @@ class DemoActivationsService implements ActivationsService {
     final run = current.progress!;
     if (current.credited) return;
     final now = _clock();
+    final left = [
+      for (var i = run.confirmedAt.length; i < current.steps.length; i++) i,
+    ];
     _put(
       current.withProgress(
         run.copyWith(
-          confirmedAt: [
-            ...run.confirmedAt,
-            for (var i = run.confirmedAt.length; i < current.steps.length; i++)
-              now,
-          ],
+          confirmedAt: [...run.confirmedAt, for (final _ in left) now],
+          stepPayouts: _paying(current, run, left, now),
           paidAt: now,
         ),
       ),
     );
   }
 
-  void _checkProof(String id) {
+  /// Checks the proof in: true when it was accepted. Without a mode it pays
+  /// the run, as before; with one it confirms the step it proves, and the
+  /// run is paid once that was the last.
+  bool _checkProof(String id, {bool thenRest = false}) {
     final current = this[id];
     final run = current.progress!;
     final proof = run.proof;
-    if (current.credited || proof == null || !proof.accepted) return;
+    if (current.credited || proof == null || !proof.accepted) return false;
     if (refusals > 0) {
       refusals--;
       _put(
@@ -200,14 +239,37 @@ class DemoActivationsService implements ActivationsService {
           run.copyWith(proof: proof.refused(DemoActivations.endsEarly)),
         ),
       );
-      return;
+      return false;
     }
     final now = _clock();
+    if (current.confirmationMode == null) {
+      _put(
+        current.withProgress(
+          run.copyWith(proof: proof.checked(now), paidAt: now),
+        ),
+      );
+      return true;
+    }
+    final confirmed = [...run.confirmedAt, now];
+    final last = confirmed.length >= current.steps.length;
     _put(
       current.withProgress(
-        run.copyWith(proof: proof.checked(now), paidAt: now),
+        run.copyWith(
+          confirmedAt: confirmed,
+          proof: proof.checked(now),
+          stepPayouts: _paying(current, run, [proof.step], now),
+          paidAt: last ? now : null,
+        ),
       ),
     );
+    final beat = step;
+    if (thenRest &&
+        !last &&
+        beat != null &&
+        current.confirmationMode == ConfirmationMode.postback) {
+      _later(id, beat, () => _confirmAll(id));
+    }
+    return true;
   }
 
   @override
@@ -223,10 +285,14 @@ class DemoActivationsService implements ActivationsService {
         _confirmAll(id);
       case ActivationPhase.checking:
         _cancel(id);
-        _checkProof(id);
+        if (_checkProof(id) &&
+            current.confirmationMode == ConfirmationMode.postback) {
+          _confirmAll(id);
+        }
       case ActivationPhase.offer ||
           ActivationPhase.started ||
           ActivationPhase.notConfirmed ||
+          ActivationPhase.recording ||
           ActivationPhase.notAccepted ||
           ActivationPhase.credited ||
           ActivationPhase.expired:
@@ -277,7 +343,7 @@ class DemoActivationsService implements ActivationsService {
     sent.add((id: id, phone: phone, note: note));
     _store[id] = sentProof;
     final beat = this.step;
-    if (beat != null) _later(id, beat, () => _checkProof(id));
+    if (beat != null) _later(id, beat, () => _checkProof(id, thenRest: true));
     return sentProof;
   }
 
@@ -293,12 +359,17 @@ class DemoActivationsService implements ActivationsService {
 /// runs, kept for a read without a connection. Starting, the proof upload
 /// and the proof go online only. Nothing streams from the API: the screens
 /// read again as they open and when a push lands, so [changes] stays
-/// quiet.
+/// quiet. [stepProof] is health's `activationStepProof`: only an API that
+/// runs the rules of 19 Oct has its confirmation and reward modes read.
 class LiveActivationsService implements ActivationsService {
-  LiveActivationsService(this.link, {DateTime Function()? clock})
-    : _clock = clock ?? DateTime.now;
+  LiveActivationsService(
+    this.link, {
+    DateTime Function()? clock,
+    this.stepProof = false,
+  }) : _clock = clock ?? DateTime.now;
 
   final AccountLink link;
+  final bool stepProof;
   final DateTime Function() _clock;
   final _changes = StreamController<Activation>.broadcast();
 
@@ -316,8 +387,11 @@ class LiveActivationsService implements ActivationsService {
   /// of theirs that list left out.
   @override
   Future<List<Activation>> activations() async {
-    final json = await link.fetch('/activations', AccountKeys.activations);
-    final listed = _items(json);
+    final (:json, :fetchedAt) = await link.fetchDated(
+      '/activations',
+      AccountKeys.activations,
+    );
+    final listed = _items(json, at: fetchedAt);
     await _authorize();
     final mine = await _mine().catchError((Object _) => const <Activation>[]);
     final ids = {for (final a in listed) a.id};
@@ -343,15 +417,18 @@ class LiveActivationsService implements ActivationsService {
     return runs;
   }
 
-  List<Activation> _items(Map<String, dynamic> json) => [
+  /// The activations of [json], read as of [at] when it is a copy kept
+  /// from then: its phases stand only until time moves on from it.
+  List<Activation> _items(Map<String, dynamic> json, {DateTime? at}) => [
     if (json['items'] case final List<Object?> items)
-      for (final item in items) ?activationFromJson(item, now: _clock()),
+      for (final item in items)
+        ?activationFromJson(item, now: at ?? _clock(), stepProof: stepProof),
   ];
 
   Future<Activation> _one(Future<ApiResponse> sending) async {
     final res = await link.scope.guard(sending);
     final activation = res.ok
-        ? activationFromJson(res.data, now: _clock())
+        ? activationFromJson(res.data, now: _clock(), stepProof: stepProof)
         : null;
     if (activation == null) throw ApiRefused.of(res);
     await _authorize();
@@ -532,8 +609,15 @@ String videoMediaType(String name) {
 /// A contract 11.2 activation, or null without an id, a business, a title
 /// or a close. The app works its phase out from the run as the API does;
 /// an activation the business closed early, or a run that ended, counts as
-/// closed from then ([now] when the API does not say when).
-Activation? activationFromJson(Object? json, {required DateTime now}) {
+/// closed from then ([now] when the API does not say when). Its modes, step
+/// amounts, run code, step payouts, held steps and the phase the API worked
+/// out (kept with [now]) are read with [stepProof] only; a mode the build
+/// does not know reads as none.
+Activation? activationFromJson(
+  Object? json, {
+  required DateTime now,
+  bool stepProof = false,
+}) {
   if (json is! Map) return null;
   final id = apiText(json['id']);
   final business = apiText(json['businessName']);
@@ -543,7 +627,15 @@ Activation? activationFromJson(Object? json, {required DateTime now}) {
     return null;
   }
   final run = json['progress'];
-  final progress = run is Map ? _progress(run) : null;
+  final progress = run is Map ? _progress(run, stepProof: stepProof) : null;
+  final perStep = stepProof && json['rewardMode'] == 'per_step';
+  final mode = stepProof
+      ? switch (json['confirmationMode']) {
+          'proof' => ConfirmationMode.proof,
+          'postback' => ConfirmationMode.postback,
+          _ => null,
+        }
+      : null;
   final ended = run is Map && run['status'] == 'expired';
   if ((json['status'] == 'closed' || ended) && closesAt.isAfter(now)) {
     final at = run is Map ? apiTime(run['expiredAt']) : null;
@@ -566,6 +658,7 @@ Activation? activationFromJson(Object? json, {required DateTime now}) {
               title: apiText(step['title']) ?? '',
               hint: apiText(step['hint']) ?? '',
               howTo: apiText(step['howTo']),
+              rewardKobo: perStep ? apiInt(step['rewardKobo']) : null,
             ),
     ],
     link: Uri.tryParse(apiText(json['link']) ?? '') ?? Uri(),
@@ -574,10 +667,34 @@ Activation? activationFromJson(Object? json, {required DateTime now}) {
     logoUrl: apiText(json['logoUrl']),
     imageUrl: apiText(json['imageUrl']),
     paused: json['status'] == 'paused',
+    confirmationMode: mode,
+    rewardMode: perStep ? RewardMode.perStep : RewardMode.perRun,
+    sentPhase: stepProof ? _phase(json['phase'], mode) : null,
+    sentAt: stepProof ? now : null,
   );
 }
 
-ActivationProgress? _progress(Map<dynamic, dynamic> json) {
+/// The API's `phase` as the app names it: `not_confirmed` is the step to
+/// record in proof mode.
+ActivationPhase? _phase(Object? phase, ConfirmationMode? mode) =>
+    switch (phase) {
+      'offer' => ActivationPhase.offer,
+      'started' => ActivationPhase.started,
+      'confirming' => ActivationPhase.confirming,
+      'not_confirmed' when mode == ConfirmationMode.proof =>
+        ActivationPhase.recording,
+      'not_confirmed' => ActivationPhase.notConfirmed,
+      'checking' => ActivationPhase.checking,
+      'not_accepted' => ActivationPhase.notAccepted,
+      'credited' => ActivationPhase.credited,
+      'expired' => ActivationPhase.expired,
+      _ => null,
+    };
+
+ActivationProgress? _progress(
+  Map<dynamic, dynamic> json, {
+  required bool stepProof,
+}) {
   final startedAt = apiTime(json['startedAt']);
   if (startedAt == null) return null;
   final proof = json['proof'];
@@ -589,6 +706,35 @@ ActivationProgress? _progress(Map<dynamic, dynamic> json) {
     ],
     proof: proof is Map ? _proof(proof) : null,
     paidAt: apiTime(json['paidAt']),
+    ledgerId: apiText(json['ledgerId']),
+    refCode: stepProof ? apiText(json['refCode']) : null,
+    stepPayouts: [
+      if (stepProof)
+        if (json['stepPayouts'] case final List<Object?> payouts)
+          for (final payout in payouts) ?_payout(payout),
+    ],
+    heldSteps: [
+      if (stepProof)
+        if (json['heldSteps'] case final List<Object?> held)
+          for (final step in held)
+            if (step is Map)
+              if (apiInt(step['step']) case final int i)
+                ActivationHeldStep(step: i, until: apiTime(step['until'])),
+    ],
+    ended: json['status'] == 'expired',
+  );
+}
+
+ActivationStepPayout? _payout(Object? json) {
+  if (json is! Map) return null;
+  final step = apiInt(json['step']);
+  final kobo = apiInt(json['kobo']);
+  final paidAt = apiTime(json['paidAt']);
+  if (step == null || kobo == null || paidAt == null) return null;
+  return ActivationStepPayout(
+    step: step,
+    kobo: kobo,
+    paidAt: paidAt,
     ledgerId: apiText(json['ledgerId']),
   );
 }
@@ -629,7 +775,13 @@ final activationsServiceProvider = Provider<ActivationsService>((ref) {
   }
   final link = ref.watch(liveLinkProvider(LiveFeature.activations));
   if (link == null) return const PausedActivationsService();
-  final service = LiveActivationsService(link, clock: ref.watch(clockProvider));
+  final service = LiveActivationsService(
+    link,
+    clock: ref.watch(clockProvider),
+    stepProof: ref
+        .watch(liveModeProvider)
+        .isLive(LiveFeature.activationStepProof),
+  );
   ref.onDispose(service.dispose);
   return service;
 });
