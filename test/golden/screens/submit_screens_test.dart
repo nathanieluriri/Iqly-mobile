@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/activations_service.dart';
 import 'package:iqly_mobile/data/drafts_data.dart';
+import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/repository.dart';
+import 'package:iqly_mobile/features/submit/submit_field.dart';
+import 'package:iqly_mobile/features/submit/submit_header.dart';
 import 'package:iqly_mobile/router.dart';
-import 'package:iqly_mobile/ui/field.dart';
 
 import '../golden.dart';
 import 'app_harness.dart';
@@ -67,10 +68,17 @@ Future<void> _type(WidgetTester tester, Finder field, String text) async {
 }
 
 Finder _field(String label) =>
-    find.byWidgetPredicate((w) => w is IqField && w.label == label);
+    find.byWidgetPredicate((w) => w is SubmitField && w.label == label);
 
-Finder _answer() =>
-    find.byWidgetPredicate((w) => w is TextField && w.maxLines == null);
+Finder _answer() => _field('Your answer');
+
+Finder _round(String label) =>
+    find.byWidgetPredicate((w) => w is RoundIconButton && w.label == label);
+
+Future<void> _more(WidgetTester tester) async {
+  await tester.tap(_round('More'));
+  await tester.pumpAndSettle();
+}
 
 Future<void> _write(WidgetTester tester, String answer) async {
   await _type(tester, _field('Title'), SubmitCopy.title);
@@ -128,6 +136,7 @@ void main() {
       'submit_brief_sheet',
       act: (tester) async {
         await _write(tester, SubmitCopy.answer);
+        await _more(tester);
         await _tap(tester, 'View the brief');
       },
     );
@@ -170,7 +179,23 @@ void main() {
       ),
       holding: ['sunline-tagline.pdf'],
       failing: ['kiosk-photo.jpg'],
-      act: (tester) => _tap(tester, 'Attachments'),
+      act: (tester) async {
+        await _more(tester);
+        await _tap(tester, 'Attachments');
+      },
+    );
+  });
+
+  testWidgets('More while writing (no frame: 481:21544 on step 1)', (
+    tester,
+  ) async {
+    await _golden(
+      tester,
+      'submit_more_writing',
+      act: (tester) async {
+        await _write(tester, SubmitCopy.shortAnswer);
+        await _more(tester);
+      },
     );
   });
 
@@ -189,7 +214,7 @@ void main() {
           SubmitCopy.placement,
         );
         await _tap(tester, 'Submit');
-        await tester.tap(find.bySemanticsLabel('Back'));
+        await tester.tap(_round('Back'));
       },
     );
   });

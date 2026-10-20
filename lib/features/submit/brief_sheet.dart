@@ -14,8 +14,8 @@ import '../discover/business_art.dart';
 import '../discover/discover_widgets.dart';
 
 /// B3 · Submit · brief sheet (547:24763): the brief over the draft, opened
-/// by View the brief. Back to writing and the scrim return to the same
-/// screen with the draft as it was. Rises 300, drops 200.
+/// by View the brief under More. Back to writing and the scrim return to the
+/// same screen with the draft as it was. Rises 300, drops 200.
 Future<void> showBriefSheet(BuildContext context, Brief brief) {
   FocusManager.instance.primaryFocus?.unfocus();
   return showIqSheet<void>(

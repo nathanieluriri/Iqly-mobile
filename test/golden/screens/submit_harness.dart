@@ -11,6 +11,7 @@ import 'app_harness.dart';
 
 /// The Figma answers of rows B3 and B17 (34:24, 34:121, 490:24270).
 abstract final class SubmitCopy {
+  static const briefTitle = 'A tagline for a solar kiosk network';
   static const title = 'Charge up, stay connected';
   static const shortAnswer = 'No light? We dey';
   static const answer =

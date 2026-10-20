@@ -12,6 +12,7 @@ import 'package:iqly_mobile/data/token_store.dart';
 import 'package:iqly_mobile/features/profile/edit_detail_screen.dart';
 import 'package:iqly_mobile/features/profile/your_details_screen.dart';
 import 'package:iqly_mobile/features/settings/restore_account_screen.dart';
+import 'package:iqly_mobile/features/submit/submit_field.dart';
 import 'package:iqly_mobile/features/wallet/withdraw_sheet.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/field.dart';
@@ -168,14 +169,21 @@ void main() {
       );
       await tester.enterText(
         find.descendant(
-          of: find.byWidgetPredicate((w) => w is IqField && w.label == 'Title'),
+          of: find.byWidgetPredicate(
+            (w) => w is SubmitField && w.label == 'Title',
+          ),
           matching: find.byType(EditableText),
         ),
         'Show the IMEI check',
       );
       await tester.pumpAndSettle();
       await tester.enterText(
-        find.byWidgetPredicate((w) => w is TextField && w.maxLines == null),
+        find.descendant(
+          of: find.byWidgetPredicate(
+            (w) => w is SubmitField && w.label == 'Your answer',
+          ),
+          matching: find.byType(EditableText),
+        ),
         'A free IMEI and theft check on every phone.',
       );
       await tester.pumpAndSettle();
