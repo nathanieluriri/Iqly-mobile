@@ -15,7 +15,7 @@ import '../../core/transitions.dart';
 import '../../data/activations_data.dart';
 import '../../data/api_client.dart';
 import '../../data/help_service.dart'
-    show helpAuthorNamesProvider, supportShownProvider;
+    show helpAuthorNamesProvider, supportChannelsProvider, supportShownProvider;
 import '../../data/referrals_service.dart' show ReferralsService;
 import '../../data/device.dart';
 import '../../router.dart';
@@ -336,6 +336,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
           now: now,
           support: ref.watch(supportShownProvider),
           toBusiness: ref.watch(helpAuthorNamesProvider),
+          channels: ref.watch(supportChannelsProvider),
           onBack: _back,
           onRefresh: _refresh,
           onRecordAgain: _recordAgain,
@@ -944,6 +945,7 @@ class _ProofPage extends StatelessWidget {
     required this.now,
     required this.support,
     required this.toBusiness,
+    required this.channels,
     required this.onBack,
     required this.onRefresh,
     required this.onRecordAgain,
@@ -958,6 +960,10 @@ class _ProofPage extends StatelessWidget {
 
   /// Whether help about the activation goes to its business.
   final bool toBusiness;
+
+  /// Health's `supportChannels`: Ask for help opens the chat with the
+  /// business (B9 141:5549).
+  final bool channels;
   final VoidCallback onBack;
   final VoidCallback onRefresh;
   final VoidCallback onRecordAgain;
@@ -1040,10 +1046,16 @@ class _ProofPage extends StatelessWidget {
               children: [
                 Text('Not credited yet?', style: label),
                 const SizedBox(height: IqSpace.s2),
-                if (!toBusiness) ...[
+                if (channels) ...[
                   Text(
-                    'Support usually replies within an hour on weekdays, '
-                    'within a day at weekends.',
+                    'Ask ${a.business} in a chat. iQLY support can see it and '
+                    'steps in if there’s no answer in 2 days.',
+                    style: IqText.small.copyWith(color: IqColors.fg2),
+                  ),
+                  const SizedBox(height: IqSpace.s2),
+                ] else if (!toBusiness) ...[
+                  Text(
+                    'Support usually replies within a day.',
                     style: IqText.small.copyWith(color: IqColors.fg2),
                   ),
                   const SizedBox(height: IqSpace.s2),

@@ -1,8 +1,13 @@
+import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/transitions.dart';
 import '../../router.dart';
 import '../../data/help_data.dart';
+import '../../data/help_service.dart' show supportChannelsProvider;
+import 'chat_inbox_screen.dart';
+import 'chat_thread_screen.dart';
 import 'help_attachment_screen.dart';
 import 'help_centre_screen.dart';
 import 'help_request_screen.dart';
@@ -21,6 +26,19 @@ String helpThreadPath(String ticketId) => '${Routes.help}/$ticketId';
 String helpPath({String? about}) => about == null
     ? Routes.help
     : '${Routes.help}?about=${Uri.encodeQueryComponent(about)}';
+
+/// The chat redesign while health says `supportChannels` (and in the
+/// preview), else the screen before it.
+class _Channels extends ConsumerWidget {
+  const _Channels({required this.on, required this.off});
+
+  final Widget on;
+  final Widget off;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) =>
+      ref.watch(supportChannelsProvider) ? on : off;
+}
 
 /// B21 Help centre, the one support inbox, Report an issue and the legal
 /// pages, every one a push from More. B10 Help: the request pushes from the
@@ -53,7 +71,10 @@ final helpRoutes = <RouteBase>[
   ),
   GoRoute(
     path: Routes.support,
-    pageBuilder: (context, state) => pushPage(state, const SupportScreen()),
+    pageBuilder: (context, state) => pushPage(
+      state,
+      const _Channels(on: ChatInboxScreen(), off: SupportScreen()),
+    ),
     routes: [
       GoRoute(
         path: 'new',
@@ -72,21 +93,32 @@ final helpRoutes = <RouteBase>[
   ),
   GoRoute(
     path: Routes.help,
-    pageBuilder: (context, state) => pushPage(
-      state,
-      HelpRequestScreen(about: state.uri.queryParameters['about']),
-    ),
+    pageBuilder: (context, state) {
+      final about = state.uri.queryParameters['about'];
+      return pushPage(
+        state,
+        _Channels(
+          on: about == null
+              ? HelpRequestScreen(about: about)
+              : ChatThreadScreen(about: about),
+          off: HelpRequestScreen(about: about),
+        ),
+      );
+    },
     routes: [
       GoRoute(
         path: ':id',
         pageBuilder: (context, state) => pushPage(
           state,
-          HelpThreadScreen(
-            id: state.pathParameters['id']!,
-            entry: switch (state.extra) {
-              final HelpThreadEntry entry => entry,
-              _ => null,
-            },
+          _Channels(
+            on: ChatThreadScreen(id: state.pathParameters['id']!),
+            off: HelpThreadScreen(
+              id: state.pathParameters['id']!,
+              entry: switch (state.extra) {
+                final HelpThreadEntry entry => entry,
+                _ => null,
+              },
+            ),
           ),
         ),
         routes: [

@@ -58,6 +58,7 @@ flutter:
     - assets/illustrations/
     - assets/samples/covers/
     - assets/samples/logos/
+    - assets/samples/support/
     - assets/splash/
     - assets/vectors/
     - shorebird.yaml

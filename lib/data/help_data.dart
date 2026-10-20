@@ -11,7 +11,25 @@ enum HelpAuthor { you, support }
 /// How iQLY's staff sign their replies.
 const iqlySupport = 'iQLY support';
 
-enum HelpAttachmentKind { image, video, audio }
+/// A [file] is a document (the demo's receipt); the API sends pictures,
+/// videos and voice notes only.
+enum HelpAttachmentKind { image, video, audio, file }
+
+/// Who a thread is with and answered by (contract 12.1 `channel`): iQLY
+/// support, or the business behind the activation it asks about.
+enum HelpChannel { iqly, business }
+
+/// Which side wrote a reply, or resolved a thread.
+enum HelpSide { you, iqly, business }
+
+/// The body a message carries when the person sends a file alone, since a
+/// message needs words: the thread shows the file without them.
+String attachmentOnlyBody(HelpAttachmentKind kind) => switch (kind) {
+  HelpAttachmentKind.audio => 'Voice note',
+  HelpAttachmentKind.image => 'Photo',
+  HelpAttachmentKind.video => 'Video',
+  HelpAttachmentKind.file => 'File',
+};
 
 /// A file sent with a message: a screen recording in the frames, and on the
 /// live API also a picture or a voice note. [source] is where it plays from
@@ -29,9 +47,17 @@ class HelpAttachment {
     this.mime,
     this.url,
     this.read,
+    this.preview,
+    this.pages,
   });
 
   final String name;
+
+  /// A picture the app ships (the demo's screenshot), drawn in the thread.
+  final String? preview;
+
+  /// A document's pages, where known.
+  final int? pages;
   final Duration? length;
   final int bytes;
   final Uri? source;
@@ -80,7 +106,12 @@ class HelpMessage {
     this.attachment,
     this.more = const [],
     this.authorName,
+    this.side,
   });
+
+  /// Who wrote it as the API says (`authorKind`): null on the person's own
+  /// and on an API that does not say.
+  final HelpSide? side;
 
   final HelpAuthor author;
   final String body;
@@ -98,8 +129,8 @@ class HelpMessage {
   /// A reply the business wrote.
   bool get fromBusiness =>
       author == HelpAuthor.support &&
-      authorName != null &&
-      authorName != iqlySupport;
+      (side == HelpSide.business ||
+          (side == null && authorName != null && authorName != iqlySupport));
 
   List<HelpAttachment> get attachments => [?attachment, ...more];
 }
@@ -118,9 +149,39 @@ class HelpTicket {
     this.unread = false,
     this.reference,
     this.lastAt,
+    this.channel = HelpChannel.iqly,
+    this.withName,
+    this.withLogo,
+    this.readByIqly,
+    this.readByBusiness,
+    this.topic,
+    this.resolvedBy,
   });
 
   final String id;
+
+  /// Who the thread is with ([withName] and [withLogo] name the business on
+  /// [HelpChannel.business]), from an API with `supportChannels`.
+  final HelpChannel channel;
+  final String? withName;
+  final String? withLogo;
+
+  /// When the other side last opened the thread (`readBy`), so a message
+  /// sent before reads as read.
+  final DateTime? readByIqly;
+  final DateTime? readByBusiness;
+
+  /// Report an issue's topic as the API names it (`payments`).
+  final String? topic;
+
+  /// Who marked it resolved, where the app knows.
+  final HelpSide? resolvedBy;
+
+  /// The latest time the side that answers opened the thread.
+  DateTime? get readAt => switch ((readByIqly, readByBusiness)) {
+    (final a?, final b?) => a.isAfter(b) ? a : b,
+    (final a, final b) => a ?? b,
+  };
   final String subject;
   final HelpTicketStatus status;
 
@@ -165,6 +226,8 @@ class HelpTicket {
     bool? supportTyping,
     LedgerEntry? credit,
     bool? unread,
+    DateTime? readByIqly,
+    HelpSide? Function()? resolvedBy,
   }) => HelpTicket(
     id: id,
     subject: subject,
@@ -176,6 +239,13 @@ class HelpTicket {
     unread: unread ?? this.unread,
     reference: reference,
     lastAt: lastAt,
+    channel: channel,
+    withName: withName,
+    withLogo: withLogo,
+    readByIqly: readByIqly ?? this.readByIqly,
+    readByBusiness: readByBusiness,
+    topic: topic,
+    resolvedBy: resolvedBy == null ? this.resolvedBy : resolvedBy(),
   );
 }
 
@@ -259,57 +329,174 @@ abstract final class DemoHelp {
   /// The questions Help centre lists before anything is typed.
   static const commonFaqs = 4;
 
-  /// The one support reply line (designer answer 42).
-  static const replyLine =
-      'Usually replies within an hour on weekdays, within a day at weekends.';
+  /// iQLY support's one reply promise (20 Oct); a business makes none.
+  static const replyLine = 'Usually replies within a day';
 
-  /// The two past conversations of B21 · Support (485:39190): the
-  /// withdrawal chat (431:19583) and the Kudi Box activation thread.
-  /// Their times are the frames' own (Saturday 3 and Friday 2 October).
-  static List<HelpTicket> conversations(String firstName) => [
-    HelpTicket(
-      id: 'withdrawal',
-      subject: 'Withdrawal to Access Bank',
-      status: HelpTicketStatus.replied,
-      unread: true,
-      messages: [
-        HelpMessage(
-          author: HelpAuthor.you,
-          body:
-              'Hi, my withdrawal of ₦10,000.00 has said pending since Monday.',
-          at: DateTime(2026, 10, 3, 14, 20),
-        ),
-        HelpMessage(
-          author: HelpAuthor.support,
-          body:
-              'Hi $firstName, Access Bank is still confirming it. It should '
-              'land by tomorrow. We will message you here when it does.',
-          at: DateTime(2026, 10, 3, 15, 6),
-        ),
-      ],
-    ),
-    HelpTicket(
-      id: 'kudi-box',
-      subject: 'Kudi Box · step 2 proof',
-      status: HelpTicketStatus.replied,
-      activationId: 'a2',
-      messages: [
-        HelpMessage(
-          author: HelpAuthor.you,
-          body:
-              'Did all three steps on Thursday. Sent proof of step 2 '
-              'yesterday, still says Checking.',
-          at: DateTime(2026, 10, 2, 13, 28),
-          attachment: recording,
-        ),
-        HelpMessage(
-          author: HelpAuthor.support,
-          body: reply(firstName, steps: 3, amount: '₦1,500.00'),
-          at: DateTime(2026, 10, 2, 14, 14),
-        ),
-      ],
-    ),
-  ];
+  /// The B21 inbox (1589:118540) as of [now]: the iQLY thread about the
+  /// withdrawal (1589:118774, 1589:119167) with two replies unread, the
+  /// Orchid Foods activation thread (1589:122097) and the resolved Kudi Box
+  /// one (1589:122537). The frames read on Tuesday 20 October, so each time
+  /// is that many days before [now]'s day: 8 Oct is 12 days back.
+  static List<HelpTicket> conversations(String firstName, DateTime now) {
+    final today = DateTime(now.year, now.month, now.day);
+    DateTime at(int daysBack, int hour, int minute) => today
+        .subtract(Duration(days: daysBack))
+        .add(Duration(hours: hour, minutes: minute));
+    return [
+      HelpTicket(
+        id: 'withdrawal',
+        subject: 'Withdrawal to Access Bank',
+        topic: 'payments',
+        status: HelpTicketStatus.replied,
+        unread: true,
+        readByIqly: at(0, 9, 13),
+        messages: [
+          HelpMessage(
+            author: HelpAuthor.you,
+            body:
+                'Hi, my withdrawal of ₦10,000.00 has said pending since '
+                'Monday.',
+            at: at(12, 14, 20),
+            attachment: const HelpAttachment(
+              name: 'withdrawals.jpg',
+              bytes: 19000,
+              kind: HelpAttachmentKind.image,
+              preview: 'assets/samples/support/withdrawals-screenshot.jpg',
+            ),
+          ),
+          HelpMessage(
+            author: HelpAuthor.support,
+            side: HelpSide.iqly,
+            authorName: iqlySupport,
+            body:
+                'Hi $firstName, Access Bank is still confirming it. It should '
+                'land by tomorrow. We will message you here when it does.',
+            at: at(12, 15, 6),
+          ),
+          HelpMessage(
+            author: HelpAuthor.support,
+            side: HelpSide.iqly,
+            authorName: iqlySupport,
+            body: 'Access Bank confirmed it on Tuesday.',
+            at: at(3, 10, 5),
+            attachment: const HelpAttachment(
+              name: 'Withdrawal receipt.pdf',
+              bytes: 64000,
+              kind: HelpAttachmentKind.file,
+              mime: 'application/pdf',
+              pages: 1,
+            ),
+          ),
+          HelpMessage(
+            author: HelpAuthor.you,
+            body: attachmentOnlyBody(HelpAttachmentKind.audio),
+            at: at(1, 18, 48),
+            attachment: const HelpAttachment(
+              name: 'voice-note.m4a',
+              bytes: 190000,
+              length: Duration(seconds: 24),
+              kind: HelpAttachmentKind.audio,
+            ),
+          ),
+          HelpMessage(
+            author: HelpAuthor.you,
+            body: 'I still can’t see it in my bank app.',
+            at: at(1, 18, 49),
+          ),
+          HelpMessage(
+            author: HelpAuthor.support,
+            side: HelpSide.iqly,
+            authorName: iqlySupport,
+            body: 'Thanks for the voice note, $firstName.',
+            at: at(0, 9, 12),
+          ),
+          HelpMessage(
+            author: HelpAuthor.support,
+            side: HelpSide.iqly,
+            authorName: iqlySupport,
+            body:
+                'The reference on the receipt is the one Access Bank needs. '
+                'Show it to them and they can trace the transfer.',
+            at: at(0, 9, 13),
+          ),
+        ],
+      ),
+      HelpTicket(
+        id: 'orchid-foods',
+        subject: 'Orchid Foods activation',
+        status: HelpTicketStatus.open,
+        activationId: 'a1',
+        channel: HelpChannel.business,
+        withName: 'Orchid Foods',
+        withLogo: 'assets/samples/logos/orchid-foods.svg',
+        readByBusiness: at(1, 18, 10),
+        readByIqly: at(1, 9, 5),
+        messages: [
+          HelpMessage(
+            author: HelpAuthor.you,
+            body:
+                'Rated all 3 recipes on Thursday and sent my recording. It '
+                'still says Checking.',
+            at: at(4, 14, 20),
+          ),
+          HelpMessage(
+            author: HelpAuthor.support,
+            side: HelpSide.iqly,
+            authorName: iqlySupport,
+            body:
+                'Hi $firstName, we’ve asked Orchid Foods to check your '
+                'recording.',
+            at: at(1, 9, 5),
+          ),
+          HelpMessage(
+            author: HelpAuthor.support,
+            side: HelpSide.business,
+            authorName: 'Orchid Foods',
+            body: 'Please send a clearer recording.',
+            at: at(1, 16, 40),
+          ),
+          HelpMessage(
+            author: HelpAuthor.you,
+            body: attachmentOnlyBody(HelpAttachmentKind.audio),
+            at: at(1, 18, 2),
+            attachment: const HelpAttachment(
+              name: 'voice-note.m4a',
+              bytes: 330000,
+              length: Duration(seconds: 42),
+              kind: HelpAttachmentKind.audio,
+            ),
+          ),
+        ],
+      ),
+      HelpTicket(
+        id: 'kudi-box',
+        subject: 'Kudi Box activation',
+        status: HelpTicketStatus.resolved,
+        activationId: 'a2',
+        channel: HelpChannel.business,
+        withName: 'Kudi Box',
+        withLogo: 'assets/samples/logos/kudi-box.svg',
+        readByBusiness: at(18, 14, 14),
+        resolvedBy: HelpSide.business,
+        messages: [
+          HelpMessage(
+            author: HelpAuthor.you,
+            body:
+                'Did all three steps on Thursday. Sent proof of step 2 '
+                'yesterday, still says Checking.',
+            at: at(18, 13, 28),
+          ),
+          HelpMessage(
+            author: HelpAuthor.support,
+            side: HelpSide.business,
+            authorName: 'Kudi Box',
+            body: reply(firstName, steps: 3, amount: '₦1,500.00'),
+            at: at(18, 14, 14),
+          ),
+        ],
+      ),
+    ];
+  }
 
   /// The frame's recording, "kudi-box-wallet.mp4", "0:31", "12 MB".
   static const recording = HelpAttachment(

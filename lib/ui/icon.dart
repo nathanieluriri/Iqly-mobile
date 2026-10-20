@@ -29,6 +29,7 @@ enum IqIcons {
   error,
   warning,
   menu,
+  mic,
   video,
   play,
   timer,

@@ -87,6 +87,7 @@ DemoHelpService instantHelp({Duration? replyAfter = Duration.zero}) {
     uploadStep: Duration.zero,
     typingAfter: Duration.zero,
     replyAfter: replyAfter,
+    seededAt: figmaNow,
     clock: () => times[call < times.length ? call++ : times.length - 1],
   );
 }

@@ -78,6 +78,13 @@ HelpMessage? _message(Object? json) {
     attachment: files.firstOrNull,
     more: files.skip(1).toList(),
     authorName: you ? null : apiText(j['authorName']),
+    side: you
+        ? null
+        : switch (j['authorKind']) {
+            'iqly' => HelpSide.iqly,
+            'business' => HelpSide.business,
+            _ => null,
+          },
   );
 }
 
@@ -90,7 +97,17 @@ HelpTicket? helpTicketFromJson(Map<String, dynamic> json) {
   final ledgerId = apiText(credit['ledgerId']);
   final amount = apiInt(credit['amountKobo']);
   final creditedAt = apiTime(credit['at']);
+  final other = _map(json['with']);
+  final readBy = _map(json['readBy']);
+  final business =
+      json['channel'] == 'contributor_business' || other['kind'] == 'business';
   return HelpTicket(
+    channel: business ? HelpChannel.business : HelpChannel.iqly,
+    withName: business ? apiText(other['name']) : null,
+    withLogo: business ? apiText(other['logoUrl']) : null,
+    readByIqly: apiTime(readBy['iqly']),
+    readByBusiness: apiTime(readBy['business']),
+    topic: apiText(json['topic']),
     id: id,
     reference: apiText(json['reference']),
     subject: apiText(json['subject']) ?? '',
@@ -315,12 +332,17 @@ class LiveHelpService implements HelpService {
     String ticketId,
     String body, {
     String? idempotencyKey,
+    List<HelpAttachment> attachments = const [],
   }) async => _ticket(
     await _call(
       _api.send(
         'POST',
         '${_path(ticketId)}/messages',
-        body: {'message': body},
+        body: {
+          'message': body,
+          if (attachments.isNotEmpty)
+            'uploadIds': [for (final file in attachments) ?file.id],
+        },
         idempotencyKey: idempotencyKey,
       ),
     ),
@@ -423,6 +445,7 @@ class PausedHelpService implements HelpService {
     String ticketId,
     String body, {
     String? idempotencyKey,
+    List<HelpAttachment> attachments = const [],
   }) => _paused();
 
   @override
