@@ -210,5 +210,11 @@ final onboardingServiceProvider = Provider<OnboardingService>((ref) {
   }
   final link = ref.watch(liveLinkProvider(LiveFeature.profile));
   if (link == null) return const PausedOnboardingService();
-  return LiveOnboardingService(link, clock: ref.watch(clockProvider));
+  return LiveOnboardingService(
+    link,
+    clock: ref.watch(clockProvider),
+    preferNotToSay: ref
+        .watch(liveModeProvider)
+        .isLive(LiveFeature.genderPreferNotToSay),
+  );
 });

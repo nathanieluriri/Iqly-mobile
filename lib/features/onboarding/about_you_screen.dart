@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import '../../core/deadline.dart';
 import '../../data/onboarding_service.dart';
 import '../../data/reference_data.dart';
-import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/chip.dart';
 import '../../ui/field.dart';

@@ -15,6 +15,7 @@ import 'package:iqly_mobile/features/entry/notifications_ask_screen.dart';
 import 'package:iqly_mobile/features/onboarding/about_you_screen.dart';
 import 'package:iqly_mobile/features/onboarding/add_university_screen.dart';
 import 'package:iqly_mobile/features/onboarding/done_screen.dart';
+import 'package:iqly_mobile/features/onboarding/gender_screen.dart';
 import 'package:iqly_mobile/features/onboarding/onboarding_sheets.dart';
 import 'package:iqly_mobile/features/onboarding/resume_screen.dart';
 import 'package:iqly_mobile/features/onboarding/welcome_screen.dart';
@@ -106,6 +107,13 @@ const _aboutYou = {
   'dateOfBirth': '2004-03-12T00:00:00.000',
 };
 
+/// Welcome's Start, then the gender step, which has no Skip for now.
+Future<void> _start(WidgetTester tester) async {
+  await _tap(tester, find.text('Start'));
+  await _tap(tester, find.text('Female'));
+  await _tap(tester, find.text('Continue'));
+}
+
 bool _buttonOn(WidgetTester tester, String label) =>
     !tester.widget<IqButton>(find.widgetWithText(IqButton, label)).disabled;
 
@@ -120,6 +128,11 @@ void main() {
     expect(find.byType(WelcomeScreen), findsOneWidget);
 
     await _tap(tester, find.text('Start'));
+    expect(find.byType(GenderScreen), findsOneWidget);
+    expect(find.text('Skip for now'), findsNothing);
+    expect(_nextOn(tester), isFalse);
+    await _tap(tester, find.text('Prefer not to say'));
+    await _tap(tester, find.text('Continue'));
     expect(find.byType(AboutYouScreen), findsOneWidget);
     expect(_nextOn(tester), isFalse);
     await _tap(tester, find.text('Student'));
@@ -167,6 +180,7 @@ void main() {
     expect(find.byType(DoneScreen), findsOneWidget);
     expect(find.text('Nice one, Adaeze'), findsOneWidget);
     expect(prefs.getBool('session.onboardingDone'), isTrue);
+    expect(service.saved?.gender, 'prefer_not_to_say');
     expect(service.saved?.occupation, 'student');
     expect(service.saved?.dateOfBirth, isNotNull);
     expect(service.saved?.state, 'Lagos');
@@ -187,7 +201,7 @@ void main() {
   testWidgets('with no brief open to everyone, the last step skips Done for '
       'the notifications ask', (tester) async {
     final (prefs, _) = await _launch(tester, repository: _NothingOpen());
-    await _tap(tester, find.text('Start'));
+    await _start(tester);
     for (var i = 0; i < 2; i++) {
       await _tap(tester, find.text('Skip for now'));
     }
@@ -209,7 +223,7 @@ void main() {
     Map<String, Object?> saved() =>
         jsonDecode(prefs.getString('onboarding.draft')!)
             as Map<String, Object?>;
-    await _tap(tester, find.text('Start'));
+    await _start(tester);
     await _tap(tester, find.text('Employed'));
     await _tap(tester, find.text('Skip for now'));
     expect(find.byType(YourWorkScreen), findsOneWidget);
@@ -335,7 +349,7 @@ void main() {
   testWidgets('Start over clears the answers', (tester) async {
     await _launch(tester, draft: {..._aboutYou, 'lastStep': 'whereYouLive'});
     await _tap(tester, find.text('Start over'));
-    expect(find.byType(AboutYouScreen), findsOneWidget);
+    expect(find.byType(GenderScreen), findsOneWidget);
     expect(_nextOn(tester), isFalse);
   });
 
@@ -351,13 +365,13 @@ void main() {
     expect(find.text('Finish setting up'), findsOneWidget);
     expect(find.text('3 steps left'), findsOneWidget);
     await _tap(tester, find.text('Finish setting up'));
-    expect(find.byType(AboutYouScreen), findsOneWidget);
+    expect(find.byType(GenderScreen), findsOneWidget);
   });
 
   testWidgets('Skip for now opens the next step only, and back returns to '
       'the opener', (tester) async {
     await _launch(tester);
-    await _tap(tester, find.text('Start'));
+    await _start(tester);
     await _tap(tester, find.text('Student'));
     for (final screen in [
       AboutYouScreen,
