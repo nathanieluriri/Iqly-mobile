@@ -7,6 +7,7 @@ import 'package:iqly_mobile/features/outcomes/result_screen.dart';
 import 'package:iqly_mobile/features/submissions/my_submissions_screen.dart';
 import 'package:iqly_mobile/features/submissions/submission_detail_screen.dart';
 import 'package:iqly_mobile/features/submit/brief_sheet.dart';
+import 'package:iqly_mobile/features/submit/submit_header.dart';
 import 'package:iqly_mobile/features/submit/submit_steps.dart';
 import 'package:iqly_mobile/features/wallet/wallet_screen.dart';
 import 'package:iqly_mobile/ui/confirm_sheet.dart';
@@ -14,6 +15,9 @@ import 'package:iqly_mobile/ui/quick_action.dart';
 
 import '../harness.dart';
 import '../steps.dart';
+
+Finder _round(String label) =>
+    find.byWidgetPredicate((w) => w is RoundIconButton && w.label == label);
 
 /// The 6 Oct corrections in one walk: the bottom bar (Discover tapped while
 /// lit does nothing, then each tab), the pass's iQL points into the general
@@ -85,12 +89,14 @@ void main() {
     await d.arrive(find.byType(IqConfirmSheet), hold: 1);
     await d.tap(button('Continue writing'), label: 'continue-writing');
     await d.arrive(find.byType(AnswerStep), hold: 1.5);
-    await d.tap(button('View the brief'), label: 'view-the-brief');
+    await d.tap(_round('More'), label: 'more');
+    await d.tap(find.text('View the brief'), label: 'view-the-brief');
     await d.arrive(find.byType(BriefSheet), hold: 2.5);
     await d.tap(find.text('Back to writing'), label: 'back-to-writing');
     await d.gone(find.byType(BriefSheet));
     await d.arrive(find.byType(AnswerStep), hold: 1.2);
-    await d.tap(button('View the brief'), label: 'view-the-brief-again');
+    await d.tap(_round('More'), label: 'more-again');
+    await d.tap(find.text('View the brief'), label: 'view-the-brief-again');
     await d.arrive(find.byType(BriefSheet), hold: 1.2);
     await d.tapAt(const Offset(195, 120), label: 'scrim');
     await d.gone(find.byType(BriefSheet));
