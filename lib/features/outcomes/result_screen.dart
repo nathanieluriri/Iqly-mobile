@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/deadline.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
+import '../../core/tablet_layout.dart';
 import '../../core/responsive.dart';
 import '../../core/session.dart';
 import '../../core/transitions.dart';
@@ -328,6 +329,7 @@ class _WinnerViewState extends ConsumerState<WinnerView>
   Widget build(BuildContext context) {
     final data = widget.data;
     final id = data.item.id;
+    final split = TabletInSplit.maybeOf(context);
     final board = Leaderboard.of(data) != null;
     final note = ref.watch(businessNoteShownProvider)
         ? data.outcome?.note ?? data.item.submission.note
@@ -343,6 +345,28 @@ class _WinnerViewState extends ConsumerState<WinnerView>
       data.item.submission.title,
       data.amount,
     ].join(', ');
+    final actions = ResultActions(
+      children: [
+        IqButton(
+          label: 'Share your win',
+          showIcon: false,
+          width: double.infinity,
+          onTap: () async {
+            final copied = await context.push<bool>(sharePath(id));
+            if (copied == true && context.mounted) {
+              IqToast.show(context, 'Link copied');
+            }
+          },
+        ),
+        IqButton(
+          label: 'View wallet',
+          kind: IqButtonKind.ghost,
+          showIcon: false,
+          width: double.infinity,
+          onTap: () => context.go(Routes.wallet),
+        ),
+      ],
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -389,7 +413,7 @@ class _WinnerViewState extends ConsumerState<WinnerView>
                     ),
                   ),
                 ),
-                if (board) ...[
+                if (board && !(split?.boardBeside ?? false)) ...[
                   const SizedBox(height: IqSpace.s3),
                   Appear(
                     delay: IqDurations.swap,
@@ -424,32 +448,15 @@ class _WinnerViewState extends ConsumerState<WinnerView>
                     ),
                   ),
                 ],
+                if (split != null) ...[
+                  const SizedBox(height: IqSpace.s3),
+                  actions,
+                ],
               ],
             ),
           ),
         ),
-        ResultActions(
-          children: [
-            IqButton(
-              label: 'Share your win',
-              showIcon: false,
-              width: double.infinity,
-              onTap: () async {
-                final copied = await context.push<bool>(sharePath(id));
-                if (copied == true && context.mounted) {
-                  IqToast.show(context, 'Link copied');
-                }
-              },
-            ),
-            IqButton(
-              label: 'View wallet',
-              kind: IqButtonKind.ghost,
-              showIcon: false,
-              width: double.infinity,
-              onTap: () => context.go(Routes.wallet),
-            ),
-          ],
-        ),
+        if (split == null) actions,
       ],
     );
   }

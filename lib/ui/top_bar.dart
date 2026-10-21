@@ -144,6 +144,10 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     if (Layout.isTablet(context)) {
+      if (variant == IqTopBarVariant.page &&
+          TabletInSplit.maybeOf(context) != null) {
+        return const SizedBox.shrink();
+      }
       final location = TabletLocation.of(context);
       if (variant == IqTopBarVariant.page &&
           location != null &&

@@ -129,6 +129,26 @@ class _Placed extends InheritedWidget {
   bool updateShouldNotify(_Placed oldWidget) => false;
 }
 
+/// Marks a page laid in a tablet split that draws one crumb trail over
+/// both panes: the page's own Page bar steps aside, and [boardBeside] says
+/// the leaderboard already shows in the other pane.
+class TabletInSplit extends InheritedWidget {
+  const TabletInSplit({
+    super.key,
+    this.boardBeside = false,
+    required super.child,
+  });
+
+  final bool boardBeside;
+
+  static TabletInSplit? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<TabletInSplit>();
+
+  @override
+  bool updateShouldNotify(TabletInSplit oldWidget) =>
+      boardBeside != oldWidget.boardBeside;
+}
+
 /// The location of the tablet page around a widget, for chrome that names
 /// where the page sits (the crumbs a Page bar becomes on a tablet).
 class TabletLocation extends InheritedWidget {

@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:go_router/go_router.dart';
+
 import '../../core/responsive.dart';
+import '../../core/tablet_layout.dart';
+import '../../router.dart';
+import '../../ui/biz_crumb.dart';
+import '../outcomes/outcomes_state.dart' show resultProvider;
 import '../../data/help_service.dart' show supportChannelsProvider;
 import '../../theme/theme.dart';
 import '../help/chat_inbox_screen.dart';
@@ -88,7 +94,7 @@ class TabletSupportSplit extends ConsumerWidget {
 
 /// T8 · Result (Mobile App · tablet, 1856:63429), landscape: the result
 /// column (420) beside the leaderboard for that brief.
-class TabletResultSplit extends StatelessWidget {
+class TabletResultSplit extends ConsumerWidget {
   const TabletResultSplit({super.key, required this.id, required this.page});
 
   final String id;
@@ -98,12 +104,55 @@ class TabletResultSplit extends StatelessWidget {
       RegExp(r'^/submissions/([^/]+)/result$').firstMatch(location)?[1];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (!Layout.isExpanded(context)) return page;
-    return _Panes(
-      leftWidth: 420,
-      left: page,
-      right: LeaderboardScreen(id: id),
+    final title = ref.watch(resultProvider(id)).value?.item.submission.title;
+    return Material(
+      color: IqColors.card,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // T12 (1856:65015): one trail over both panes.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              IqSpace.s6,
+              IqSpace.s3,
+              IqSpace.s6,
+              0,
+            ),
+            child: Row(
+              children: [
+                Flexible(
+                  flex: 2,
+                  child: IqBizCrumb(
+                    label: 'My submissions',
+                    onTap: () => context.go(Routes.submissions),
+                  ),
+                ),
+                const SizedBox(width: IqSpace.s1),
+                if (title != null) ...[
+                  Flexible(flex: 2, child: IqBizCrumb(label: title)),
+                  const SizedBox(width: IqSpace.s1),
+                ],
+                const Flexible(
+                  flex: 3,
+                  child: IqBizCrumb(
+                    label: 'Your result',
+                    state: IqBizCrumbState.current,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _Panes(
+              leftWidth: 460,
+              left: TabletInSplit(boardBeside: true, child: page),
+              right: TabletInSplit(child: LeaderboardScreen(id: id)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
