@@ -166,6 +166,10 @@ class _TabletWalletState extends ConsumerState<TabletWallet> {
     );
 
     final now = ref.watch(clockProvider)();
+    // Large text on a narrow pane folds the date into the description.
+    final dated =
+        MediaQuery.textScalerOf(context).scale(100) <= 115 ||
+        MediaQuery.sizeOf(context).width >= 900;
     // Money never ellipsizes: the column takes its widest figure.
     final amountWidth = [
       for (final item in data.activity)
@@ -181,7 +185,7 @@ class _TabletWalletState extends ConsumerState<TabletWallet> {
         ),
     ].fold<double>(120, (a, b) => a > b ? a : b);
     final columns = [
-      const IqBizLedgerColumn('Date', width: 72, sorted: true),
+      if (dated) const IqBizLedgerColumn('Date', width: 72, sorted: true),
       const IqBizLedgerColumn('Description', flex: 3),
       const IqBizLedgerColumn('Status', flex: 2),
       IqBizLedgerColumn('Amount', width: amountWidth, end: true),
@@ -190,7 +194,7 @@ class _TabletWalletState extends ConsumerState<TabletWallet> {
     final kept = activityRows(data, _tab, _filter, now);
     final rows = [
       for (final item in kept)
-        _row(context, item, columns, briefs, hidden, date),
+        _row(context, item, columns, briefs, hidden, dated ? date : null),
     ];
     final segment = IqBizSegment.track(
       children: [
@@ -321,7 +325,7 @@ class _TabletWalletState extends ConsumerState<TabletWallet> {
     List<IqBizLedgerColumn> columns,
     Map<String, Brief> briefs,
     bool hidden,
-    DateFormat date,
+    DateFormat? date,
   ) {
     Widget text(String s, {Color color = IqColors.fg, bool strong = false}) =>
         Text(
@@ -383,8 +387,16 @@ class _TabletWalletState extends ConsumerState<TabletWallet> {
         columns: columns,
         semanticLabel: title,
         cells: [
-          text(date.format(award.createdAt), color: IqColors.fg2),
-          describe(icon, title, 'Reward · $detail'),
+          if (date != null)
+            text(date.format(award.createdAt), color: IqColors.fg2),
+          describe(
+            icon,
+            title,
+            [
+              if (date == null) _short.format(award.createdAt),
+              'Reward · $detail',
+            ].join(' · '),
+          ),
           const SizedBox.shrink(),
           text(
             hidden ? hiddenCredit : '+${naira(award.amountKobo)}',
@@ -404,8 +416,15 @@ class _TabletWalletState extends ConsumerState<TabletWallet> {
       semanticLabel: 'To ${w.bankName ?? ''}',
       onTap: () => context.open(withdrawalPath(w.id)),
       cells: [
-        text(date.format(w.createdAt), color: IqColors.fg2),
-        describe(IqIcons.bank, 'To ${w.destination ?? ''}', w.reference ?? ''),
+        if (date != null) text(date.format(w.createdAt), color: IqColors.fg2),
+        describe(
+          IqIcons.bank,
+          'To ${w.destination ?? ''}',
+          [
+            if (date == null) _short.format(w.createdAt),
+            ?w.reference,
+          ].join(' · '),
+        ),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -434,6 +453,8 @@ class _TabletWalletState extends ConsumerState<TabletWallet> {
     );
   }
 }
+
+final _short = DateFormat('d MMM');
 
 /// [text]'s width in [style] at the window's text scale plus [pad], and
 /// at least [min].
