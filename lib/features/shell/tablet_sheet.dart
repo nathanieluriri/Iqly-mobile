@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/motion.dart';
+import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../theme/theme.dart';
 import '../../ui/icon.dart';
@@ -205,4 +206,58 @@ class TabletDialogPage<T> extends Page<T> {
       child: child,
     ),
   );
+}
+
+/// One open item that survives a rotation: landscape shows it in the
+/// page's pane, portrait in the side sheet. [open] is the source of truth;
+/// [syncSheet] at the top of build opens or pops the sheet when the size
+/// class changes.
+mixin TabletOpenItem<W extends StatefulWidget> on State<W> {
+  String? open;
+  bool? _wasExpanded;
+  bool _sheetShown = false;
+  bool _rotating = false;
+
+  /// The side sheet's content for [id].
+  Widget sheetFor(String id);
+
+  double get sheetWidth => 400;
+
+  void openItem(String id) {
+    setState(() => open = id);
+    if (!Layout.isExpanded(context)) _showSheet(id);
+  }
+
+  Future<void> _showSheet(String id) async {
+    _sheetShown = true;
+    await showTabletSideSheet<void>(
+      context,
+      width: sheetWidth,
+      builder: (context) => sheetFor(id),
+    );
+    _sheetShown = false;
+    if (!mounted) return;
+    if (_rotating) {
+      _rotating = false;
+      return;
+    }
+    setState(() => open = null);
+  }
+
+  void syncSheet() {
+    final expanded = Layout.isExpanded(context);
+    final was = _wasExpanded;
+    _wasExpanded = expanded;
+    if (was == null || was == expanded) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (expanded && _sheetShown) {
+        _rotating = true;
+        Navigator.of(context, rootNavigator: true).pop();
+      } else if (!expanded && !_sheetShown) {
+        final id = open;
+        if (id != null) _showSheet(id);
+      }
+    });
+  }
 }

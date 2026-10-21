@@ -32,10 +32,10 @@ class TabletNotifications extends ConsumerStatefulWidget {
       _TabletNotificationsState();
 }
 
-class _TabletNotificationsState extends ConsumerState<TabletNotifications> {
+class _TabletNotificationsState extends ConsumerState<TabletNotifications>
+    with TabletOpenItem {
   _Filter _filter = _Filter.all;
   bool _unreadOnly = false;
-  String? _open;
 
   bool _keeps(NotificationItem item) =>
       (!_unreadOnly || item.note.unread) && _kind(item);
@@ -53,17 +53,7 @@ class _TabletNotificationsState extends ConsumerState<TabletNotifications> {
     final feed = ref.read(notificationsProvider.notifier);
     if (item.page != null) {
       feed.markRead(item.note.id).ignore();
-      if (Layout.isExpanded(context)) {
-        setState(() => _open = item.note.id);
-      } else {
-        setState(() => _open = item.note.id);
-        await showTabletSideSheet<void>(
-          context,
-          width: 420,
-          builder: (context) => NotificationDetailPanel(item: item),
-        );
-        if (mounted) setState(() => _open = null);
-      }
+      openItem(item.note.id);
       return;
     }
     final link = item.link;
@@ -76,7 +66,19 @@ class _TabletNotificationsState extends ConsumerState<TabletNotifications> {
   }
 
   @override
+  double get sheetWidth => 420;
+
+  @override
+  Widget sheetFor(String id) {
+    final item = widget.feed.value?.item(id);
+    return item == null || item.page == null
+        ? const SizedBox.shrink()
+        : NotificationDetailPanel(item: item);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    syncSheet();
     final data = widget.feed.value;
     final expanded = Layout.isExpanded(context);
     final filters = IqBizSegment.track(
@@ -123,11 +125,11 @@ class _TabletNotificationsState extends ConsumerState<TabletNotifications> {
       final earlier = data.earlier.where(_keeps).toList();
       // Landscape always shows a detail: the open row, else the first that
       // has one.
-      final open = !expanded
+      final shown = !expanded
           ? null
-          : (_open == null ? null : data.item(_open!)) ??
+          : (open == null ? null : data.item(open!)) ??
                 [...today, ...earlier].where((i) => i.page != null).firstOrNull;
-      final selected = expanded ? open?.note.id : _open;
+      final selected = expanded ? shown?.note.id : open;
       Widget group(String title, List<NotificationItem> items) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -178,9 +180,9 @@ class _TabletNotificationsState extends ConsumerState<TabletNotifications> {
                   decoration: const BoxDecoration(
                     border: Border(left: BorderSide(color: IqColors.line)),
                   ),
-                  child: open == null || open.page == null
+                  child: shown == null || shown.page == null
                       ? const SizedBox.shrink()
-                      : NotificationDetailPanel(item: open, closable: false),
+                      : NotificationDetailPanel(item: shown, closable: false),
                 ),
               ],
             );

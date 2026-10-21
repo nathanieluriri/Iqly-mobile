@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/router.dart';
+import 'package:iqly_mobile/features/notifications/tablet_notifications.dart';
+import 'package:iqly_mobile/features/submissions/tablet_submissions.dart';
 import 'package:iqly_mobile/ui/tablet_nav.dart';
 
 import '../golden.dart';
@@ -78,5 +80,54 @@ void main() {
     final after = tester.state<ScrollableState>(list).position.pixels;
     expect(before, greaterThan(0));
     expect(after, before);
+  });
+
+  testWidgets('a rotation keeps the open submission, pane to sheet', (
+    tester,
+  ) async {
+    await pumpTablet(
+      tester,
+      Routes.submissions,
+      frame: TabletFrameSize.landscape,
+    );
+    await tester.tap(find.text('Not selected').last);
+    await tester.pumpAndSettle();
+    expect(find.byType(SubmissionPanel), findsOneWidget);
+    tester.view.physicalSize = TabletFrameSize.portrait.size;
+    await tester.pumpAndSettle();
+    expect(find.byType(SubmissionPanel), findsOneWidget);
+    tester.view.physicalSize = TabletFrameSize.landscape.size;
+    await tester.pumpAndSettle();
+    expect(find.byType(SubmissionPanel), findsOneWidget);
+    expect(
+      find.byWidgetPredicate((w) => w is ModalBarrier && w.color != null),
+      findsNothing,
+    );
+  });
+
+  testWidgets('a rotation moves the notification sheet into the pane', (
+    tester,
+  ) async {
+    await pumpTablet(
+      tester,
+      Routes.notifications,
+      overrides: discoverOverrides(),
+    );
+    await tester.tap(find.text('Closed').first);
+    await tester.pumpAndSettle();
+    expect(find.byType(NotificationDetailPanel), findsOneWidget);
+    tester.view.physicalSize = TabletFrameSize.landscape.size;
+    await tester.pumpAndSettle();
+    expect(find.byType(NotificationDetailPanel), findsOneWidget);
+    expect(
+      tester
+          .widget<NotificationDetailPanel>(find.byType(NotificationDetailPanel))
+          .closable,
+      isFalse,
+    );
+    expect(
+      find.byWidgetPredicate((w) => w is ModalBarrier && w.color != null),
+      findsNothing,
+    );
   });
 }

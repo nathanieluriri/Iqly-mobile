@@ -55,12 +55,12 @@ class TabletSubmissions extends ConsumerStatefulWidget {
   ConsumerState<TabletSubmissions> createState() => _TabletSubmissionsState();
 }
 
-class _TabletSubmissionsState extends ConsumerState<TabletSubmissions> {
+class _TabletSubmissionsState extends ConsumerState<TabletSubmissions>
+    with TabletOpenItem {
   final _query = TextEditingController();
   _Lens _lens = _Lens.all;
   _Sort _sort = _Sort.newest;
   bool _sorting = false;
-  String? _open;
 
   @override
   void dispose() {
@@ -68,19 +68,14 @@ class _TabletSubmissionsState extends ConsumerState<TabletSubmissions> {
     super.dispose();
   }
 
-  void _select(SubmissionItem item) {
-    if (Layout.isExpanded(context)) {
-      setState(() => _open = item.id);
-    } else {
-      showTabletSideSheet<void>(
-        context,
-        builder: (context) => SubmissionPanel(id: item.id),
-      );
-    }
-  }
+  @override
+  Widget sheetFor(String id) => SubmissionPanel(id: id);
+
+  void _select(SubmissionItem item) => openItem(item.id);
 
   @override
   Widget build(BuildContext context) {
+    syncSheet();
     final state = ref.watch(mySubmissionsProvider);
     final data = state.value;
     final drafts = ref.watch(draftItemsProvider).value ?? const <DraftItem>[];
@@ -106,7 +101,7 @@ class _TabletSubmissionsState extends ConsumerState<TabletSubmissions> {
                   : IqBizSegmentState.standard,
               onTap: () => setState(() {
                 _lens = lens;
-                _open = null;
+                open = null;
               }),
             ),
       ],
@@ -208,18 +203,18 @@ class _TabletSubmissionsState extends ConsumerState<TabletSubmissions> {
                 ? b.submission.createdAt.compareTo(a.submission.createdAt)
                 : a.submission.createdAt.compareTo(b.submission.createdAt),
           );
-      final open = expanded
-          ? items.where((i) => i.id == _open).firstOrNull
+      final shown = expanded
+          ? items.where((i) => i.id == open).firstOrNull
           : null;
       final table = _Table(
         items: items,
         now: now,
-        open: open?.id,
-        reward: expanded && open == null,
-        sent: open == null,
+        open: shown?.id,
+        reward: expanded && shown == null,
+        sent: shown == null,
         onTap: _select,
       );
-      body = open == null
+      body = shown == null
           ? table
           : Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -230,8 +225,8 @@ class _TabletSubmissionsState extends ConsumerState<TabletSubmissions> {
                   width: 360,
                   child: TabletCard(
                     child: SubmissionPanel(
-                      id: open.id,
-                      onClose: () => setState(() => _open = null),
+                      id: shown.id,
+                      onClose: () => setState(() => open = null),
                     ),
                   ),
                 ),
