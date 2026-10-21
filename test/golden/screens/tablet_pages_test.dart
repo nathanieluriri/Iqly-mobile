@@ -14,6 +14,7 @@ void main() {
     'settings_details': Routes.yourDetails,
     'settings_points': Routes.pointsLeaderboard,
     'settings_referrals': Routes.referrals,
+    'settings_security': Routes.more,
     'result': '/submissions/s2/result',
     'avatar': Routes.avatarEditor,
     'support': Routes.support,
@@ -47,6 +48,19 @@ void main() {
         await expectTabletGolden(tester, '${e.key}_${frame.name}');
       });
     }
+    testWidgets('settings_gender, ${frame.name}', (tester) async {
+      await pumpTablet(
+        tester,
+        Routes.yourDetails,
+        frame: frame,
+        overrides: discoverOverrides(),
+        settle: false,
+      );
+      await tester.pump(const Duration(seconds: 2));
+      await tester.tap(find.text('Gender'));
+      await tester.pump(const Duration(seconds: 1));
+      await expectTabletGolden(tester, 'settings_gender_${frame.name}');
+    });
     for (final e in signedOut.entries) {
       testWidgets('${e.key}, ${frame.name}', (tester) async {
         await pumpTablet(

@@ -83,6 +83,10 @@ class TabletPane extends StatelessWidget {
       child: child,
     );
     if (context.getInheritedWidgetOfExactType<_Placed>() != null) {
+      // A shell tab's page sits in its shell's page at the same location,
+      // which is already decorated.
+      final outer = context.getInheritedWidgetOfExactType<TabletLocation>();
+      if (outer?.location == location) return placed;
       return chrome.decorate?.call(location, placed) ?? placed;
     }
     if (chromeless) {

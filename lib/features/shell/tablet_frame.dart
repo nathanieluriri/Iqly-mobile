@@ -494,7 +494,7 @@ class _AccountMenu extends ConsumerWidget {
         IqWebAccountMenuItem(
           label: 'Settings',
           tabletIcon: IqTabletIcons.settings,
-          onTap: () => onGo(Routes.more),
+          onTap: () => onGo(Routes.yourDetails),
         ),
         IqWebAccountMenuItem(
           label: 'Sign out',

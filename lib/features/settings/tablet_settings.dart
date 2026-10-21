@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/flags.dart';
-import '../../data/pin_service.dart' show pinServiceProvider;
 import '../../data/referrals_service.dart' show referralsShownProvider;
 import '../../data/repository.dart';
 import '../../router.dart';
@@ -13,21 +12,21 @@ import '../../ui/icon.dart';
 import '../shell/tablet_page.dart';
 
 class _Section {
-  const _Section(this.label, this.icon, this.location, {this.divider = false});
+  const _Section(this.label, this.icon, this.location, {this.also = const []});
 
   final String label;
   final IqIcons icon;
   final String location;
-  final bool divider;
+
+  /// Other roots that light this item (Security holds the PIN pages).
+  final List<String> also;
 }
 
 /// T15 · Settings (Mobile App · tablet, 1852:59891): "Settings" over the
-/// 184 sub-navigation beside the open page, in both layouts. Each settings
-/// page is the app's own, laid in the content column.
-///
-/// Figma over the app: Security holds the PIN; the app's other settings
-/// (help, legal, cache, delete account) keep their More page, which the
-/// sub-navigation links last and which keeps its own full-width layout.
+/// 184 sub-navigation beside the open page, in both layouts: Your details,
+/// Referrals and iQL points, a rule, then Notifications and Security.
+/// Security is the tablet's More page (the PIN, the app's other settings
+/// and Sign out), so the sub-navigation has no More item.
 class TabletSettings extends ConsumerWidget {
   const TabletSettings({
     super.key,
@@ -45,31 +44,44 @@ class TabletSettings extends ConsumerWidget {
     Routes.profile,
     Routes.referrals,
     Routes.pointsLeaderboard,
+    Routes.more,
     '/pin',
   ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final sections = [
+    final first = [
       const _Section('Your details', IqIcons.profile, Routes.yourDetails),
       if (ref.watch(referralsShownProvider))
         const _Section('Referrals', IqIcons.gift, Routes.referrals),
       if (ref.watch(leaderboardShownProvider))
         const _Section('iQL points', IqIcons.medal, Routes.pointsLeaderboard),
+    ];
+    final second = [
       if (Flags.notificationPreferences)
         const _Section(
           'Notifications',
           IqIcons.bell,
           Routes.notificationPreferences,
-          divider: true,
         ),
-      if (ref.watch(pinServiceProvider) != null)
-        const _Section('Security', IqIcons.lock, '/pin'),
-      const _Section('More', IqIcons.more, Routes.more),
+      const _Section('Security', IqIcons.lock, Routes.more, also: ['/pin']),
     ];
+    bool under(String root) =>
+        location == root || location.startsWith('$root/');
     bool open(_Section s) =>
         location == s.location ||
-        (location.startsWith('${s.location}/') && s.location != Routes.profile);
+        (location.startsWith('${s.location}/') &&
+            s.location != Routes.profile) ||
+        s.also.any(under);
+    Widget item(_Section s) => Padding(
+      padding: const EdgeInsets.only(bottom: IqSpace.s0p5),
+      child: IqBizNavItem(
+        label: s.label,
+        icon: s.icon,
+        state: open(s) ? IqBizNavItemState.active : IqBizNavItemState.standard,
+        onTap: open(s) ? null : () => context.go(s.location),
+      ),
+    );
     final pad = TabletPage.padding(context);
     return Material(
       color: IqColors.card,
@@ -92,29 +104,15 @@ class TabletSettings extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        for (final s in sections) ...[
-                          if (s.divider)
-                            const Padding(
-                              padding: EdgeInsets.symmetric(
-                                vertical: IqSpace.s2,
-                              ),
-                              child: SizedBox(
-                                height: 1,
-                                child: ColoredBox(color: IqColors.line),
-                              ),
-                            ),
-                          IqBizNavItem(
-                            label: s.label,
-                            icon: s.icon,
-                            state: open(s)
-                                ? IqBizNavItemState.active
-                                : IqBizNavItemState.standard,
-                            onTap: open(s)
-                                ? null
-                                : () => context.go(s.location),
+                        ...first.map(item),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: IqSpace.s2),
+                          child: SizedBox(
+                            height: 1,
+                            child: ColoredBox(color: IqColors.line),
                           ),
-                          const SizedBox(height: IqSpace.s0p5),
-                        ],
+                        ),
+                        ...second.map(item),
                       ],
                     ),
                   ),
