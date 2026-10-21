@@ -140,16 +140,20 @@ class _Board extends StatelessWidget {
               ],
             )
           else
-            IqPodium(
-              name1: name(0),
-              amount1: points(0),
-              avatar1: leaderboardAvatar(name(0), 64),
-              name2: name(1),
-              amount2: points(1),
-              avatar2: leaderboardAvatar(name(1), 52),
-              name3: name(2),
-              amount3: points(2),
-              avatar3: leaderboardAvatar(name(2), 52),
+            // The settings pane on an iPad mini is narrower than the podium.
+            _fitOnTablet(
+              context,
+              IqPodium(
+                name1: name(0),
+                amount1: points(0),
+                avatar1: leaderboardAvatar(name(0), 64),
+                name2: name(1),
+                amount2: points(1),
+                avatar2: leaderboardAvatar(name(1), 52),
+                name3: name(2),
+                amount3: points(2),
+                avatar3: leaderboardAvatar(name(2), 52),
+              ),
             ),
           const SizedBox(height: IqSpace.s3 * 3),
           Stagger(
@@ -184,3 +188,8 @@ class _Board extends StatelessWidget {
     );
   }
 }
+
+Widget _fitOnTablet(BuildContext context, Widget child) =>
+    Layout.isTablet(context)
+    ? FittedBox(fit: BoxFit.scaleDown, child: child)
+    : child;

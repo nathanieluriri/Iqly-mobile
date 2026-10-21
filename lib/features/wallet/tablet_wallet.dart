@@ -67,13 +67,13 @@ class _TabletWalletState extends ConsumerState<TabletWallet> {
         label: 'Bank account',
         kind: IqButtonKind.secondary,
         showIcon: false,
-        width: 172,
+        width: _fit(context, 'Bank account', IqText.button, 172, pad: 48),
         onTap: () => context.open(bankAccountPath),
       ),
       IqButton(
         label: 'Withdraw',
         showIcon: false,
-        width: 148,
+        width: _fit(context, 'Withdraw', IqText.button, 148, pad: 48),
         disabled: data == null || data.totals.withdrawableKobo <= 0,
         onTap: () => context.open(Routes.withdraw),
       ),
@@ -166,11 +166,25 @@ class _TabletWalletState extends ConsumerState<TabletWallet> {
     );
 
     final now = ref.watch(clockProvider)();
+    // Money never ellipsizes: the column takes its widest figure.
+    final amountWidth = [
+      for (final item in data.activity)
+        _fit(
+          context,
+          hidden
+              ? hiddenDebit
+              : item.award != null
+              ? '+${naira(item.award!.amountKobo)}'
+              : debit(item.withdrawal!.amountKobo),
+          IqWebText.bodySmallStrong,
+          120,
+        ),
+    ].fold<double>(120, (a, b) => a > b ? a : b);
     final columns = [
       const IqBizLedgerColumn('Date', width: 72, sorted: true),
       const IqBizLedgerColumn('Description', flex: 3),
       const IqBizLedgerColumn('Status', flex: 2),
-      const IqBizLedgerColumn('Amount', width: 120, end: true),
+      IqBizLedgerColumn('Amount', width: amountWidth, end: true),
     ];
     final date = DateFormat('d MMM');
     final kept = activityRows(data, _tab, _filter, now);
@@ -313,7 +327,8 @@ class _TabletWalletState extends ConsumerState<TabletWallet> {
         Text(
           s,
           maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+          softWrap: false,
+          overflow: strong ? TextOverflow.visible : TextOverflow.ellipsis,
           style: (strong ? IqWebText.bodySmallStrong : IqWebText.bodySmall)
               .copyWith(color: color),
         );
@@ -418,6 +433,26 @@ class _TabletWalletState extends ConsumerState<TabletWallet> {
       ],
     );
   }
+}
+
+/// [text]'s width in [style] at the window's text scale plus [pad], and
+/// at least [min].
+double _fit(
+  BuildContext context,
+  String text,
+  TextStyle style,
+  double min, {
+  double pad = 0,
+}) {
+  final painter = TextPainter(
+    text: TextSpan(text: text, style: style),
+    textDirection: Directionality.of(context),
+    textScaler: MediaQuery.textScalerOf(context),
+    maxLines: 1,
+  )..layout();
+  final width = painter.width.ceilToDouble() + pad;
+  painter.dispose();
+  return width > min ? width : min;
 }
 
 class _Eye extends StatelessWidget {

@@ -184,7 +184,12 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
     IqBizSegmentState state(bool on) =>
         on ? IqBizSegmentState.selected : IqBizSegmentState.standard;
     final expanded = Layout.isExpanded(context);
-    return Row(
+    // A Wrap so large text drops the filters under the lens tabs.
+    return Wrap(
+      spacing: IqSpace.s4,
+      runSpacing: IqSpace.s3,
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         IqBizSegment.track(
           children: [
@@ -212,60 +217,64 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
               ),
           ],
         ),
-        const Spacer(),
-        if (count != null) ...[
-          Text(
-            '$count ${count == 1 ? 'brief' : 'briefs'}',
-            style: IqWebText.bodySmall.copyWith(color: IqColors.fg3),
-          ),
-          const SizedBox(width: IqSpace.s3),
-        ],
-        TabletPopover(
-          open: _open != _Open.none,
-          onClose: _close,
-          anchor: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IqBizFilterChip(
-                label: 'Filters',
-                state: _open == _Open.filters || filters.narrowed
-                    ? IqBizFilterChipState.active
-                    : IqBizFilterChipState.standard,
-                onTap: () => _open == _Open.filters || !filters.narrowed
-                    ? _toggle(_Open.filters)
-                    : _clearFilters(),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (count != null) ...[
+              Text(
+                '$count ${count == 1 ? 'brief' : 'briefs'}',
+                style: IqWebText.bodySmall.copyWith(color: IqColors.fg3),
               ),
               const SizedBox(width: IqSpace.s3),
-              IqBizFilterChip(
-                label: 'Sort: ${sort.label}',
-                onTap: () => _toggle(_Open.sort),
-              ),
             ],
-          ),
-          popover: _open == _Open.sort
-              ? TabletMenu<FeedSort>(
-                  options: FeedSort.values,
-                  label: (s) => s.label,
-                  selected: sort,
-                  onPick: (s) {
-                    _close();
-                    final current = ref.read(discoverFiltersProvider);
-                    lens.apply(current.copyWith(sort: s));
-                  },
-                )
-              : _FiltersPopover(
-                  draft: _draft ?? filters,
-                  live: live,
-                  now: now,
-                  wide: expanded,
-                  onChanged: (draft) => setState(() => _draft = draft),
-                  onShow: () {
-                    ref
-                        .read(tabletFiltersProvider.notifier)
-                        .apply(_draft ?? filters);
-                    _close();
-                  },
-                ),
+            TabletPopover(
+              open: _open != _Open.none,
+              onClose: _close,
+              anchor: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IqBizFilterChip(
+                    label: 'Filters',
+                    state: _open == _Open.filters || filters.narrowed
+                        ? IqBizFilterChipState.active
+                        : IqBizFilterChipState.standard,
+                    onTap: () => _open == _Open.filters || !filters.narrowed
+                        ? _toggle(_Open.filters)
+                        : _clearFilters(),
+                  ),
+                  const SizedBox(width: IqSpace.s3),
+                  IqBizFilterChip(
+                    label: 'Sort: ${sort.label}',
+                    onTap: () => _toggle(_Open.sort),
+                  ),
+                ],
+              ),
+              popover: _open == _Open.sort
+                  ? TabletMenu<FeedSort>(
+                      options: FeedSort.values,
+                      label: (s) => s.label,
+                      selected: sort,
+                      onPick: (s) {
+                        _close();
+                        final current = ref.read(discoverFiltersProvider);
+                        lens.apply(current.copyWith(sort: s));
+                      },
+                    )
+                  : _FiltersPopover(
+                      draft: _draft ?? filters,
+                      live: live,
+                      now: now,
+                      wide: expanded,
+                      onChanged: (draft) => setState(() => _draft = draft),
+                      onShow: () {
+                        ref
+                            .read(tabletFiltersProvider.notifier)
+                            .apply(_draft ?? filters);
+                        _close();
+                      },
+                    ),
+            ),
+          ],
         ),
       ],
     );
@@ -475,7 +484,9 @@ class _ClosingSoon extends StatelessWidget {
       runSpacing: IqSpace.s6,
       children: [
         for (final b in briefs.take(expanded ? 2 : 4))
-          BriefTicket(brief: b, kind: IqTicketCardKind.hero),
+          TicketZoom(
+            child: BriefTicket(brief: b, kind: IqTicketCardKind.hero),
+          ),
       ],
     );
     if (!expanded) {
@@ -843,6 +854,36 @@ class _FiltersPopover extends StatelessWidget {
               Align(alignment: Alignment.centerRight, child: show),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A hero ticket under large text: the whole ticket grows with the text
+/// scale, so its fixed Figma layout never clips the title or the reward.
+class TicketZoom extends StatelessWidget {
+  const TicketZoom({super.key, required this.child});
+
+  final Widget child;
+
+  static const Size size = Size(300, 188);
+
+  @override
+  Widget build(BuildContext context) {
+    final scale = MediaQuery.textScalerOf(context).scale(100) / 100;
+    if (scale <= 1) return child;
+    return SizedBox(
+      width: size.width * scale,
+      height: size.height * scale,
+      child: FittedBox(
+        child: SizedBox.fromSize(
+          size: size,
+          child: MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.noScaling),
+            child: child,
+          ),
         ),
       ),
     );

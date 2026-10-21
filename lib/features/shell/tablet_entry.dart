@@ -162,10 +162,15 @@ class _Hero extends StatelessWidget {
             top: 96,
             child: Transform.rotate(
               angle: 0.05,
-              child: const ExcludeSemantics(
-                child: IqTicketCard(
-                  meta: 'Sunline · Standard',
-                  showRule: false,
+              // Art: the ticket keeps its drawn size at any text scale.
+              child: MediaQuery(
+                data: MediaQuery.of(context)
+                    .copyWith(textScaler: TextScaler.noScaling),
+                child: const ExcludeSemantics(
+                  child: IqTicketCard(
+                    meta: 'Sunline · Standard',
+                    showRule: false,
+                  ),
                 ),
               ),
             ),
