@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/navigation.dart';
+import '../../core/responsive.dart';
 import '../../data/onboarding_service.dart';
 import '../../data/phone_service.dart';
 import '../../data/profile_service.dart';
@@ -10,6 +11,7 @@ import '../../theme/theme.dart';
 import '../../ui/icon.dart';
 import '../../ui/list_row.dart';
 import '../more/more_widgets.dart';
+import '../settings/tablet_your_details.dart';
 import 'profile_routes.dart';
 import '../onboarding/onboarding_draft.dart';
 import '../onboarding/onboarding_flow.dart';
@@ -123,6 +125,7 @@ class YourDetailsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (Layout.isTablet(context)) return const TabletYourDetails();
     final details = ref.watch(accountDetailsProvider).value;
     final answers = ref.watch(profileAnswersProvider);
     final verified =

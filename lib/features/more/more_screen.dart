@@ -35,6 +35,7 @@ import '../onboarding/onboarding_draft.dart';
 import '../profile/profile_state.dart';
 import '../profile/leaving.dart';
 import '../referrals/referrals_screen.dart';
+import '../shell/tablet_sheet.dart' show TabletCard;
 import '../referrals/referrals_state.dart' show referralTermsProvider;
 import '../wallet/biometric_withdraw.dart';
 import '../wallet/wallet_routes.dart' show bankAccountPath;
@@ -105,6 +106,9 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
     final pin = ref.watch(pinServiceProvider) != null;
     final biometric = pin ? ref.watch(biometricWithdrawProvider).value : null;
 
+    if (Layout.isTablet(context)) {
+      return _security(context, pin: pin, biometric: biometric);
+    }
     final avatar = ref.watch(avatarProvider.select((a) => a.spec));
     final children = <Widget>[
       SizedBox(
@@ -320,6 +324,162 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+extension on _MoreScreenState {
+  /// T15 · Settings · Security (Mobile App · tablet, 1852:65085): the PIN
+  /// card and the Sign out card. The app's other settings, which the frame
+  /// does not place, sit between them as one outlined group, so the tablet
+  /// needs no More item.
+  Widget _security(
+    BuildContext context, {
+    required bool pin,
+    required BiometricWithdraw? biometric,
+  }) {
+    final cache = ref.watch(cacheProvider);
+    final ios = defaultTargetPlatform == TargetPlatform.iOS;
+    Widget card(Widget child) =>
+        TabletCard(padding: const EdgeInsets.all(IqSpace.s6), child: child);
+    Widget lines(String title, String body) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: IqText.bodyStrong.copyWith(color: IqColors.fg)),
+        const SizedBox(height: IqSpace.s2),
+        Text(body, style: IqText.body.copyWith(color: IqColors.fg2)),
+      ],
+    );
+    final children = <Widget>[
+      Text('Security', style: IqText.title.copyWith(color: IqColors.fg)),
+      if (pin)
+        card(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              lines(
+                'iQLY PIN',
+                'Your 4-digit iQLY PIN confirms every withdrawal.',
+              ),
+              const SizedBox(height: IqSpace.s4),
+              IqButton(
+                label: 'Change PIN',
+                kind: IqButtonKind.secondary,
+                showIcon: false,
+                width: 180,
+                onTap: () => context.open(Routes.withdrawalPin),
+              ),
+              if (biometric?.kind case final kind?) ...[
+                const SizedBox(height: IqSpace.s3),
+                IqSettingRow(
+                  label: 'Withdraw with ${kind.label}',
+                  description: 'Instead of typing your PIN each time',
+                  divider: false,
+                  state: biometric!.on ? IqSwitchState.on : IqSwitchState.off,
+                  onChanged: (next) => setBiometricWithdraw(
+                    context,
+                    ref,
+                    next == IqSwitchState.on,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      RowGroup(
+        outlined: true,
+        children: [
+          IqListRow(
+            label: 'Bank account',
+            showDescription: false,
+            icon: IqIcons.bank,
+            onTap: () => context.open(
+              ref.watch(liveModeProvider).isLive(LiveFeature.bankAccounts)
+                  ? bankAccountPath
+                  : Routes.selectBank,
+            ),
+          ),
+          IqListRow(
+            label: 'Help centre',
+            showDescription: false,
+            icon: IqIcons.lifebuoy,
+            count: ref.watch(supportUnreadProvider).value ?? 0,
+            onTap: () => context.open(Routes.helpCentre),
+          ),
+          IqListRow(
+            label: 'Terms and conditions',
+            showDescription: false,
+            icon: IqIcons.document,
+            onTap: () => context.open(Routes.terms),
+          ),
+          IqListRow(
+            label: 'Privacy policy',
+            showDescription: false,
+            icon: IqIcons.shield,
+            onTap: () => context.open(Routes.privacy),
+          ),
+          IqListRow(
+            label: 'Clear cache',
+            showDescription: false,
+            icon: IqIcons.eraser,
+            divider: Flags.deleteAccount,
+            onTap: cache.hasValue ? _clearCache : null,
+          ),
+          if (Flags.deleteAccount)
+            IqListRow(
+              label: 'Delete account',
+              tone: IqListRowTone.danger,
+              showDescription: false,
+              divider: false,
+              onTap: () => context.open(Routes.deleteAccount),
+            ),
+        ],
+      ),
+      card(
+        Row(
+          children: [
+            Expanded(
+              child: lines(
+                'Sign out',
+                'Sign back in any time with the same email.',
+              ),
+            ),
+            const SizedBox(width: IqSpace.s4),
+            IqButton(
+              label: 'Sign out',
+              kind: IqButtonKind.secondary,
+              showIcon: false,
+              width: 140,
+              onTap: () => confirmSignOut(context, ref),
+            ),
+          ],
+        ),
+      ),
+      GestureDetector(
+        onLongPress: () {
+          IqHaptics.hold.play();
+          context.open(Routes.tryNotifications);
+        },
+        child: Text(
+          (ref.watch(buildInfoProvider).value ?? BuildInfo.sample).footer(
+            ios: ios,
+          ),
+          style: IqText.mono.copyWith(color: IqColors.fg3),
+        ),
+      ),
+    ];
+    return Material(
+      color: IqColors.card,
+      child: ListView(
+        controller: _scroll,
+        padding: const EdgeInsets.only(bottom: IqSpace.s8),
+        children: [
+          for (final (i, child) in children.indexed) ...[
+            if (i > 0) const SizedBox(height: IqSpace.s5),
+            child,
+          ],
+        ],
       ),
     );
   }

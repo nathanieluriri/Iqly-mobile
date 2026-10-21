@@ -1,7 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/responsive.dart';
 import '../../core/transitions.dart';
+import '../shell/tablet_sheet.dart';
 import '../../router.dart';
 import '../../ui/wallet_card.dart';
 import '../withdrawals/withdrawal_screen.dart';
@@ -56,21 +58,32 @@ GoRoute walletTabRoute(GlobalKey<NavigatorState> rootKey) => GoRoute(
       parentNavigatorKey: rootKey,
       pageBuilder: (context, state) {
         final query = state.uri.queryParameters;
-        return sheetPage(
-          state,
-          WithdrawSheet(
-            amountKobo: int.tryParse(query['amount'] ?? ''),
-            account: query['account'],
-          ),
-          scrim: IqScrim.sheet,
+        final sheet = WithdrawSheet(
+          amountKobo: int.tryParse(query['amount'] ?? ''),
+          account: query['account'],
         );
+        if (Layout.isTablet(context)) {
+          return TabletDialogPage(
+            key: state.pageKey,
+            name: state.name ?? state.path,
+            width: 480,
+            child: sheet,
+          );
+        }
+        return sheetPage(state, sheet, scrim: IqScrim.sheet);
       },
     ),
     GoRoute(
       path: 'bank-account',
       parentNavigatorKey: rootKey,
-      pageBuilder: (context, state) =>
-          sheetPage(state, const BankAccountSheet(), scrim: IqScrim.sheet),
+      pageBuilder: (context, state) => Layout.isTablet(context)
+          ? TabletDialogPage(
+              key: state.pageKey,
+              name: state.name ?? state.path,
+              width: 480,
+              child: const BankAccountSheet(),
+            )
+          : sheetPage(state, const BankAccountSheet(), scrim: IqScrim.sheet),
     ),
     GoRoute(
       path: 'on-its-way',

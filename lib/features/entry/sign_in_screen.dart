@@ -7,6 +7,7 @@ import '../../core/navigation.dart';
 import '../../data/auth.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
+import '../shell/tablet_entry.dart';
 import 'entry_copy.dart';
 import 'entry_state.dart';
 import 'entry_widgets.dart';
@@ -119,14 +120,37 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     context.open(Routes.forgotPassword);
   }
 
+  Widget _passwordField() => EntryField(
+    input: _password,
+    label: 'Password',
+    valid: _password.controller.text.isNotEmpty,
+    obscureText: !_shown,
+    autofocus: _knownEmail,
+    keyboardType: TextInputType.visiblePassword,
+    autofillHints: const [AutofillHints.password],
+    textInputAction: TextInputAction.done,
+    onSubmitted: (_) => _next(),
+  );
+
   @override
   Widget build(BuildContext context) {
+    final tablet = TabletEntryScope.of(context);
+    final show = ShowPassword(
+      shown: _shown,
+      onTap: () => setState(() => _shown = !_shown),
+    );
+    final forgot = EntryLink(label: 'Forgot your password?', onTap: _forgot);
     return ListenableBuilder(
       listenable: Listenable.merge([_email.changes, _password.changes]),
       builder: (context, _) => EntryScaffold(
         onBack: () => goBack(context, Routes.landing),
         settle: true,
         action: EntryAction(label: 'Sign in', loading: _busy, onTap: _next),
+        tabletFooter: LinkRow(
+          lead: 'New to iQLY?',
+          link: 'Sign up',
+          onTap: () => goBack(context, Routes.landing),
+        ),
         children: [
           const StaggerItem(index: 0, child: EntryTitle('Sign in')),
           const SizedBox(height: IqSpace.s4),
@@ -146,37 +170,29 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           const SizedBox(height: IqSpace.s4),
           StaggerItem(
             index: 2,
-            child: EntryField(
-              input: _password,
-              label: 'Password',
-              valid: _password.controller.text.isNotEmpty,
-              obscureText: !_shown,
-              autofocus: _knownEmail,
-              keyboardType: TextInputType.visiblePassword,
-              autofillHints: const [AutofillHints.password],
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _next(),
-            ),
+            // The tablet frame (1854:66545) sets Show inside the field.
+            child: tablet
+                ? Stack(
+                    children: [
+                      _passwordField(),
+                      Positioned(right: 0, top: 20, child: show),
+                    ],
+                  )
+                : _passwordField(),
           ),
           EntryBanner(message: _failure),
           const SizedBox(height: IqSpace.s4 - EntryLink.linkSlack),
           StaggerItem(
             index: 3,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Flexible(
-                  child: EntryLink(
-                    label: 'Forgot your password?',
-                    onTap: _forgot,
+            child: tablet
+                ? Align(alignment: Alignment.centerRight, child: forgot)
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Flexible(child: forgot),
+                      show,
+                    ],
                   ),
-                ),
-                ShowPassword(
-                  shown: _shown,
-                  onTap: () => setState(() => _shown = !_shown),
-                ),
-              ],
-            ),
           ),
         ],
       ),

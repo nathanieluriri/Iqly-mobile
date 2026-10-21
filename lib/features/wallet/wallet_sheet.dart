@@ -22,6 +22,20 @@ class WalletSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
+    if (Layout.isTablet(context)) {
+      // T11: the 480 dialog draws the card; the sheet gives its rows.
+      return ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: media.size.height * 0.85),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.only(bottom: IqSpace.s3),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: children,
+          ),
+        ),
+      );
+    }
     return CenteredContent(
       child: Padding(
         padding: EdgeInsets.only(bottom: media.viewInsets.bottom),

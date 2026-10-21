@@ -257,11 +257,21 @@ const _families = {
   'Geist Mono': 'IqFonts.geistMono',
 };
 
-String _family(Map<String, dynamic> style) {
+String _family(Map<String, dynamic> style, Set<String> cut) {
   if (style['fontFamily'] != 'Bricolage Grotesque') {
     return _families[style['fontFamily']]!;
   }
-  return 'IqFonts.bricolage${_num((style['fontSize'] as num).toDouble())}';
+  final size = (style['fontSize'] as num).toDouble();
+  final exact = _num(size);
+  if (cut.contains(exact)) return 'IqFonts.bricolage$exact';
+  // A size with no cut instance takes the nearest one, so the tablet ramp
+  // ships without new font files.
+  final nearest = cut.reduce(
+    (a, b) => (double.parse(a) - size).abs() <= (double.parse(b) - size).abs()
+        ? a
+        : b,
+  );
+  return 'IqFonts.bricolage$nearest';
 }
 
 void _writeText(StringBuffer b, List<Map<String, dynamic>> allStyles) {
@@ -287,10 +297,46 @@ void _writeText(StringBuffer b, List<Map<String, dynamic>> allStyles) {
   b.writeln("  static const geistMono = 'Geist Mono';");
   b.writeln('}');
   b.writeln();
-  b.writeln('/// The Mob/* ramp from Figma. Sizes are logical pixels.');
-  b.writeln('abstract final class IqText {');
+  _writeRamp(
+    b,
+    'IqText',
+    '/// The Mob/* ramp from Figma. Sizes are logical pixels.',
+    styles,
+    opticalSizes,
+  );
+  _writeRamp(
+    b,
+    'IqWebText',
+    '/// The web ramp from Figma, used by the tablet layouts.',
+    allStyles
+        .where((s) => !(s['name'] as String).startsWith(RegExp('Mob/|Land/')))
+        .toList(),
+    opticalSizes,
+  );
+  _writeRamp(
+    b,
+    'IqLandText',
+    '/// The Land/* ramp from Figma, used by the tablet layouts. Bricolage '
+        'takes the nearest cut optical size.',
+    allStyles.where((s) => (s['name'] as String).startsWith('Land/')).toList(),
+    opticalSizes,
+  );
+}
+
+void _writeRamp(
+  StringBuffer b,
+  String className,
+  String doc,
+  List<Map<String, dynamic>> styles,
+  Set<String> cut,
+) {
+  b.writeln(doc);
+  b.writeln('abstract final class $className {');
   for (final s in styles) {
-    final name = (s['name'] as String).substring(4);
+    final full = s['name'] as String;
+    final name = full.startsWith(RegExp('Mob/|Land/'))
+        ? full.substring(full.indexOf('/') + 1)
+        : full;
     final size = (s['fontSize'] as num).toDouble();
     final lh = s['lineHeight'] as Map;
     final height = switch (lh['unit']) {
@@ -309,7 +355,7 @@ void _writeText(StringBuffer b, List<Map<String, dynamic>> allStyles) {
         '  /// Figma sets UPPER case: pass the text through toUpperCase().',
       );
     }
-    final family = _family(s);
+    final family = _family(s, cut);
     final fallback = s['fontFamily'] == 'Geist Mono'
         ? ', fontFamilyFallback: [IqFonts.jakarta]'
         : '';

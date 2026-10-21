@@ -16,6 +16,7 @@ import '../../ui/top_bar.dart';
 import '../discover/discover_routes.dart';
 import 'polls_routes.dart';
 import 'polls_state.dart';
+import 'tablet_polls.dart';
 import 'quick_poll_tile.dart';
 
 /// B2 · Quick polls (33:26), behind Flags.polls: a sub page with the open
@@ -64,6 +65,7 @@ class _PollsScreenState extends ConsumerState<PollsScreen> {
     final data = polls.hasValue && !polls.hasError ? polls.value : null;
     final failed = data == null && polls.hasError && !polls.isLoading;
     if (data != null) _openFromBubble(data);
+    if (Layout.isTablet(context)) return const TabletPolls();
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,

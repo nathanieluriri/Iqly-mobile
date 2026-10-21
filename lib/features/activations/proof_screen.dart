@@ -24,6 +24,7 @@ import '../../ui/top_bar.dart';
 import '../../ui/video_preview.dart';
 import '../settings/restore_account_screen.dart' show showClosingAccount;
 import 'activation_format.dart';
+import 'activation_screen.dart' show ActivationProofSide, ActivationSidePanel;
 import 'activations_routes.dart';
 import 'activations_state.dart';
 import 'activations_widgets.dart';
@@ -293,12 +294,23 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
     final refused = draft.stage == ProofStage.refused ? draft.video : null;
     final refusal = refused == null ? null : _refusal(refused, draft.refusal);
 
+    final tablet = Layout.isTablet(context);
+    final sendButton = IqButton(
+      label: 'Send proof',
+      showIcon: false,
+      width: tablet ? 200 : double.infinity,
+      loading: _sending,
+      disabled: !draft.hasVideo,
+      onTap: activation == null ? null : () => _send(activation, draft),
+    );
+    const consent = 'By sending, you confirm you did these steps yourself.';
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
-        backgroundColor: IqColors.bg,
+        backgroundColor: Layout.isTablet(context) ? IqColors.card : IqColors.bg,
         body: SafeArea(
           child: CenteredContent(
+            tabletWidth: 1000,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -310,103 +322,138 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
                       : context.go(activationPath(widget.id)),
                 ),
                 Expanded(
-                  child: activation == null || ended || paid
-                      ? const SizedBox.shrink()
-                      : ListView(
-                          padding: const EdgeInsets.fromLTRB(
-                            IqSpace.s4,
-                            0,
-                            IqSpace.s4,
-                            IqSpace.s4,
-                          ),
-                          children: [
-                            if (banner case final failed?) ...[
-                              IqBanner(
-                                kind: IqBannerKind.error,
-                                title: failed,
-                                action: 'Try again',
-                                showAction: failed.endsWith('connection.'),
-                                onAction: () => _send(activation, draft),
-                              ),
-                              const SizedBox(height: IqSpace.s4),
-                            ],
-                            if (heldBack == null) ...[
-                              Text(
-                                pays > 0
-                                    ? 'Record step $step. '
-                                          '${activation.business} confirms '
-                                          'it, then we pay '
-                                          '${rewardPool(pays)}.'
-                                    : 'Record step $step. '
-                                          '${activation.business} confirms '
-                                          'it.',
-                                style: IqText.body.copyWith(
-                                  color: IqColors.fg2,
-                                ),
-                              ),
-                              const SizedBox(height: IqSpace.s4),
-                              Text(
-                                'Proof of step $step · up to '
-                                '${ActivationRules.proofLength.inSeconds} '
-                                'seconds',
-                                style: IqText.label.copyWith(
-                                  color: IqColors.fg2,
-                                ),
-                              ),
-                              const SizedBox(height: IqSpace.s4),
-                              Shake(
-                                trigger: _shakes,
-                                child: _ProofSlot(
-                                  draft: draft,
-                                  heroTag: proofHeroTag(activation.id),
-                                  onPick: _pick,
-                                  onRetry: () => _again(draft),
-                                  onRemove: _remove,
-                                  onPlay: () => context.open(
-                                    proofPlayerPath(activation.id),
+                  child: ActivationSidePanel(
+                    activation: activation,
+                    child: activation == null || ended || paid
+                        ? const SizedBox.shrink()
+                        : ListView(
+                            padding: const EdgeInsets.fromLTRB(
+                              IqSpace.s4,
+                              0,
+                              IqSpace.s4,
+                              IqSpace.s4,
+                            ),
+                            children: [
+                              if (tablet) ...[
+                                Text(
+                                  'Upload proof',
+                                  style: IqText.display.copyWith(
+                                    color: IqColors.fg,
                                   ),
                                 ),
-                              ),
-                              if (refusal != null) ...[
                                 const SizedBox(height: IqSpace.s4),
+                              ],
+                              if (banner case final failed?) ...[
                                 IqBanner(
                                   kind: IqBannerKind.error,
-                                  title: refusal,
-                                  showAction: false,
+                                  title: failed,
+                                  action: 'Try again',
+                                  showAction: failed.endsWith('connection.'),
+                                  onAction: () => _send(activation, draft),
                                 ),
+                                const SizedBox(height: IqSpace.s4),
                               ],
-                              const SizedBox(height: IqSpace.s4),
-                              IqField(
-                                label:
-                                    '${activation.business} account phone '
-                                    'number (optional)',
-                                value: '0801 234 5678',
-                                controller: _phone,
-                                keyboardType: TextInputType.phone,
-                                textInputAction: TextInputAction.next,
-                                inputFormatters: [
-                                  FilteringTextInputFormatter.allow(
-                                    RegExp(r'[0-9+ ]'),
+                              if (heldBack == null) ...[
+                                Text(
+                                  pays > 0
+                                      ? 'Record step $step. '
+                                            '${activation.business} confirms '
+                                            'it, then we pay '
+                                            '${rewardPool(pays)}.'
+                                      : 'Record step $step. '
+                                            '${activation.business} confirms '
+                                            'it.',
+                                  style: IqText.body.copyWith(
+                                    color: IqColors.fg2,
+                                  ),
+                                ),
+                                const SizedBox(height: IqSpace.s4),
+                                Text(
+                                  'Proof of step $step · up to '
+                                  '${ActivationRules.proofLength.inSeconds} '
+                                  'seconds',
+                                  style: IqText.label.copyWith(
+                                    color: IqColors.fg2,
+                                  ),
+                                ),
+                                const SizedBox(height: IqSpace.s4),
+                                Shake(
+                                  trigger: _shakes,
+                                  child: _ProofSlot(
+                                    draft: draft,
+                                    heroTag: proofHeroTag(activation.id),
+                                    onPick: _pick,
+                                    onRetry: () => _again(draft),
+                                    onRemove: _remove,
+                                    onPlay: () => context.open(
+                                      proofPlayerPath(activation.id),
+                                    ),
+                                  ),
+                                ),
+                                if (refusal != null) ...[
+                                  const SizedBox(height: IqSpace.s4),
+                                  IqBanner(
+                                    kind: IqBannerKind.error,
+                                    title: refusal,
+                                    showAction: false,
                                   ),
                                 ],
-                                autofillHints: const [
-                                  AutofillHints.telephoneNumber,
+                                const SizedBox(height: IqSpace.s4),
+                                IqField(
+                                  label:
+                                      '${activation.business} account phone '
+                                      'number (optional)',
+                                  value: '0801 234 5678',
+                                  controller: _phone,
+                                  keyboardType: TextInputType.phone,
+                                  textInputAction: TextInputAction.next,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.allow(
+                                      RegExp(r'[0-9+ ]'),
+                                    ),
+                                  ],
+                                  autofillHints: const [
+                                    AutofillHints.telephoneNumber,
+                                  ],
+                                  onChanged: _draft.setPhone,
+                                ),
+                                const SizedBox(height: IqSpace.s4),
+                                IqField(
+                                  label: 'Anything we should know? (optional)',
+                                  value: 'e.g. I used a different phone number',
+                                  controller: _note,
+                                  textInputAction: TextInputAction.done,
+                                  onChanged: _draft.setNote,
+                                ),
+                              ],
+                              // T10 (1843:49937): Send proof sits under the
+                              // form with the consent line beside it.
+                              if (tablet) ...[
+                                const SizedBox(height: IqSpace.s6),
+                                Row(
+                                  children: [
+                                    sendButton,
+                                    const SizedBox(width: IqSpace.s4),
+                                    Expanded(
+                                      child: Text(
+                                        consent,
+                                        style: IqText.small.copyWith(
+                                          color: IqColors.fg3,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (!Layout.isExpanded(context)) ...[
+                                  const SizedBox(height: IqSpace.s6),
+                                  ActivationProofSide(activation: activation),
                                 ],
-                                onChanged: _draft.setPhone,
-                              ),
-                              const SizedBox(height: IqSpace.s4),
-                              IqField(
-                                label: 'Anything we should know? (optional)',
-                                value: 'e.g. I used a different phone number',
-                                controller: _note,
-                                textInputAction: TextInputAction.done,
-                                onChanged: _draft.setNote,
-                              ),
+                              ],
                             ],
-                          ],
-                        ),
+                          ),
+                  ),
                 ),
-                if (paid || heldBack != null)
+                if (paid || heldBack != null || (tablet && !ended))
                   const SizedBox.shrink()
                 else if (ended)
                   const ActionBar(
@@ -422,18 +469,9 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
                 else
                   ActionBar(
                     children: [
-                      IqButton(
-                        label: 'Send proof',
-                        showIcon: false,
-                        width: double.infinity,
-                        loading: _sending,
-                        disabled: !draft.hasVideo,
-                        onTap: activation == null
-                            ? null
-                            : () => _send(activation, draft),
-                      ),
+                      sendButton,
                       Text(
-                        'By sending, you confirm you did these steps yourself.',
+                        consent,
                         style: IqText.small.copyWith(color: IqColors.fg3),
                       ),
                     ],

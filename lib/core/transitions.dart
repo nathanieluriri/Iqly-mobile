@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 
 import '../theme/theme.dart';
 import 'motion.dart';
+import 'tablet_layout.dart';
 
 /// Which way a page move reads (spec 4.1): pass [NavDirection.back] as the
 /// `extra` of a `go` that steps back, and the page mirrors the push.
@@ -77,7 +78,10 @@ Page<T> stillPage<T>(GoRouterState state, Widget child) => NoTransitionPage<T>(
   name: state.name ?? state.path,
   arguments: _arguments(state),
   restorationId: state.pageKey.value,
-  child: PulseScope(child: child),
+  child: TabletPane(
+    location: state.matchedLocation,
+    child: PulseScope(child: child),
+  ),
 );
 
 /// A sheet hosted as a route page (spec 3.3), on [scrim]. With [expand], a
@@ -226,7 +230,8 @@ Map<String, String> _arguments(GoRouterState state) => {
 
 class _IqPage<T> extends Page<T> {
   _IqPage(GoRouterState state, this.child, this.move)
-    : super(
+    : location = state.matchedLocation,
+      super(
         key: state.pageKey,
         name: state.name ?? state.path,
         arguments: _arguments(state),
@@ -235,6 +240,7 @@ class _IqPage<T> extends Page<T> {
 
   final Widget child;
   final _Move move;
+  final String location;
 
   @override
   Route<T> createRoute(BuildContext context) => _IqPageRoute<T>(this);
@@ -383,8 +389,19 @@ class _IqPageRoute<T> extends PageRoute<T> with _ReducedMotion<T> {
     );
   }
 
+  /// On a tablet the page moves inside the frame's panel, which stays put.
   @override
   Widget buildTransitions(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) => TabletPane(
+    location: (settings as _IqPage<T>).location,
+    child: _transitions(context, animation, secondaryAnimation, child),
+  );
+
+  Widget _transitions(
     BuildContext context,
     Animation<double> animation,
     Animation<double> secondaryAnimation,

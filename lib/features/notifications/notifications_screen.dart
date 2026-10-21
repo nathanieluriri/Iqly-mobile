@@ -18,6 +18,7 @@ import '../../ui/top_bar.dart';
 import '../discover/discover_widgets.dart';
 import '../more/more_widgets.dart';
 import 'notifications_state.dart';
+import 'tablet_notifications.dart';
 
 /// B6 · Notifications (39:24) and its empty state (39:180), a sub page from
 /// the bell and from More. Deadlines and spots read brief data, the result,
@@ -69,6 +70,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final data = feed.hasValue && !feed.hasError ? feed.value : null;
     final failed = data == null && feed.hasError && !feed.isLoading;
     if (data != null) _markSeen();
+    if (Layout.isTablet(context)) return TabletNotifications(feed: feed);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,

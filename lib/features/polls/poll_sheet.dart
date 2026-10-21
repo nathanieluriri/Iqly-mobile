@@ -23,6 +23,7 @@ import '../discover/business_art.dart';
 import '../discover/discover_routes.dart';
 import '../settings/restore_account_screen.dart' show showClosingAccount;
 import 'polls_state.dart';
+import '../shell/tablet_sheet.dart' show TabletClose;
 
 /// B2 · Polls · Orchid Foods · open (33:169), voted (33:289) and done
 /// (480:22679): one business's polls in a sheet on paper (radius 28) over
@@ -50,6 +51,27 @@ class PollSheet extends ConsumerWidget {
     final media = MediaQuery.of(context);
     final done = pollsDone(business);
 
+    if (Layout.isTablet(context)) {
+      // T9: the 560 dialog, capped at the window less the safe areas.
+      return ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: media.size.height - media.viewPadding.vertical - 96,
+        ),
+        child: _Polls(
+          business: business,
+          done: done,
+          compact: true,
+          layout: IqBrandHeaderLayout.leading,
+          padding: const EdgeInsets.fromLTRB(
+            IqSpace.s6,
+            IqSpace.s6,
+            IqSpace.s6,
+            IqSpace.s6,
+          ),
+          bottomInset: 0,
+        ),
+      );
+    }
     final lift = IqSheetRoute.liftOf(context);
     return CenteredContent(
       child: SizedBox(
@@ -158,7 +180,12 @@ class _Polls extends ConsumerStatefulWidget {
     required this.layout,
     required this.padding,
     required this.bottomInset,
+    this.compact = false,
   });
+
+  /// The tablet dialog (T9): the business on one line with the close
+  /// button, the dialog sized to its question.
+  final bool compact;
 
   final PollBusiness? business;
   final bool done;
@@ -263,7 +290,7 @@ class _PollsState extends ConsumerState<_Polls> {
         child: Align(alignment: Alignment.topCenter, child: IqSkeleton()),
       );
     }
-    Widget inset(Widget child) => leading
+    Widget inset(Widget child) => leading && !widget.compact
         ? Padding(
             padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
             child: child,
@@ -278,14 +305,9 @@ class _PollsState extends ConsumerState<_Polls> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           inset(_FailedVote(title: _failed)),
-          IqBrandHeader(
-            layout: widget.layout,
-            brand: business.name,
-            detail: widget.done
-                ? pollDoneDetail(business)
-                : pollDetail(business),
-            cover: businessCover(business.banner),
-            logo: businessLogo(business.logo),
+          _header(
+            business,
+            widget.done ? pollDoneDetail(business) : pollDetail(business),
           ),
           SizedBox(height: leading ? IqSpace.s4 : IqSpace.s3),
           for (final (i, card) in [
@@ -299,6 +321,40 @@ class _PollsState extends ConsumerState<_Polls> {
           ],
         ],
       ),
+    );
+  }
+
+  Widget _header(PollBusiness business, String detail) {
+    if (!widget.compact) {
+      return IqBrandHeader(
+        layout: widget.layout,
+        brand: business.name,
+        detail: detail,
+        cover: businessCover(business.banner),
+        logo: businessLogo(business.logo),
+      );
+    }
+    return Row(
+      children: [
+        ClipOval(child: businessLogo(business.logo, size: 40)),
+        const SizedBox(width: IqSpace.s3),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                business.name,
+                style: IqWebText.bodyBase.copyWith(color: IqColors.fg),
+              ),
+              Text(
+                detail,
+                style: IqWebText.metaCaption.copyWith(color: IqColors.fg3),
+              ),
+            ],
+          ),
+        ),
+        TabletClose(onTap: () => context.pop()),
+      ],
     );
   }
 
@@ -409,67 +465,78 @@ class _PollsState extends ConsumerState<_Polls> {
       loading: next == null && _sending,
       onTap: () => next == null ? _sendWalk(business) : go(next),
     );
+    final scroll = SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(
+        widget.padding.left,
+        widget.padding.top,
+        widget.padding.right,
+        IqSpace.s2,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          inset(_FailedVote(title: _failed)),
+          _header(business, pollDetail(business)),
+          SizedBox(height: leading ? IqSpace.s4 : IqSpace.s3),
+          inset(
+            Text(
+              pollStepLabel(
+                at: at,
+                count: steps.length,
+                last: next == null,
+                skipped: [for (var i = 0; i < at; i++) i].any(skipped),
+              ),
+              style: IqText.label.copyWith(color: IqColors.fg2),
+            ),
+          ),
+          const SizedBox(height: IqSpace.s2),
+          inset(IqStepMark(step: IqStepMarkStep.at(at, steps.length))),
+          if (because != null) ...[
+            const SizedBox(height: IqSpace.s3),
+            inset(
+              Text(because, style: IqText.small.copyWith(color: IqColors.fg2)),
+            ),
+          ],
+          const SizedBox(height: IqSpace.s3),
+          inset(_card(step.sent, now, question: step.q, walking: step.poll)),
+        ],
+      ),
+    );
+    final compact = widget.compact;
     return Column(
+      mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(
-              widget.padding.left,
-              widget.padding.top,
-              widget.padding.right,
-              IqSpace.s2,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                inset(_FailedVote(title: _failed)),
-                IqBrandHeader(
-                  layout: widget.layout,
-                  brand: business.name,
-                  detail: pollDetail(business),
-                  cover: businessCover(business.banner),
-                  logo: businessLogo(business.logo),
-                ),
-                SizedBox(height: leading ? IqSpace.s4 : IqSpace.s3),
-                inset(
-                  Text(
-                    pollStepLabel(
-                      at: at,
-                      count: steps.length,
-                      last: next == null,
-                      skipped: [for (var i = 0; i < at; i++) i].any(skipped),
-                    ),
-                    style: IqText.label.copyWith(color: IqColors.fg2),
-                  ),
-                ),
-                const SizedBox(height: IqSpace.s2),
-                inset(IqStepMark(step: IqStepMarkStep.at(at, steps.length))),
-                if (because != null) ...[
-                  const SizedBox(height: IqSpace.s3),
-                  inset(
-                    Text(
-                      because,
-                      style: IqText.small.copyWith(color: IqColors.fg2),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: IqSpace.s3),
-                inset(
-                  _card(step.sent, now, question: step.q, walking: step.poll),
-                ),
-              ],
-            ),
-          ),
-        ),
+        if (compact) Flexible(child: scroll) else Expanded(child: scroll),
+        if (compact)
+          const SizedBox(height: 1, child: ColoredBox(color: IqColors.line)),
         Padding(
-          padding: EdgeInsets.fromLTRB(
-            IqSpace.s4,
-            IqSpace.s2,
-            IqSpace.s4,
-            IqSpace.s2 + widget.bottomInset,
-          ),
-          child: back == null
+          padding: compact
+              ? const EdgeInsets.all(IqSpace.s4)
+              : EdgeInsets.fromLTRB(
+                  IqSpace.s4,
+                  IqSpace.s2,
+                  IqSpace.s4,
+                  IqSpace.s2 + widget.bottomInset,
+                ),
+          child: compact
+              ? Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (back != null) ...[
+                      IqButton(
+                        label: 'Back',
+                        kind: IqButtonKind.ghost,
+                        showIcon: false,
+                        width: 120,
+                        onTap: () => go(back),
+                      ),
+                      const SizedBox(width: IqSpace.s3),
+                    ],
+                    SizedBox(width: 200, child: nextButton),
+                  ],
+                )
+              : back == null
               ? nextButton
               : Row(
                   children: [

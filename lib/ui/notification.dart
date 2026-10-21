@@ -37,6 +37,7 @@ class IqNotification extends StatelessWidget {
     this.showLogo = false,
     this.logo = const IqSampleLogo(IqSampleLogoBrand.sunline),
     this.highlightDelay = Duration.zero,
+    this.selected = false,
     this.onTap,
   });
 
@@ -51,6 +52,9 @@ class IqNotification extends StatelessWidget {
   final bool showLogo;
   final Widget logo;
   final Duration highlightDelay;
+
+  /// The open row of the tablet split (grey fill, 1848:56514).
+  final bool selected;
   final VoidCallback? onTap;
 
   @override
@@ -92,7 +96,7 @@ class IqNotification extends StatelessWidget {
     return IqPressable(
       onTap: onTap,
       builder: (context, _) => ColoredBox(
-        color: IqColors.card,
+        color: selected ? IqColors.secondary : IqColors.card,
         child: Stack(
           children: [
             Padding(

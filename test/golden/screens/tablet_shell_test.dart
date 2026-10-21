@@ -1,0 +1,133 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/router.dart';
+import 'package:iqly_mobile/features/notifications/tablet_notifications.dart';
+import 'package:iqly_mobile/features/submissions/tablet_submissions.dart';
+import 'package:iqly_mobile/ui/tablet_nav.dart';
+
+import '../golden.dart';
+import 'discover_harness.dart';
+import 'tablet_harness.dart';
+
+void main() {
+  setUpAll(loadAppFonts);
+
+  for (final frame in [TabletFrameSize.portrait, TabletFrameSize.landscape]) {
+    testWidgets('T1 account menu open, ${frame.name}', (tester) async {
+      await pumpTablet(
+        tester,
+        Routes.home,
+        frame: frame,
+        overrides: discoverOverrides(),
+      );
+      await tester.tap(find.text('Adaeze Okafor'));
+      await tester.pumpAndSettle();
+      await expectTabletGolden(tester, 'shell_account_${frame.name}');
+    });
+
+    testWidgets('T1 search open, ${frame.name}', (tester) async {
+      await pumpTablet(
+        tester,
+        Routes.home,
+        frame: frame,
+        overrides: discoverOverrides(),
+      );
+      await tester.tap(find.text('Search briefs, polls and activations'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'kiosk');
+      await tester.pumpAndSettle();
+      await expectTabletGolden(tester, 'shell_search_${frame.name}');
+    });
+  }
+
+  testWidgets('T1 the sidebar collapses to the rail and opens again', (
+    tester,
+  ) async {
+    await pumpTablet(
+      tester,
+      Routes.home,
+      frame: TabletFrameSize.landscape,
+      overrides: discoverOverrides(),
+    );
+    expect(tester.getSize(find.byType(IqTabletNav)).width, 232);
+    await tester.tap(find.text('Collapse sidebar'));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byType(IqTabletNav)).width, 88);
+    await expectTabletGolden(tester, 'shell_collapsed_landscape');
+  });
+
+  testWidgets('T1 the rail switches tabs', (tester) async {
+    await pumpTablet(tester, Routes.home, overrides: discoverOverrides());
+    await tester.tap(find.text('Submissions'));
+    await tester.pumpAndSettle();
+    expect(find.text('My submissions'), findsWidgets);
+  });
+
+  testWidgets('a rotation keeps the page and its scroll', (tester) async {
+    await pumpTablet(tester, Routes.home, overrides: discoverOverrides());
+    // The nav scrolls too (large text), so read the page's own list.
+    final list = find
+        .descendant(
+          of: find.byType(ListView).first,
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    await tester.drag(find.byType(ListView).first, const Offset(0, -400));
+    await tester.pumpAndSettle();
+    final before = tester.state<ScrollableState>(list).position.pixels;
+    tester.view.physicalSize = TabletFrameSize.landscape.size;
+    await tester.pumpAndSettle();
+    final after = tester.state<ScrollableState>(list).position.pixels;
+    expect(before, greaterThan(0));
+    expect(after, before);
+  });
+
+  testWidgets('a rotation keeps the open submission, pane to sheet', (
+    tester,
+  ) async {
+    await pumpTablet(
+      tester,
+      Routes.submissions,
+      frame: TabletFrameSize.landscape,
+    );
+    await tester.tap(find.text('Not selected').last);
+    await tester.pumpAndSettle();
+    expect(find.byType(SubmissionPanel), findsOneWidget);
+    tester.view.physicalSize = TabletFrameSize.portrait.size;
+    await tester.pumpAndSettle();
+    expect(find.byType(SubmissionPanel), findsOneWidget);
+    tester.view.physicalSize = TabletFrameSize.landscape.size;
+    await tester.pumpAndSettle();
+    expect(find.byType(SubmissionPanel), findsOneWidget);
+    expect(
+      find.byWidgetPredicate((w) => w is ModalBarrier && w.color != null),
+      findsNothing,
+    );
+  });
+
+  testWidgets('a rotation moves the notification sheet into the pane', (
+    tester,
+  ) async {
+    await pumpTablet(
+      tester,
+      Routes.notifications,
+      overrides: discoverOverrides(),
+    );
+    await tester.tap(find.text('Closed').first);
+    await tester.pumpAndSettle();
+    expect(find.byType(NotificationDetailPanel), findsOneWidget);
+    tester.view.physicalSize = TabletFrameSize.landscape.size;
+    await tester.pumpAndSettle();
+    expect(find.byType(NotificationDetailPanel), findsOneWidget);
+    expect(
+      tester
+          .widget<NotificationDetailPanel>(find.byType(NotificationDetailPanel))
+          .closable,
+      isFalse,
+    );
+    expect(
+      find.byWidgetPredicate((w) => w is ModalBarrier && w.color != null),
+      findsNothing,
+    );
+  });
+}

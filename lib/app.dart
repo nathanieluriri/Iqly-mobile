@@ -11,6 +11,7 @@ import 'data/onboarding_service.dart' show genderAskedProvider;
 import 'features/onboarding/onboarding_flow.dart';
 import 'data/live/live_repository.dart';
 import 'features/activations/activations_state.dart';
+import 'features/shell/tablet_frame.dart';
 import 'features/splash/patch_dialog.dart';
 import 'features/submissions/submissions_state.dart';
 import 'router.dart';
@@ -65,7 +66,10 @@ class _IqlyAppState extends ConsumerState<IqlyApp> {
       builder: (context, child) => PatchPresenter(
         router: router,
         child: EdgeHaptics(
-          child: ColoredBox(color: IqColors.bg, child: child),
+          child: ColoredBox(
+            color: IqColors.bg,
+            child: TabletFrame(router: router, child: child!),
+          ),
         ),
       ),
     );

@@ -33,6 +33,7 @@ import 'row_card.dart';
 import 'submission_widgets.dart';
 import 'submissions_routes.dart';
 import 'submissions_state.dart';
+import 'tablet_submissions.dart';
 
 /// B4 My submissions, the Submissions tab root: Under review (35:24),
 /// Winners (324:14478) and Not selected (324:14520) as lens chips,
@@ -117,6 +118,7 @@ class _MySubmissionsScreenState extends ConsumerState<MySubmissionsScreen> {
       _retrying = false;
       if (next.hasError) IqHaptics.error.play();
     });
+    if (Layout.isTablet(context)) return const TabletSubmissions();
     final state = ref.watch(mySubmissionsProvider);
     final unread = ref.watch(unreadNotificationsProvider).value ?? 0;
     final data = state.value;

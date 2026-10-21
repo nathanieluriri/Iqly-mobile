@@ -29,6 +29,8 @@ import 'more_sheet.dart';
 import 'submit_header.dart';
 import 'submit_sent.dart';
 import 'submit_state.dart';
+import 'tablet_submit.dart';
+import '../shell/tablet_page.dart';
 import 'submit_steps.dart';
 import 'submit_widgets.dart';
 
@@ -101,6 +103,7 @@ class SubmitScreen extends ConsumerWidget {
         body: SafeArea(
           maintainBottomViewPadding: !typing,
           child: CenteredContent(
+            tablet: true,
             child: body is _Flow
                 ? body
                 : Column(
@@ -259,6 +262,23 @@ class _FlowState extends ConsumerState<_Flow> {
           ),
         ],
       );
+    } else if (sent && Layout.isTablet(context)) {
+      body = TabletPage(
+        key: const ValueKey('sent'),
+        maxWidth: 560,
+        children: [
+          SizedBox(
+            height: 640,
+            child: SentMoment(
+              receipt: receipt,
+              onView: receipt == null
+                  ? null
+                  : () => context.go(submissionPath(receipt.submission.id)),
+              onDiscover: () => context.go(Routes.home),
+            ),
+          ),
+        ],
+      );
     } else if (sent) {
       body = Column(
         key: const ValueKey('sent'),
@@ -383,6 +403,37 @@ class _FormState extends State<_Form> {
     final sends = !answering || !form.hasQuestions;
     final label = sends ? 'Submit' : 'Continue';
     final guide = SubmitGuide.extentOf(context);
+    if (Layout.isTablet(context)) {
+      return TabletSubmitLayout(
+        brief: widget.brief,
+        form: form,
+        flow: flow,
+        guide: guideOf(flow, form),
+        step: answering
+            ? AnswerStep(
+                key: const ValueKey(SubmitStep.answer),
+                brief: widget.brief,
+                flow: flow,
+                settle: false,
+                fill: 300,
+                reveal: (_) {},
+                onRetry: widget.onSend,
+              )
+            : QuestionsStep(
+                key: const ValueKey(SubmitStep.questions),
+                briefId: widget.brief.id,
+                form: form,
+                flow: flow,
+                onRetry: widget.onSend,
+              ),
+        label: label,
+        showIcon: !sends,
+        loading: flow.sending,
+        disabled: sends && form.hasQuestions && !widget.canSend,
+        onPrimary: sends ? widget.onSend : widget.onContinue,
+        onBack: widget.onBack,
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

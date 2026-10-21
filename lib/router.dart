@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/session.dart';
+import 'core/tablet_layout.dart';
 import 'core/transitions.dart';
 import 'core/updates.dart';
 import 'data/pin_service.dart' show pinServiceProvider;
@@ -144,8 +145,10 @@ GoRouter buildRouter({
   bool Function(String path)? hidden,
 }) {
   final rootKey = GlobalKey<NavigatorState>();
-  return GoRouter(
+  final watch = TabletRouteWatch();
+  final router = GoRouter(
     navigatorKey: rootKey,
+    observers: [watch],
     initialLocation: initialLocation,
     // Never cuts into a screen: an answer that comes late applies at the
     // next screen change. The splash hands over by itself.
@@ -194,6 +197,8 @@ GoRouter buildRouter({
       ...helpRoutes,
     ],
   );
+  TabletRouteWatch.attach(router, watch);
+  return router;
 }
 
 /// The sign-up, sign-in and reset steps push; the notifications ask is a

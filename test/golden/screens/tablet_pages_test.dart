@@ -1,0 +1,79 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/router.dart';
+
+import '../golden.dart';
+import 'discover_harness.dart';
+import 'tablet_harness.dart';
+
+/// The rows the tablet keeps the app's own pages for, in the panel or full
+/// screen before the shell: one golden per layout.
+void main() {
+  setUpAll(loadAppFonts);
+
+  const signedIn = {
+    'settings_details': Routes.yourDetails,
+    'settings_points': Routes.pointsLeaderboard,
+    'settings_referrals': Routes.referrals,
+    'settings_security': Routes.more,
+    'result': '/submissions/s2/result',
+    'avatar': Routes.avatarEditor,
+    'support': Routes.support,
+    'support_thread': '/help/t1',
+    'help': Routes.helpCentre,
+    'activation': '/activations/a2',
+    'proof': '/activations/a2/proof',
+    'withdrawal': '/wallet/withdrawals/w1',
+  };
+  const signedOut = {
+    'landing': Routes.landing,
+    'sign_in': Routes.signIn,
+    'onboarding': Routes.onboarding,
+    'onboarding_about_you': Routes.onboardingAboutYou,
+    'sign_up_name': Routes.yourName,
+    'sign_up_password': Routes.createPassword,
+  };
+
+  for (final frame in [TabletFrameSize.portrait, TabletFrameSize.landscape]) {
+    for (final e in signedIn.entries) {
+      testWidgets('${e.key}, ${frame.name}', (tester) async {
+        await pumpTablet(
+          tester,
+          e.value,
+          frame: frame,
+          overrides: discoverOverrides(),
+          settle: false,
+        );
+        await tester.pump(const Duration(seconds: 2));
+        await tester.pump(const Duration(seconds: 2));
+        await expectTabletGolden(tester, '${e.key}_${frame.name}');
+      });
+    }
+    testWidgets('settings_gender, ${frame.name}', (tester) async {
+      await pumpTablet(
+        tester,
+        Routes.yourDetails,
+        frame: frame,
+        overrides: discoverOverrides(),
+        settle: false,
+      );
+      await tester.pump(const Duration(seconds: 2));
+      await tester.tap(find.text('Gender'));
+      await tester.pump(const Duration(seconds: 1));
+      await expectTabletGolden(tester, 'settings_gender_${frame.name}');
+    });
+    for (final e in signedOut.entries) {
+      testWidgets('${e.key}, ${frame.name}', (tester) async {
+        await pumpTablet(
+          tester,
+          e.value,
+          frame: frame,
+          prefs: const {},
+          settle: false,
+        );
+        await tester.pump(const Duration(seconds: 2));
+        await tester.pump(const Duration(seconds: 2));
+        await expectTabletGolden(tester, '${e.key}_${frame.name}');
+      });
+    }
+  }
+}
