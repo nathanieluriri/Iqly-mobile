@@ -10,6 +10,7 @@ import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/button.dart';
+import '../../ui/chat_header.dart';
 import '../../ui/chip.dart';
 import '../../ui/empty_state.dart';
 import '../../ui/illustration.dart';
@@ -19,6 +20,7 @@ import '../../ui/support_sticker.dart';
 import '../../ui/thread_row.dart';
 import '../discover/business_art.dart';
 import '../more/more_widgets.dart';
+import 'chat_state.dart';
 import 'help_routes.dart';
 import 'help_state.dart';
 
@@ -77,6 +79,8 @@ int unreadReplies(HelpTicket ticket) {
 /// `supportChannels`: every thread with iQLY support and with businesses,
 /// latest first, searched by who, what about or what was said, and split
 /// into Open and Resolved. Start a new conversation writes to iQLY support.
+/// It opens at once on the threads the phone kept, reading them again
+/// beside the title (Updating, or Couldn't update with Try again).
 class ChatInboxScreen extends ConsumerStatefulWidget {
   const ChatInboxScreen({super.key});
 
@@ -92,6 +96,8 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
   void initState() {
     super.initState();
     _search.addListener(() => setState(() {}));
+    final inbox = ref.read(helpInboxProvider.notifier);
+    Future.microtask(inbox.refresh);
   }
 
   @override
@@ -121,10 +127,11 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final loaded = ref.watch(conversationsProvider);
-    final tickets = loaded.value;
+    final inbox = ref.watch(helpInboxProvider);
+    final tickets = ref.watch(helpInboxTicketsProvider);
     final now = ref.watch(clockProvider)();
-    final failed = tickets == null && loaded.hasError && !loaded.isLoading;
+    final failed = tickets == null && inbox.failed;
+    void retry() => ref.read(helpInboxProvider.notifier).refresh();
     final open = [
       for (final t in tickets ?? const <HelpTicket>[])
         if (t.status != HelpTicketStatus.resolved) t,
@@ -144,7 +151,7 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
         loading: tickets == null && !failed,
         skeleton: const _Skeleton(),
         child: failed
-            ? _Failed(onRetry: () => ref.invalidate(conversationsProvider))
+            ? _Failed(onRetry: retry)
             : tickets == null
             ? const SizedBox.shrink()
             : tickets.isEmpty
@@ -163,7 +170,21 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
                   IqSpace.s4,
                 ),
                 children: [
-                  const _Title(),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const Expanded(child: _Title()),
+                      IqChatSyncLine(
+                        sync: switch (inbox.sync) {
+                          HelpSync.idle => IqChatSync.none,
+                          HelpSync.updating => IqChatSync.updating,
+                          HelpSync.failed => IqChatSync.failed,
+                        },
+                        onRetry: retry,
+                        compact: true,
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: IqSpace.s3),
                   IqSearchBox(
                     placeholder: 'Search conversations',

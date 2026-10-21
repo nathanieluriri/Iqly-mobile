@@ -1,14 +1,19 @@
+import 'dart:async';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
+import '../ui/recording_player.dart' show Recordings;
 import 'help_data.dart';
 import 'media_service.dart';
 
-/// Where a help request's file comes from: the phone's photos (a picture
-/// or a screen recording) or its voice notes.
-enum SupportSource { photos, voiceNote }
+/// Where a file for support comes from: the phone's photos and videos, a
+/// photo or a video taken now with the camera, or a voice note kept on the
+/// phone (the request screen before the chat).
+enum SupportSource { photos, camera, video, voiceNote }
 
 /// Files a person sends to support, from the phone's own pickers: the
 /// screenshot of a report, and what a help request carries (a picture, a
@@ -129,6 +134,12 @@ class DeviceSupportFiles implements SupportFiles {
     },
   );
 
+  /// The camera's longest video: what the API takes of a support video.
+  static const videoLength = Duration(seconds: 60);
+
+  /// A photo from the camera, kept well under the API's 10 MB.
+  static const double _photoSide = 2560;
+
   /// iOS keeps voice notes in Files, which the custom picker reaches; the
   /// audio picker there only offers the music library.
   @override
@@ -139,6 +150,22 @@ class DeviceSupportFiles implements SupportFiles {
           type: FileType.media,
           darwinOptions: _compatible,
         )).firstOrNull,
+      ),
+      SupportSource.camera => _taken(
+        await ImagePicker().pickImage(
+          source: ImageSource.camera,
+          maxWidth: _photoSide,
+          maxHeight: _photoSide,
+          imageQuality: 85,
+        ),
+        HelpAttachmentKind.image,
+      ),
+      SupportSource.video => _taken(
+        await ImagePicker().pickVideo(
+          source: ImageSource.camera,
+          maxDuration: videoLength,
+        ),
+        HelpAttachmentKind.video,
       ),
       SupportSource.voiceNote => _attachment(
         (await FilePicker.pickFiles(
@@ -176,16 +203,55 @@ class DeviceSupportFiles implements SupportFiles {
   }) async {
     if (file == null) return null;
     final known = supportTypeOf(file.name, audio: audio);
+    final kind =
+        known?.kind ??
+        (audio ? HelpAttachmentKind.audio : HelpAttachmentKind.image);
     return HelpAttachment(
       name: file.name,
       bytes: file.lengthSync() ?? await file.length() ?? 0,
-      kind:
-          known?.kind ??
-          (audio ? HelpAttachmentKind.audio : HelpAttachmentKind.image),
+      kind: kind,
       mime: known?.mime,
       source: file.uri,
+      length: kind == HelpAttachmentKind.video
+          ? await lengthOf(file.uri)
+          : null,
       read: file.readAsBytes,
     );
+  }
+
+  static Future<HelpAttachment?> _taken(
+    XFile? file,
+    HelpAttachmentKind kind,
+  ) async {
+    if (file == null) return null;
+    final known = supportTypeOf(file.name);
+    final source = Uri.file(file.path);
+    return HelpAttachment(
+      name: file.name,
+      bytes: await file.length(),
+      kind: known?.kind ?? kind,
+      mime: known?.mime,
+      source: source,
+      length: kind == HelpAttachmentKind.video ? await lengthOf(source) : null,
+      read: file.readAsBytes,
+    );
+  }
+
+  /// A video's running time, read by the app's player, so the API can hold
+  /// it to its 60 s; null when the player cannot tell in a few seconds.
+  static Future<Duration?> lengthOf(Uri source) async {
+    try {
+      final player = Recordings.open(source);
+      try {
+        await player.initialize().timeout(const Duration(seconds: 4));
+        final length = player.value.duration;
+        return length > Duration.zero ? length : null;
+      } finally {
+        unawaited(player.dispose());
+      }
+    } on Object {
+      return null;
+    }
   }
 }
 

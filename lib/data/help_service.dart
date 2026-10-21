@@ -104,6 +104,12 @@ abstract class HelpService {
   /// The one support inbox: every conversation, latest message first.
   Future<List<HelpTicket>> conversations();
 
+  /// [ticketId] as the phone kept it when it was last read, or null.
+  Future<HelpTicket?> keptThread(String ticketId);
+
+  /// The inbox as the phone kept it when it was last read, or null.
+  Future<List<HelpTicket>?> keptConversations();
+
   /// The person opened [ticketId].
   Future<void> markRead(String ticketId);
 
@@ -293,6 +299,13 @@ class DemoHelpService implements HelpService {
   Future<List<HelpTicket>> conversations() async =>
       _tickets.values.toList()
         ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
+  /// The preview keeps nothing on the phone: it answers at once.
+  @override
+  Future<HelpTicket?> keptThread(String ticketId) async => null;
+
+  @override
+  Future<List<HelpTicket>?> keptConversations() async => null;
 
   @override
   Future<void> markRead(String ticketId) async {

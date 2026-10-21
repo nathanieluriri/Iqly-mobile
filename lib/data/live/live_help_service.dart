@@ -5,6 +5,7 @@ import '../api_client.dart';
 import '../help_data.dart';
 import '../help_service.dart';
 import '../local/local_rows.dart';
+import '../local/local_store.dart';
 import '../models.dart';
 import '../support_files.dart';
 import 'live_account.dart';
@@ -136,11 +137,41 @@ HelpTicket? helpTicketFromJson(Map<String, dynamic> json) {
   );
 }
 
+/// A thread's conditional read (contract 13.5), its tag kept with the copy
+/// the thread opens on, so the two never disagree.
+class _KeptTag implements EtagCache {
+  _KeptTag(this.store, this.userId, this.key);
+
+  final LocalStore store;
+  final String userId;
+  final String key;
+
+  @override
+  Future<TaggedAnswer?> read(String path) async {
+    final kept = await store.readCache(userId, key);
+    final etag = kept?.etag;
+    final json = kept?.json;
+    if (etag == null || json is! Map) return null;
+    return (etag: etag, body: <String, dynamic>{'data': json});
+  }
+
+  @override
+  Future<void> write(String path, TaggedAnswer answer) async {
+    final data = answer.body['data'];
+    if (data is Map) {
+      await store.writeCache(userId, key, data, etag: answer.etag);
+    }
+  }
+}
+
 /// Support on the iQLY API (contract 12.1). Files go up as they are picked
 /// (`POST /support/uploads`) and a thread opens with their ids. Opening a
 /// thread carries an Idempotency-Key kept for the same request until the
 /// API has answered it for sure, so a retry after a lost answer opens it
-/// once. Nothing is queued: a send that does not go stays on screen.
+/// once. Nothing is queued: a send that does not go stays on screen. The
+/// inbox and every thread the API answers are kept on the phone, so they
+/// open at once next time while they read again; a thread's read goes
+/// conditional once the API tags it.
 class LiveHelpService implements HelpService {
   LiveHelpService(this.link, {required this.files});
 
@@ -184,6 +215,33 @@ class LiveHelpService implements HelpService {
 
   String _path(String ticketId) =>
       '/support/tickets/${Uri.encodeComponent(ticketId)}';
+
+  /// Where the phone keeps the inbox and each thread as last read.
+  static const inboxKey = 'support:tickets';
+  static String threadKey(String ticketId) => 'support:ticket:$ticketId';
+
+  /// A copy that cannot be kept never fails what the API answered.
+  Future<void> _keep(String key, Map<String, dynamic> json) async {
+    try {
+      await link.keep(key, json);
+    } on Object {
+      return;
+    }
+  }
+
+  /// [res]'s thread, kept for the next time it opens.
+  Future<HelpTicket> _kept(ApiResponse res) async {
+    final ticket = _ticket(res);
+    await _keep(threadKey(ticket.id), res.data);
+    return ticket;
+  }
+
+  EtagCache? _tags(String ticketId) {
+    final user = link.userId();
+    return link.etags && user != null
+        ? _KeptTag(link.store, user, threadKey(ticketId))
+        : null;
+  }
 
   @override
   Stream<HelpUpload> addRecording({
@@ -310,7 +368,7 @@ class LiveHelpService implements HelpService {
         _api.send('POST', '/support/tickets', body: body, idempotencyKey: key),
       );
       _keys.remove(fingerprint);
-      return _ticket(res);
+      return await _kept(res);
     } on HelpRefused catch (refused) {
       if (refused.failure != HelpFailure.offline) _keys.remove(fingerprint);
       rethrow;
@@ -318,10 +376,41 @@ class LiveHelpService implements HelpService {
   }
 
   /// The thread as the API has it now. Reading it does not mark it read.
+  /// An answer the conditional read already kept with its tag is not kept
+  /// again, which would drop the tag.
   @override
   Stream<HelpTicket> watch(String ticketId) async* {
-    final res = await _call(_api.get(_path(ticketId)));
-    yield _ticket(res);
+    final tags = _tags(ticketId);
+    final res = await _call(_api.get(_path(ticketId), etags: tags));
+    final ticket = _ticket(res);
+    if (tags == null || res.headers['etag'] == null) {
+      await _keep(threadKey(ticketId), res.data);
+    }
+    yield ticket;
+  }
+
+  @override
+  Future<HelpTicket?> keptThread(String ticketId) async {
+    try {
+      final json = await link.kept(threadKey(ticketId));
+      return json == null ? null : helpTicketFromJson(json);
+    } on Object {
+      return null;
+    }
+  }
+
+  @override
+  Future<List<HelpTicket>?> keptConversations() async {
+    try {
+      final items = (await link.kept(inboxKey))?['items'];
+      if (items is! List) return null;
+      return [
+        for (final item in items)
+          if (item is Map) ?helpTicketFromJson(item.cast<String, dynamic>()),
+      ];
+    } on Object {
+      return null;
+    }
   }
 
   /// [idempotencyKey] rides along so the API answers a reply sent again
@@ -333,7 +422,7 @@ class LiveHelpService implements HelpService {
     String body, {
     String? idempotencyKey,
     List<HelpAttachment> attachments = const [],
-  }) async => _ticket(
+  }) async => _kept(
     await _call(
       _api.send(
         'POST',
@@ -350,11 +439,12 @@ class LiveHelpService implements HelpService {
 
   @override
   Future<HelpTicket> resolve(String ticketId) async =>
-      _ticket(await _call(_api.post('${_path(ticketId)}/resolve')));
+      _kept(await _call(_api.post('${_path(ticketId)}/resolve')));
 
   @override
   Future<List<HelpTicket>> conversations() async {
     final tickets = <HelpTicket>[];
+    final rows = <Map<String, dynamic>>[];
     String? cursor;
     do {
       final query = Uri(queryParameters: {'limit': '100', 'cursor': ?cursor})
@@ -364,20 +454,31 @@ class LiveHelpService implements HelpService {
       if (items is! List || items.isEmpty) break;
       for (final item in items) {
         if (item is Map) {
-          if (helpTicketFromJson(item.cast<String, dynamic>())
-              case final ticket?) {
+          final row = item.cast<String, dynamic>();
+          if (helpTicketFromJson(row) case final ticket?) {
             tickets.add(ticket);
+            rows.add(row);
           }
         }
       }
       cursor = apiText(res.data['nextCursor']);
     } while (cursor != null && tickets.length < cap);
+    await _keep(inboxKey, {'items': rows});
     return tickets;
   }
 
+  /// The kept thread reads as opened too, so it opens without the count.
   @override
   Future<void> markRead(String ticketId) async {
     await _call(_api.post('${_path(ticketId)}/read'));
+    try {
+      final kept = await link.kept(threadKey(ticketId));
+      if (kept != null && kept['unread'] == true) {
+        await link.keep(threadKey(ticketId), {...kept, 'unread': false});
+      }
+    } on Object {
+      return;
+    }
   }
 
   @override
@@ -453,6 +554,12 @@ class PausedHelpService implements HelpService {
 
   @override
   Future<List<HelpTicket>> conversations() async => const [];
+
+  @override
+  Future<HelpTicket?> keptThread(String ticketId) async => null;
+
+  @override
+  Future<List<HelpTicket>?> keptConversations() async => null;
 
   @override
   Future<void> markRead(String ticketId) async {}

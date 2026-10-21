@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/data/help_data.dart';
 import 'package:iqly_mobile/data/help_service.dart';
+import 'package:iqly_mobile/features/help/chat_thread_screen.dart';
 import 'package:iqly_mobile/features/help/help_routes.dart';
 import 'package:iqly_mobile/router.dart';
 
@@ -90,7 +91,7 @@ void main() {
       'thread_iqly_earlier',
       helpThreadPath('withdrawal'),
       act: (tester) =>
-          tester.drag(find.byType(ListView).last, const Offset(0, 2000)),
+          tester.drag(find.byKey(chatThreadKey), const Offset(0, 2000)),
     );
   });
 

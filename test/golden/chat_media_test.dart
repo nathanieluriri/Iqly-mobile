@@ -4,6 +4,12 @@ import 'package:iqly_mobile/theme/theme.dart';
 import 'package:iqly_mobile/ui/chat_media.dart';
 
 import 'golden.dart';
+import 'press.dart';
+
+Widget _screenshot() => Image.asset(
+  'assets/samples/support/withdrawals-screenshot.jpg',
+  fit: BoxFit.cover,
+);
 
 void main() {
   setUpAll(loadAppFonts);
@@ -18,15 +24,12 @@ void main() {
             kind: kind,
             tone: tone,
             width: kind == IqChatMediaKind.file ? 240 : 210,
-            image: kind == IqChatMediaKind.image
-                ? Image.asset(
-                    'assets/samples/support/withdrawals-screenshot.jpg',
-                    fit: BoxFit.cover,
-                  )
-                : null,
+            duration: kind == IqChatMediaKind.video ? '0:31' : '0:24',
+            image: kind == IqChatMediaKind.image ? _screenshot() : null,
           ),
           size: switch (kind) {
-            IqChatMediaKind.image => const Size(210, 172),
+            IqChatMediaKind.image ||
+            IqChatMediaKind.video => const Size(210, 172),
             IqChatMediaKind.voice => const Size(182, 56),
             IqChatMediaKind.file => const Size(240, 53),
           },
@@ -36,5 +39,53 @@ void main() {
         );
       });
     }
+  }
+
+  for (final (name, media) in [
+    (
+      'image_loading',
+      const IqChatMedia(
+        kind: IqChatMediaKind.image,
+        state: IqChatMediaState.loading,
+      ),
+    ),
+    (
+      'image_loading_progress',
+      const IqChatMedia(
+        kind: IqChatMediaKind.image,
+        state: IqChatMediaState.loading,
+        progress: 0.4,
+      ),
+    ),
+    (
+      'image_uploading',
+      IqChatMedia(
+        kind: IqChatMediaKind.image,
+        tone: IqChatMediaTone.ink,
+        state: IqChatMediaState.loading,
+        progress: 0.7,
+        image: _screenshot(),
+      ),
+    ),
+    (
+      'image_failed',
+      IqChatMedia(
+        kind: IqChatMediaKind.image,
+        state: IqChatMediaState.failed,
+        onRetry: () {},
+      ),
+    ),
+  ]) {
+    testWidgets(name, (tester) async {
+      await expectComponentGolden(
+        tester,
+        'chat_media_$name',
+        stillMotion(media),
+        size: const Size(210, 172),
+        background: media.tone == IqChatMediaTone.ink
+            ? IqColors.brand
+            : IqColors.card,
+      );
+    });
   }
 }
