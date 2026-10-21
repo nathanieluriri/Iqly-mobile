@@ -276,14 +276,16 @@ void main() {
         'Guaranty Trust Bank ••4410',
       ]);
       expect(data.onHoldCount, 1);
-      expect(data.winningSubmissions, 2);
+      expect(data.rewards, 5);
     });
 
-    test('the demo foots: ₦65,000.00 earned, ₦15,000.00 available', () async {
+    test('the demo foots: ₦65,000.00 earned from 5 rewards, ₦15,000.00 '
+        'available', () async {
       final container = _container();
       final data = await container.read(walletProvider.future);
       final totals = data.totals;
       expect(naira(totals.totalEarnedKobo), '₦65,000.00');
+      expect(data.earnedCaption, 'From 5 rewards');
       expect(naira(totals.pendingWithdrawalsKobo), '₦10,000.00');
       expect(naira(totals.withdrawableKobo), '₦15,000.00');
       final paidOut = data.withdrawals

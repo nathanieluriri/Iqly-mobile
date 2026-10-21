@@ -14,6 +14,11 @@ enum IqWalletCardVisibility { shown, hidden }
 /// Owner over Figma (18 Oct): the Wallet screen drops the breakdown line
 /// ([showBreakdown] false); the balance tabs already carry those figures.
 ///
+/// Owner over Figma (21 Oct): Earned so far counts every reward in its
+/// total ("From 5 rewards"), where 331:15098 says "From 2 winning
+/// submissions" under ₦65,000.00 that also holds an activation reward and
+/// two referral bonuses. The sample figures are the demo wallet's.
+///
 /// Figma over brief: the card's own tab row and eye are hidden layers in
 /// every variant; the screen carries both.
 ///
@@ -53,9 +58,9 @@ class IqWalletCard extends StatelessWidget {
   String get _amount =>
       amount ??
       switch (balance) {
-        IqWalletCardBalance.available => '₦12,500.00',
+        IqWalletCardBalance.available => '₦15,000.00',
         IqWalletCardBalance.onItsWay => '₦10,000.00',
-        IqWalletCardBalance.earned => '₦62,500.00',
+        IqWalletCardBalance.earned => '₦65,000.00',
       };
 
   String get _caption =>
@@ -65,18 +70,18 @@ class IqWalletCard extends StatelessWidget {
           'Ready to withdraw to Access Bank ••6789',
         IqWalletCardBalance.onItsWay =>
           'To Access Bank ••6789 · usually arrives in minutes',
-        IqWalletCardBalance.earned => 'From 2 winning submissions',
+        IqWalletCardBalance.earned => 'From 5 rewards',
       };
 
   String get _breakdown =>
       breakdown ??
       switch (balance) {
         IqWalletCardBalance.available =>
-          '₦10,000.00 on its way · ₦62,500.00 earned so far',
+          '₦10,000.00 on its way · ₦65,000.00 earned so far',
         IqWalletCardBalance.onItsWay =>
-          '₦12,500.00 available · ₦62,500.00 earned so far',
+          '₦15,000.00 available · ₦65,000.00 earned so far',
         IqWalletCardBalance.earned =>
-          '₦12,500.00 available · ₦10,000.00 on its way',
+          '₦15,000.00 available · ₦10,000.00 on its way',
       };
 
   @override

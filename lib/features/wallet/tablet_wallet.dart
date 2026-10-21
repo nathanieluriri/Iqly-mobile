@@ -120,11 +120,7 @@ class _TabletWalletState extends ConsumerState<TabletWallet> {
             totals.pendingWithdrawalsKobo,
             'To ${bank?.label ?? ''} · usually arrives in minutes',
           ),
-          (
-            'Earned so far',
-            totals.totalEarnedKobo,
-            'From ${data.winningSubmissions} winning submissions',
-          ),
+          ('Earned so far', totals.totalEarnedKobo, data.earnedCaption),
         ].indexed) ...[
           if (i > 0) const SizedBox(width: IqSpace.s4),
           Expanded(
