@@ -316,6 +316,8 @@ void main() {
       final wallet = container.read(walletProvider).value!;
       expect(wallet.ledger.where((l) => l.id == kudiBox.creditId).length, 1);
       expect(wallet.totals.withdrawableKobo, 1650000);
+      expect(wallet.totals.totalEarnedKobo, 6650000);
+      expect(wallet.earnedCaption, 'From 6 rewards');
     });
   });
 

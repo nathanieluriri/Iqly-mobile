@@ -104,7 +104,7 @@ void main() {
     expect(find.byType(AppShell), findsOneWidget);
     await _tap(tester, find.text('Earned'));
     expect(_card(tester).amount, '₦65,000.00');
-    expect(find.text('From 2 winning submissions'), findsOneWidget);
+    expect(find.text('From 5 rewards'), findsOneWidget);
     expect(find.text('Recent rewards'), findsOneWidget);
 
     await tester.tap(find.byType(IqWalletCard));

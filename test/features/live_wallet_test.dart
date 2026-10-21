@@ -120,9 +120,55 @@ void main() {
         final c = await _container(_liveWallet());
         final data = await c.read(walletProvider.future);
         expect([for (final a in data.activity) a.key], ['w_1', 't_1', 'w_0']);
-        expect(data.winningSubmissions, 1);
+        expect(data.rewards, 1);
+        expect(data.earnedCaption, 'From 1 reward');
       },
     );
+
+    test('Earned so far counts every credit GET /wallet adds up', () async {
+      final api = _liveWallet();
+      api.data(
+        'GET',
+        '/wallet/transactions',
+        page([
+          transactionJson(),
+          transactionJson({
+            'id': 't_4',
+            'amount': 150000,
+            'source': 'activation',
+            'submissionId': null,
+            'businessName': 'Kudi Box',
+          }),
+          transactionJson({
+            'id': 't_5',
+            'amount': 50000,
+            'source': 'referral',
+            'submissionId': null,
+            'businessName': null,
+            'referredName': 'Ngozi E.',
+          }),
+          transactionJson({
+            'id': 't_3',
+            'amount': 1000000,
+            'type': 'reversal',
+            'source': 'reversal',
+            'submissionId': null,
+            'businessName': null,
+            'withdrawalId': 'w_0',
+          }),
+        ]),
+      );
+      api.data('GET', '/wallet', walletJson({'totalEarned': 1450000}));
+      final c = await _container(api);
+      final data = await c.read(walletProvider.future);
+      expect(data.earnedCaption, 'From 3 rewards');
+      expect(
+        data.ledger
+            .where((l) => l.earned)
+            .fold(0, (sum, l) => sum + l.amountKobo),
+        data.totals.totalEarnedKobo,
+      );
+    });
 
     test('a demo activation credit leaves it as it is', () async {
       final c = await _container(_liveWallet());

@@ -88,8 +88,7 @@ class WalletOverview extends ConsumerWidget {
               : 'Ready to withdraw to ${bank.label}',
         IqWalletCardBalance.onItsWay =>
           'To ${bank?.label ?? ''} · usually arrives in minutes',
-        IqWalletCardBalance.earned =>
-          'From ${data.winningSubmissions} winning submissions',
+        IqWalletCardBalance.earned => data.earnedCaption,
       },
       showBreakdown: false,
     );

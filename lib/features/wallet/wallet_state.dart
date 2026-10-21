@@ -52,13 +52,17 @@ class WalletData {
 
   int get onHoldCount => withdrawals.where((w) => w.onHold).length;
 
-  /// Rewards paid for winning submissions.
-  int get winningSubmissions => ledger
-      .where(
-        (l) =>
-            l.type == LedgerType.award && l.source == RewardSource.submission,
-      )
-      .length;
+  /// How many rewards make up earned: wins, activations and referrals,
+  /// never a reversal's money back. `GET /wallet` gives only the total, and
+  /// the API books each reward in it as one credit on the ledger, so a live
+  /// count agrees with it.
+  int get rewards => ledger.where((l) => l.earned).length;
+
+  /// The Earned so far caption: "From 5 rewards", "From 1 reward".
+  String get earnedCaption {
+    final count = rewards;
+    return 'From $count ${count == 1 ? 'reward' : 'rewards'}';
+  }
 
   /// Awards and withdrawals, newest first. Completed withdrawals also sit
   /// in the ledger as debits, and a reversed one's money back as a
