@@ -22,6 +22,7 @@ import '../discover/discover_routes.dart' show leave;
 import 'activation_format.dart';
 import 'activations_routes.dart';
 import 'activations_state.dart';
+import 'tablet_activations.dart';
 import 'activations_widgets.dart';
 
 /// B8 · Activations (141:4597, repeated as B9 161:16268) with its loading
@@ -98,6 +99,7 @@ class _ActivationsScreenState extends ConsumerState<ActivationsScreen> {
         setState(() => _retrying = false);
       }
     });
+    if (Layout.isTablet(context)) return const TabletActivations();
     final state = ref.watch(activationsProvider);
     final now = ref.watch(clockProvider)();
     final held = _skeleton && !_minimumMet;

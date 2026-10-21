@@ -50,6 +50,39 @@ class PollSheet extends ConsumerWidget {
     final media = MediaQuery.of(context);
     final done = pollsDone(business);
 
+    if (Layout.isTablet(context)) {
+      // T9: the 560 dialog, capped at the window less the safe areas.
+      return SizedBox(
+        height: (media.size.height - media.viewPadding.vertical - 96).clamp(
+          320.0,
+          680.0,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            IqTopBar(
+              variant: IqTopBarVariant.sheet,
+              title: done ? 'You’re done' : 'Quick polls',
+              onClose: () => context.pop(),
+            ),
+            Expanded(
+              child: _Polls(
+                business: business,
+                done: done,
+                layout: IqBrandHeaderLayout.leading,
+                padding: const EdgeInsets.fromLTRB(
+                  IqSpace.s6,
+                  0,
+                  IqSpace.s6,
+                  IqSpace.s6,
+                ),
+                bottomInset: 0,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     final lift = IqSheetRoute.liftOf(context);
     return CenteredContent(
       child: SizedBox(

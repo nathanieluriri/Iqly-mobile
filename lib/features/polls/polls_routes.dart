@@ -1,7 +1,9 @@
 import 'package:go_router/go_router.dart';
 
 import '../../core/flags.dart';
+import '../../core/responsive.dart';
 import '../../core/transitions.dart';
+import '../shell/tablet_sheet.dart';
 import '../../router.dart';
 import 'poll_sheet.dart';
 import 'polls_screen.dart';
@@ -40,15 +42,21 @@ final pollsRoutes = <RouteBase>[
         ),
         GoRoute(
           path: ':id',
-          pageBuilder: (context, state) => sheetPage(
-            state,
-            PollSheet(businessId: state.pathParameters['id']!),
-            scrim: IqScrim.sheet,
-            expand: (context) => context.pushReplacement(
-              pollPageOf(state.pathParameters['id']!),
-              extra: Arrival.sheet,
-            ),
-          ),
+          pageBuilder: (context, state) => Layout.isTablet(context)
+              ? TabletDialogPage(
+                  key: state.pageKey,
+                  name: state.name ?? state.path,
+                  child: PollSheet(businessId: state.pathParameters['id']!),
+                )
+              : sheetPage(
+                  state,
+                  PollSheet(businessId: state.pathParameters['id']!),
+                  scrim: IqScrim.sheet,
+                  expand: (context) => context.pushReplacement(
+                    pollPageOf(state.pathParameters['id']!),
+                    extra: Arrival.sheet,
+                  ),
+                ),
         ),
       ],
     ),
