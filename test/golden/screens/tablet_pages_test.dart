@@ -15,7 +15,6 @@ void main() {
     'settings_points': Routes.pointsLeaderboard,
     'settings_referrals': Routes.referrals,
     'result': '/submissions/s2/result',
-    'withdrawal': '/wallet/withdrawals/w3',
     'avatar': Routes.avatarEditor,
     'support': Routes.support,
     'help': Routes.helpCentre,

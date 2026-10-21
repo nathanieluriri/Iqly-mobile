@@ -7,14 +7,14 @@ import '../../data/reference_data.dart';
 
 enum ClosesWithin {
   any('Any time', null),
-  today('Today', Duration(days: 1)),
-  threeDays('In the next 3 days', Duration(days: 3)),
-  sevenDays('In the next 7 days', Duration(days: 7));
+  today('Today', 1),
+  threeDays('In the next 3 days', 3),
+  sevenDays('In the next 7 days', 7);
 
-  const ClosesWithin(this.label, this.within);
+  const ClosesWithin(this.label, this.days);
 
   final String label;
-  final Duration? within;
+  final int? days;
 
   /// The applied chip: "Closes: Today".
   String get chip => 'Closes: ${this == today ? label : label.toLowerCase()}';
@@ -49,10 +49,14 @@ class TabletFilters {
       maxKobo != null;
 
   bool matches(Brief brief, DateTime now) {
-    final within = closes.within;
-    if (within != null) {
+    final days = closes.days;
+    if (days != null) {
       final left = timeLeft(brief.deadline, now);
-      if (left == null || left <= Duration.zero || left > within) return false;
+      if (left == null ||
+          left <= Duration.zero ||
+          left.inMinutes > days * Duration.minutesPerDay) {
+        return false;
+      }
     }
     if (tiers.isNotEmpty && !tiers.contains(brief.tier)) return false;
     if (categories.isNotEmpty && !categories.contains(brief.category)) {

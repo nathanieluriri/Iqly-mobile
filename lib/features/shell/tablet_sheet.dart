@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/motion.dart';
 import '../../core/transitions.dart';
 import '../../theme/theme.dart';
 import '../../ui/icon.dart';
@@ -18,7 +19,7 @@ Future<T?> showTabletSideSheet<T>(
     barrierDismissible: true,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     barrierColor: IqScrim.sheet,
-    transitionDuration: const Duration(milliseconds: 240),
+    transitionDuration: IqDurations.enter,
     pageBuilder: (context, animation, secondary) {
       final pad = MediaQuery.viewPaddingOf(context);
       return Padding(
@@ -43,7 +44,7 @@ Future<T?> showTabletSideSheet<T>(
       );
     },
     transitionBuilder: (context, animation, secondary, child) {
-      final curve = CurvedAnimation(parent: animation, curve: Curves.easeOut);
+      final curve = CurvedAnimation(parent: animation, curve: IqCurves.easeOut);
       return SlideTransition(
         position: Tween(
           begin: const Offset(0.1, 0),
@@ -69,7 +70,7 @@ Future<T?> showTabletDialog<T>(
     barrierDismissible: dismissible,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     barrierColor: IqScrim.sheet,
-    transitionDuration: const Duration(milliseconds: 200),
+    transitionDuration: IqDurations.swap,
     pageBuilder: (context, animation, secondary) {
       final media = MediaQuery.of(context);
       final pad = media.viewPadding;
@@ -92,7 +93,7 @@ Future<T?> showTabletDialog<T>(
       );
     },
     transitionBuilder: (context, animation, secondary, child) {
-      final curve = CurvedAnimation(parent: animation, curve: Curves.easeOut);
+      final curve = CurvedAnimation(parent: animation, curve: IqCurves.easeOut);
       return FadeTransition(
         opacity: curve,
         child: ScaleTransition(
@@ -173,7 +174,7 @@ class TabletDialogPage<T> extends Page<T> {
     barrierDismissible: true,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     barrierColor: IqScrim.sheet,
-    transitionDuration: const Duration(milliseconds: 200),
+    transitionDuration: IqDurations.swap,
     pageBuilder: (context, animation, secondary) {
       final media = MediaQuery.of(context);
       final pad = media.viewPadding;
@@ -196,7 +197,7 @@ class TabletDialogPage<T> extends Page<T> {
       );
     },
     transitionBuilder: (context, animation, secondary, child) => FadeTransition(
-      opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+      opacity: CurvedAnimation(parent: animation, curve: IqCurves.easeOut),
       child: child,
     ),
   );

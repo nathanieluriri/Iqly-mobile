@@ -360,7 +360,7 @@ class _Panel extends ConsumerWidget {
     final today = DateUtils.dateOnly(now);
     final time = DateFormat('h:mm a').format(deadline).toLowerCase();
     if (day == today) return 'Today at $time';
-    if (day == today.add(const Duration(days: 1))) return 'Tomorrow at $time';
+    if (day == DateUtils.addDaysToDate(today, 1)) return 'Tomorrow at $time';
     return '${DateFormat('d MMM').format(deadline)} at $time';
   }
 }
