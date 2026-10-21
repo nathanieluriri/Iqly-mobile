@@ -3,13 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/money.dart';
+import '../../core/deadline.dart' show clockProvider;
 import '../../core/navigation.dart';
-import '../../core/responsive.dart';
 import '../../data/models.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/biz_ledger_header.dart';
+import '../../ui/biz_filter_chip.dart';
 import '../../ui/biz_ledger_row.dart';
+import '../../ui/biz_segment.dart';
 import '../../ui/button.dart';
 import '../../ui/empty_state.dart';
 import '../../ui/icon.dart';
@@ -18,25 +20,43 @@ import '../../ui/meta.dart';
 import '../../ui/pressable.dart';
 import '../../ui/wallet_row.dart';
 import '../shell/tablet_page.dart';
+import '../shell/tablet_popover.dart';
 import '../shell/tablet_sheet.dart';
+import 'activity_screen.dart'
+    show ActivityFilter, ActivityStatus, ActivityWhen, activityRows;
 import 'wallet_routes.dart';
 import 'wallet_rows.dart';
 import 'wallet_state.dart';
 
 /// T11 · Wallet (Mobile App · tablet, 1845:81025): Bank account and
 /// Withdraw (the one primary) beside the hide-balance eye, the three
-/// balances sharing the width, then the activity ledger. Portrait drops
-/// the Type column, as each row's icon and detail already say it.
-class TabletWallet extends ConsumerWidget {
+/// balances sharing the width, then Activity: the All, Rewards and
+/// Withdrawals segment with the Status and When filters, and the ledger.
+/// The ledger has no Type column, as each row's icon and detail say it;
+/// a status wraps with its reason under it.
+class TabletWallet extends ConsumerStatefulWidget {
   const TabletWallet({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TabletWallet> createState() => _TabletWalletState();
+}
+
+enum _Menu { none, status, when }
+
+class _TabletWalletState extends ConsumerState<TabletWallet> {
+  ActivityTab _tab = ActivityTab.all;
+  ActivityFilter _filter = const ActivityFilter();
+  _Menu _menu = _Menu.none;
+
+  void _toggle(_Menu menu) =>
+      setState(() => _menu = _menu == menu ? _Menu.none : menu);
+
+  @override
+  Widget build(BuildContext context) {
     final wallet = ref.watch(walletProvider);
     final data = wallet.value;
     final hidden = ref.watch(walletLensProvider).hidden;
     final briefs = ref.watch(rewardBriefsProvider).value ?? const {};
-    final expanded = Layout.isExpanded(context);
 
     final actions = [
       _Eye(
@@ -145,41 +165,138 @@ class TabletWallet extends ConsumerWidget {
       ],
     );
 
+    final now = ref.watch(clockProvider)();
     final columns = [
       const IqBizLedgerColumn('Date', width: 72, sorted: true),
-      if (expanded) const IqBizLedgerColumn('Type', width: 104),
       const IqBizLedgerColumn('Description', flex: 3),
       const IqBizLedgerColumn('Status', flex: 2),
       const IqBizLedgerColumn('Amount', width: 120, end: true),
     ];
     final date = DateFormat('d MMM');
+    final kept = activityRows(data, _tab, _filter, now);
     final rows = [
-      for (final item in data.activity)
-        _row(context, item, columns, briefs, hidden, expanded, date),
+      for (final item in kept)
+        _row(context, item, columns, briefs, hidden, date),
     ];
+    final segment = IqBizSegment.track(
+      children: [
+        for (final tab in ActivityTab.values)
+          IqBizSegment(
+            label: switch (tab) {
+              ActivityTab.all => 'All',
+              ActivityTab.rewards => 'Rewards',
+              ActivityTab.withdrawals => 'Withdrawals',
+            },
+            state: tab == _tab
+                ? IqBizSegmentState.selected
+                : IqBizSegmentState.standard,
+            onTap: () => setState(() => _tab = tab),
+          ),
+      ],
+    );
+    Widget menu<T>(
+      _Menu which,
+      String label,
+      List<T> options,
+      String Function(T) name,
+      T selected,
+      ActivityFilter Function(T) pick,
+    ) => TabletPopover(
+      open: _menu == which,
+      onClose: () => setState(() => _menu = _Menu.none),
+      anchor: IqBizFilterChip(label: label, onTap: () => _toggle(which)),
+      popover: TabletMenu<T>(
+        options: options,
+        label: name,
+        selected: selected,
+        width: 200,
+        onPick: (value) => setState(() {
+          _filter = pick(value);
+          _menu = _Menu.none;
+        }),
+      ),
+    );
+    final filters = [
+      if (_tab != ActivityTab.rewards)
+        menu<ActivityStatus>(
+          _Menu.status,
+          'Status: ${_filter.status.label}',
+          ActivityStatus.values,
+          (s) => s.label,
+          _filter.status,
+          (s) => ActivityFilter(status: s, when: _filter.when),
+        ),
+      menu<ActivityWhen>(
+        _Menu.when,
+        'When: ${_filter.when.label}',
+        ActivityWhen.values,
+        (w) => w.label,
+        _filter.when,
+        (w) => ActivityFilter(status: _filter.status, when: w),
+      ),
+    ];
+    final toolbar = Wrap(
+      spacing: IqSpace.s4,
+      runSpacing: IqSpace.s3,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      alignment: WrapAlignment.spaceBetween,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Activity', style: IqText.title.copyWith(color: IqColors.fg)),
+            const SizedBox(width: IqSpace.s4),
+            segment,
+          ],
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final (i, f) in filters.indexed) ...[
+              if (i > 0) const SizedBox(width: IqSpace.s2),
+              f,
+            ],
+          ],
+        ),
+      ],
+    );
 
     return TabletPage(
       title: 'Wallet',
       actions: actions,
       children: [
         balances,
-        Text('Activity', style: IqText.title.copyWith(color: IqColors.fg)),
-        if (rows.isEmpty)
+        if (data.activity.isEmpty)
           const IqEmptyState(
             figure: IqFigures.saver,
             title: 'No activity yet',
             body: 'Win a brief to start earning.',
           )
-        else
+        else ...[
+          toolbar,
           TabletCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 IqBizLedgerHeader(columns: columns),
                 ...rows,
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: IqSpace.s6,
+                    vertical: IqSpace.s3,
+                  ),
+                  decoration: const BoxDecoration(
+                    border: Border(top: BorderSide(color: IqColors.line)),
+                  ),
+                  child: Text(
+                    '${rows.length} ${rows.length == 1 ? 'result' : 'results'}',
+                    style: IqWebText.metaCaption.copyWith(color: IqColors.fg3),
+                  ),
+                ),
               ],
             ),
           ),
+        ],
       ],
     );
   }
@@ -190,7 +307,6 @@ class TabletWallet extends ConsumerWidget {
     List<IqBizLedgerColumn> columns,
     Map<String, Brief> briefs,
     bool hidden,
-    bool expanded,
     DateFormat date,
   ) {
     Widget text(String s, {Color color = IqColors.fg, bool strong = false}) =>
@@ -221,7 +337,7 @@ class TabletWallet extends ConsumerWidget {
               text(title),
               Text(
                 detail,
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: IqWebText.metaCaption.copyWith(color: IqColors.fg3),
               ),
@@ -253,7 +369,6 @@ class TabletWallet extends ConsumerWidget {
         semanticLabel: title,
         cells: [
           text(date.format(award.createdAt), color: IqColors.fg2),
-          if (expanded) text('Reward'.toUpperCase(), color: IqColors.fg3),
           describe(icon, title, 'Reward · $detail'),
           const SizedBox.shrink(),
           text(
@@ -275,9 +390,22 @@ class TabletWallet extends ConsumerWidget {
       onTap: () => context.open(withdrawalPath(w.id)),
       cells: [
         text(date.format(w.createdAt), color: IqColors.fg2),
-        if (expanded) text('Withdrawal'.toUpperCase(), color: IqColors.fg3),
-        describe(IqIcons.bank, 'To ${w.bankName ?? ''}', w.reference ?? ''),
-        IqMeta(kind: status.meta, label: status.label),
+        describe(IqIcons.bank, 'To ${w.destination ?? ''}', w.reference ?? ''),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            IqMeta(kind: status.meta, label: status.label, maxLines: 3),
+            if (returned && w.failureReason != null) ...[
+              const SizedBox(height: IqSpace.s1),
+              Text(
+                w.failureReason!,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: IqWebText.metaCaption.copyWith(color: IqColors.fg3),
+              ),
+            ],
+          ],
+        ),
         text(
           hidden
               ? (returned ? hiddenAmount : hiddenDebit)

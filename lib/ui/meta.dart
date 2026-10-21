@@ -25,10 +25,14 @@ class IqMeta extends StatelessWidget {
     super.key,
     this.kind = IqMetaKind.reward,
     this.label = '₦250,000 prize',
+    this.maxLines = 1,
   });
 
   final IqMetaKind kind;
   final String label;
+
+  /// More than one lets a tablet table cell wrap a long status.
+  final int maxLines;
 
   static const double iconSize = 14;
 
@@ -71,16 +75,22 @@ class IqMeta extends StatelessWidget {
           : null,
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: maxLines > 1
+            ? CrossAxisAlignment.start
+            : CrossAxisAlignment.center,
         children: [
           if (icon != null) ...[
-            IqIcon(icon, size: iconSize, color: _ink),
+            Padding(
+              padding: EdgeInsets.only(top: maxLines > 1 ? IqSpace.s0p5 : 0),
+              child: IqIcon(icon, size: iconSize, color: _ink),
+            ),
             const SizedBox(width: IqSpace.s1),
           ],
           Flexible(
             child: Text(
               label,
-              maxLines: 1,
-              softWrap: false,
+              maxLines: maxLines,
+              softWrap: maxLines > 1,
               overflow: TextOverflow.ellipsis,
               style: IqText.smallStrong.copyWith(color: _text),
             ),

@@ -109,4 +109,9 @@ void main() {
       await expectTabletGolden(tester, 'notifications_$f');
     });
   }
+
+  testWidgets('T11 wallet, mini', (tester) async {
+    await pumpTablet(tester, Routes.wallet, frame: TabletFrameSize.mini);
+    await expectTabletGolden(tester, 'wallet_mini');
+  });
 }
