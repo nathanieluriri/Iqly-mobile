@@ -10,6 +10,7 @@ import '../../core/flags.dart';
 import '../../core/money.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
+import '../../core/qr.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../data/activations_data.dart';
@@ -352,7 +353,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
         resizeToAvoidBottomInset: false,
-        backgroundColor: IqColors.bg,
+        backgroundColor: Layout.isTablet(context) ? IqColors.card : IqColors.bg,
         body: SafeArea(
           maintainBottomViewPadding: true,
           child: CenteredContent(
@@ -377,6 +378,7 @@ class _Page extends StatelessWidget {
     this.actions = const [],
     this.divider = false,
     this.activation,
+    this.phone = false,
   });
 
   final String title;
@@ -390,10 +392,31 @@ class _Page extends StatelessWidget {
   /// panel beside the steps (T10).
   final Activation? activation;
 
+  /// Whether a tablet offers Continue on your phone (not once it closes).
+  final bool phone;
+
   @override
   Widget build(BuildContext context) {
     final a = activation;
-    if (a != null && actions.isNotEmpty && Layout.isExpanded(context)) {
+    final side = a == null
+        ? const <Widget>[]
+        : [
+            _RewardPanel(activation: a, actions: actions),
+            if (phone) _PhonePanel(activation: a),
+          ];
+    if (a != null && Layout.isTablet(context) && !Layout.isExpanded(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          IqTopBar(variant: IqTopBarVariant.page, title: title, onBack: onBack),
+          ?status,
+          Expanded(
+            child: _Tail(children: side, child: body),
+          ),
+        ],
+      );
+    }
+    if (a != null && Layout.isExpanded(context)) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -414,7 +437,18 @@ class _Page extends StatelessWidget {
                 const SizedBox(width: IqSpace.s6),
                 SizedBox(
                   width: 320,
-                  child: _RewardPanel(activation: a, actions: actions),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.only(bottom: IqSpace.s6),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final (i, panel) in side.indexed) ...[
+                          if (i > 0) const SizedBox(height: IqSpace.s6),
+                          panel,
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(width: IqSpace.s4),
               ],
@@ -436,6 +470,167 @@ class _Page extends StatelessWidget {
 }
 
 const _padding = EdgeInsets.fromLTRB(IqSpace.s4, 0, IqSpace.s4, IqSpace.s6);
+
+/// What a tablet in portrait scrolls under the page's body: the reward
+/// card with the actions, then Continue on your phone (T10, 1843:49242).
+class _Tail extends InheritedWidget {
+  const _Tail({required this.children, required super.child});
+
+  final List<Widget> children;
+
+  static List<Widget> of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_Tail>()?.children ?? const [];
+
+  @override
+  bool updateShouldNotify(_Tail oldWidget) => children != oldWidget.children;
+}
+
+/// A page's scrolling body, with the tablet's [_Tail] at its foot.
+class _Body extends StatelessWidget {
+  const _Body({required this.padding, required this.children});
+
+  final EdgeInsets padding;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final tail = _Tail.of(context);
+    return ListView(
+      padding: padding,
+      children: [
+        ...children,
+        for (final panel in tail)
+          Padding(
+            padding: EdgeInsets.only(
+              top: IqSpace.s6,
+              left: padding.left == 0 ? IqSpace.s4 : 0,
+              right: padding.right == 0 ? IqSpace.s4 : 0,
+            ),
+            child: panel,
+          ),
+        if (tail.isNotEmpty && padding.bottom == 0)
+          const SizedBox(height: IqSpace.s6),
+      ],
+    );
+  }
+}
+
+/// Continue on your phone (T10): the QR code that opens this activation on
+/// iqly.net, what it does, and the link with Copy link, as the web's
+/// phone panel draws them.
+class _PhonePanel extends StatelessWidget {
+  const _PhonePanel({required this.activation, this.eyebrow});
+
+  final Activation activation;
+
+  /// Defaults to Continue on your phone, or Or start on your phone before
+  /// the run starts.
+  final String? eyebrow;
+
+  String get _link => 'https://iqly.net/a/${activation.id}';
+
+  Future<void> _copy(BuildContext context) async {
+    await Clipboard.setData(ClipboardData(text: _link));
+    IqHaptics.success.play();
+    if (context.mounted) IqToast.show(context, 'Link copied');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final box = BoxDecoration(
+      color: IqColors.card,
+      borderRadius: BorderRadius.circular(IqRadius.md),
+      border: Border.all(color: IqColors.line),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          (eyebrow ??
+                  (activation.progress == null
+                      ? 'Or start on your phone'
+                      : 'Continue on your phone'))
+              .toUpperCase(),
+          style: IqText.mono.copyWith(color: IqColors.fg3),
+        ),
+        const SizedBox(height: IqSpace.s3),
+        Row(
+          children: [
+            Container(
+              width: 120,
+              height: 120,
+              alignment: Alignment.center,
+              decoration: box,
+              child: QrCode(
+                data: _link,
+                color: IqColors.fg,
+                semanticLabel: 'QR code for this activation',
+              ),
+            ),
+            const SizedBox(width: IqSpace.s3),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Scan with your phone',
+                    style: IqText.body.copyWith(color: IqColors.fg),
+                  ),
+                  const SizedBox(height: IqSpace.s1),
+                  Text(
+                    'It opens this activation on your phone.',
+                    style: IqText.small.copyWith(color: IqColors.fg2),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: IqSpace.s3),
+        Container(
+          height: 44,
+          padding: const EdgeInsets.only(left: IqSpace.s3, right: IqSpace.s1),
+          decoration: box,
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _link.replaceFirst('https://', ''),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: IqText.body.copyWith(color: IqColors.fg),
+                ),
+              ),
+              IqPressable(
+                onTap: () => _copy(context),
+                semanticLabel: 'Copy link',
+                builder: (context, pressed) => Container(
+                  height: 32,
+                  padding: const EdgeInsets.symmetric(horizontal: IqSpace.s2p5),
+                  decoration: BoxDecoration(
+                    color: pressed ? IqColors.line : IqColors.secondary,
+                    borderRadius: BorderRadius.circular(IqRadius.lg),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const IqIcon(IqIcons.copy, size: 16, color: IqColors.fg),
+                      const SizedBox(width: IqSpace.s1p5),
+                      Text(
+                        'Copy link',
+                        style: IqText.bodyStrong.copyWith(color: IqColors.fg),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 /// [child] beside the reward panel on a tablet in landscape, the proof
 /// upload's layout (T10); [child] alone elsewhere.
@@ -460,7 +655,20 @@ class ActivationSidePanel extends StatelessWidget {
         const SizedBox(width: IqSpace.s6),
         SizedBox(
           width: 320,
-          child: _RewardPanel(activation: a, actions: const []),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.only(bottom: IqSpace.s6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _RewardPanel(activation: a, actions: const []),
+                const SizedBox(height: IqSpace.s6),
+                _PhonePanel(
+                  activation: a,
+                  eyebrow: 'Or upload from your phone',
+                ),
+              ],
+            ),
+          ),
         ),
         const SizedBox(width: IqSpace.s4),
       ],
@@ -607,7 +815,8 @@ class _OfferPage extends StatelessWidget {
       title: 'Activation',
       onBack: onBack,
       divider: true,
-      body: ListView(
+      phone: !ended,
+      body: _Body(
         padding: EdgeInsets.zero,
         children: [
           _Hero(
@@ -881,6 +1090,7 @@ class _StepsPage extends StatelessWidget {
       activation: activation,
       title: 'Activation',
       onBack: onBack,
+      phone: !closed,
       status: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: IqSpace.s4,
@@ -895,7 +1105,7 @@ class _StepsPage extends StatelessWidget {
               : deadlineText(a, now),
         ),
       ),
-      body: ListView(
+      body: _Body(
         padding: _padding,
         children: _gapped([
           _Header(activation: a),
@@ -1118,6 +1328,7 @@ class _ProofPage extends StatelessWidget {
       activation: activation,
       title: 'Your proof',
       onBack: onBack,
+      phone: !ended,
       actions: [
         if (ended)
           const IqButton(
@@ -1127,7 +1338,7 @@ class _ProofPage extends StatelessWidget {
             disabled: true,
           ),
       ],
-      body: ListView(
+      body: _Body(
         padding: _padding,
         children: _gapped([
           if (refused != null)
@@ -1300,7 +1511,7 @@ class _CreditedPageState extends State<_CreditedPage> {
     return _Page(
       title: 'Your reward',
       onBack: widget.onBack,
-      body: ListView(
+      body: _Body(
         padding: _padding,
         children: _gapped([
           const Center(

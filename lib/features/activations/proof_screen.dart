@@ -297,7 +297,7 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
-        backgroundColor: IqColors.bg,
+        backgroundColor: Layout.isTablet(context) ? IqColors.card : IqColors.bg,
         body: SafeArea(
           child: CenteredContent(
             tabletWidth: 1000,

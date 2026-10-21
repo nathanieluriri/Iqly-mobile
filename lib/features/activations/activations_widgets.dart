@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/motion.dart';
 import '../../data/activations_data.dart';
+import '../../core/responsive.dart';
 import '../../theme/theme.dart';
 import '../../ui/brief_card.dart';
 import '../../ui/button.dart';
@@ -26,7 +27,8 @@ class ActionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: IqColors.bg,
+        // The tablet pane is white (T10).
+        color: Layout.isTablet(context) ? IqColors.card : IqColors.bg,
         border: divider
             ? const Border(top: BorderSide(color: IqColors.line))
             : null,
