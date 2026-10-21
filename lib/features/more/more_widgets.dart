@@ -36,9 +36,13 @@ class SubPage extends StatelessWidget {
     ),
     this.onBack,
     this.hasFields = true,
+    this.tabletWidth = CenteredContent.tabletColumn,
   });
 
   final String title;
+
+  /// The column's width on a tablet.
+  final double tabletWidth;
   final Widget body;
   final List<Widget> actions;
   final EdgeInsets actionsPadding;
@@ -57,6 +61,7 @@ class SubPage extends StatelessWidget {
         resizeToAvoidBottomInset: hasFields,
         body: SafeArea(
           child: CenteredContent(
+            tabletWidth: tabletWidth,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

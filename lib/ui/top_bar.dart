@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 import '../core/motion.dart';
+import '../core/responsive.dart';
+import '../core/tablet_layout.dart';
 import '../core/transitions.dart';
 import '../theme/theme.dart';
 import 'gift_button.dart';
+import 'biz_crumb.dart';
 import 'icon.dart';
 import 'pressable.dart';
 import 'wallet_chip.dart';
@@ -140,6 +143,15 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (Layout.isTablet(context)) {
+      final location = TabletLocation.of(context);
+      if (variant == IqTopBarVariant.page &&
+          location != null &&
+          (title.isNotEmpty || TabletLocation.parentLabel(location) != null)) {
+        return _TabletTrail(bar: this, location: location);
+      }
+      if (variant == IqTopBarVariant.sheet) return _drawn(grabber: false);
+    }
     if (variant == IqTopBarVariant.page &&
         showBack &&
         ChromeHero.canCarry(context)) {
@@ -152,7 +164,7 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
     return _drawn();
   }
 
-  Widget _drawn() {
+  Widget _drawn({bool grabber = true}) {
     return SizedBox(
       height: preferredSize.height,
       width: double.infinity,
@@ -160,7 +172,7 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
         child: switch (variant) {
           IqTopBarVariant.home => _home(),
           IqTopBarVariant.page => _page(),
-          IqTopBarVariant.sheet => _sheet(),
+          IqTopBarVariant.sheet => _sheet(grabber: grabber),
         },
       ),
     );
@@ -265,24 +277,25 @@ class IqTopBar extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
-  Widget _sheet() {
+  Widget _sheet({bool grabber = true}) {
     return Stack(
       children: [
-        Positioned(
-          top: 6,
-          left: 0,
-          right: 0,
-          child: Center(
-            child: Container(
-              width: 40,
-              height: 5,
-              decoration: BoxDecoration(
-                color: IqColors.line2,
-                borderRadius: BorderRadius.circular(3),
+        if (grabber)
+          Positioned(
+            top: 6,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                width: 40,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: IqColors.line2,
+                  borderRadius: BorderRadius.circular(3),
+                ),
               ),
             ),
           ),
-        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(
             IqSpace.s5,
@@ -515,6 +528,69 @@ class IqCountBadge extends StatelessWidget {
       child: RollingText(
         count,
         style: IqText.label.copyWith(color: IqColors.primaryFg),
+      ),
+    );
+  }
+}
+
+/// A Page bar on a tablet (Mobile App · tablet): the crumbs from the nav
+/// item the page sits under to the page itself, the first opening it as
+/// Back would, and the bar's action at the end.
+class _TabletTrail extends StatelessWidget {
+  const _TabletTrail({required this.bar, required this.location});
+
+  final IqTopBar bar;
+  final String location;
+
+  @override
+  Widget build(BuildContext context) {
+    final named = TabletLocation.parentLabel(location);
+    if (bar.title.isEmpty && named != null) {
+      return SizedBox(
+        height: bar.preferredSize.height,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: IqBizCrumb(label: named, onTap: bar.onBack),
+          ),
+        ),
+      );
+    }
+    final parent = named == bar.title ? null : named;
+    return SizedBox(
+      height: bar.preferredSize.height,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
+        child: Row(
+          children: [
+            if (parent != null && bar.showBack) ...[
+              IqBizCrumb(label: parent, onTap: bar.onBack),
+              const SizedBox(width: IqSpace.s1),
+            ],
+            Expanded(
+              child: parent != null && bar.showBack
+                  ? IqBizCrumb(label: bar.title, state: IqBizCrumbState.current)
+                  : Text(
+                      bar.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: IqText.title.copyWith(color: IqColors.fg),
+                    ),
+            ),
+            if (bar.showTrailing)
+              _RoundButton(
+                onTap: bar.onTrailing,
+                semanticLabel: bar.trailingLabel,
+                radius: 22,
+                child: IqIcon(
+                  bar.trailingIcon,
+                  size: 22,
+                  color: IqColors.brand,
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
