@@ -26,7 +26,9 @@ import '../avatar/avatar_state.dart';
 import '../more/more_screen.dart' show confirmSignOut;
 import '../more/more_state.dart';
 import '../onboarding/onboarding_draft.dart' show accountNameProvider;
+import '../settings/tablet_settings.dart';
 import 'tablet_routes.dart';
+import 'tablet_step_card.dart';
 import 'tablet_search.dart';
 
 /// T1 · Shell (Mobile App · tablet, 1838:41559): on a tablet the signed-in
@@ -129,6 +131,14 @@ class _TabletFrameState extends ConsumerState<TabletFrame> {
     }
   }
 
+  static Widget _decorate(String location, Widget page) {
+    if (TabletSettings.covers(location)) {
+      return TabletSettings(location: location, child: page);
+    }
+    if (TabletStepCard.covers(location)) return TabletStepCard(child: page);
+    return page;
+  }
+
   void _signOut() {
     setState(() => _overlay = _Overlay.none);
     final page = _pageContext;
@@ -154,6 +164,7 @@ class _TabletFrameState extends ConsumerState<TabletFrame> {
       child: TabletChrome(
         size: size,
         panel: panel,
+        decorate: _decorate,
         child: _FrameStack(
           chromeFirst: chrome && !_popup,
           overlayOpen: chrome && _overlay != _Overlay.none,

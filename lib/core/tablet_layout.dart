@@ -10,10 +10,15 @@ class TabletChrome extends InheritedWidget {
     super.key,
     required this.size,
     required this.panel,
+    this.decorate,
     required super.child,
   });
 
   final WindowSize size;
+
+  /// Lays a group's frame around its pages inside the panel (the settings
+  /// sub-navigation); the location's page otherwise fills the panel.
+  final Widget Function(String location, Widget page)? decorate;
 
   /// The panel's distance from each window edge.
   final EdgeInsets panel;
@@ -65,12 +70,15 @@ class TabletPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (context.getInheritedWidgetOfExactType<_Placed>() != null) {
-      return child;
-    }
     final chrome = TabletChrome.maybeOf(context);
+    if (context.getInheritedWidgetOfExactType<_Placed>() != null) {
+      if (chrome == null || !chrome.size.isTablet) return child;
+      return chrome.decorate?.call(location, child) ?? child;
+    }
     if (chrome == null || !chrome.size.isTablet) return child;
-    if (chromelessLocation(location)) return _Placed(child: child);
+    if (chromelessLocation(location)) {
+      return _Placed(child: chrome.decorate?.call(location, child) ?? child);
+    }
     final media = MediaQuery.of(context);
     final panel = chrome.panel;
     final size = Size(
@@ -93,7 +101,7 @@ class TabletPane extends StatelessWidget {
               viewPadding: EdgeInsets.zero,
               viewInsets: EdgeInsets.only(bottom: keyboard),
             ),
-            child: child,
+            child: chrome.decorate?.call(location, child) ?? child,
           ),
         ),
       ),
