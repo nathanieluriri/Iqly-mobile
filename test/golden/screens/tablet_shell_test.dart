@@ -63,18 +63,19 @@ void main() {
 
   testWidgets('a rotation keeps the page and its scroll', (tester) async {
     await pumpTablet(tester, Routes.home, overrides: discoverOverrides());
+    // The nav scrolls too (large text), so read the page's own list.
+    final list = find
+        .descendant(
+          of: find.byType(ListView).first,
+          matching: find.byType(Scrollable),
+        )
+        .first;
     await tester.drag(find.byType(ListView).first, const Offset(0, -400));
     await tester.pumpAndSettle();
-    final before = tester
-        .state<ScrollableState>(find.byType(Scrollable).first)
-        .position
-        .pixels;
+    final before = tester.state<ScrollableState>(list).position.pixels;
     tester.view.physicalSize = TabletFrameSize.landscape.size;
     await tester.pumpAndSettle();
-    final after = tester
-        .state<ScrollableState>(find.byType(Scrollable).first)
-        .position
-        .pixels;
+    final after = tester.state<ScrollableState>(list).position.pixels;
     expect(before, greaterThan(0));
     expect(after, before);
   });
