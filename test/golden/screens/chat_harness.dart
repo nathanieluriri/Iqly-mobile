@@ -4,10 +4,13 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/data/help_data.dart';
 import 'package:iqly_mobile/data/signed_in_files.dart';
+import 'package:iqly_mobile/features/help/chat_files.dart' show CoverImage;
 import 'package:iqly_mobile/ui/chat_canvas.dart';
+import 'package:iqly_mobile/ui/chat_media.dart';
 
 import '../../support/chat_fakes.dart';
 import 'app_harness.dart';
@@ -70,6 +73,7 @@ Future<ProviderContainer> openChat(
   String location,
   ScriptedHelp help, {
   ScriptedFiles? files,
+  List<Override> overrides = const [],
 }) => pumpApp(
   tester,
   location,
@@ -79,26 +83,30 @@ Future<ProviderContainer> openChat(
     ...laneOverrides(help: help),
     ...helpActivations(),
     if (files != null) signedInFilesProvider.overrideWithValue(files),
+    ...overrides,
   ],
 );
 
 Rect chatCanvas(WidgetTester tester) =>
     tester.getRect(find.byType(IqChatCanvas));
 
-/// Decodes [file] at each of [widths] off the fake clock before a screen
-/// draws it there: a picture first loaded on the fake clock never finishes
-/// for a golden, and the screen then finds it decoded.
-Future<void> warmPicture(
-  WidgetTester tester,
-  File file, {
-  List<int> widths = const [48, 210, 302, 780],
-}) async {
+/// Decodes [file] as the chat draws it (bubbles, the waiting thumbnail
+/// and the viewer) off the fake clock before a screen draws it there: a
+/// picture first loaded on the fake clock never finishes for a golden.
+Future<void> warmPicture(WidgetTester tester, File file) async {
+  final providers = <ImageProvider<Object>>[
+    for (final size in const [
+      Size(302, IqChatMedia.frameHeight),
+      Size(210, IqChatMedia.frameHeight),
+      Size(48, 48),
+      Size(390, 390),
+    ])
+      CoverImage(FileImage(file), size),
+    ResizeImage(FileImage(file), width: 780),
+  ];
   await tester.runAsync(() async {
-    for (final width in widths) {
-      final stream = ResizeImage(
-        FileImage(file),
-        width: width,
-      ).resolve(ImageConfiguration.empty);
+    for (final provider in providers) {
+      final stream = provider.resolve(ImageConfiguration.empty);
       final done = Completer<void>();
       late final ImageStreamListener listener;
       listener = ImageStreamListener(

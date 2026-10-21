@@ -7,6 +7,7 @@ import 'package:iqly_mobile/data/help_service.dart';
 import 'package:iqly_mobile/data/signed_in_files.dart';
 import 'package:iqly_mobile/data/support_files.dart';
 import 'package:iqly_mobile/data/token_store.dart';
+import 'package:iqly_mobile/data/voice_recorder.dart';
 
 /// Support as a test drives it: [tickets] is what the API has, [kept] and
 /// [keptInbox] what the phone kept. With [holdThreads] a thread's read
@@ -239,11 +240,8 @@ class ScriptedFiles extends SignedInFiles {
       _waiting.remove(id)?.completeError(const ApiUnreachable());
 
   @override
-  Future<File?> kept({
-    required String userId,
-    required String id,
-    String name = '',
-  }) async => keptFiles[id];
+  File? kept({required String userId, required String id, String name = ''}) =>
+      keptFiles[id];
 
   @override
   Future<File> fetch({
@@ -270,4 +268,32 @@ class ScriptedFiles extends SignedInFiles {
     keptSent.add(id);
     keptFiles[id] = File('assets/samples/support/withdrawals-screenshot.jpg');
   }
+}
+
+/// The microphone as a test drives it: [answer] is how starting goes, and
+/// a stop answers a note as long as [length] (null for nothing recorded).
+class ScriptedRecorder implements VoiceRecorder {
+  VoiceStart answer = VoiceStart.recording;
+  Duration? length = const Duration(seconds: 3);
+  int starts = 0;
+  int stops = 0;
+  int cancels = 0;
+
+  @override
+  Future<VoiceStart> start() async {
+    starts++;
+    return answer;
+  }
+
+  @override
+  Future<VoiceNote?> stop() async {
+    stops++;
+    final length = this.length;
+    return length == null
+        ? null
+        : VoiceNote(path: '/voice/note.m4a', length: length, bytes: 24000);
+  }
+
+  @override
+  Future<void> cancel() async => cancels++;
 }

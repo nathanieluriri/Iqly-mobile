@@ -58,7 +58,11 @@ enum LiveFeature {
 
   /// First run asks for a gender before it ends, `prefer_not_to_say`
   /// among the answers (contract 14.2).
-  genderRequired;
+  genderRequired,
+
+  /// Support takes documents (PDF, Word, Excel, PowerPoint, TXT, CSV) as
+  /// uploads of kind `document`.
+  supportDocuments;
 
   /// The features this one calls into, which have to be live with it.
   Set<LiveFeature> get needs => switch (this) {
@@ -89,7 +93,8 @@ enum LiveFeature {
     LiveFeature.activationStepProof => const {LiveFeature.activations},
     LiveFeature.briefAudience => const {LiveFeature.briefs},
     LiveFeature.helpAuthorNames ||
-    LiveFeature.supportChannels => const {LiveFeature.support},
+    LiveFeature.supportChannels ||
+    LiveFeature.supportDocuments => const {LiveFeature.support},
     LiveFeature.pollQuestions => const {LiveFeature.polls},
     LiveFeature.genderRequired => const {LiveFeature.profile},
     LiveFeature.profile ||

@@ -11,8 +11,8 @@ enum HelpAuthor { you, support }
 /// How iQLY's staff sign their replies.
 const iqlySupport = 'iQLY support';
 
-/// A [file] is a document (the demo's receipt); the API sends pictures,
-/// videos and voice notes only.
+/// A [file] is a document: a PDF, Word, Excel or PowerPoint file, a text
+/// or a CSV (the API's `document`, while health says `supportDocuments`).
 enum HelpAttachmentKind { image, video, audio, file }
 
 /// Who a thread is with and answered by (contract 12.1 `channel`): iQLY
@@ -22,13 +22,17 @@ enum HelpChannel { iqly, business }
 /// Which side wrote a reply, or resolved a thread.
 enum HelpSide { you, iqly, business }
 
+/// A recording's length or time as files and voice notes show it: "0:31".
+String helpLength(Duration length) =>
+    '${length.inMinutes}:${(length.inSeconds % 60).toString().padLeft(2, '0')}';
+
 /// The body a message carries when the person sends a file alone, since a
 /// message needs words: the thread shows the file without them.
 String attachmentOnlyBody(HelpAttachmentKind kind) => switch (kind) {
   HelpAttachmentKind.audio => 'Voice note',
   HelpAttachmentKind.image => 'Photo',
   HelpAttachmentKind.video => 'Video',
-  HelpAttachmentKind.file => 'File',
+  HelpAttachmentKind.file => 'Document',
 };
 
 /// A file sent with a message: a screen recording in the frames, and on the
@@ -70,8 +74,7 @@ class HelpAttachment {
   /// "0:31", null for a picture or an unknown length.
   String? get lengthLabel {
     final length = this.length;
-    if (length == null) return null;
-    return '${length.inMinutes}:${(length.inSeconds % 60).toString().padLeft(2, '0')}';
+    return length == null ? null : helpLength(length);
   }
 
   /// "12 MB", or "68 KB" under a megabyte.

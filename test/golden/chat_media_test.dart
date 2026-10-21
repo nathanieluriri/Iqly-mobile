@@ -68,6 +68,33 @@ void main() {
       ),
     ),
     (
+      'voice_playing',
+      const IqChatMedia(
+        kind: IqChatMediaKind.voice,
+        playing: true,
+        played: 13,
+        duration: '0:12',
+      ),
+    ),
+    (
+      'voice_playing_ink',
+      const IqChatMedia(
+        kind: IqChatMediaKind.voice,
+        tone: IqChatMediaTone.ink,
+        playing: true,
+        played: 13,
+        duration: '0:12',
+      ),
+    ),
+    (
+      'voice_loading',
+      const IqChatMedia(
+        kind: IqChatMediaKind.voice,
+        state: IqChatMediaState.loading,
+        played: 0,
+      ),
+    ),
+    (
       'image_failed',
       IqChatMedia(
         kind: IqChatMediaKind.image,
@@ -81,7 +108,9 @@ void main() {
         tester,
         'chat_media_$name',
         stillMotion(media),
-        size: const Size(210, 172),
+        size: media.kind == IqChatMediaKind.voice
+            ? const Size(182, 56)
+            : const Size(210, 172),
         background: media.tone == IqChatMediaTone.ink
             ? IqColors.brand
             : IqColors.card,

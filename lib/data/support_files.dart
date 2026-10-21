@@ -11,9 +11,10 @@ import 'help_data.dart';
 import 'media_service.dart';
 
 /// Where a file for support comes from: the phone's photos and videos, a
-/// photo or a video taken now with the camera, or a voice note kept on the
-/// phone (the request screen before the chat).
-enum SupportSource { photos, camera, video, voiceNote }
+/// photo or a video taken now with the camera, a document from the phone's
+/// files, or a voice note kept on the phone (the request screen before the
+/// chat).
+enum SupportSource { photos, camera, video, document, voiceNote }
 
 /// Files a person sends to support, from the phone's own pickers: the
 /// screenshot of a report, and what a help request carries (a picture, a
@@ -50,6 +51,19 @@ const supportAudioTypes = {
   'amr': 'audio/amr',
   'webm': 'audio/webm',
   '3gp': 'audio/3gpp',
+};
+
+const supportDocumentTypes = {
+  'pdf': 'application/pdf',
+  'doc': 'application/msword',
+  'docx':
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'xls': 'application/vnd.ms-excel',
+  'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'ppt': 'application/vnd.ms-powerpoint',
+  'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'txt': 'text/plain',
+  'csv': 'text/csv',
 };
 
 /// HEIC photos the picker could not turn into JPEG: sent as what they are,
@@ -96,6 +110,9 @@ abstract final class SupportLimits {
   if (supportAudioTypes[ext] case final mime?) {
     return (kind: HelpAttachmentKind.audio, mime: mime);
   }
+  if (supportDocumentTypes[ext] case final mime?) {
+    return (kind: HelpAttachmentKind.file, mime: mime);
+  }
   return null;
 }
 
@@ -134,8 +151,9 @@ class DeviceSupportFiles implements SupportFiles {
     },
   );
 
-  /// The camera's longest video: what the API takes of a support video.
-  static const videoLength = Duration(seconds: 60);
+  /// The camera's longest video: short enough that a phone's own quality
+  /// stays under the API's 50 MB (its 60 s would not).
+  static const videoLength = Duration(seconds: 20);
 
   /// A photo from the camera, kept well under the API's 10 MB.
   static const double _photoSide = 2560;
@@ -166,6 +184,12 @@ class DeviceSupportFiles implements SupportFiles {
           maxDuration: videoLength,
         ),
         HelpAttachmentKind.video,
+      ),
+      SupportSource.document => _attachment(
+        (await FilePicker.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: supportDocumentTypes.keys.toList(),
+        )).firstOrNull,
       ),
       SupportSource.voiceNote => _attachment(
         (await FilePicker.pickFiles(

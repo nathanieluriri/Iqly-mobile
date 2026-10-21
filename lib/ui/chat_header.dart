@@ -138,7 +138,8 @@ class IqChatSyncLine extends StatelessWidget {
 ///
 /// Not in Figma, the app's own: while the thread reads again ([sync]) the
 /// line under the name says so ([IqChatSyncLine]) in place of the reply
-/// promise, the bar keeping its height; and until the topic is known
+/// promise, or beside a name with no promise under it, so nothing moves;
+/// and until the topic is known
 /// ([about] null) the chip holds a skeleton line, never a bare "About:".
 class IqChatHeader extends StatelessWidget {
   const IqChatHeader({
@@ -179,6 +180,9 @@ class IqChatHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final subtitle = withWhom == IqChatHeaderWith.iqly ? this.subtitle : null;
+    // With no line under the name, the state sits beside it so the name
+    // never moves.
+    final beside = subtitle == null;
     final about = this.about;
     final resolve = onResolve;
     final chip = Container(
@@ -248,13 +252,29 @@ class IqChatHeader extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: IqText.cardTitle.copyWith(color: IqColors.brand),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: IqText.cardTitle.copyWith(
+                                color: IqColors.brand,
+                              ),
+                            ),
+                          ),
+                          if (beside && sync != IqChatSync.none) ...[
+                            const SizedBox(width: IqSpace.s2),
+                            IqChatSyncLine(
+                              sync: sync,
+                              onRetry: onRetry,
+                              compact: true,
+                            ),
+                          ],
+                        ],
                       ),
-                      if (sync != IqChatSync.none)
+                      if (!beside && sync != IqChatSync.none)
                         IqChatSyncLine(sync: sync, onRetry: onRetry)
                       else if (subtitle != null)
                         Text(
