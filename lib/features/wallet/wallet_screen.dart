@@ -17,6 +17,7 @@ import '../../ui/top_bar.dart';
 import '../discover/app_shell.dart';
 import '../submissions/submission_widgets.dart' show SkeletonCard;
 import 'wallet_overview.dart';
+import 'tablet_wallet.dart';
 import 'wallet_state.dart';
 
 /// B5 · Wallet (37:24), the Wallet tab root, with its lenses: balance
@@ -82,6 +83,7 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
       if (next.hasError) errorHaptic();
       setState(() => _retrying = false);
     });
+    if (Layout.isTablet(context)) return const TabletWallet();
     final wallet = ref.watch(walletProvider);
     final unread = ref.watch(unreadNotificationsProvider).value ?? 0;
     final data = wallet.value;

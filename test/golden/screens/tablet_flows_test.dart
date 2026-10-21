@@ -4,7 +4,6 @@ import 'package:iqly_mobile/router.dart';
 
 import '../golden.dart';
 import 'discover_harness.dart';
-import 'polls_notifications_help_harness.dart';
 import 'submit_harness.dart';
 import 'tablet_harness.dart';
 
@@ -84,6 +83,30 @@ void main() {
         overrides: discoverOverrides(),
       );
       await expectTabletGolden(tester, 'activations_$f');
+    });
+
+    testWidgets('T11 wallet, $f', (tester) async {
+      await pumpTablet(tester, Routes.wallet, frame: frame);
+      await expectTabletGolden(tester, 'wallet_$f');
+    });
+
+    testWidgets('T11 withdraw, $f', (tester) async {
+      await pumpTablet(tester, Routes.wallet, frame: frame);
+      await tester.tap(find.text('Withdraw').first);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.textContaining('You can withdraw'), findsOneWidget);
+      await expectTabletGolden(tester, 'wallet_withdraw_$f');
+    });
+
+    testWidgets('T13 notifications, $f', (tester) async {
+      await pumpTablet(
+        tester,
+        Routes.notifications,
+        frame: frame,
+        overrides: discoverOverrides(),
+      );
+      await expectTabletGolden(tester, 'notifications_$f');
     });
   }
 }
