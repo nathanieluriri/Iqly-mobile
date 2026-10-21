@@ -153,6 +153,14 @@ class HelpUploadsNotifier extends Notifier<Map<String, HelpUploadState>> {
     return picked.future;
   }
 
+  /// Starts [file] up, a voice note just recorded, say: the key it goes by.
+  String start(HelpAttachment file) {
+    final key = LocalRows.newId();
+    state = {...state, key: HelpUploadState(file: file)};
+    _follow(key, ref.read(helpServiceProvider).upload(file));
+    return key;
+  }
+
   /// Sends a failed upload up again.
   void retry(String key) {
     final upload = state[key];

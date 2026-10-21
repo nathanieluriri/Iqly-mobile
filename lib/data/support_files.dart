@@ -155,10 +155,6 @@ class DeviceSupportFiles implements SupportFiles {
   /// stays under the API's 50 MB (its 60 s would not).
   static const videoLength = Duration(seconds: 20);
 
-  /// Whether the camera may record a video here. iOS asks for the
-  /// microphone to record one, which this release does not declare.
-  static bool get canRecordVideo => defaultTargetPlatform != TargetPlatform.iOS;
-
   /// A photo from the camera, kept well under the API's 10 MB.
   static const double _photoSide = 2560;
 

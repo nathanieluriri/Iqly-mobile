@@ -68,8 +68,9 @@ void main() {
     expect(rows.bottom, greaterThan(844 - 34 - 2 * 24));
   });
 
-  testWidgets('until 0.6.1 declares the microphone, iOS offers no video '
-      'recording', (tester) async {
+  testWidgets('with the microphone declared, iOS records videos too', (
+    tester,
+  ) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
     addTearDown(() => debugDefaultTargetPlatformOverride = null);
     final help = ScriptedHelp(clock: () => chatNow, tickets: [shortThread()]);
@@ -77,7 +78,7 @@ void main() {
     await tester.tap(find.bySemanticsLabel('Attach'));
     await tester.pumpAndSettle();
     expect(find.text('Take a photo'), findsOneWidget);
-    expect(find.text('Record a video'), findsNothing);
+    expect(find.text('Record a video'), findsOneWidget);
     debugDefaultTargetPlatformOverride = null;
   });
 

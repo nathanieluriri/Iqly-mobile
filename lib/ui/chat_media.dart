@@ -23,7 +23,10 @@ enum IqChatMediaState { ready, loading, failed }
 /// Not in Figma, the app's own: Video is a recording's first frame
 /// ([image]) in the picture's frame with the play disc and its length, and
 /// the Loading and Failed states of a picture or a video, so a file never
-/// shows as an empty grey box.
+/// shows as an empty grey box. A voice note plays in place: its disc turns
+/// while it loads, shows pause while [playing] (Material's rounded glyph,
+/// as the recording player's: the brush set has none) and Try again's
+/// mark when it could not load.
 class IqChatMedia extends StatelessWidget {
   const IqChatMedia({
     super.key,
@@ -34,6 +37,7 @@ class IqChatMedia extends StatelessWidget {
     this.width = 210,
     this.duration = '0:24',
     this.played = 10,
+    this.playing = false,
     this.progress,
     this.name = 'Withdrawal receipt.pdf',
     this.meta = 'PDF · 1 page · 64 KB',
@@ -54,6 +58,9 @@ class IqChatMedia extends StatelessWidget {
 
   /// How many of the waveform's bars read as played.
   final int played;
+
+  /// A voice note playing now.
+  final bool playing;
 
   /// How far a Loading file is, 0 to 1; null while that is not known.
   final double? progress;
@@ -147,6 +154,7 @@ class IqChatMedia extends StatelessWidget {
 
   Widget _voice() {
     final ink = _ink ? IqColors.sidebarFg : IqColors.brand;
+    final glyph = _ink ? IqColors.brand : IqColors.primaryFg;
     return Padding(
       padding: const EdgeInsets.all(IqSpace.s1),
       child: Row(
@@ -157,11 +165,24 @@ class IqChatMedia extends StatelessWidget {
             height: 36,
             alignment: Alignment.center,
             decoration: BoxDecoration(color: ink, shape: BoxShape.circle),
-            child: IqIcon(
-              IqIcons.play,
-              size: 18,
-              color: _ink ? IqColors.brand : IqColors.primaryFg,
-            ),
+            child: switch (state) {
+              IqChatMediaState.loading => IqSpinner(color: glyph, size: 18),
+              IqChatMediaState.failed => IqIcon(
+                IqIcons.refresh,
+                size: 18,
+                color: glyph,
+              ),
+              IqChatMediaState.ready when playing => Icon(
+                Icons.pause_rounded,
+                size: 22,
+                color: glyph,
+              ),
+              IqChatMediaState.ready => IqIcon(
+                IqIcons.play,
+                size: 18,
+                color: glyph,
+              ),
+            },
           ),
           const SizedBox(width: IqSpace.s2p5),
           Column(

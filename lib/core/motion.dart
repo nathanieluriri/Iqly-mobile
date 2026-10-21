@@ -80,6 +80,9 @@ abstract final class IqDurations {
   /// Hold: a chat's pinned day after its thread stops scrolling.
   static const pinnedDay = Duration(milliseconds: 1500);
 
+  /// Hold: how long the mic is held before a voice note starts recording.
+  static const holdToRecord = Duration(milliseconds: 250);
+
   /// Marker wipe, stamp land, banner arrives, thread draws, shake.
   static const mark = Duration(milliseconds: 240);
 

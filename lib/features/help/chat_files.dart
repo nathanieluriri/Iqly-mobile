@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../data/help_data.dart';
 import '../../data/signed_in_files.dart';
@@ -387,6 +388,160 @@ class _ChatDocumentState extends ConsumerState<ChatDocument> {
           : widget.facts,
       onTap: of == null && !local ? null : _tap,
       semanticLabel: widget.file.name,
+    );
+  }
+}
+
+/// A voice note in its bubble, played in place with the app's player (the
+/// sound of video_player): from the phone when it was recorded or picked
+/// here, else brought down once on its first play. One plays at a time.
+/// The bars fill as it plays and the time counts up, then it goes back to
+/// its start and its length. [uploading] while it goes up.
+class ChatVoiceNote extends ConsumerStatefulWidget {
+  const ChatVoiceNote({
+    super.key,
+    required this.file,
+    required this.tone,
+    this.uploading,
+  });
+
+  final HelpAttachment file;
+  final IqChatMediaTone tone;
+  final double? uploading;
+
+  @override
+  ConsumerState<ChatVoiceNote> createState() => _ChatVoiceNoteState();
+}
+
+class _ChatVoiceNoteState extends ConsumerState<ChatVoiceNote> {
+  static _ChatVoiceNoteState? _playing;
+
+  VideoPlayerController? _player;
+
+  /// Play once the file is on the phone.
+  bool _wanted = false;
+  bool _failed = false;
+
+  HelpFileRef? get _of =>
+      widget.file.source == null ? HelpFileRef.of(widget.file) : null;
+
+  @override
+  void dispose() {
+    if (identical(_playing, this)) _playing = null;
+    _release();
+    super.dispose();
+  }
+
+  void _release() {
+    final player = _player;
+    _player = null;
+    player?.removeListener(_changed);
+    player?.dispose();
+  }
+
+  void _changed() {
+    final player = _player;
+    if (!mounted || player == null) return;
+    final value = player.value;
+    if (value.isInitialized &&
+        !value.isPlaying &&
+        value.duration > Duration.zero &&
+        value.position >= value.duration) {
+      player.seekTo(Duration.zero);
+    }
+    setState(() {});
+  }
+
+  void _takeOver() {
+    final other = _playing;
+    if (other != null && !identical(other, this)) other._player?.pause();
+    _playing = this;
+  }
+
+  Future<void> _toggle() async {
+    final player = _player;
+    if (player != null) {
+      if (player.value.isPlaying) {
+        await player.pause();
+      } else if (player.value.isInitialized) {
+        _takeOver();
+        await player.play();
+      }
+      return;
+    }
+    final source = widget.file.source;
+    if (source != null) return _open(source);
+    final of = _of;
+    if (of == null) return;
+    setState(() {
+      _wanted = true;
+      _failed = false;
+    });
+    await ref.read(helpFileProvider(of).notifier).fetch();
+  }
+
+  Future<void> _open(Uri source) async {
+    _wanted = false;
+    final player = Recordings.open(source);
+    setState(() {
+      _failed = false;
+      _player = player..addListener(_changed);
+    });
+    try {
+      await player.initialize();
+    } on Object {
+      if (!mounted || !identical(_player, player)) return;
+      _release();
+      setState(() => _failed = true);
+      return;
+    }
+    if (!mounted || !identical(_player, player)) return;
+    _takeOver();
+    await player.play();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final file = widget.file;
+    final of = _of;
+    final got = of == null ? null : ref.watch(helpFileProvider(of));
+    final kept = got?.file;
+    if (_wanted && got?.status == HelpFileStatus.ready && kept != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _wanted && _player == null) _open(Uri.file(kept.path));
+      });
+    }
+    final value = _player?.value;
+    final ready = value != null && value.isInitialized;
+    final length = ready && value.duration > Duration.zero
+        ? value.duration
+        : file.length;
+    final position = ready ? value.position : Duration.zero;
+    final playing = ready && value.isPlaying;
+    final loading =
+        widget.uploading != null ||
+        (_player != null && !ready) ||
+        (_wanted && got?.status != HelpFileStatus.failed);
+    final failed = _failed || (_wanted && got?.status == HelpFileStatus.failed);
+    final total = length?.inMilliseconds ?? 0;
+    final fraction = total == 0
+        ? 0.0
+        : (position.inMilliseconds / total).clamp(0.0, 1.0);
+    final shown = playing || position > Duration.zero ? position : length;
+    return IqChatMedia(
+      kind: IqChatMediaKind.voice,
+      tone: widget.tone,
+      state: failed
+          ? IqChatMediaState.failed
+          : loading
+          ? IqChatMediaState.loading
+          : IqChatMediaState.ready,
+      playing: playing,
+      played: (IqChatMedia.bars.length * fraction).round(),
+      duration: shown == null ? '' : helpLength(shown),
+      onTap: widget.uploading == null ? _toggle : null,
+      onRetry: _toggle,
+      semanticLabel: playing ? 'Pause' : 'Play voice note',
     );
   }
 }
