@@ -356,6 +356,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
         body: SafeArea(
           maintainBottomViewPadding: true,
           child: CenteredContent(
+            tabletWidth: 1000,
             child: StateDissolve(
               child: KeyedSubtree(key: ValueKey(layout), child: page),
             ),
@@ -375,6 +376,7 @@ class _Page extends StatelessWidget {
     this.status,
     this.actions = const [],
     this.divider = false,
+    this.activation,
   });
 
   final String title;
@@ -384,8 +386,43 @@ class _Page extends StatelessWidget {
   final List<Widget> actions;
   final bool divider;
 
+  /// On a tablet in landscape the reward and the actions move into the 320
+  /// panel beside the steps (T10).
+  final Activation? activation;
+
   @override
   Widget build(BuildContext context) {
+    final a = activation;
+    if (a != null && actions.isNotEmpty && Layout.isExpanded(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          IqTopBar(variant: IqTopBarVariant.page, title: title, onBack: onBack),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ?status,
+                      Expanded(child: body),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: IqSpace.s6),
+                SizedBox(
+                  width: 320,
+                  child: _RewardPanel(activation: a, actions: actions),
+                ),
+                const SizedBox(width: IqSpace.s4),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -399,6 +436,102 @@ class _Page extends StatelessWidget {
 }
 
 const _padding = EdgeInsets.fromLTRB(IqSpace.s4, 0, IqSpace.s4, IqSpace.s6);
+
+/// [child] beside the reward panel on a tablet in landscape, the proof
+/// upload's layout (T10); [child] alone elsewhere.
+class ActivationSidePanel extends StatelessWidget {
+  const ActivationSidePanel({
+    super.key,
+    required this.activation,
+    required this.child,
+  });
+
+  final Activation? activation;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = activation;
+    if (a == null || !Layout.isExpanded(context)) return child;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: child),
+        const SizedBox(width: IqSpace.s6),
+        SizedBox(
+          width: 320,
+          child: _RewardPanel(activation: a, actions: const []),
+        ),
+        const SizedBox(width: IqSpace.s4),
+      ],
+    );
+  }
+}
+
+/// The landscape panel: the reward, how it pays, the spots and the actions.
+class _RewardPanel extends StatelessWidget {
+  const _RewardPanel({required this.activation, required this.actions});
+
+  final Activation activation;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = activation;
+    final taken = a.spotsTotal - a.spotsLeft;
+    return Container(
+      padding: const EdgeInsets.all(IqSpace.s6),
+      decoration: BoxDecoration(
+        color: IqColors.card,
+        borderRadius: BorderRadius.circular(IqRadius.xl2),
+        border: Border.all(color: IqColors.line),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Your reward'.toUpperCase(),
+            style: IqText.mono.copyWith(color: IqColors.fg2),
+          ),
+          const SizedBox(height: IqSpace.s2),
+          Text(reward(a), style: IqText.figure.copyWith(color: IqColors.brand)),
+          const SizedBox(height: IqSpace.s2),
+          Text(
+            a.perStep
+                ? perStepLine(a)
+                : 'Paid to your iQLY wallet once ${a.business} '
+                      'confirms, usually within 24 hours.',
+            style: IqText.small.copyWith(color: IqColors.fg2),
+          ),
+          if (a.spotsTotal > 0) ...[
+            const SizedBox(height: IqSpace.s3),
+            Text(
+              '${a.spotsLeft} ${a.spotsLeft == 1 ? 'spot' : 'spots'} left · '
+              '$taken of ${a.spotsTotal} taken',
+              style: IqText.small.copyWith(color: IqColors.fg2),
+            ),
+            const SizedBox(height: IqSpace.s2),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(IqRadius.full),
+              child: LinearProgressIndicator(
+                value: taken / a.spotsTotal,
+                minHeight: 6,
+                color: IqColors.ok,
+                backgroundColor: IqColors.tintStrong,
+              ),
+            ),
+          ],
+          if (actions.isNotEmpty) const SizedBox(height: IqSpace.s5),
+          for (final (i, action) in actions.indexed) ...[
+            if (i > 0) const SizedBox(height: IqSpace.s2),
+            action,
+          ],
+        ],
+      ),
+    );
+  }
+}
 
 /// The business beside its name and "Activation". A name from the API can
 /// run long, so it gives way with an ellipsis.
@@ -470,6 +603,7 @@ class _OfferPage extends StatelessWidget {
     final ended = a.closedAt(now) || unstartable == _Unstartable.ended;
     final paused = !ended && (a.paused || unstartable == _Unstartable.paused);
     return _Page(
+      activation: activation,
       title: 'Activation',
       onBack: onBack,
       divider: true,
@@ -744,6 +878,7 @@ class _StepsPage extends StatelessWidget {
         ? a.progress?.refCode
         : null;
     return _Page(
+      activation: activation,
       title: 'Activation',
       onBack: onBack,
       status: Padding(
@@ -980,6 +1115,7 @@ class _ProofPage extends StatelessWidget {
     final pays = ended ? 0 : a.paysFor(proof.step);
     void help() => context.open(helpPath(about: a.id));
     return _Page(
+      activation: activation,
       title: 'Your proof',
       onBack: onBack,
       actions: [

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
+import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../theme/theme.dart';
 import '../../ui/avatar.dart';
@@ -122,8 +123,70 @@ class _AvatarEditorState extends ConsumerState<AvatarEditorScreen>
     return {for (final part in _popping) part: scale};
   }
 
+  Widget _stage(double size) => AnimatedContainer(
+    duration: motion(context, IqDurations.tick),
+    curve: IqCurves.easeOut,
+    height: size,
+    clipBehavior: Clip.antiAlias,
+    decoration: BoxDecoration(
+      color: _look.background,
+      borderRadius: BorderRadius.circular(28),
+    ),
+    alignment: Alignment.topCenter,
+    child: AnimatedBuilder(
+      animation: _pop,
+      builder: (context, _) => IqAvatarCharacter(
+        look: _look,
+        size: size,
+        showBackground: false,
+        scales: _scales,
+      ),
+    ),
+  );
+
+  Widget _controls() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          for (final tab in AvatarTab.values)
+            IqAvatarPartTab(
+              icon: tab.icon,
+              width: 44,
+              height: 44,
+              semanticLabel: tab.label,
+              state: tab == _tab
+                  ? IqAvatarPartTabState.selected
+                  : IqAvatarPartTabState.standard,
+              onTap: () => setState(() => _tab = tab),
+            ),
+        ],
+      ),
+      const SizedBox(height: IqSpace.s4),
+      Expanded(
+        child: AnimatedSwitcher(
+          duration: motion(context, IqDurations.crossfade),
+          child: ListView(
+            key: ValueKey(_tab),
+            padding: const EdgeInsets.only(bottom: IqSpace.s6),
+            children: [
+              for (final (i, section) in _sections().indexed) ...[
+                if (i > 0) const SizedBox(height: IqSpace.s5),
+                section,
+              ],
+            ],
+          ),
+        ),
+      ),
+    ],
+  );
+
   @override
   Widget build(BuildContext context) {
+    // T16 landscape: the avatar large on its stage (420) beside the part
+    // tabs, the options and Save avatar.
+    final split = Layout.isExpanded(context);
     return PopScope(
       canPop: !_dirty || _leaving,
       onPopInvokedWithResult: (didPop, _) {
@@ -132,76 +195,51 @@ class _AvatarEditorState extends ConsumerState<AvatarEditorScreen>
       child: SubPage(
         title: 'Edit avatar',
         hasFields: false,
+        tabletWidth: split ? 1000 : CenteredContent.tabletColumn,
         onBack: _back,
         body: Padding(
           padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: IqSpace.s1),
-              AnimatedContainer(
-                duration: motion(context, IqDurations.tick),
-                curve: IqCurves.easeOut,
-                height: 188,
-                clipBehavior: Clip.antiAlias,
-                decoration: BoxDecoration(
-                  color: _look.background,
-                  borderRadius: BorderRadius.circular(28),
-                ),
-                alignment: Alignment.topCenter,
-                child: AnimatedBuilder(
-                  animation: _pop,
-                  builder: (context, _) => IqAvatarCharacter(
-                    look: _look,
-                    size: 188,
-                    showBackground: false,
-                    scales: _scales,
-                  ),
-                ),
-              ),
-              const SizedBox(height: IqSpace.s4),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  for (final tab in AvatarTab.values)
-                    IqAvatarPartTab(
-                      icon: tab.icon,
-                      width: 44,
-                      height: 44,
-                      semanticLabel: tab.label,
-                      state: tab == _tab
-                          ? IqAvatarPartTabState.selected
-                          : IqAvatarPartTabState.standard,
-                      onTap: () => setState(() => _tab = tab),
+          child: split
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(width: 420, child: _stage(420)),
+                    const SizedBox(width: IqSpace.s8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(child: _controls()),
+                          IqButton(
+                            label: 'Save avatar',
+                            showIcon: false,
+                            width: double.infinity,
+                            onTap: _save,
+                          ),
+                          const SizedBox(height: IqSpace.s4),
+                        ],
+                      ),
                     ),
-                ],
-              ),
-              const SizedBox(height: IqSpace.s4),
-              Expanded(
-                child: AnimatedSwitcher(
-                  duration: motion(context, IqDurations.crossfade),
-                  child: ListView(
-                    key: ValueKey(_tab),
-                    padding: const EdgeInsets.only(bottom: IqSpace.s6),
-                    children: [
-                      for (final (i, section) in _sections().indexed) ...[
-                        if (i > 0) const SizedBox(height: IqSpace.s5),
-                        section,
-                      ],
-                    ],
-                  ),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: IqSpace.s1),
+                    _stage(188),
+                    const SizedBox(height: IqSpace.s4),
+                    Expanded(child: _controls()),
+                  ],
                 ),
-              ),
-            ],
-          ),
         ),
         actions: [
-          IqButton(
-            label: 'Save avatar',
-            showIcon: false,
-            width: double.infinity,
-            onTap: _save,
-          ),
+          if (!split)
+            IqButton(
+              label: 'Save avatar',
+              showIcon: false,
+              width: double.infinity,
+              onTap: _save,
+            ),
         ],
       ),
     );
