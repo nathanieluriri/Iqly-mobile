@@ -86,7 +86,13 @@ class TabletSupportSplit extends ConsumerWidget {
     if (right == null) return inbox;
     return _Panes(
       leftWidth: Layout.isExpanded(context) ? 320 : 280,
-      left: inbox,
+      // The inbox is the rail's root here: no back bar beside the thread.
+      left: TabletInSplit(
+        child: Padding(
+          padding: const EdgeInsets.only(top: IqSpace.s4),
+          child: inbox,
+        ),
+      ),
       right: right,
     );
   }

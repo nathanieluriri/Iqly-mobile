@@ -11,6 +11,7 @@ import '../../data/help_data.dart';
 import '../../data/help_service.dart';
 import '../../data/local/local_rows.dart';
 import '../../router.dart';
+import '../../core/responsive.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/button.dart';
@@ -108,6 +109,11 @@ class SupportScreen extends ConsumerWidget {
       actions: [
         IqButton(
           label: 'Start a new conversation',
+          // Beside a thread's Send reply on a tablet, the one primary is
+          // that reply (T14).
+          kind: Layout.isTablet(context)
+              ? IqButtonKind.secondary
+              : IqButtonKind.primary,
           showIcon: false,
           width: double.infinity,
           onTap: () => context.open(Routes.newConversation),
