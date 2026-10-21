@@ -175,11 +175,22 @@ class DemoHelpService implements HelpService {
 
   HelpTicket _save(HelpTicket ticket) => _tickets[ticket.id] = ticket;
 
+  /// A document picked in the preview is the frame's receipt.
   @override
   Stream<HelpUpload> addRecording({
     String? about,
     SupportSource source = SupportSource.photos,
-  }) => upload(DemoHelp.recordingFor(about));
+  }) => upload(
+    source == SupportSource.document
+        ? const HelpAttachment(
+            name: 'Withdrawal receipt.pdf',
+            bytes: 64000,
+            kind: HelpAttachmentKind.file,
+            mime: 'application/pdf',
+            pages: 1,
+          )
+        : DemoHelp.recordingFor(about),
+  );
 
   @override
   Stream<HelpUpload> upload(HelpAttachment file) async* {
@@ -355,6 +366,13 @@ final helpServiceProvider = Provider<HelpService>((ref) {
 final supportShownProvider = Provider<bool>((ref) {
   final mode = ref.watch(liveModeProvider);
   return mode.isPreview || mode.isLive(LiveFeature.support);
+});
+
+/// Whether support takes documents this launch: always in the preview, and
+/// in a live launch while health says `supportDocuments`.
+final supportDocumentsProvider = Provider<bool>((ref) {
+  final mode = ref.watch(liveModeProvider);
+  return mode.isPreview || mode.isLive(LiveFeature.supportDocuments);
 });
 
 /// Whether the support inbox runs on the API this launch.

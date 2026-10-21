@@ -105,7 +105,13 @@ class _Picture extends ConsumerWidget {
     final width = MediaQuery.sizeOf(context).width;
     if (isLocalFile(file)) {
       return _zoom(
-        localPicture(context, file, width: width, fit: BoxFit.contain) ??
+        localPicture(
+              context,
+              file,
+              width: width,
+              height: width,
+              fit: BoxFit.contain,
+            ) ??
             const SizedBox.shrink(),
       );
     }

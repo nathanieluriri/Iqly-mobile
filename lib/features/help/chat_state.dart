@@ -527,21 +527,19 @@ class HelpFileNotifier extends Notifier<HelpFileState> {
     if (files == null) {
       return const HelpFileState(status: HelpFileStatus.failed);
     }
-    unawaited(_look(files));
+    final kept = files.kept(userId: _user, id: of.id, name: of.name);
+    if (kept != null) {
+      return HelpFileState(status: HelpFileStatus.ready, file: kept);
+    }
+    if (of.auto) {
+      scheduleMicrotask(() {
+        if (ref.mounted && state.status == HelpFileStatus.idle) fetch();
+      });
+    }
     return const HelpFileState();
   }
 
   String get _user => ref.read(sessionProvider).userId ?? '';
-
-  Future<void> _look(SignedInFiles files) async {
-    final kept = await files.kept(userId: _user, id: of.id, name: of.name);
-    if (!ref.mounted || state.status != HelpFileStatus.idle) return;
-    if (kept != null) {
-      state = HelpFileState(status: HelpFileStatus.ready, file: kept);
-    } else if (of.auto) {
-      await fetch();
-    }
-  }
 
   /// Downloads the file, unless it is there or on its way.
   Future<void> fetch() async {

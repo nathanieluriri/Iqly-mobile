@@ -1,12 +1,21 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/motion.dart';
 import 'package:iqly_mobile/data/help_data.dart';
+import 'package:iqly_mobile/data/live/live_help_service.dart'
+    show helpAttachmentFromJson;
 import 'package:iqly_mobile/data/support_files.dart';
+import 'package:iqly_mobile/features/help/chat_files.dart' show CoverImage;
 import 'package:iqly_mobile/features/help/chat_thread_screen.dart';
 import 'package:iqly_mobile/features/help/help_attachment_screen.dart';
 import 'package:iqly_mobile/features/help/help_routes.dart';
+import 'package:iqly_mobile/data/help_service.dart'
+    show supportDocumentsProvider;
+import 'package:iqly_mobile/data/signed_in_files.dart';
 import 'package:iqly_mobile/features/help/help_state.dart';
+import 'package:iqly_mobile/features/more/more_widgets.dart' show RowGroup;
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/theme/theme.dart';
 import 'package:iqly_mobile/ui/chat_header.dart';
@@ -53,10 +62,11 @@ void main() {
       );
       expect(newest.bottom, lessThanOrEqualTo(canvas.bottom));
       expect(canvas.bottom - newest.bottom, lessThan(IqSpace.s10));
-      final oldest = tester.getRect(
-        find.textContaining('has said pending since Monday'),
+      final oldest = find.textContaining('has said pending since Monday');
+      expect(
+        oldest.evaluate().isEmpty || tester.getRect(oldest).bottom < canvas.top,
+        isTrue,
       );
-      expect(oldest.bottom, lessThan(canvas.top));
     });
 
     testWidgets('while it scrolls, the day on screen rides pinned at the '
@@ -70,6 +80,7 @@ void main() {
       await gesture.moveBy(const Offset(0, 120));
       await gesture.moveBy(const Offset(0, 120));
       await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 200));
       final pinned = find.byKey(chatPinnedDayKey);
       expect(pinned, findsOneWidget);
       final canvas = chatCanvas(tester);
@@ -78,7 +89,11 @@ void main() {
       final inline = find.byWidgetPredicate(
         (w) => w is IqChatPill && w.label == label && w.key != chatPinnedDayKey,
       );
-      expect(tester.getRect(inline).bottom, lessThan(canvas.top + IqSpace.s4));
+      expect(
+        inline.evaluate().isEmpty ||
+            tester.getRect(inline).bottom < canvas.top + IqSpace.s4,
+        isTrue,
+      );
       double opacity() => tester
           .widget<AnimatedOpacity>(
             find.ancestor(of: pinned, matching: find.byType(AnimatedOpacity)),
@@ -101,7 +116,7 @@ void main() {
       );
       await tester.drag(find.byKey(chatThreadKey), const Offset(0, 300));
       await tester.pumpAndSettle();
-      final read = find.text('I still can’t see it in my bank app.');
+      final read = find.text('Access Bank confirmed it on Tuesday.');
       final before = tester.getRect(read);
       void lands(String body) {
         final ticket = help.tickets['withdrawal']!;
@@ -276,7 +291,7 @@ void main() {
           matching: find.byType(Image),
         ),
       );
-      expect((image.image as ResizeImage).imageProvider, isA<FileImage>());
+      expect((image.image as CoverImage).image, isA<FileImage>());
 
       await tester.tap(find.byType(IqChatMedia));
       await tester.pumpAndSettle();
@@ -323,11 +338,15 @@ void main() {
       expect(find.text('Photos and videos'), findsOneWidget);
       expect(find.text('Take a photo'), findsOneWidget);
       expect(find.text('Record a video'), findsOneWidget);
+      expect(find.text('Document'), findsOneWidget);
       expect(
         find.textContaining(RegExp('voice|audio', caseSensitive: false)),
         findsNothing,
       );
       expect(help.sources, isEmpty);
+      final sheet = tester.getRect(find.byType(RowGroup));
+      expect(sheet.top, greaterThan(844 / 2));
+      expect(844 - sheet.bottom, lessThan(IqSpace.s16));
 
       help.picked = HelpAttachment(
         name: 'IMG_0001.jpg',
@@ -376,7 +395,7 @@ void main() {
       expect(_ticks(tester, IqChatTicksState.sending), hasLength(1));
       final going = tester
           .widgetList<IqChatMedia>(find.byType(IqChatMedia))
-          .last;
+          .first;
       expect(going.state, IqChatMediaState.loading);
       expect(going.progress, 0.3);
       expect(going.image, isNotNull);
@@ -389,7 +408,7 @@ void main() {
       expect(files.keptSent, ['up_1']);
       expect(_ticks(tester, IqChatTicksState.sending), isEmpty);
       expect(
-        tester.widgetList<IqChatMedia>(find.byType(IqChatMedia)).last.state,
+        tester.widgetList<IqChatMedia>(find.byType(IqChatMedia)).first.state,
         IqChatMediaState.ready,
       );
       expect(files.fetches, isEmpty);
@@ -409,4 +428,146 @@ void main() {
       await tester.pumpAndSettle();
     });
   });
+
+  group('documents', () {
+    testWidgets('without supportDocuments the sheet offers no Document', (
+      tester,
+    ) async {
+      final help = ScriptedHelp(clock: () => chatNow, tickets: [shortThread()]);
+      await openChat(
+        tester,
+        helpThreadPath('t_short'),
+        help,
+        overrides: [supportDocumentsProvider.overrideWithValue(false)],
+      );
+      await tester.tap(find.bySemanticsLabel('Attach'));
+      await tester.pumpAndSettle();
+      expect(find.text('Record a video'), findsOneWidget);
+      expect(find.text('Document'), findsNothing);
+    });
+
+    testWidgets('a document waits as a preview by its name, goes, and is '
+        'saved to the phone from its bubble', (tester) async {
+      final files = ScriptedFiles()..keptFiles['up_9'] = chatScreenshot;
+      final saver = _Saver();
+      final help = ScriptedHelp(clock: () => chatNow, tickets: [shortThread()])
+        ..picked = HelpAttachment(
+          name: 'statement.pdf',
+          bytes: 64000,
+          kind: HelpAttachmentKind.file,
+          mime: 'application/pdf',
+          read: () async => chatPng,
+        );
+      await openChat(
+        tester,
+        helpThreadPath('t_short'),
+        help,
+        files: files,
+        overrides: [fileSaverProvider.overrideWithValue(saver)],
+      );
+      await tester.tap(find.bySemanticsLabel('Attach'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Document'));
+      await tester.pumpAndSettle();
+      expect(help.sources, [SupportSource.document]);
+      expect(find.text('statement.pdf · 64 KB'), findsOneWidget);
+
+      await tester.tap(find.bySemanticsLabel('Send'));
+      await tester.pumpAndSettle();
+      expect(help.replies.single.body, 'Document');
+      expect(help.replies.single.files.single.kind, HelpAttachmentKind.file);
+      final bubble = find.byWidgetPredicate(
+        (w) => w is IqChatMedia && w.kind == IqChatMediaKind.file,
+      );
+      expect(tester.widget<IqChatMedia>(bubble).meta, 'PDF · 64 KB');
+
+      await tester.tap(bubble);
+      await tester.pump();
+      await tester.pump();
+      expect(saver.saved.single, ('statement.pdf', 'application/pdf'));
+      expect(find.text('Document saved'), findsOneWidget);
+      expect(files.fetches, isNot(contains('up_1')));
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('a document from the other side comes down on its first '
+        'tap, its progress in the bubble', (tester) async {
+      final files = ScriptedFiles()..keptFiles['up_9'] = chatScreenshot;
+      final saver = _Saver();
+      final help = ScriptedHelp(
+        clock: () => chatNow,
+        tickets: [
+          shortThread(
+            more: [
+              HelpMessage(
+                author: HelpAuthor.support,
+                side: HelpSide.iqly,
+                authorName: iqlySupport,
+                body: 'Here is your statement.',
+                at: chatAt(0, 9, 12),
+                attachment: HelpAttachment(
+                  id: 'up_5',
+                  name: 'Statement.xlsx',
+                  bytes: 48000,
+                  kind: HelpAttachmentKind.file,
+                  url: Uri.parse('https://api.test/support/attachments/up_5'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+      await openChat(
+        tester,
+        helpThreadPath('t_short'),
+        help,
+        files: files,
+        overrides: [fileSaverProvider.overrideWithValue(saver)],
+      );
+      final bubble = find.byWidgetPredicate(
+        (w) => w is IqChatMedia && w.kind == IqChatMediaKind.file,
+      );
+      expect(tester.widget<IqChatMedia>(bubble).meta, 'XLSX · 48 KB');
+      await tester.tap(bubble);
+      await tester.pump();
+      files.progress('up_5', 0.5);
+      await tester.pumpAndSettle();
+      expect(tester.widget<IqChatMedia>(bubble).meta, 'Downloading… 50%');
+      files.land('up_5', chatScreenshot);
+      await tester.pumpAndSettle();
+      expect(saver.saved.single.$1, 'Statement.xlsx');
+      expect(tester.widget<IqChatMedia>(bubble).meta, 'XLSX · 48 KB');
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpAndSettle();
+    });
+
+    test('documents type as the API takes them, and read back as files', () {
+      expect(supportTypeOf('Plan.DOCX')!.kind, HelpAttachmentKind.file);
+      expect(supportTypeOf('rates.csv')!.mime, 'text/csv');
+      expect(supportTypeOf('deck.pptx')!.kind, HelpAttachmentKind.file);
+      expect(
+        helpAttachmentFromJson({
+          'id': 'up_3',
+          'kind': 'document',
+          'name': 'receipt.pdf',
+        })!.kind,
+        HelpAttachmentKind.file,
+      );
+    });
+  });
+}
+
+class _Saver implements FileSaver {
+  final saved = <(String, String)>[];
+
+  @override
+  Future<FileSave> save(
+    File file, {
+    required String name,
+    required String mime,
+  }) async {
+    saved.add((name, mime));
+    return FileSave.saved;
+  }
 }

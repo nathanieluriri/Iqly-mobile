@@ -4,6 +4,7 @@ import 'package:iqly_mobile/core/motion.dart';
 import 'package:iqly_mobile/data/help_data.dart';
 import 'package:iqly_mobile/features/help/chat_thread_screen.dart';
 import 'package:iqly_mobile/features/help/help_routes.dart';
+import 'package:iqly_mobile/features/help/help_state.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/chat_media.dart';
 
@@ -57,6 +58,7 @@ void main() {
     );
     await gesture.moveBy(const Offset(0, 160));
     await gesture.moveBy(const Offset(0, 160));
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.pump(const Duration(milliseconds: 200));
     await _shot(tester, 'pinned_day');
     await gesture.up();
@@ -184,6 +186,52 @@ void main() {
     help.step(1);
     await tester.pumpAndSettle();
     await _shot(tester, 'sent');
+  });
+
+  testWidgets('a document waits by its name, then sits as a file row', (
+    tester,
+  ) async {
+    await warmPicture(tester, chatScreenshot);
+    final files = ScriptedFiles()..keptFiles['up_9'] = chatScreenshot;
+    final help = _help()
+      ..picked = HelpAttachment(
+        name: 'Withdrawal statement.pdf',
+        bytes: 64000,
+        kind: HelpAttachmentKind.file,
+        mime: 'application/pdf',
+        read: () async => chatPng,
+      );
+    await openChat(tester, helpThreadPath('t_short'), help, files: files);
+    await tester.tap(find.bySemanticsLabel('Attach'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Document'));
+    await tester.pumpAndSettle();
+    await _shot(tester, 'document_staged');
+    await tester.tap(find.bySemanticsLabel('Send'));
+    await tester.pumpAndSettle();
+    await _shot(tester, 'document_sent');
+  });
+
+  testWidgets('scrolled up, a new answer waits behind the down arrow', (
+    tester,
+  ) async {
+    final help = _help(tickets: [longThread()]);
+    final container = await openChat(
+      tester,
+      helpThreadPath('withdrawal'),
+      help,
+    );
+    await tester.drag(find.byKey(chatThreadKey), const Offset(0, 400));
+    await tester.pumpAndSettle();
+    final ticket = help.tickets['withdrawal']!;
+    help.tickets['withdrawal'] = ticket.copyWith(
+      messages: [...ticket.messages, supportReply('It has landed now.')],
+    );
+    container
+        .read(helpTicketsProvider.notifier)
+        .follow('withdrawal', quiet: true);
+    await tester.pumpAndSettle();
+    await _shot(tester, 'new_below');
   });
 
   testWidgets('the mic says voice notes come next', (tester) async {
