@@ -409,6 +409,9 @@ class ChatVoiceNote extends ConsumerStatefulWidget {
   final IqChatMediaTone tone;
   final double? uploading;
 
+  /// Pauses the note playing, if one is: recording starts with it.
+  static void pauseAll() => _ChatVoiceNoteState._playing?._player?.pause();
+
   @override
   ConsumerState<ChatVoiceNote> createState() => _ChatVoiceNoteState();
 }

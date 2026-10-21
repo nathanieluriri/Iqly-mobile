@@ -275,6 +275,7 @@ class ScriptedFiles extends SignedInFiles {
 class ScriptedRecorder implements VoiceRecorder {
   VoiceStart answer = VoiceStart.recording;
   Duration? length = const Duration(seconds: 3);
+  String path = '/voice/note.m4a';
   int starts = 0;
   int stops = 0;
   int cancels = 0;
@@ -291,7 +292,7 @@ class ScriptedRecorder implements VoiceRecorder {
     final length = this.length;
     return length == null
         ? null
-        : VoiceNote(path: '/voice/note.m4a', length: length, bytes: 24000);
+        : VoiceNote(path: path, length: length, bytes: 24000);
   }
 
   @override

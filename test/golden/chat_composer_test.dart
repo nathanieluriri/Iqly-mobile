@@ -51,4 +51,28 @@ void main() {
       padding: 0,
     );
   });
+
+  testWidgets('recording state, screen reader', (tester) async {
+    await expectComponentGolden(
+      tester,
+      'chat_composer_recording_screen_reader',
+      Builder(
+        builder: (context) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(accessibleNavigation: true),
+          child: SizedBox(
+            width: 390,
+            child: IqChatComposer(
+              state: IqChatComposerState.recording,
+              recordTime: '0:07',
+              onHoldStart: () {},
+              onHoldEnd: () {},
+              onHoldCancel: () {},
+            ),
+          ),
+        ),
+      ),
+      size: const Size(390, 81),
+      padding: 0,
+    );
+  });
 }

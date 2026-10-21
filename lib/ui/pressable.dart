@@ -30,6 +30,7 @@ class IqPressable extends StatefulWidget {
     this.onLongPress,
     this.enabled = true,
     this.semanticLabel,
+    this.semanticHint,
     this.hint,
     this.behavior = HitTestBehavior.opaque,
     this.haptic = IqHaptics.tap,
@@ -41,6 +42,9 @@ class IqPressable extends StatefulWidget {
   final VoidCallback? onLongPress;
   final bool enabled;
   final String? semanticLabel;
+
+  /// What a screen reader adds after the label, what activating it does.
+  final String? semanticHint;
   final String? hint;
   final HitTestBehavior behavior;
   final IqHaptics? haptic;
@@ -149,6 +153,7 @@ class _IqPressableState extends State<IqPressable>
       button: true,
       enabled: active,
       label: widget.semanticLabel,
+      hint: widget.semanticHint,
       child: FocusableActionDetector(
         enabled: active,
         actions: {
