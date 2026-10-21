@@ -64,18 +64,21 @@ class TabletPage extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: Wrap(
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: IqSpace.s1,
+              child: Row(
                 children: [
-                  for (final (i, c) in crumbs.indexed)
-                    IqBizCrumb(
-                      label: c.label,
-                      state: i == crumbs.length - 1
-                          ? IqBizCrumbState.current
-                          : IqBizCrumbState.link,
-                      onTap: c.onTap,
+                  for (final (i, c) in crumbs.indexed) ...[
+                    if (i > 0) const SizedBox(width: IqSpace.s1),
+                    Flexible(
+                      flex: i == crumbs.length - 1 ? 3 : 2,
+                      child: IqBizCrumb(
+                        label: c.label,
+                        state: i == crumbs.length - 1
+                            ? IqBizCrumbState.current
+                            : IqBizCrumbState.link,
+                        onTap: c.onTap,
+                      ),
                     ),
+                  ],
                 ],
               ),
             ),
