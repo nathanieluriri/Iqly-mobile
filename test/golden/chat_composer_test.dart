@@ -34,4 +34,21 @@ void main() {
       padding: 0,
     );
   });
+
+  testWidgets('recording state', (tester) async {
+    await expectComponentGolden(
+      tester,
+      'chat_composer_recording',
+      const SizedBox(
+        width: 390,
+        child: IqChatComposer(
+          state: IqChatComposerState.recording,
+          recordTime: '0:07',
+          slide: 0.3,
+        ),
+      ),
+      size: const Size(390, 81),
+      padding: 0,
+    );
+  });
 }

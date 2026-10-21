@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -18,6 +19,7 @@ import '../../data/help_service.dart';
 import '../../data/live/live_help_service.dart' show LiveHelpService;
 import '../../data/local/local_rows.dart';
 import '../../data/support_files.dart';
+import '../../data/voice_recorder.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/chat_bubble_proposal.dart';
@@ -73,8 +75,11 @@ String businessAnswersHere(String business) =>
     '$business answers here. iQLY support can see this chat and steps in if '
     'there’s no answer in 2 days.';
 
-/// What the mic says until voice notes ship in a release.
-const voiceNotesComing = 'Voice notes are coming in the next update';
+/// What a tap on the mic says: a voice note is held to record.
+const holdToRecord = 'Hold to record';
+
+/// What the mic says when the phone will not let it record.
+const micRefused = 'Allow the microphone in Settings to record a voice note';
 
 /// The thread's scroll view, the day pinned over it while it scrolls, and
 /// the skeleton before its first answer.
@@ -102,7 +107,10 @@ const chatSkeletonKey = ValueKey('thread skeleton');
 /// kept, skeleton bubbles hold the canvas. + offers the kinds of file the
 /// API takes before any picker opens, the file waits over the composer as
 /// a preview, and a message shows at once, its picture from the phone,
-/// while the file goes up.
+/// while the file goes up. The mic records a voice note, never a file:
+/// held to record with the time running, slid left to cancel, let go to
+/// send (at 5 minutes it sends itself, the API's longest); a tap says to
+/// hold. Voice notes play in their bubbles.
 class ChatThreadScreen extends ConsumerStatefulWidget {
   const ChatThreadScreen({super.key, this.id, this.about})
     : assert(id != null || about != null);
@@ -116,7 +124,8 @@ class ChatThreadScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatThreadScreen> createState() => _ChatThreadScreenState();
 }
 
-class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
+class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
+    with SingleTickerProviderStateMixin {
   final _reply = TextEditingController();
   final _list = GlobalKey<_ThreadListState>();
   late final HelpTicketsNotifier _tickets = ref.read(
@@ -137,6 +146,16 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
   /// once if the API's answer has more than the phone's copy had.
   int? _unreadAtOpen;
   bool _freshCounted = false;
+
+  /// The mic is held, and once the microphone answers, recording.
+  bool _held = false;
+  bool _recording = false;
+  Duration _recorded = Duration.zero;
+  double _slide = 0;
+  late final Ticker _recordClock = createTicker(_tick);
+
+  /// How far left the finger slides to cancel a voice note.
+  static const double _cancelAt = 120;
 
   @override
   void initState() {
@@ -165,6 +184,8 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     final id = widget.id;
     if (id != null) _tickets.closed(id);
     _polling?.cancel();
+    _recordClock.dispose();
+    if (_recording) ref.read(voiceRecorderProvider).cancel().ignore();
     final staged = _staged;
     if (staged != null) {
       final uploads = _uploads;
@@ -207,8 +228,13 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     setState(() => _staged = null);
   }
 
-  Future<void> _send(HelpTicket? ticket, Activation? activation) async {
-    final typed = _reply.text.trim();
+  /// A [voice] note goes alone, whatever is typed.
+  Future<void> _send(
+    HelpTicket? ticket,
+    Activation? activation, {
+    bool voice = false,
+  }) async {
+    final typed = voice ? '' : _reply.text.trim();
     final stagedKey = _staged;
     final staged = stagedKey == null
         ? null
@@ -228,7 +254,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
             file: staged?.file,
             upload: stagedKey,
           );
-      _reply.clear();
+      if (!voice) _reply.clear();
       _key = LocalRows.newId();
       setState(() => _staged = null);
       _list.currentState?.toEnd();
@@ -261,6 +287,91 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  void _tick(Duration elapsed) {
+    if (elapsed.inSeconds != _recorded.inSeconds) {
+      setState(() => _recorded = elapsed);
+    }
+    if (elapsed >= SupportLimits.length(HelpAttachmentKind.audio)!) {
+      _holdEnded?.call();
+    }
+  }
+
+  /// Sends the voice note when the hold ends, as the thread is then.
+  VoidCallback? _holdEnded;
+
+  void _stopRecording() {
+    _recordClock.stop();
+    setState(() {
+      _held = false;
+      _recording = false;
+      _slide = 0;
+      _recorded = Duration.zero;
+    });
+  }
+
+  Future<void> _holdStart() async {
+    if (_held || _sending) return;
+    final recorder = ref.read(voiceRecorderProvider);
+    setState(() => _held = true);
+    final started = await recorder.start();
+    if (!mounted) return;
+    if (!_held) {
+      if (started == VoiceStart.recording) await recorder.cancel();
+      return;
+    }
+    switch (started) {
+      case VoiceStart.recording:
+        IqHaptics.hold.play();
+        setState(() {
+          _recording = true;
+          _slide = 0;
+          _recorded = Duration.zero;
+        });
+        _recordClock.start();
+      case VoiceStart.refused || VoiceStart.failed:
+        setState(() => _held = false);
+        IqToast.show(
+          context,
+          started == VoiceStart.refused ? micRefused : 'Couldn’t record',
+          kind: IqToastKind.error,
+        );
+    }
+  }
+
+  void _holdMove(double dx) {
+    if (!_recording) return;
+    final slide = (-dx / _cancelAt).clamp(0.0, 1.0);
+    if (slide >= 1) {
+      _holdCancel();
+      return;
+    }
+    if (slide != _slide) setState(() => _slide = slide);
+  }
+
+  Future<void> _holdCancel() async {
+    final recording = _recording;
+    if (!_held) return;
+    _stopRecording();
+    if (recording) await ref.read(voiceRecorderProvider).cancel();
+  }
+
+  Future<void> _holdEnd(HelpTicket? ticket, Activation? activation) async {
+    if (!_held) return;
+    final recording = _recording;
+    _stopRecording();
+    if (!recording) return;
+    final note = await ref.read(voiceRecorderProvider).stop();
+    if (!mounted) return;
+    if (note == null || note.length < VoiceNote.shortest) {
+      IqToast.show(context, holdToRecord);
+      return;
+    }
+    final previous = _staged;
+    if (previous != null) _uploads.cancel(previous);
+    _staged = _uploads.start(note.toAttachment());
+    await _send(ticket, activation, voice: true);
   }
 
   bool _redirected = false;
@@ -457,14 +568,22 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                   ),
                 IqToastFloor(
                   child: IqChatComposer(
-                    state: typed
+                    state: _recording
+                        ? IqChatComposerState.recording
+                        : typed
                         ? IqChatComposerState.typed
                         : IqChatComposerState.empty,
+                    recordTime: helpLength(_recorded),
+                    slide: _slide,
+                    onHoldStart: _holdStart,
+                    onHoldMove: _holdMove,
+                    onHoldEnd: _holdEnded = () => _holdEnd(ticket, activation),
+                    onHoldCancel: _holdCancel,
                     placeholder: 'Write to ${business ? name : 'support'}',
                     controller: _reply,
                     sending: _sending || (id != null && ticket == null),
                     onAttach: () => _attach(name),
-                    onVoiceNote: () => IqToast.show(context, voiceNotesComing),
+                    onVoiceNote: () => IqToast.show(context, holdToRecord),
                     onSend: () => _send(ticket, activation),
                   ),
                 ),
@@ -774,12 +893,10 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
         uploading: uploading,
         onTap: uploading == null ? open : null,
       ),
-      HelpAttachmentKind.audio => IqChatMedia(
-        kind: IqChatMediaKind.voice,
+      HelpAttachmentKind.audio => ChatVoiceNote(
+        file: file,
         tone: tone,
-        duration: file.lengthLabel ?? '',
-        onTap: open,
-        semanticLabel: file.name,
+        uploading: uploading,
       ),
       HelpAttachmentKind.file => ChatDocument(
         file: file,
@@ -863,17 +980,16 @@ Future<SupportSource?> chooseChatAttachment(
                   label: 'Take a photo',
                   showDescription: false,
                   icon: IqIcons.camera,
-                  divider: DeviceSupportFiles.canRecordVideo || documents,
+                  divider: true,
                   onTap: () => Navigator.of(context).pop(SupportSource.camera),
                 ),
-                if (DeviceSupportFiles.canRecordVideo)
-                  IqListRow(
-                    label: 'Record a video',
-                    description: 'Up to 20 s and 50 MB',
-                    icon: IqIcons.video,
-                    divider: documents,
-                    onTap: () => Navigator.of(context).pop(SupportSource.video),
-                  ),
+                IqListRow(
+                  label: 'Record a video',
+                  description: 'Up to 20 s and 50 MB',
+                  icon: IqIcons.video,
+                  divider: documents,
+                  onTap: () => Navigator.of(context).pop(SupportSource.video),
+                ),
                 if (documents)
                   IqListRow(
                     label: 'Document',

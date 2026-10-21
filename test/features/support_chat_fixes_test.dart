@@ -414,14 +414,14 @@ void main() {
       expect(files.fetches, isEmpty);
     });
 
-    testWidgets('the mic says voice notes are coming and opens no picker', (
+    testWidgets('a tap on the mic says to hold it and opens no picker', (
       tester,
     ) async {
       final help = ScriptedHelp(clock: () => chatNow, tickets: [shortThread()]);
       await openChat(tester, helpThreadPath('t_short'), help);
       await tester.tap(find.bySemanticsLabel('Voice note'));
       await tester.pump();
-      expect(find.text(voiceNotesComing), findsOneWidget);
+      expect(find.text(holdToRecord), findsOneWidget);
       expect(find.text('Photos and videos'), findsNothing);
       expect(help.sources, isEmpty);
       await tester.pump(const Duration(seconds: 3));
