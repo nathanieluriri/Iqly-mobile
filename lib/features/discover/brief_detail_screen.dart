@@ -25,6 +25,7 @@ import 'business_art.dart';
 import 'discover_routes.dart';
 import 'discover_state.dart';
 import 'discover_widgets.dart';
+import 'tablet_brief_detail.dart';
 
 /// B1 · Brief detail (476:17315), a sub page: Page top bar with Back, the
 /// bookmark beside it (192:9707 when saved), Exp/BriefHero, the business,
@@ -86,6 +87,9 @@ class _BriefDetailScreenState extends ConsumerState<BriefDetailScreen> {
     final loaded = ref.watch(briefDetailProvider(id));
     final brief =
         loaded.value ?? widget.initial ?? BriefDetailScreen._known(ref, id);
+    if (Layout.isTablet(context) && brief != null) {
+      return TabletBriefDetail(brief: brief);
+    }
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(

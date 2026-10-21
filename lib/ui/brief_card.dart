@@ -46,6 +46,7 @@ class IqBriefCard extends StatelessWidget {
     this.closingSoon = false,
     this.time,
     this.onTap,
+    this.widthOverride,
   });
 
   final IqBriefCardKind kind;
@@ -61,7 +62,12 @@ class IqBriefCard extends StatelessWidget {
   final String? time;
   final VoidCallback? onTap;
 
-  double get width => kind == IqBriefCardKind.carousel ? 272 : 358;
+  /// The tablet grid's card (Exp/BriefCard local, 1637:9376) is a Carousel
+  /// that fills its column.
+  final double? widthOverride;
+
+  double get width =>
+      widthOverride ?? (kind == IqBriefCardKind.carousel ? 272 : 358);
 
   @override
   Widget build(BuildContext context) {

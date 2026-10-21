@@ -47,6 +47,7 @@ import 'business_art.dart';
 import 'discover_state.dart';
 import 'discover_widgets.dart';
 import 'feed_slivers.dart';
+import 'tablet_discover.dart';
 
 /// B1 · Discover · Home (31:24, For you; 480:20532, All): Quick polls,
 /// Activations, then Briefs (and on For you More briefs), loaded a page at
@@ -362,6 +363,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (Layout.isTablet(context)) return const TabletDiscover();
     _listen();
     final feed = ref.watch(discoverFeedProvider);
     final filters = ref.watch(discoverFiltersProvider);

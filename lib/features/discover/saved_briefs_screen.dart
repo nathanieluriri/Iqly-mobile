@@ -14,6 +14,7 @@ import '../../ui/skeleton.dart';
 import '../../ui/vector.dart';
 import 'app_shell.dart';
 import 'discover_state.dart';
+import 'tablet_discover.dart';
 import 'discover_widgets.dart';
 import 'feed_slivers.dart';
 
@@ -98,6 +99,7 @@ class _SavedBriefsScreenState extends ConsumerState<SavedBriefsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (Layout.isTablet(context)) return const TabletDiscover(savedRoute: true);
     ref.listen(savedBriefsProvider, (previous, next) => _sync(next.value));
     final saved = ref.watch(savedBriefsProvider);
     final offline = ref.watch(discoverFeedProvider).hasError;
