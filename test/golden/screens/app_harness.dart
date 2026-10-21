@@ -12,6 +12,7 @@ import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/data/help_service.dart'
     show supportChannelsProvider;
+import 'package:iqly_mobile/features/shell/tablet_frame.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/theme/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -76,11 +77,14 @@ Future<ProviderContainer> pumpApp(
   DateTime Function()? clock,
   TransitionBuilder? builder,
   bool supportChannels = false,
+  Size size = const Size(390, 844),
+  FakeViewPadding insets = const FakeViewPadding(top: 54, bottom: 34),
+  bool tabletFrame = false,
 }) async {
-  tester.view.physicalSize = const Size(390, 844);
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
-  tester.view.padding = const FakeViewPadding(top: 54, bottom: 34);
-  tester.view.viewPadding = const FakeViewPadding(top: 54, bottom: 34);
+  tester.view.padding = insets;
+  tester.view.viewPadding = insets;
   if (reducedMotion) {
     tester.platformDispatcher.accessibilityFeaturesTestValue =
         const FakeAccessibilityFeatures(disableAnimations: true);
@@ -118,7 +122,12 @@ Future<ProviderContainer> pumpApp(
         theme: buildTheme(),
         debugShowCheckedModeBanner: false,
         routerConfig: router,
-        builder: builder,
+        builder: tabletFrame
+            ? (context, child) => TabletFrame(
+                router: router,
+                child: builder?.call(context, child) ?? child!,
+              )
+            : builder,
       ),
     ),
   );

@@ -510,6 +510,366 @@ abstract final class IqText {
   );
 }
 
+/// The web ramp from Figma, used by the tablet layouts.
+abstract final class IqWebText {
+  static const displayHero = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 60,
+    fontWeight: FontWeight.w600,
+    height: 1.05,
+    letterSpacing: -1.5,
+  );
+  static const headingH1 = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 36,
+    fontWeight: FontWeight.w700,
+    height: 1.1,
+    letterSpacing: -0.72,
+  );
+  static const headingH2 = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 24,
+    fontWeight: FontWeight.w600,
+    height: 1.25,
+    letterSpacing: -0.36,
+  );
+  static const headingH3 = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 18,
+    fontWeight: FontWeight.w600,
+    height: 1.375,
+    letterSpacing: -0.09,
+  );
+
+  /// Challenge card title: text-lg font-semibold leading-snug.
+  static const headingCardTitle = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 18,
+    fontWeight: FontWeight.w600,
+    height: 1.375,
+    letterSpacing: 0,
+  );
+  static const bodyLead = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 18,
+    fontWeight: FontWeight.w400,
+    height: 1.55,
+    letterSpacing: 0,
+  );
+  static const bodyBase = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 15,
+    fontWeight: FontWeight.w400,
+    height: 1.6,
+    letterSpacing: 0,
+  );
+  static const bodySmall = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 14,
+    fontWeight: FontWeight.w400,
+    height: 1.5,
+    letterSpacing: 0,
+  );
+  static const bodySmallStrong = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    height: 1.5,
+    letterSpacing: 0,
+  );
+  static const labelButton = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    height: 1.4,
+    letterSpacing: 0,
+  );
+  static const labelBadge = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 12,
+    fontWeight: FontWeight.w500,
+    height: 1.33,
+    letterSpacing: 0,
+  );
+  static const metaCaption = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    height: 1.33,
+    letterSpacing: 0,
+  );
+  static const figureBalance = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 36,
+    fontWeight: FontWeight.w700,
+    height: 1.1,
+    letterSpacing: -0.9,
+  );
+  static const figureReward = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 20,
+    fontWeight: FontWeight.w600,
+    height: 1.4,
+    letterSpacing: 0,
+  );
+
+  /// Figma sets UPPER case: pass the text through toUpperCase().
+  static const monoEyebrow = TextStyle(
+    fontFamily: IqFonts.geistMono,
+    fontFamilyFallback: [IqFonts.jakarta],
+    fontSize: 11,
+    fontWeight: FontWeight.w500,
+    height: 1.5,
+    letterSpacing: 1.76,
+  );
+
+  /// Figma sets UPPER case: pass the text through toUpperCase().
+  static const monoLedgerType = TextStyle(
+    fontFamily: IqFonts.geistMono,
+    fontFamilyFallback: [IqFonts.jakarta],
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    height: 1.33,
+    letterSpacing: 0.96,
+  );
+  static const monoCode = TextStyle(
+    fontFamily: IqFonts.geistMono,
+    fontFamilyFallback: [IqFonts.jakarta],
+    fontSize: 13,
+    fontWeight: FontWeight.w400,
+    height: 1.5,
+    letterSpacing: 0,
+  );
+
+  /// card-title: text-base leading-snug font-medium.
+  static const headingCardSection = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 16,
+    fontWeight: FontWeight.w500,
+    height: 1.375,
+    letterSpacing: 0,
+  );
+
+  /// text-xs uppercase tracking-wider: Available to withdraw.
+  /// Figma sets UPPER case: pass the text through toUpperCase().
+  static const labelOverline = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    height: 1.33,
+    letterSpacing: 0.6,
+  );
+
+  /// text-[0.6rem] font-semibold: brand initial on challenge cards.
+  /// Figma sets UPPER case: pass the text through toUpperCase().
+  static const monoAvatarInitial = TextStyle(
+    fontFamily: IqFonts.geistMono,
+    fontFamilyFallback: [IqFonts.jakarta],
+    fontSize: 10,
+    fontWeight: FontWeight.w600,
+    height: 1.5,
+    letterSpacing: 0,
+  );
+
+  /// Label: text-sm font-medium leading-none.
+  static const labelField = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    height: 1,
+    letterSpacing: 0,
+  );
+
+  /// PageHeader: text-2xl font-semibold tracking-tight.
+  static const headingPageTitle = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 24,
+    fontWeight: FontWeight.w600,
+    height: 1.25,
+    letterSpacing: -0.6,
+  );
+
+  /// Button size sm: text-[0.8rem].
+  static const labelButtonSmall = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 12.8,
+    fontWeight: FontWeight.w500,
+    height: 1.4,
+    letterSpacing: 0,
+  );
+
+  /// Challenge card tier/category: text-[0.65rem] tracking-[0.2em].
+  /// Figma sets UPPER case: pass the text through toUpperCase().
+  static const monoCardEyebrow = TextStyle(
+    fontFamily: IqFonts.geistMono,
+    fontFamilyFallback: [IqFonts.jakarta],
+    fontSize: 10.4,
+    fontWeight: FontWeight.w500,
+    height: 1.5,
+    letterSpacing: 2.08,
+  );
+
+  /// Reward pool label: text-[0.6rem] tracking-[0.2em].
+  /// Figma sets UPPER case: pass the text through toUpperCase().
+  static const monoMicro = TextStyle(
+    fontFamily: IqFonts.geistMono,
+    fontFamilyFallback: [IqFonts.jakarta],
+    fontSize: 9.6,
+    fontWeight: FontWeight.w500,
+    height: 1.5,
+    letterSpacing: 1.92,
+  );
+
+  /// Closed pill: text-[0.6rem] font-semibold tracking-[0.16em].
+  /// Figma sets UPPER case: pass the text through toUpperCase().
+  static const monoPill = TextStyle(
+    fontFamily: IqFonts.geistMono,
+    fontFamilyFallback: [IqFonts.jakarta],
+    fontSize: 9.6,
+    fontWeight: FontWeight.w600,
+    height: 1.5,
+    letterSpacing: 1.536,
+  );
+
+  /// Challenge card body: text-sm leading-relaxed.
+  static const bodyRelaxed = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 14,
+    fontWeight: FontWeight.w400,
+    height: 1.625,
+    letterSpacing: 0,
+  );
+
+  /// Cover page title only.
+  static const displayCover = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 120,
+    fontWeight: FontWeight.w600,
+    height: 1,
+    letterSpacing: -3,
+  );
+
+  /// Cover page subtitle only.
+  static const bodyCoverLead = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 28,
+    fontWeight: FontWeight.w400,
+    height: 1.55,
+    letterSpacing: 0,
+  );
+
+  /// Profile field label: text-xs uppercase tracking-wide muted.
+  /// Figma sets UPPER case: pass the text through toUpperCase().
+  static const labelFieldCaps = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    height: 1.33,
+    letterSpacing: 0.3,
+  );
+
+  /// App large title (iOS large title / M3 headline). Collapses to the inline title on scroll.
+  static const mobileLargeTitle = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 30,
+    fontWeight: FontWeight.w700,
+    height: 1.15,
+    letterSpacing: -0.6,
+  );
+}
+
+/// The Land/* ramp from Figma, used by the tablet layouts. Bricolage takes the nearest cut optical size.
+abstract final class IqLandText {
+  static const display = TextStyle(
+    fontFamily: IqFonts.bricolage32,
+    fontSize: 72,
+    fontWeight: FontWeight.w800,
+    height: 0.96,
+    letterSpacing: -1.44,
+  );
+  static const displaySmall = TextStyle(
+    fontFamily: IqFonts.bricolage32,
+    fontSize: 48,
+    fontWeight: FontWeight.w800,
+    height: 1.02,
+    letterSpacing: -0.72,
+  );
+  static const h2 = TextStyle(
+    fontFamily: IqFonts.bricolage32,
+    fontSize: 40,
+    fontWeight: FontWeight.w700,
+    height: 1.08,
+    letterSpacing: -0.4,
+  );
+  static const h3 = TextStyle(
+    fontFamily: IqFonts.bricolage22,
+    fontSize: 24,
+    fontWeight: FontWeight.w700,
+    height: 1.2,
+    letterSpacing: -0.12,
+  );
+  static const lead = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 20,
+    fontWeight: FontWeight.w400,
+    height: 1.5,
+    letterSpacing: 0,
+  );
+  static const body = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 17,
+    fontWeight: FontWeight.w400,
+    height: 1.55,
+    letterSpacing: 0,
+  );
+  static const bodyStrong = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 17,
+    fontWeight: FontWeight.w600,
+    height: 1.55,
+    letterSpacing: 0,
+  );
+  static const nav = TextStyle(
+    fontFamily: IqFonts.jakarta,
+    fontSize: 15,
+    fontWeight: FontWeight.w500,
+    height: 1.4,
+    letterSpacing: 0,
+  );
+
+  /// Figma sets UPPER case: pass the text through toUpperCase().
+  static const eyebrow = TextStyle(
+    fontFamily: IqFonts.geistMono,
+    fontFamilyFallback: [IqFonts.jakarta],
+    fontSize: 12,
+    fontWeight: FontWeight.w500,
+    height: 1.4,
+    letterSpacing: 0.72,
+  );
+  static const mono = TextStyle(
+    fontFamily: IqFonts.geistMono,
+    fontFamilyFallback: [IqFonts.jakarta],
+    fontSize: 13,
+    fontWeight: FontWeight.w500,
+    height: 1.4,
+    letterSpacing: 0.26,
+  );
+  static const figure = TextStyle(
+    fontFamily: IqFonts.bricolage32,
+    fontSize: 36,
+    fontWeight: FontWeight.w800,
+    height: 1.1,
+    letterSpacing: -0.36,
+  );
+  static const figureSmall = TextStyle(
+    fontFamily: IqFonts.bricolage28,
+    fontSize: 26,
+    fontWeight: FontWeight.w800,
+    height: 1.1,
+    letterSpacing: -0.26,
+  );
+}
+
 abstract final class IqShadows {
   static const xs = <BoxShadow>[
     BoxShadow(
