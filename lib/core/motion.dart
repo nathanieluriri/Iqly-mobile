@@ -77,6 +77,9 @@ abstract final class IqDurations {
   /// How long a toast stays before it leaves.
   static const toast = Duration(seconds: 2);
 
+  /// Hold: a chat's pinned day after its thread stops scrolling.
+  static const pinnedDay = Duration(milliseconds: 1500);
+
   /// Marker wipe, stamp land, banner arrives, thread draws, shake.
   static const mark = Duration(milliseconds: 240);
 

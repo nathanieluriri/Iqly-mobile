@@ -24,6 +24,14 @@ class SignedInFiles {
   Directory _folder(String userId) =>
       Directory('${root.path}/${_safe(userId.isEmpty ? 'session' : userId)}');
 
+  File _file(String userId, String id, String name) {
+    final dot = name.lastIndexOf('.');
+    final ext = dot < 0 ? '' : _safe(name.substring(dot + 1));
+    return File(
+      '${_folder(userId).path}/${_safe(id)}${ext.isEmpty ? '' : '.$ext'}',
+    );
+  }
+
   /// The file [id] that [url] serves, named with [name]'s extension, from
   /// the account's folder, downloaded first when it is not there. One
   /// download at a time per file; a failed one leaves nothing behind.
@@ -34,16 +42,45 @@ class SignedInFiles {
     String name = '',
     void Function(double progress)? onProgress,
   }) {
-    final dot = name.lastIndexOf('.');
-    final ext = dot < 0 ? '' : _safe(name.substring(dot + 1));
-    final file = File(
-      '${_folder(userId).path}/${_safe(id)}${ext.isEmpty ? '' : '.$ext'}',
-    );
+    final file = _file(userId, id, name);
     return _fetching[file.path] ??= _fetch(file, url, onProgress).whenComplete(
       () {
         _fetching.remove(file.path);
       },
     );
+  }
+
+  /// The file [id] when the account's folder already holds it.
+  Future<File?> kept({
+    required String userId,
+    required String id,
+    String name = '',
+  }) async {
+    final file = _file(userId, id, name);
+    try {
+      return await file.exists() && await file.length() > 0 ? file : null;
+    } on FileSystemException {
+      return null;
+    }
+  }
+
+  /// Keeps [bytes] as the file [id], as when the person sent it from this
+  /// phone, so it never downloads again.
+  Future<void> keep({
+    required String userId,
+    required String id,
+    required List<int> bytes,
+    String name = '',
+  }) async {
+    final file = _file(userId, id, name);
+    final part = File('${file.path}.part');
+    try {
+      await file.parent.create(recursive: true);
+      await part.writeAsBytes(bytes, flush: true);
+      await part.rename(file.path);
+    } on FileSystemException {
+      if (await part.exists()) await part.delete();
+    }
   }
 
   Future<File> _fetch(

@@ -18,6 +18,7 @@ import '../../ui/notification.dart';
 import '../activations/activations_routes.dart' show activationPath;
 import '../activations/activations_state.dart';
 import '../help/help_routes.dart' show helpThreadPath;
+import '../help/chat_state.dart' show helpInboxProvider;
 import '../help/help_state.dart';
 import '../polls/polls_routes.dart' show quickPollsFor;
 import '../polls/polls_state.dart';
@@ -82,6 +83,10 @@ void readAgainOnPush(Ref ref) {
   ref.invalidate(supportUnreadProvider);
   if (ref.exists(helpTicketsProvider)) {
     ref.read(helpTicketsProvider.notifier).refreshOpen();
+  }
+  if (ref.exists(helpInboxProvider) &&
+      ref.read(helpInboxProvider).tickets != null) {
+    ref.read(helpInboxProvider.notifier).refresh(quiet: true).ignore();
   }
   if (ref.exists(notificationsProvider)) {
     ref.read(notificationsProvider.notifier).refreshQuietly().ignore();

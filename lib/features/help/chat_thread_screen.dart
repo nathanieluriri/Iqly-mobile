@@ -28,16 +28,23 @@ import '../../ui/chat_media.dart';
 import '../../ui/chat_pill.dart';
 import '../../ui/chat_resolved_bar.dart';
 import '../../ui/chat_ticks.dart';
+import '../../ui/confirm_sheet.dart';
 import '../../ui/empty_state.dart';
 import '../../ui/icon.dart';
 import '../../ui/illustration.dart';
+import '../../ui/list_row.dart';
+import '../../ui/pressable.dart';
+import '../../ui/recording_player.dart';
+import '../../ui/skeleton.dart';
 import '../../ui/toast.dart';
 import '../activations/activation_format.dart' show activationLogoArt;
 import '../activations/activations_routes.dart' show activationPath;
 import '../activations/activations_state.dart' show activationProvider;
-import '../more/more_widgets.dart' show goBack;
+import '../more/more_widgets.dart' show RowGroup, goBack;
 import '../settings/restore_account_screen.dart';
+import 'chat_files.dart';
 import 'chat_inbox_screen.dart';
+import 'chat_state.dart';
 import 'help_attachment_screen.dart';
 import 'help_routes.dart';
 import 'help_state.dart';
@@ -66,6 +73,15 @@ String businessAnswersHere(String business) =>
     '$business answers here. iQLY support can see this chat and steps in if '
     'there’s no answer in 2 days.';
 
+/// What the mic says until voice notes ship in a release.
+const voiceNotesComing = 'Voice notes are coming in the next update';
+
+/// The thread's scroll view, the day pinned over it while it scrolls, and
+/// the skeleton before its first answer.
+const chatThreadKey = ValueKey('chat thread');
+const chatPinnedDayKey = ValueKey('pinned day');
+const chatSkeletonKey = ValueKey('thread skeleton');
+
 /// B21 · Thread (1589:118774, 1589:119167, 1589:122097, 1589:122537), with
 /// health's `supportChannels`: one thread on the chat canvas. The header
 /// says who answers (iQLY with its reply promise, a business with none),
@@ -77,6 +93,16 @@ String businessAnswersHere(String business) =>
 /// again. Opened from an activation's Ask for help with no thread yet
 /// ([about], 1639:125529) it is empty under the pinned note, and the first
 /// message opens the thread with the business.
+///
+/// As WhatsApp does (owner, 21 Oct): a short thread starts at the top under
+/// its day, a long one opens at the newest message with the day of what is
+/// on screen pinned at the top while it scrolls, and what is read stays in
+/// place when new messages land. The thread opens at once as the phone
+/// kept it while it reads again (Updating under the name); with nothing
+/// kept, skeleton bubbles hold the canvas. + offers the kinds of file the
+/// API takes before any picker opens, the file waits over the composer as
+/// a preview, and a message shows at once, its picture from the phone,
+/// while the file goes up.
 class ChatThreadScreen extends ConsumerStatefulWidget {
   const ChatThreadScreen({super.key, this.id, this.about})
     : assert(id != null || about != null);
@@ -92,22 +118,36 @@ class ChatThreadScreen extends ConsumerStatefulWidget {
 
 class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
   final _reply = TextEditingController();
+  final _list = GlobalKey<_ThreadListState>();
   late final HelpTicketsNotifier _tickets = ref.read(
     helpTicketsProvider.notifier,
   );
+  late final HelpUploadsNotifier _uploads = ref.read(
+    helpUploadsProvider.notifier,
+  );
   String _key = LocalRows.newId();
+
+  /// The upload of the file waiting to go with the next message.
+  String? _staged;
   bool _sending = false;
   bool _resolving = false;
   Timer? _polling;
 
-  /// The replies unread when the thread opened, counted once.
+  /// The replies unread when the thread opened, counted once, and again
+  /// once if the API's answer has more than the phone's copy had.
   int? _unreadAtOpen;
+  bool _freshCounted = false;
 
   @override
   void initState() {
     super.initState();
     _reply.addListener(() => setState(() {}));
+    _uploads;
     final id = widget.id;
+    if (widget.about != null) {
+      final inbox = ref.read(helpInboxProvider.notifier);
+      Future.microtask(() => inbox.refresh(quiet: true));
+    }
     if (id == null) return;
     _tickets
       ..follow(id)
@@ -115,7 +155,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     if (ref.read(supportLiveProvider)) {
       _polling = Timer.periodic(
         LiveHelpService.pollEvery,
-        (_) => _tickets.follow(id),
+        (_) => _tickets.follow(id, quiet: true),
       );
     }
   }
@@ -125,6 +165,11 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     final id = widget.id;
     if (id != null) _tickets.closed(id);
     _polling?.cancel();
+    final staged = _staged;
+    if (staged != null) {
+      final uploads = _uploads;
+      Future.microtask(() => uploads.cancel(staged));
+    }
     _reply.dispose();
     super.dispose();
   }
@@ -138,43 +183,71 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     IqToast.show(context, helpFailureText(error.failure));
   }
 
-  void _attach(SupportSource source, String? business) => ref
-      .read(helpDraftProvider.notifier)
-      .addRecording(about: business, source: source);
+  Future<void> _attach(String business) async {
+    final source = await chooseChatAttachment(context);
+    if (source == null || !mounted) return;
+    final key = await _uploads.pick(source, about: business);
+    if (key == null) return;
+    if (!mounted) {
+      _uploads.cancel(key);
+      return;
+    }
+    final previous = _staged;
+    if (previous != null) _uploads.cancel(previous);
+    setState(() => _staged = key);
+  }
+
+  void _unstage() {
+    final staged = _staged;
+    if (staged == null) return;
+    _uploads.cancel(staged);
+    setState(() => _staged = null);
+  }
 
   Future<void> _send(HelpTicket? ticket, Activation? activation) async {
-    final draft = ref.read(helpDraftProvider);
-    final file = draft.recording;
     final typed = _reply.text.trim();
-    if (_sending || draft.upload != null) return;
-    if (typed.isEmpty && file == null) return;
-    final body = typed.isEmpty ? attachmentOnlyBody(file!.kind) : typed;
-    setState(() => _sending = true);
-    try {
-      if (ticket == null) {
-        final opened = await _tickets.open(
-          HelpRequest(
-            subject: helpSubject(activation),
-            message: body,
-            attachment: file,
-            activation: activation,
-            idempotencyKey: _key,
-          ),
-        );
-        if (!mounted) return;
-        ref.read(helpDraftProvider.notifier).sent();
-        context.pushReplacement(helpThreadPath(opened.id));
-        return;
-      }
-      await _tickets.reply(
-        ticket.id,
-        body,
-        idempotencyKey: _key,
-        attachments: [?file],
-      );
+    final stagedKey = _staged;
+    final staged = stagedKey == null
+        ? null
+        : ref.read(helpUploadsProvider)[stagedKey];
+    if (_sending || (staged != null && staged.failed)) return;
+    if (typed.isEmpty && staged == null) return;
+    final body = typed.isEmpty ? attachmentOnlyBody(staged!.file.kind) : typed;
+    final id = widget.id;
+    if (ticket != null && id != null) {
+      ref
+          .read(helpOutgoingProvider.notifier)
+          .send(
+            id,
+            body: body,
+            key: _key,
+            file: staged?.file,
+            upload: stagedKey,
+          );
       _reply.clear();
       _key = LocalRows.newId();
-      ref.read(helpDraftProvider.notifier).sent();
+      setState(() => _staged = null);
+      _list.currentState?.toEnd();
+      return;
+    }
+    setState(() => _sending = true);
+    try {
+      final file = stagedKey == null
+          ? null
+          : await _uploads.uploaded(stagedKey);
+      final opened = await _tickets.open(
+        HelpRequest(
+          subject: helpSubject(activation),
+          message: body,
+          attachment: file,
+          activation: activation,
+          idempotencyKey: _key,
+        ),
+      );
+      if (stagedKey != null) _uploads.sent(stagedKey);
+      _staged = null;
+      if (!mounted) return;
+      context.pushReplacement(helpThreadPath(opened.id));
     } catch (error) {
       if (error is HelpRefused && error.failure != HelpFailure.offline) {
         _key = LocalRows.newId();
@@ -193,8 +266,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
   void _toOpenThread() {
     final about = widget.about;
     final existing = ref
-        .watch(conversationsProvider)
-        .value
+        .watch(helpInboxTicketsProvider)
         ?.where(
           (t) =>
               t.activationId == about && t.status != HelpTicketStatus.resolved,
@@ -220,6 +292,24 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     }
   }
 
+  void _countUnread(String id, HelpTicket ticket, HelpSync sync) {
+    final first = _unreadAtOpen == null;
+    if (first) {
+      _unreadAtOpen = unreadReplies(ticket);
+      // Read once it shows, so the count it opened with is the one drawn.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        whenArrived(context, () {
+          if (mounted) _tickets.markRead(id).catchError((Object _) {});
+        });
+      });
+    }
+    if (sync == HelpSync.updating || _freshCounted) return;
+    _freshCounted = true;
+    final fresh = unreadReplies(ticket);
+    if (!first && fresh > (_unreadAtOpen ?? 0)) _unreadAtOpen = fresh;
+  }
+
   @override
   Widget build(BuildContext context) {
     final id = widget.id;
@@ -230,42 +320,51 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     final failure = id != null && ticket == null
         ? ref.watch(helpLoadFailedProvider.select((ids) => ids[id]))
         : null;
-    final aboutId = ticket?.activationId ?? widget.about;
+    final sync = id == null
+        ? HelpSync.idle
+        : ref.watch(helpSyncProvider.select((s) => s[id] ?? HelpSync.idle));
+    final row = id != null && ticket == null
+        ? ref
+              .watch(helpInboxTicketsProvider)
+              ?.where((t) => t.id == id)
+              .firstOrNull
+        : null;
+    final known = ticket ?? row;
+    final aboutId = known?.activationId ?? widget.about;
     final activation = aboutId == null
         ? null
         : ref.watch(activationProvider(aboutId));
     final business =
-        ticket?.channel == HelpChannel.business || widget.about != null;
-    final name = ticket != null && business
-        ? threadWith(ticket)
+        known?.channel == HelpChannel.business || widget.about != null;
+    final name = known != null && business
+        ? threadWith(known)
         : business
         ? activation?.business ?? 'The business'
         : iqlySupport;
-    if (ticket != null && _unreadAtOpen == null) {
-      _unreadAtOpen = unreadReplies(ticket);
-      // Read once it shows, so the count it opened with is the one drawn.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        whenArrived(context, () {
-          if (mounted) _tickets.markRead(id!).catchError((Object _) {});
-        });
-      });
-    }
+    if (id != null && ticket != null) _countUnread(id, ticket, sync);
     final now = ref.watch(clockProvider)();
-    final draft = ref.watch(helpDraftProvider);
+    final outgoing = id == null
+        ? const <HelpOutgoing>[]
+        : ref.watch(
+            helpOutgoingProvider.select((o) => o[id] ?? const <HelpOutgoing>[]),
+          );
+    final stagedKey = _staged;
+    final staged = stagedKey == null
+        ? null
+        : ref.watch(helpUploadsProvider.select((u) => u[stagedKey]));
     final resolved = ticket?.status == HelpTicketStatus.resolved;
-    final typed = _reply.text.trim().isNotEmpty || draft.recording != null;
+    final typed = _reply.text.trim().isNotEmpty || staged != null;
     final avatar = business
         ? ClipOval(
-            child: activation != null && ticket?.withLogo == null
+            child: activation != null && known?.withLogo == null
                 ? activationLogoArt(activation, size: 40)
                 : threadAvatar(
-                    ticket ??
-                        HelpTicket(
+                    known ??
+                        const HelpTicket(
                           id: '',
                           subject: '',
                           status: HelpTicketStatus.open,
-                          messages: const [],
+                          messages: [],
                           channel: HelpChannel.business,
                         ),
                   ),
@@ -278,7 +377,9 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
               messages: [],
             ),
           );
-    final topic = ticket?.topic;
+    final title = activation?.title ?? known?.subject;
+    final topic = known?.topic;
+    final loading = id != null && ticket == null && failure == null;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
@@ -295,7 +396,9 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                   avatar: avatar,
                   title: name,
                   subtitle: business ? null : DemoHelp.replyLine,
-                  about: 'About: ${activation?.title ?? ticket?.subject ?? ''}',
+                  about: title == null || title.isEmpty
+                      ? null
+                      : 'About: $title',
                   aboutIcon: business
                       ? IqIcons.zap
                       : topic == 'payments'
@@ -309,6 +412,14 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                       ? null
                       : () => _resolve(ticket.id),
                   resolving: _resolving,
+                  sync: ticket == null
+                      ? IqChatSync.none
+                      : switch (sync) {
+                          HelpSync.idle => IqChatSync.none,
+                          HelpSync.updating => IqChatSync.updating,
+                          HelpSync.failed => IqChatSync.failed,
+                        },
+                  onRetry: id == null ? null : () => _tickets.follow(id),
                 ),
                 Expanded(
                   child: IqChatCanvas(
@@ -317,38 +428,41 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                             gone: failure,
                             onRetry: () => _tickets.follow(id!),
                           )
-                        : ListView(
-                            reverse: true,
-                            padding: const EdgeInsets.fromLTRB(
-                              IqSpace.s1,
-                              IqSpace.s1,
-                              IqSpace.s1,
-                              IqSpace.s2,
+                        : LoadingGate(
+                            loading: loading,
+                            skeleton: const _ThreadSkeleton(),
+                            child: _ThreadList(
+                              key: _list,
+                              entries: _entries(
+                                ticket,
+                                outgoing,
+                                now,
+                                business: business,
+                                name: name,
+                              ),
                             ),
-                            children: _parts(
-                              ticket,
-                              now,
-                              business: business,
-                              name: name,
-                            ).reversed.toList(),
                           ),
                   ),
                 ),
                 if (resolved) const IqChatResolvedBar(),
-                if (draft.upload != null ||
-                    draft.recording != null ||
-                    draft.refused != null)
-                  _Pending(draft: draft),
-                IqChatComposer(
-                  state: typed
-                      ? IqChatComposerState.typed
-                      : IqChatComposerState.empty,
-                  placeholder: 'Write to ${business ? name : 'support'}',
-                  controller: _reply,
-                  sending: _sending || (id != null && ticket == null),
-                  onAttach: () => _attach(SupportSource.photos, name),
-                  onVoiceNote: () => _attach(SupportSource.voiceNote, name),
-                  onSend: () => _send(ticket, activation),
+                if (staged != null)
+                  _Staged(
+                    upload: staged,
+                    onRemove: _unstage,
+                    onRetry: () => _uploads.retry(stagedKey!),
+                  ),
+                IqToastFloor(
+                  child: IqChatComposer(
+                    state: typed
+                        ? IqChatComposerState.typed
+                        : IqChatComposerState.empty,
+                    placeholder: 'Write to ${business ? name : 'support'}',
+                    controller: _reply,
+                    sending: _sending || loading,
+                    onAttach: () => _attach(name),
+                    onVoiceNote: () => IqToast.show(context, voiceNotesComing),
+                    onSend: () => _send(ticket, activation),
+                  ),
                 ),
               ],
             ),
@@ -358,59 +472,78 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     );
   }
 
-  List<Widget> _parts(
+  List<_Entry> _entries(
     HelpTicket? ticket,
+    List<HelpOutgoing> outgoing,
     DateTime now, {
     required bool business,
     required String name,
   }) {
-    final parts = <Widget>[];
-    void pill(IqChatPillKind kind, String label, {double top = 10}) =>
-        parts.add(
-          Padding(
-            padding: EdgeInsets.fromLTRB(IqSpace.s2, top, IqSpace.s2, 0),
-            child: Center(
-              child: IqChatPill(kind: kind, label: label),
-            ),
-          ),
-        );
-    if (business) {
-      parts.add(
+    final entries = <_Entry>[];
+    String? lastDay;
+    void pill(
+      String key,
+      IqChatPillKind kind,
+      String label, {
+      double top = 10,
+      bool day = false,
+    }) => entries.add(
+      _Entry(
+        ValueKey(key),
         Padding(
-          padding: const EdgeInsets.fromLTRB(
-            IqSpace.s4 - IqSpace.s1 + 2,
-            IqSpace.s1,
-            IqSpace.s4 - IqSpace.s1 + 2,
-            0,
+          padding: EdgeInsets.fromLTRB(IqSpace.s2, top, IqSpace.s2, 0),
+          child: Center(
+            child: IqChatPill(kind: kind, label: label),
           ),
-          child: IqChatPill(
-            kind: IqChatPillKind.pinned,
-            label: businessAnswersHere(name),
+        ),
+        day: lastDay,
+        isDay: day,
+      ),
+    );
+    void dayOf(DateTime at) {
+      final day = chatDay(at, now);
+      if (day == lastDay) return;
+      lastDay = day;
+      pill(
+        'day $day',
+        IqChatPillKind.date,
+        day,
+        top: entries.isEmpty ? IqSpace.s1 : IqSpace.s2,
+        day: true,
+      );
+    }
+
+    if (business) {
+      entries.add(
+        _Entry(
+          const ValueKey('pinned'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              IqSpace.s4 - IqSpace.s1 + 2,
+              IqSpace.s1,
+              IqSpace.s4 - IqSpace.s1 + 2,
+              0,
+            ),
+            child: IqChatPill(
+              kind: IqChatPillKind.pinned,
+              label: businessAnswersHere(name),
+            ),
           ),
         ),
       );
     }
-    if (ticket == null) return parts;
-    final messages = ticket.messages;
+    final messages = ticket?.messages ?? const <HelpMessage>[];
     final unread = _unreadAtOpen ?? 0;
     final firstUnread = unread > 0 ? messages.length - unread : -1;
-    String? lastDay;
     var steppedIn = false;
     HelpAuthor? lastAuthor;
     for (final (i, message) in messages.indexed) {
-      final day = chatDay(message.at, now);
-      var broke = false;
-      if (day != lastDay) {
-        pill(
-          IqChatPillKind.date,
-          day,
-          top: parts.isEmpty ? IqSpace.s1 : IqSpace.s2,
-        );
-        lastDay = day;
-        broke = true;
-      }
+      final before = lastDay;
+      dayOf(message.at);
+      var broke = before != lastDay;
       if (i == firstUnread) {
         pill(
+          'unread',
           IqChatPillKind.unread,
           '$unread unread message${unread == 1 ? '' : 's'}',
         );
@@ -421,28 +554,36 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
           (message.side == HelpSide.iqly ||
               (message.side == null && !message.fromBusiness));
       if (business && iqly && !steppedIn) {
-        pill(IqChatPillKind.system, 'iQLY support stepped in');
+        pill('stepped in', IqChatPillKind.system, 'iQLY support stepped in');
         broke = true;
       }
       if (iqly) steppedIn = true;
       final tail = broke || message.author != lastAuthor;
       lastAuthor = message.author;
-      parts.add(
-        _bubble(ticket, message, tail: tail, business: business, iqly: iqly),
-      );
-    }
-    if (ticket.supportTyping) {
-      parts.add(
-        Padding(
-          padding: const EdgeInsets.fromLTRB(IqSpace.s2, 10, IqSpace.s2, 0),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: TypingBubble(name: name),
-          ),
+      entries.add(
+        _Entry(
+          ValueKey('message $i'),
+          _bubble(ticket!, message, tail: tail, business: business, iqly: iqly),
+          day: lastDay,
         ),
       );
     }
-    if (ticket.status == HelpTicketStatus.resolved) {
+    if (ticket != null && ticket.supportTyping) {
+      entries.add(
+        _Entry(
+          const ValueKey('typing'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(IqSpace.s2, 10, IqSpace.s2, 0),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: TypingBubble(name: name),
+            ),
+          ),
+          day: lastDay,
+        ),
+      );
+    }
+    if (ticket != null && ticket.status == HelpTicketStatus.resolved) {
       final by = switch (ticket.resolvedBy) {
         HelpSide.you => 'You',
         HelpSide.iqly => iqlySupport,
@@ -450,10 +591,23 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
         null => null,
       };
       if (by != null) {
-        pill(IqChatPillKind.system, '$by marked this as resolved');
+        pill('resolved', IqChatPillKind.system, '$by marked this as resolved');
       }
     }
-    return parts;
+    for (final out in outgoing) {
+      final before = lastDay;
+      dayOf(out.at);
+      final tail = before != lastDay || lastAuthor != HelpAuthor.you;
+      lastAuthor = HelpAuthor.you;
+      entries.add(
+        _Entry(
+          ValueKey('outgoing ${out.id}'),
+          _outgoing(widget.id!, out, tail: tail),
+          day: lastDay,
+        ),
+      );
+    }
+    return entries;
   }
 
   Widget _bubble(
@@ -464,66 +618,155 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     required bool iqly,
   }) {
     final you = message.author == HelpAuthor.you;
-    final files = message.attachments;
-    final only =
-        files.isNotEmpty &&
-        message.body == attachmentOnlyBody(files.first.kind);
     final read = ticket.readAt;
+    return _place(
+      you: you,
+      tail: tail,
+      bubble: _proposal(
+        you: you,
+        tail: tail,
+        body: message.body,
+        files: message.attachments,
+        time: _clock(message.at),
+        sender: !you && business && tail
+            ? (iqly ? iqlySupport : message.authorName ?? ticket.withName)
+            : null,
+        iqly: iqly,
+        ticks: you
+            ? read != null && !read.isBefore(message.at)
+                  ? IqChatTicksState.read
+                  : IqChatTicksState.saved
+            : null,
+      ),
+    );
+  }
+
+  Widget _outgoing(String ticketId, HelpOutgoing out, {required bool tail}) {
+    final upload = out.upload;
+    final going = upload == null
+        ? null
+        : ref.watch(helpUploadsProvider.select((u) => u[upload]?.progress));
+    final bubble = _proposal(
+      you: true,
+      tail: tail,
+      body: out.body,
+      files: [?out.file],
+      time: _clock(out.at),
+      ticks: out.failed ? null : IqChatTicksState.sending,
+      uploading: out.failed || upload == null ? null : going ?? 0,
+    );
+    final notifier = ref.read(helpOutgoingProvider.notifier);
+    final failure = out.failure;
+    final refusesFile =
+        failure == HelpFailure.tooLarge ||
+        failure == HelpFailure.tooLong ||
+        failure == HelpFailure.fileType;
+    return _place(
+      you: true,
+      tail: tail,
+      bubble: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          bubble,
+          if (out.failed)
+            _NotSent(
+              text: refusesFile
+                  ? helpRefusalWords(failure!, out.file?.kind).title ??
+                        'That file can’t be sent'
+                  : helpFailureText(failure),
+              action: refusesFile ? 'Remove' : 'Try again',
+              onAction: refusesFile
+                  ? () => notifier.remove(ticketId, out.id)
+                  : () => notifier.retry(ticketId, out.id),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _place({
+    required bool you,
+    required bool tail,
+    required Widget bubble,
+  }) => Padding(
+    padding: EdgeInsets.fromLTRB(IqSpace.s2, tail ? 10 : 2, IqSpace.s2, 0),
+    child: Align(
+      alignment: you ? Alignment.centerRight : Alignment.centerLeft,
+      child: MergeSemantics(child: bubble),
+    ),
+  );
+
+  Widget _proposal({
+    required bool you,
+    required bool tail,
+    required String body,
+    required List<HelpAttachment> files,
+    required String time,
+    String? sender,
+    bool iqly = false,
+    IqChatTicksState? ticks,
+    double? uploading,
+  }) {
+    final only =
+        files.isNotEmpty && body == attachmentOnlyBody(files.first.kind);
     final media = files.isEmpty
         ? null
         : Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               for (final file in files)
-                _media(file, you: you, wide: !only && message.body.isNotEmpty),
+                _media(
+                  file,
+                  you: you,
+                  wide: !only && body.isNotEmpty,
+                  uploading: uploading,
+                ),
             ],
           );
-    final bubble = IqChatBubbleProposal(
+    final visual =
+        files.isNotEmpty &&
+        (files.first.kind == HelpAttachmentKind.image ||
+            files.first.kind == HelpAttachmentKind.video);
+    return IqChatBubbleProposal(
       from: you ? IqChatBubbleProposalFrom.you : IqChatBubbleProposalFrom.them,
       tail: tail ? IqChatBubbleProposalTail.on : IqChatBubbleProposalTail.off,
-      layout:
-          files.isNotEmpty &&
-              files.first.kind == HelpAttachmentKind.image &&
-              !only
+      layout: visual && !only
           ? IqChatBubbleProposalLayout.inline
           : IqChatBubbleProposalLayout.stacked,
-      body: only ? '' : message.body,
-      time: _clock(message.at),
-      sender: !you && business && tail
-          ? (iqly ? iqlySupport : message.authorName ?? ticket.withName)
-          : null,
+      body: only ? '' : body,
+      time: time,
+      sender: sender,
       showSticker: iqly,
-      ticks: you
-          ? read != null && !read.isBefore(message.at)
-                ? IqChatTicksState.read
-                : IqChatTicksState.saved
-          : null,
+      ticks: ticks,
       media: media,
       maxWidth: 312,
     );
-    return Padding(
-      padding: EdgeInsets.fromLTRB(IqSpace.s2, tail ? 10 : 2, IqSpace.s2, 0),
-      child: Align(
-        alignment: you ? Alignment.centerRight : Alignment.centerLeft,
-        child: MergeSemantics(child: bubble),
-      ),
-    );
   }
 
-  Widget _media(HelpAttachment file, {required bool you, required bool wide}) {
+  Widget _media(
+    HelpAttachment file, {
+    required bool you,
+    required bool wide,
+    double? uploading,
+  }) {
     final tone = you ? IqChatMediaTone.ink : IqChatMediaTone.light;
-    final open = file.url == null
+    final open = file.url == null && !isLocalFile(file) && file.preview == null
         ? null
         : () => openHelpAttachment(context, file);
-    final preview = file.preview;
     return switch (file.kind) {
-      HelpAttachmentKind.image => IqChatMedia(
-        kind: IqChatMediaKind.image,
+      HelpAttachmentKind.image => ChatPicture(
+        file: file,
         tone: tone,
         width: wide ? 302 : 210,
-        image: preview == null ? null : Image.asset(preview, fit: BoxFit.cover),
-        onTap: open,
-        semanticLabel: file.name,
+        uploading: uploading,
+        onTap: uploading == null ? open : null,
+      ),
+      HelpAttachmentKind.video => ChatVideo(
+        file: file,
+        tone: tone,
+        width: wide ? 302 : 210,
+        uploading: uploading,
+        onTap: uploading == null ? open : null,
       ),
       HelpAttachmentKind.audio => IqChatMedia(
         kind: IqChatMediaKind.voice,
@@ -532,14 +775,12 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
         onTap: open,
         semanticLabel: file.name,
       ),
-      HelpAttachmentKind.video || HelpAttachmentKind.file => IqChatMedia(
+      HelpAttachmentKind.file => IqChatMedia(
         kind: IqChatMediaKind.file,
         tone: tone,
         width: 282,
         name: file.name,
-        fileIcon: file.kind == HelpAttachmentKind.video
-            ? IqIcons.video
-            : IqIcons.document,
+        fileIcon: IqIcons.document,
         meta: fileFacts(file),
         onTap: open,
       ),
@@ -560,29 +801,366 @@ String fileFacts(HelpAttachment file) {
   ].join(' · ');
 }
 
-/// The file going with the next message, over the composer: its upload,
-/// what it is once up (with Remove), or why the API refused it.
-class _Pending extends ConsumerWidget {
-  const _Pending({required this.draft});
+/// The kinds of file + offers, before any picker opens (owner, 21 Oct): only
+/// what the API takes (contract 12.1), so the person knows what they are
+/// sending. Voice notes are the mic's, never a file here. No frame draws
+/// it: the app's own sheet of rows, as Use a photo's is.
+Future<SupportSource?> chooseChatAttachment(BuildContext context) {
+  return showIqSheet<SupportSource>(
+    context,
+    scrim: IqScrim.picker,
+    (context) => Material(
+      type: MaterialType.transparency,
+      child: Container(
+        decoration: const BoxDecoration(
+          color: IqColors.bg,
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(IqConfirmSheet.radius),
+          ),
+        ),
+        padding: EdgeInsets.fromLTRB(
+          IqSpace.s4,
+          IqSpace.s6,
+          IqSpace.s4,
+          IqSpace.s4 + MediaQuery.viewPaddingOf(context).bottom,
+        ),
+        child: RowGroup(
+          outlined: true,
+          children: [
+            IqListRow(
+              label: 'Photos and videos',
+              description: 'Pictures up to 10 MB, videos up to 60 s',
+              icon: IqIcons.background,
+              onTap: () => Navigator.of(context).pop(SupportSource.photos),
+            ),
+            IqListRow(
+              label: 'Take a photo',
+              showDescription: false,
+              icon: IqIcons.camera,
+              onTap: () => Navigator.of(context).pop(SupportSource.camera),
+            ),
+            IqListRow(
+              label: 'Record a video',
+              description: 'Up to 60 s',
+              icon: IqIcons.video,
+              divider: false,
+              onTap: () => Navigator.of(context).pop(SupportSource.video),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
 
-  final HelpDraft draft;
+/// One line of a thread: [day] is the day it falls on, for the day pinned
+/// at the top while the thread scrolls; [isDay] marks a day's own pill.
+class _Entry {
+  const _Entry(this.key, this.child, {this.day, this.isDay = false});
+
+  final Key key;
+  final Widget child;
+  final String? day;
+  final bool isDay;
+}
+
+/// Keeps what the person is reading in place when the thread grows under
+/// it: a reversed list measures from its end, so new messages there would
+/// push everything up. At the newest message, they show.
+class _AnchoredPhysics extends ScrollPhysics {
+  const _AnchoredPhysics({super.parent});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final upload = draft.upload;
-    final file = upload?.file ?? draft.recording;
-    final refused = draft.refused;
-    final text = refused != null
-        ? helpRefusalWords(refused, draft.refusedKind).title ??
-              'That file can’t be sent'
-        : file == null
-        ? ''
-        : upload != null
-        ? '${file.name} · ${(upload.progress * 100).round()}%'
-        : '${file.name} · ${file.sizeLabel}';
+  _AnchoredPhysics applyTo(ScrollPhysics? ancestor) =>
+      _AnchoredPhysics(parent: buildParent(ancestor));
+
+  @override
+  double adjustPositionForNewDimensions({
+    required ScrollMetrics oldPosition,
+    required ScrollMetrics newPosition,
+    required bool isScrolling,
+    required double velocity,
+  }) {
+    final grew =
+        newPosition.maxScrollExtent +
+        newPosition.viewportDimension -
+        oldPosition.maxScrollExtent -
+        oldPosition.viewportDimension;
+    // Only the extents of oldPosition are fresh: a scroll repaints without
+    // a layout, so its pixels may be stale.
+    if (newPosition.pixels > 0 &&
+        grew != 0 &&
+        newPosition.viewportDimension == oldPosition.viewportDimension) {
+      return (newPosition.pixels + grew).clamp(
+        newPosition.minScrollExtent,
+        newPosition.maxScrollExtent,
+      );
+    }
+    return super.adjustPositionForNewDimensions(
+      oldPosition: oldPosition,
+      newPosition: newPosition,
+      isScrolling: isScrolling,
+      velocity: velocity,
+    );
+  }
+}
+
+/// The thread's lines, top down: a short thread starts at the top, a long
+/// one opens at its newest line and grows there. While it scrolls, the day
+/// of the top line rides pinned at the top, gone a moment after it stops.
+class _ThreadList extends StatefulWidget {
+  const _ThreadList({super.key, required this.entries});
+
+  final List<_Entry> entries;
+
+  @override
+  State<_ThreadList> createState() => _ThreadListState();
+}
+
+class _ThreadListState extends State<_ThreadList> {
+  final _scroll = ScrollController();
+  final _boxes = <Key, GlobalKey>{};
+  String? _pinned;
+  bool _scrolling = false;
+  Timer? _hide;
+
+  /// Back to the newest line, as after the person sends.
+  void toEnd() {
+    if (!_scroll.hasClients || _scroll.offset <= 0) return;
+    _scroll.animateTo(
+      0,
+      duration: motion(context, IqDurations.screen),
+      curve: IqCurves.easeOut,
+    );
+  }
+
+  @override
+  void didUpdateWidget(_ThreadList old) {
+    super.didUpdateWidget(old);
+    final keys = {for (final entry in widget.entries) entry.key};
+    _boxes.removeWhere((key, _) => !keys.contains(key));
+  }
+
+  @override
+  void dispose() {
+    _hide?.cancel();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  /// The day of the top line on screen, unless that line is its day's
+  /// own pill.
+  String? _topDay() {
+    final viewport = context.findRenderObject();
+    if (viewport is! RenderBox || !viewport.hasSize) return null;
+    for (final entry in widget.entries) {
+      final box = _boxes[entry.key]?.currentContext?.findRenderObject();
+      if (box is! RenderBox || !box.hasSize || !box.attached) continue;
+      final top = box.localToGlobal(Offset.zero, ancestor: viewport).dy;
+      if (top + box.size.height <= IqSpace.s2) continue;
+      return entry.isDay ? null : entry.day;
+    }
+    return null;
+  }
+
+  bool _onScroll(ScrollNotification note) {
+    if (note.depth != 0) return false;
+    if (note is ScrollStartNotification || note is ScrollUpdateNotification) {
+      _hide?.cancel();
+      final day = _topDay();
+      if (!_scrolling || day != _pinned) {
+        setState(() {
+          _scrolling = true;
+          _pinned = day;
+        });
+      }
+    } else if (note is ScrollEndNotification) {
+      _hide?.cancel();
+      _hide = Timer(IqDurations.pinnedDay, () {
+        if (mounted) setState(() => _scrolling = false);
+      });
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pinned = _pinned;
+    return NotificationListener<ScrollNotification>(
+      onNotification: _onScroll,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          LayoutBuilder(
+            builder: (context, box) => SingleChildScrollView(
+              key: chatThreadKey,
+              controller: _scroll,
+              reverse: true,
+              physics: const _AnchoredPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: box.maxHeight),
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: IqSpace.s2),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final entry in widget.entries)
+                        KeyedSubtree(
+                          key: _boxes.putIfAbsent(entry.key, GlobalKey.new),
+                          child: entry.child,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: IqSpace.s2,
+            left: 0,
+            right: 0,
+            child: IgnorePointer(
+              child: AnimatedOpacity(
+                opacity: _scrolling && pinned != null ? 1 : 0,
+                duration: motion(context, IqDurations.appear, fade: true),
+                curve: IqCurves.easeOut,
+                child: Center(
+                  child: pinned == null
+                      ? const SizedBox.shrink()
+                      : IqChatPill(
+                          key: chatPinnedDayKey,
+                          kind: IqChatPillKind.date,
+                          label: pinned,
+                        ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Skeleton bubbles on the canvas while a thread the phone never kept is
+/// read: a day, then their lines and the person's, top down.
+class _ThreadSkeleton extends StatelessWidget {
+  const _ThreadSkeleton();
+
+  Widget _bubble(List<double> lines, {bool you = false}) => Padding(
+    padding: const EdgeInsets.fromLTRB(IqSpace.s2, 10, IqSpace.s2, 0),
+    child: Align(
+      alignment: you ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.all(IqSpace.s3),
+        decoration: BoxDecoration(
+          color: IqColors.card,
+          borderRadius: BorderRadius.circular(IqRadius.lg),
+          boxShadow: IqShadows.xs,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final (i, width) in lines.indexed) ...[
+              if (i > 0) const SizedBox(height: IqSpace.s2),
+              IqSkeleton(kind: IqSkeletonKind.line, width: width),
+            ],
+          ],
+        ),
+      ),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      key: chatSkeletonKey,
+      label: 'Loading',
+      child: ListView(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: EdgeInsets.zero,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: IqSpace.s2),
+            child: Center(
+              child: IqSkeleton(kind: IqSkeletonKind.line, width: 72),
+            ),
+          ),
+          _bubble(const [196, 132]),
+          _bubble(const [168], you: true),
+          _bubble(const [220, 204, 96]),
+          _bubble(const [150, 112], you: true),
+        ],
+      ),
+    );
+  }
+}
+
+/// The file waiting to go with the next message, over the composer: its
+/// picture (or a video's first frame), what it is and how far it is up,
+/// why it cannot go, and Remove.
+class _Staged extends StatelessWidget {
+  const _Staged({
+    required this.upload,
+    required this.onRemove,
+    required this.onRetry,
+  });
+
+  final HelpUploadState upload;
+  final VoidCallback onRemove;
+  final VoidCallback onRetry;
+
+  static const double _thumb = 48;
+
+  @override
+  Widget build(BuildContext context) {
+    final file = upload.file;
+    final kind = attachmentOnlyBody(file.kind);
+    final failure = upload.failure;
+    final going = upload.done == null && !upload.failed;
+    final text = upload.failed
+        ? upload.refused
+              ? helpRefusalWords(failure!, file.kind).title ??
+                    (file.kind == HelpAttachmentKind.video
+                        ? 'Videos go up to 60 s and 50 MB: MP4, MOV, WebM or '
+                              '3GP.'
+                        : 'That file can’t be sent')
+              : helpFailureText(failure)
+        : going
+        ? '$kind · ${(upload.progress * 100).round()}%'
+        : [kind, ?file.lengthLabel, file.sizeLabel].join(' · ');
+    final source = file.source;
+    final Widget thumb = switch (file.kind) {
+      HelpAttachmentKind.image =>
+        localPicture(context, file, width: _thumb) ??
+            const ColoredBox(color: IqColors.secondary),
+      HelpAttachmentKind.video => Stack(
+        fit: StackFit.expand,
+        children: [
+          if (source != null)
+            IqRecordingPoster(
+              source: source,
+              placeholder: const ColoredBox(color: IqColors.brandDark),
+            )
+          else
+            const ColoredBox(color: IqColors.brandDark),
+          const Center(
+            child: IqIcon(IqIcons.play, size: 18, color: IqColors.primaryFg),
+          ),
+        ],
+      ),
+      HelpAttachmentKind.audio || HelpAttachmentKind.file => const ColoredBox(
+        color: IqColors.secondary,
+        child: Center(
+          child: IqIcon(IqIcons.document, size: 20, color: IqColors.brand),
+        ),
+      ),
+    };
     return Container(
       padding: const EdgeInsets.fromLTRB(
-        IqSpace.s4,
+        IqSpace.s3,
         IqSpace.s2,
         IqSpace.s3,
         IqSpace.s2,
@@ -593,23 +1171,99 @@ class _Pending extends ConsumerWidget {
       ),
       child: Row(
         children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(IqRadius.sm),
+            child: SizedBox.square(dimension: _thumb, child: thumb),
+          ),
+          const SizedBox(width: IqSpace.s2p5),
           Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  text,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: IqText.small.copyWith(
+                    color: upload.failed ? IqColors.err : IqColors.fg2,
+                  ),
+                ),
+                if (going) ...[
+                  const SizedBox(height: IqSpace.s1p5),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(IqRadius.full),
+                    child: LinearProgressIndicator(
+                      value: upload.progress.clamp(0.02, 1),
+                      minHeight: 3,
+                      color: IqColors.brand,
+                      backgroundColor: IqColors.line,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (upload.failed && !upload.refused) ...[
+            const SizedBox(width: IqSpace.s2),
+            IqChatRoundButton(
+              icon: IqIcons.refresh,
+              semanticLabel: 'Try again',
+              onTap: onRetry,
+            ),
+          ],
+          const SizedBox(width: IqSpace.s2),
+          IqChatRoundButton(
+            icon: IqIcons.close,
+            semanticLabel: 'Remove',
+            onTap: onRemove,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Under a message that did not go: why, and Try again (or Remove, for a
+/// file the API will not take).
+class _NotSent extends StatelessWidget {
+  const _NotSent({
+    required this.text,
+    required this.action,
+    required this.onAction,
+  });
+
+  final String text;
+  final String action;
+  final VoidCallback onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: IqSpace.s1),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const IqIcon(IqIcons.error, size: 14, color: IqColors.err),
+          const SizedBox(width: IqSpace.s1),
+          Flexible(
             child: Text(
               text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: IqText.small.copyWith(
-                color: refused != null ? IqColors.err : IqColors.fg2,
+              style: IqText.small.copyWith(color: IqColors.err),
+            ),
+          ),
+          const SizedBox(width: IqSpace.s2),
+          IqPressable(
+            semanticLabel: action,
+            onTap: onAction,
+            builder: (context, pressed) => PressDim(
+              pressed: pressed,
+              child: Text(
+                action,
+                style: IqText.smallStrong.copyWith(color: IqColors.brand),
               ),
             ),
           ),
-          if (draft.recording != null)
-            IqChatRoundButton(
-              icon: IqIcons.close,
-              semanticLabel: 'Remove',
-              onTap: () =>
-                  ref.read(helpDraftProvider.notifier).removeRecording(),
-            ),
         ],
       ),
     );
@@ -635,14 +1289,16 @@ class _LoadFailed extends StatelessWidget {
     }
     return Padding(
       padding: const EdgeInsets.all(IqSpace.s4),
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: IqBanner(
-          kind: IqBannerKind.error,
-          title: 'Couldn’t load. Check your connection.',
-          action: 'Try again',
-          onAction: onRetry,
-        ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IqBanner(
+            kind: IqBannerKind.error,
+            title: 'Couldn’t load. Check your connection.',
+            action: 'Try again',
+            onAction: onRetry,
+          ),
+        ],
       ),
     );
   }

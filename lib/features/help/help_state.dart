@@ -295,25 +295,62 @@ class HelpTicketsNotifier extends Notifier<Map<String, HelpTicket>> {
   /// Keeps [id] up to date with what support does. A watch that ends (the
   /// API's answers each end with the thread as it is) can be asked again;
   /// one that fails says so in [helpLoadFailedProvider], as gone when the
-  /// API has no such thread.
-  void follow(String id) {
+  /// API has no such thread. Until the API answers, the thread shows as the
+  /// phone kept it, and [helpSyncProvider] says it is updating; a [quiet]
+  /// read (a poll, a push) says nothing until it fails.
+  void follow(String id, {bool quiet = false}) {
     if (_watching.containsKey(id)) return;
+    final scope = ref.read(accountScopeProvider);
+    final service = ref.read(helpServiceProvider);
     final failed = ref.read(helpLoadFailedProvider.notifier);
-    _watching[id] = ref
-        .read(helpServiceProvider)
+    final sync = ref.read(helpSyncProvider.notifier);
+    if (!quiet) {
+      // A screen follows from initState, while widgets may not change state.
+      scheduleMicrotask(() {
+        if (ref.mounted && _watching.containsKey(id)) {
+          sync.set(id, HelpSync.updating);
+        }
+      });
+    }
+    if (!state.containsKey(id)) {
+      service.keptThread(id).then((kept) {
+        if (kept == null || !scope.open || !ref.mounted) return;
+        if (state.containsKey(id)) return;
+        _put(kept, kept: true);
+        if (ref.read(helpLoadFailedProvider).containsKey(id)) {
+          failed.cleared(id);
+          sync.set(id, HelpSync.failed);
+        }
+      }, onError: (Object _) {});
+    }
+    _watching[id] = service
         .watch(id)
         .listen(
           (ticket) {
             failed.cleared(id);
+            sync.set(id, HelpSync.idle);
             _put(ticket);
           },
           onError: (Object error) {
             _watching.remove(id)?.cancel();
             final gone =
                 error is HelpRefused && error.failure == HelpFailure.gone;
-            if (gone || !state.containsKey(id)) failed.failed(id, gone: gone);
+            if (gone && state.containsKey(id)) {
+              state = {...state}..remove(id);
+            }
+            if (gone || !state.containsKey(id)) {
+              sync.set(id, HelpSync.idle);
+              failed.failed(id, gone: gone);
+            } else {
+              sync.set(id, HelpSync.failed);
+            }
           },
-          onDone: () => _watching.remove(id),
+          onDone: () {
+            _watching.remove(id);
+            if (ref.read(helpSyncProvider)[id] == HelpSync.updating) {
+              sync.set(id, HelpSync.idle);
+            }
+          },
         );
   }
 
@@ -325,7 +362,7 @@ class HelpTicketsNotifier extends Notifier<Map<String, HelpTicket>> {
 
   void refreshOpen() {
     for (final id in _open.keys) {
-      follow(id);
+      follow(id, quiet: true);
     }
   }
 
@@ -365,9 +402,12 @@ class HelpTicketsNotifier extends Notifier<Map<String, HelpTicket>> {
     if (scope.open) _put(ticket);
   }
 
-  void _put(HelpTicket ticket) {
+  /// A [kept] copy from the phone credits nothing: its award already went
+  /// on the ledger when the API first answered it.
+  void _put(HelpTicket ticket, {bool kept = false}) {
     final before = state[ticket.id];
     state = {...state, ticket.id: ticket};
+    if (kept) return;
     if (ticket.credit case final credit?) _credit(credit);
     // Support wrote again while the thread is open and already read.
     if (ticket.unread &&
@@ -392,6 +432,33 @@ class HelpTicketsNotifier extends Notifier<Map<String, HelpTicket>> {
     if (scope.open) ref.read(walletProvider.notifier).credit(award);
   }
 }
+
+/// How a shown thread's read is going: [updating] while the API is asked
+/// again, [failed] when it gave no answer and the thread shows as it was.
+enum HelpSync { idle, updating, failed }
+
+/// Each thread's [HelpSync] by id, idle ones left out.
+class HelpSyncNotifier extends Notifier<Map<String, HelpSync>> {
+  @override
+  Map<String, HelpSync> build() {
+    ref.watch(accountProvider);
+    return const {};
+  }
+
+  void set(String id, HelpSync sync) {
+    if (state[id] == sync) return;
+    if (sync == HelpSync.idle) {
+      if (state.containsKey(id)) state = {...state}..remove(id);
+      return;
+    }
+    state = {...state, id: sync};
+  }
+}
+
+final helpSyncProvider =
+    NotifierProvider<HelpSyncNotifier, Map<String, HelpSync>>(
+      HelpSyncNotifier.new,
+    );
 
 /// The threads whose read did not answer them, each true when the API has
 /// no such thread (gone) and false when it gave no answer, so the thread

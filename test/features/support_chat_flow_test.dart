@@ -79,7 +79,7 @@ void main() {
     await _tap(tester, _label('Send'));
     expect(find.text('Thank you.'), findsOneWidget);
     final ticks = tester.widgetList<IqChatTicks>(find.byType(IqChatTicks));
-    expect(ticks.first.state, IqChatTicksState.saved);
+    expect(ticks.last.state, IqChatTicksState.saved);
 
     await _tap(tester, _label('Mark as resolved'));
     expect(find.byType(IqChatResolvedBar), findsOneWidget);
@@ -108,7 +108,7 @@ void main() {
     );
     await _tap(tester, find.text('Orchid Foods'));
     expect(find.text('Usually replies within a day'), findsNothing);
-    await tester.drag(find.byType(ListView).last, const Offset(0, 2000));
+    await tester.drag(find.byKey(chatThreadKey), const Offset(0, 2000));
     await tester.pumpAndSettle();
     expect(find.text(businessAnswersHere('Orchid Foods')), findsOneWidget);
     expect(find.text('iQLY support stepped in'), findsOneWidget);

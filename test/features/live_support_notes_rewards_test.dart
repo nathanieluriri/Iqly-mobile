@@ -991,9 +991,10 @@ void main() {
       expect(heic.mime, 'image/heic');
     });
 
-    testWidgets('a picture opens with the session token; a recording is '
-        'downloaded with it to the account\'s folder and plays from there, '
-        'once', (tester) async {
+    testWidgets('a picture and a recording are downloaded with the session '
+        'token to the account\'s folder and open from there, once', (
+      tester,
+    ) async {
       final opened = <Uri>[];
       Recordings.open = (source) {
         opened.add(source);
@@ -1007,6 +1008,11 @@ void main() {
       final memo = [0, 0, 0, 0x18, ...'ftypM4A '.codeUnits];
       final api = _api()
         ..data('GET', '/support/unread', {'unread': 0})
+        ..on(
+          'GET',
+          '/support/attachments/up_1',
+          (_) => http.Response.bytes(_png, 200),
+        )
         ..on(
           'GET',
           '/support/attachments/up_2',
@@ -1052,14 +1058,32 @@ void main() {
         ],
       );
       await tester.tap(find.text('Attached activity.png · 1 KB'));
+      await tester.pump();
+      for (
+        var i = 0;
+        i < 20 && find.byType(InteractiveViewer).evaluate().isEmpty;
+        i++
+      ) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump();
+      }
       await tester.pumpAndSettle();
-      final image = tester.widget<Image>(find.byType(Image)).image;
-      expect(image, isA<NetworkImage>());
-      expect(
-        (image as NetworkImage).url,
-        'https://api.test/support/attachments/up_1',
-      );
-      expect(image.headers!['authorization'], 'Bearer session.signed');
+      final picture = api.to('/support/attachments/up_1', method: 'GET');
+      expect(picture, hasLength(1));
+      expect(picture.single.url.host, 'api.test');
+      expect(picture.single.headers['authorization'], 'Bearer session.signed');
+      final image = tester
+          .widget<Image>(
+            find.descendant(
+              of: find.byType(InteractiveViewer),
+              matching: find.byType(Image),
+            ),
+          )
+          .image;
+      final shown = ((image as ResizeImage).imageProvider as FileImage).file;
+      expect(shown.path, startsWith('${root!.path}/u_1/'));
 
       await tester.pageBack();
       await tester.pumpAndSettle();
@@ -1086,7 +1110,7 @@ void main() {
       expect(read.single.headers['authorization'], 'Bearer session.signed');
       expect(opened.single.scheme, 'file');
       final file = File.fromUri(opened.single);
-      expect(file.path, startsWith('${root!.path}/u_1/'));
+      expect(file.path, startsWith('${root.path}/u_1/'));
       expect(await tester.runAsync(file.readAsBytes), memo);
 
       await tester.pageBack();

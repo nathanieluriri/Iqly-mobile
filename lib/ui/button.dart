@@ -4,8 +4,8 @@ import '../core/motion.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 import 'pressable.dart';
+import 'spinner.dart';
 import 'sticker.dart';
-import 'vector.dart';
 
 enum IqButtonKind { primary, secondary, danger, ghost, inverse }
 
@@ -137,7 +137,7 @@ class _ButtonFaceState extends State<_ButtonFace> {
       switchInCurve: IqCurves.easeOut,
       switchOutCurve: IqCurves.easeOut,
       child: button.loading
-          ? _Spinner(key: const ValueKey('spinner'), color: look.ink)
+          ? IqSpinner(key: const ValueKey('spinner'), color: look.ink)
           : Row(
               key: const ValueKey('label'),
               mainAxisSize: MainAxisSize.min,
@@ -312,54 +312,4 @@ class _ButtonLook {
   }
 
   static const _disabled = _ButtonLook(fill: IqColors.panel, ink: IqColors.fg3);
-}
-
-/// The web-kit Spinner (lucide loader-circle, 16 px, 1.33 stroke), turning
-/// once a second; still under reduced motion.
-class _Spinner extends StatefulWidget {
-  const _Spinner({super.key, required this.color});
-
-  final Color color;
-
-  @override
-  State<_Spinner> createState() => _SpinnerState();
-}
-
-class _SpinnerState extends State<_Spinner>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _turn = AnimationController(
-    vsync: this,
-    duration: IqDurations.spinnerTurn,
-  );
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (MediaQuery.disableAnimationsOf(context)) {
-      _turn.stop();
-    } else if (!_turn.isAnimating) {
-      _turn.repeat();
-    }
-  }
-
-  @override
-  void dispose() {
-    _turn.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return RepaintBoundary(
-      child: RotationTransition(
-        turns: _turn,
-        child: IqVector(
-          'assets/vectors/button-spinner.svg',
-          color: widget.color,
-          width: 16,
-          height: 16,
-        ),
-      ),
-    );
-  }
 }
