@@ -632,8 +632,10 @@ class _PhonePanel extends StatelessWidget {
   }
 }
 
-/// [child] beside the reward panel on a tablet in landscape, the proof
-/// upload's layout (T10); [child] alone elsewhere.
+/// The proof upload's side on a tablet (T10, 1843:49937): the step being
+/// proven on its card, then Or upload from your phone. Landscape sets it
+/// beside [child]; portrait leaves [child] alone and the page lists
+/// [ActivationProofSide] under its form.
 class ActivationSidePanel extends StatelessWidget {
   const ActivationSidePanel({
     super.key,
@@ -657,20 +659,80 @@ class ActivationSidePanel extends StatelessWidget {
           width: 320,
           child: SingleChildScrollView(
             padding: const EdgeInsets.only(bottom: IqSpace.s6),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _RewardPanel(activation: a, actions: const []),
-                const SizedBox(height: IqSpace.s6),
-                _PhonePanel(
-                  activation: a,
-                  eyebrow: 'Or upload from your phone',
-                ),
-              ],
-            ),
+            child: ActivationProofSide(activation: a),
           ),
         ),
         const SizedBox(width: IqSpace.s4),
+      ],
+    );
+  }
+}
+
+/// The step card and Or upload from your phone.
+class ActivationProofSide extends StatelessWidget {
+  const ActivationProofSide({super.key, required this.activation});
+
+  final Activation activation;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = activation;
+    final index = (a.proofStep ?? a.confirmed).clamp(0, a.steps.length - 1);
+    final step = a.steps[index];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(IqSpace.s6),
+          decoration: BoxDecoration(
+            color: IqColors.card,
+            borderRadius: BorderRadius.circular(IqRadius.xl2),
+            border: Border.all(color: IqColors.line),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _BrandRow(activation: a),
+              const SizedBox(height: IqSpace.s3),
+              Text(a.title, style: IqText.body.copyWith(color: IqColors.fg)),
+              const SizedBox(height: IqSpace.s3),
+              IqStepRow(
+                state: IqStepRowState.active,
+                number: '${index + 1}',
+                title: step.title,
+                body: step.hint,
+                divider: false,
+              ),
+              const SizedBox(height: IqSpace.s2),
+              if (a.perStep)
+                Text(
+                  perStepLine(a),
+                  style: IqText.small.copyWith(color: IqColors.fg2),
+                )
+              else
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: 'Earn ${reward(a)}',
+                        style: IqText.bodyStrong.copyWith(
+                          color: IqColors.brand,
+                        ),
+                      ),
+                      TextSpan(
+                        text:
+                            '  when all ${a.steps.length} steps are '
+                            'confirmed',
+                        style: IqText.small.copyWith(color: IqColors.fg2),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: IqSpace.s6),
+        _PhonePanel(activation: a, eyebrow: 'Or upload from your phone'),
       ],
     );
   }

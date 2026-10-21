@@ -24,7 +24,7 @@ import '../../ui/top_bar.dart';
 import '../../ui/video_preview.dart';
 import '../settings/restore_account_screen.dart' show showClosingAccount;
 import 'activation_format.dart';
-import 'activation_screen.dart' show ActivationSidePanel;
+import 'activation_screen.dart' show ActivationProofSide, ActivationSidePanel;
 import 'activations_routes.dart';
 import 'activations_state.dart';
 import 'activations_widgets.dart';
@@ -294,6 +294,16 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
     final refused = draft.stage == ProofStage.refused ? draft.video : null;
     final refusal = refused == null ? null : _refusal(refused, draft.refusal);
 
+    final tablet = Layout.isTablet(context);
+    final sendButton = IqButton(
+      label: 'Send proof',
+      showIcon: false,
+      width: tablet ? 200 : double.infinity,
+      loading: _sending,
+      disabled: !draft.hasVideo,
+      onTap: activation == null ? null : () => _send(activation, draft),
+    );
+    const consent = 'By sending, you confirm you did these steps yourself.';
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
@@ -324,6 +334,15 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
                               IqSpace.s4,
                             ),
                             children: [
+                              if (tablet) ...[
+                                Text(
+                                  'Upload proof',
+                                  style: IqText.display.copyWith(
+                                    color: IqColors.fg,
+                                  ),
+                                ),
+                                const SizedBox(height: IqSpace.s4),
+                              ],
                               if (banner case final failed?) ...[
                                 IqBanner(
                                   kind: IqBannerKind.error,
@@ -407,11 +426,34 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
                                   onChanged: _draft.setNote,
                                 ),
                               ],
+                              // T10 (1843:49937): Send proof sits under the
+                              // form with the consent line beside it.
+                              if (tablet) ...[
+                                const SizedBox(height: IqSpace.s6),
+                                Row(
+                                  children: [
+                                    sendButton,
+                                    const SizedBox(width: IqSpace.s4),
+                                    Expanded(
+                                      child: Text(
+                                        consent,
+                                        style: IqText.small.copyWith(
+                                          color: IqColors.fg3,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (!Layout.isExpanded(context)) ...[
+                                  const SizedBox(height: IqSpace.s6),
+                                  ActivationProofSide(activation: activation),
+                                ],
+                              ],
                             ],
                           ),
                   ),
                 ),
-                if (paid || heldBack != null)
+                if (paid || heldBack != null || (tablet && !ended))
                   const SizedBox.shrink()
                 else if (ended)
                   const ActionBar(
@@ -427,18 +469,9 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
                 else
                   ActionBar(
                     children: [
-                      IqButton(
-                        label: 'Send proof',
-                        showIcon: false,
-                        width: double.infinity,
-                        loading: _sending,
-                        disabled: !draft.hasVideo,
-                        onTap: activation == null
-                            ? null
-                            : () => _send(activation, draft),
-                      ),
+                      sendButton,
                       Text(
-                        'By sending, you confirm you did these steps yourself.',
+                        consent,
                         style: IqText.small.copyWith(color: IqColors.fg3),
                       ),
                     ],
