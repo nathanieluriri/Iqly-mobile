@@ -44,6 +44,36 @@ void main() {
     });
   }
 
+  for (final layout in IqTabletNavLayout.values) {
+    testWidgets('${layout.name} at text scale 1.3', (tester) async {
+      final rail = layout == IqTabletNavLayout.rail;
+      await expectComponentGolden(
+        tester,
+        'tablet_nav_${layout.name}_scale_130',
+        Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: const TextScaler.linear(1.3)),
+            child: SizedBox(
+              height: 640,
+              child: IqTabletNav(
+                layout: layout,
+                destinations: _destinations,
+                selected: 1,
+                support: const IqTabletNavDestination(
+                  label: 'Support',
+                  icon: IqIcons.headset,
+                ),
+                showToggle: true,
+              ),
+            ),
+          ),
+        ),
+        size: Size(rail ? 88 : 232, 640),
+      );
+    });
+  }
+
   testWidgets('tapping an item reports its index', (tester) async {
     final taps = <int>[];
     await tester.pumpWidget(

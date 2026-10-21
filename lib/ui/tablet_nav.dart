@@ -99,37 +99,61 @@ class IqTabletNav extends StatelessWidget {
                 child: IqBrandLogo(height: 28),
               ),
             const SizedBox(height: IqSpace.s6),
-            for (final (i, d) in destinations.indexed) ...[
-              if (i > 0) const SizedBox(height: IqSpace.s1),
-              IqTabletNavItem(
-                label: _rail ? d.label : d.sidebarLabel,
-                icon: d.icon,
-                layout: _itemLayout,
-                state: _state(i == selected),
-                onTap: onSelect == null ? null : () => onSelect!(i),
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, box) => SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: box.maxHeight),
+                    child: IntrinsicHeight(
+                      child: Column(
+                        crossAxisAlignment: _rail
+                            ? CrossAxisAlignment.center
+                            : CrossAxisAlignment.start,
+                        children: [
+                          for (final (i, d) in destinations.indexed) ...[
+                            if (i > 0) const SizedBox(height: IqSpace.s1),
+                            IqTabletNavItem(
+                              label: _rail ? d.label : d.sidebarLabel,
+                              icon: d.icon,
+                              layout: _itemLayout,
+                              state: _state(i == selected),
+                              onTap: onSelect == null
+                                  ? null
+                                  : () => onSelect!(i),
+                            ),
+                          ],
+                          const Spacer(),
+                          if (support != null)
+                            IqTabletNavItem(
+                              label: _rail
+                                  ? support.label
+                                  : support.sidebarLabel,
+                              icon: support.icon,
+                              layout: _itemLayout,
+                              state: _state(supportSelected),
+                              onTap: onSupport,
+                            ),
+                          if (showToggle) ...[
+                            const SizedBox(height: IqSpace.s1),
+                            IqTabletNavItem(
+                              label: _rail
+                                  ? 'Expand sidebar'
+                                  : 'Collapse sidebar',
+                              tabletIcon: _rail
+                                  ? IqTabletIcons.sidebarExpand
+                                  : IqTabletIcons.sidebarCollapse,
+                              layout: _itemLayout,
+                              showLabel: !_rail,
+                              onTap: onToggle,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ),
-            ],
-            const Spacer(),
-            if (support != null)
-              IqTabletNavItem(
-                label: _rail ? support.label : support.sidebarLabel,
-                icon: support.icon,
-                layout: _itemLayout,
-                state: _state(supportSelected),
-                onTap: onSupport,
-              ),
-            if (showToggle) ...[
-              const SizedBox(height: IqSpace.s1),
-              IqTabletNavItem(
-                label: _rail ? 'Expand sidebar' : 'Collapse sidebar',
-                tabletIcon: _rail
-                    ? IqTabletIcons.sidebarExpand
-                    : IqTabletIcons.sidebarCollapse,
-                layout: _itemLayout,
-                showLabel: !_rail,
-                onTap: onToggle,
-              ),
-            ],
+            ),
           ],
         ),
       ),

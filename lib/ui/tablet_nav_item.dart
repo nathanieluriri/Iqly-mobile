@@ -65,15 +65,16 @@ class IqTabletNavItem extends StatelessWidget {
         onTap: onTap,
         hint: showLabel ? null : label,
         builder: (context, pressed) => switch (layout) {
-          IqTabletNavItemLayout.rail => SizedBox(
-            width: railSize.width,
-            height: railSize.height,
+          IqTabletNavItemLayout.rail => ConstrainedBox(
+            constraints: BoxConstraints.tightFor(width: railSize.width)
+                .copyWith(minHeight: railSize.height),
             child: Padding(
               padding: const EdgeInsets.only(
                 top: IqSpace.s1,
                 bottom: IqSpace.s2,
               ),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
                     width: 56,
@@ -87,12 +88,16 @@ class IqTabletNavItem extends StatelessWidget {
                   ),
                   if (showLabel) ...[
                     const SizedBox(height: IqSpace.s1),
-                    Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.visible,
-                      softWrap: false,
-                      style: IqWebText.labelBadge.copyWith(color: labelColor),
+                    // Large text grows the cell and shrinks a long label to
+                    // its 80 width rather than spill past the rail.
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        softWrap: false,
+                        style: IqWebText.labelBadge.copyWith(color: labelColor),
+                      ),
                     ),
                   ],
                 ],
@@ -101,7 +106,7 @@ class IqTabletNavItem extends StatelessWidget {
           ),
           IqTabletNavItemLayout.sidebar => Container(
             width: sidebarWidth,
-            height: sidebarHeight,
+            constraints: const BoxConstraints(minHeight: sidebarHeight),
             padding: const EdgeInsets.symmetric(horizontal: IqSpace.s3),
             decoration: BoxDecoration(
               color: _selected || pressed ? IqColors.secondary : null,
