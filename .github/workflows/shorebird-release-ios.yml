@@ -1,0 +1,98 @@
+name: shorebird-release-ios
+
+# The iOS release, built through Shorebird so later Dart-only changes can be
+# patched onto iPhones and iPads too, then signed and sent to App Store
+# Connect, where it shows up in TestFlight. Run it from the Actions tab once
+# the version in pubspec.yaml is new. It needs four repository secrets from
+# the Apple Developer account: APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID and
+# ASC_KEY_P8_BASE64 (the .p8 key, base64 encoded). Signing is automatic:
+# Xcode creates the certificate and profile through the API key, so the key
+# needs the Admin or App Manager role.
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: Send the build to App Store Connect (TestFlight)
+        type: boolean
+        default: true
+
+jobs:
+  release:
+    runs-on: macos-15
+    env:
+      SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shorebirdtech/setup-shorebird@v1
+        with:
+          cache: true
+      - name: Check the Apple secrets
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          for name in APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8_BASE64; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Add the $name secret (see docs/ios-app-store.md in the platform repo)"
+              exit 1
+            fi
+          done
+      - name: Restore the App Store Connect key
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/keys"
+          echo "$ASC_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8"
+          echo "ASC_KEY_PATH=$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8" >> "$GITHUB_ENV"
+      # Unsigned here; the export below signs with the API key, which also
+      # creates the distribution certificate and profile on first run.
+      - run: shorebird release ios --no-codesign
+      - name: Write the export options
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          DESTINATION: ${{ inputs.upload && 'upload' || 'export' }}
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>$DESTINATION</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          EOF
+      - name: Sign, export and send to App Store Connect
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath build/ios/archive/Runner.xcarchive \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath build/ios/ipa \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+      - name: Name the file after the version
+        if: ${{ !inputs.upload }}
+        run: |
+          version=$(sed -n 's/^version: *//p' pubspec.yaml)
+          mv build/ios/ipa/*.ipa "iqly-$version.ipa"
+      - uses: actions/upload-artifact@v4
+        if: ${{ !inputs.upload }}
+        with:
+          name: iqly-release-ios
+          path: iqly-*.ipa
+          retention-days: 90
+      - name: Remove the key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/keys"
