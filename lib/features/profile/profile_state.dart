@@ -17,6 +17,7 @@ import '../../data/profile_service.dart';
 import '../../data/reference_data.dart';
 import '../../data/repository.dart';
 import '../../data/signed_in_files.dart';
+import '../../data/voice_recorder.dart' show VoiceNotes;
 import '../avatar/avatar_state.dart';
 import '../discover/discover_state.dart';
 import '../onboarding/onboarding_draft.dart';
@@ -198,8 +199,8 @@ Future<void> forgetAccount(WidgetRef ref, {bool closed = false}) async {
 /// account keeps on it, all but its drafts. That is the first-run answers,
 /// the cached details, the avatar, saved briefs and close reminders (their
 /// scheduled reminders too), the submit autosaves, the account's cache and
-/// outbox and the files it downloaded, for the account signed in or the
-/// one whose session was lost.
+/// outbox, the files it downloaded and any voice notes recorded, for the
+/// account signed in or the one whose session was lost.
 Future<void> forgetSession(Reader read) async {
   final session = read(sessionProvider);
   final userId = session.userId ?? session.lostUserId;
@@ -207,6 +208,7 @@ Future<void> forgetSession(Reader read) async {
   // before the sign-out below forgets the phone-wide copy.
   read(avatarProvider);
   await read(sessionProvider.notifier).signOut();
+  await VoiceNotes.clear();
   read(onboardingDraftProvider.notifier).clear();
   await forgetSubmitDrafts(read(sharedPreferencesProvider));
   await read(accountDetailsProvider.notifier).clear();
@@ -244,6 +246,7 @@ final sessionGuardProvider = Provider<void>((ref) {
       await forgetSession(ref.read);
     } else {
       await ref.read(sessionProvider.notifier).lose();
+      await VoiceNotes.clear();
     }
     final router = ref.read(routerProvider);
     final path = router.routerDelegate.currentConfiguration.uri.path;

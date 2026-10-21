@@ -34,6 +34,42 @@ class VoiceNote {
   );
 }
 
+/// Where recordings wait on the phone (its temporary folder) until they
+/// are sent or dropped. Deleting is sync: a few small files, and async IO
+/// never completes under the fake clock the sign-out flows are tested on.
+abstract final class VoiceNotes {
+  static Directory folder = Directory(
+    '${Directory.systemTemp.path}/voice-notes',
+  );
+
+  /// Deletes the recording at [path] when it is one of ours.
+  static Future<void> discard(String path) async {
+    if (!path.startsWith('${folder.path}/')) return;
+    try {
+      File(path).deleteSync();
+    } on FileSystemException {
+      return;
+    }
+  }
+
+  /// Deletes what [file] was recorded to, if it was recorded here.
+  static Future<void> discardFile(HelpAttachment file) async {
+    final source = file.source;
+    if (file.kind != HelpAttachmentKind.audio || source == null) return;
+    if (!source.isScheme('file')) return;
+    await discard(source.toFilePath());
+  }
+
+  /// Deletes every recording left: at app start and on sign-out.
+  static Future<void> clear() async {
+    try {
+      if (folder.existsSync()) folder.deleteSync(recursive: true);
+    } on FileSystemException {
+      return;
+    }
+  }
+}
+
 /// How starting a recording went: [refused] when the microphone is not
 /// allowed, [failed] when the phone could not record.
 enum VoiceStart { recording, refused, failed }
@@ -72,7 +108,7 @@ class DeviceVoiceRecorder implements VoiceRecorder {
     try {
       final recorder = _recorder ??= AudioRecorder();
       if (!await recorder.hasPermission()) return VoiceStart.refused;
-      final folder = Directory('${Directory.systemTemp.path}/voice-notes');
+      final folder = VoiceNotes.folder;
       await folder.create(recursive: true);
       await recorder.start(
         _config,

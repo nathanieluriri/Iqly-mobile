@@ -10,6 +10,7 @@ void main() {
   const messages = {
     IqToastKind.success: 'Code copied',
     IqToastKind.error: 'Max 3 interests. Unselect one first.',
+    IqToastKind.hint: 'Hold to record',
   };
 
   for (final kind in IqToastKind.values) {
