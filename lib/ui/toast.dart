@@ -7,11 +7,13 @@ import '../core/responsive.dart';
 import '../theme/theme.dart';
 import 'icon.dart';
 
-enum IqToastKind { success, error }
+enum IqToastKind { success, error, hint }
 
 /// Toast (DS 11:59): a short confirmation that rises above the bottom edge
 /// and leaves on its own, success in the ok tones and error in the error
-/// tones. Only one shows at a time; a new one replaces it. Never use it for
+/// tones. [IqToastKind.hint] is the app's own, not in the DS: a neutral
+/// pointer (how to use a control) on the card with the info icon, with no
+/// success check. Only one shows at a time; a new one replaces it. Never use it for
 /// anything the person must act on.
 ///
 /// Figma over DS: the Error message and icon take err-strong, as frame
@@ -33,11 +35,12 @@ class IqToast extends StatelessWidget {
 
   static OverlayEntry? _current;
 
-  /// Shows [message] over the current screen.
+  /// Shows [message] over the current screen for [hold].
   static void show(
     BuildContext context,
     String message, {
     IqToastKind kind = IqToastKind.success,
+    Duration hold = IqDurations.toast,
   }) {
     final overlay = Overlay.maybeOf(context, rootOverlay: true);
     if (overlay == null) return;
@@ -47,6 +50,7 @@ class IqToast extends StatelessWidget {
     entry = OverlayEntry(
       builder: (context) => _Rising(
         floor: floor,
+        hold: hold,
         onDone: () {
           if (identical(_current, entry)) _current = null;
           entry.remove();
@@ -60,8 +64,26 @@ class IqToast extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final success = kind == IqToastKind.success;
-    final ink = success ? IqColors.ok : IqColors.errStrong;
+    final (ink, fill, edge, icon) = switch (kind) {
+      IqToastKind.success => (
+        IqColors.ok,
+        IqColors.okSoft,
+        IqColors.okDot,
+        IqIcons.check,
+      ),
+      IqToastKind.error => (
+        IqColors.errStrong,
+        IqColors.errSoft,
+        IqColors.err,
+        IqIcons.info,
+      ),
+      IqToastKind.hint => (
+        IqColors.fg2,
+        IqColors.card,
+        IqColors.line,
+        IqIcons.info,
+      ),
+    };
     return Semantics(
       liveRegion: true,
       child: Container(
@@ -70,18 +92,14 @@ class IqToast extends StatelessWidget {
           vertical: IqSpace.s4,
         ),
         decoration: BoxDecoration(
-          color: success ? IqColors.okSoft : IqColors.errSoft,
+          color: fill,
           borderRadius: BorderRadius.circular(IqRadius.lg),
-          border: Border.all(color: success ? IqColors.okDot : IqColors.err),
+          border: Border.all(color: edge),
           boxShadow: IqShadows.md,
         ),
         child: Row(
           children: [
-            IqIcon(
-              success ? IqIcons.check : IqIcons.info,
-              size: 16,
-              color: ink,
-            ),
+            IqIcon(icon, size: 16, color: ink),
             const SizedBox(width: IqSpace.s2),
             Expanded(
               child: Text(
@@ -96,12 +114,18 @@ class IqToast extends StatelessWidget {
   }
 }
 
-/// Rises 8 into place over 220 ms, holds for [IqDurations.toast], then
+/// Rises 8 into place over 220 ms, holds for [hold], then
 /// fades back down over 220 ms: one timeline, so it ends with its page.
 class _Rising extends StatefulWidget {
-  const _Rising({required this.child, required this.onDone, this.floor});
+  const _Rising({
+    required this.child,
+    required this.onDone,
+    required this.hold,
+    this.floor,
+  });
 
   final Widget child;
+  final Duration hold;
   final VoidCallback onDone;
 
   /// The top of the screen's bottom chrome, from the top of the screen.
@@ -115,7 +139,7 @@ class _RisingState extends State<_Rising> with SingleTickerProviderStateMixin {
   // Preserve: reduced motion speeds controllers up, and the hold must last.
   late final AnimationController _life = AnimationController(
     vsync: this,
-    duration: IqDurations.appear * 2 + IqDurations.toast,
+    duration: IqDurations.appear * 2 + widget.hold,
     animationBehavior: AnimationBehavior.preserve,
   )..addStatusListener(_ended);
 

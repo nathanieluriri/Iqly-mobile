@@ -10,6 +10,7 @@ import '../../data/help_service.dart';
 import '../../data/local/local_rows.dart';
 import '../../data/signed_in_files.dart';
 import '../../data/support_files.dart' show SupportSource;
+import '../../data/voice_recorder.dart' show VoiceNotes;
 import 'help_state.dart';
 
 /// The chat inbox as it shows: the threads ([tickets], null until the phone
@@ -252,15 +253,20 @@ class HelpUploadsNotifier extends Notifier<Map<String, HelpUploadState>> {
     if (upload == null) return;
     state = {...state}..remove(key);
     _settle(key, error: const HelpRefused(HelpFailure.gone));
+    VoiceNotes.discardFile(upload.file).ignore();
     if (upload.done case final done?) {
       ref.read(helpServiceProvider).discard(done).ignore();
     }
   }
 
-  /// The upload went with its message.
+  /// The upload went with its message; a voice note recorded for it is
+  /// deleted, kept by then under its upload's id when it went as a reply.
   void sent(String key) {
     _runs.remove(key)?.cancel();
-    if (state.containsKey(key)) state = {...state}..remove(key);
+    final upload = state[key];
+    if (upload == null) return;
+    state = {...state}..remove(key);
+    VoiceNotes.discardFile(upload.file).ignore();
   }
 }
 

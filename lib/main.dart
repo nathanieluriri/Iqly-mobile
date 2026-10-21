@@ -23,6 +23,7 @@ import 'data/biometric_service.dart';
 import 'data/patches.dart';
 import 'data/profile_service.dart';
 import 'data/token_store.dart';
+import 'data/voice_recorder.dart' show VoiceNotes;
 import 'features/discover/discover_state.dart';
 import 'features/more/more_state.dart';
 import 'features/notifications/notifications_state.dart';
@@ -36,6 +37,7 @@ import 'ui/svg_precache.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  unawaited(VoiceNotes.clear());
   final version = LiveAppVersionService.installedVersion().then<String?>(
     (installed) => installed,
     onError: (Object _) => null,

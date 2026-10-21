@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -14,6 +15,7 @@ import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../data/activations_data.dart';
+import '../../data/device.dart' show deviceServiceProvider;
 import '../../data/help_data.dart';
 import '../../data/help_service.dart';
 import '../../data/live/live_help_service.dart' show LiveHelpService;
@@ -22,6 +24,7 @@ import '../../data/support_files.dart';
 import '../../data/voice_recorder.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
+import '../../ui/button.dart' show IqButtonKind;
 import '../../ui/chat_bubble_proposal.dart';
 import '../../ui/chat_canvas.dart';
 import '../../ui/chat_composer.dart';
@@ -78,8 +81,16 @@ String businessAnswersHere(String business) =>
 /// What a tap on the mic says: a voice note is held to record.
 const holdToRecord = 'Hold to record';
 
-/// What the mic says when the phone will not let it record.
-const micRefused = 'Allow the microphone in Settings to record a voice note';
+/// What the mic says when the phone will not let it record. iOS opens
+/// the app's page in Settings (url_launcher's app-settings:); Android has
+/// no way to in the app's plugins, so it gives the steps.
+const micRefused = 'Microphone is off';
+const micRefusedIos =
+    'Turn on Microphone for iQLY in Settings to record a voice note.';
+const micRefusedSteps =
+    'Microphone is off. To record a voice note, open Settings, then Apps, '
+    'iQLY, Permissions, Microphone, and choose Allow.';
+const micSettings = 'Open Settings';
 
 /// The thread's scroll view, the day pinned over it while it scrolls, and
 /// the skeleton before its first answer.
@@ -110,7 +121,9 @@ const chatSkeletonKey = ValueKey('thread skeleton');
 /// while the file goes up. The mic records a voice note, never a file:
 /// held to record with the time running, slid left to cancel, let go to
 /// send (at 5 minutes it sends itself, the API's longest); a tap says to
-/// hold. Voice notes play in their bubbles.
+/// hold. With a screen reader on the mic is tapped to start and again to
+/// send, with Cancel beside the time. Recording pauses a playing note.
+/// Voice notes play in their bubbles.
 class ChatThreadScreen extends ConsumerStatefulWidget {
   const ChatThreadScreen({super.key, this.id, this.about})
     : assert(id != null || about != null);
@@ -314,6 +327,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
   Future<void> _holdStart() async {
     if (_held || _sending) return;
     final recorder = ref.read(voiceRecorderProvider);
+    ChatVoiceNote.pauseAll();
     setState(() => _held = true);
     final started = await recorder.start();
     if (!mounted) return;
@@ -330,13 +344,39 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
           _recorded = Duration.zero;
         });
         _recordClock.start();
-      case VoiceStart.refused || VoiceStart.failed:
+      case VoiceStart.refused:
         setState(() => _held = false);
-        IqToast.show(
-          context,
-          started == VoiceStart.refused ? micRefused : 'Couldn’t record',
-          kind: IqToastKind.error,
-        );
+        await _micOff();
+      case VoiceStart.failed:
+        setState(() => _held = false);
+        IqToast.show(context, 'Couldn’t record', kind: IqToastKind.error);
+    }
+  }
+
+  Future<void> _micOff() async {
+    if (defaultTargetPlatform != TargetPlatform.iOS) {
+      IqToast.show(
+        context,
+        micRefusedSteps,
+        kind: IqToastKind.error,
+        hold: IqDurations.toast * 3,
+      );
+      return;
+    }
+    final device = ref.read(deviceServiceProvider);
+    final open = await showIqConfirmSheet(
+      context,
+      title: micRefused,
+      body: micRefusedIos,
+      confirmLabel: micSettings,
+      cancelLabel: 'Not now',
+      confirmKind: IqButtonKind.primary,
+    );
+    if (!open) return;
+    try {
+      await device.openUrl(Uri.parse('app-settings:'));
+    } on PlatformException {
+      return;
     }
   }
 
@@ -363,9 +403,15 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
     _stopRecording();
     if (!recording) return;
     final note = await ref.read(voiceRecorderProvider).stop();
-    if (!mounted) return;
-    if (note == null || note.length < VoiceNote.shortest) {
-      IqToast.show(context, holdToRecord);
+    if (note == null) return;
+    if (!mounted) {
+      VoiceNotes.discard(note.path).ignore();
+      return;
+    }
+    final tapped = MediaQuery.accessibleNavigationOf(context);
+    if (!tapped && note.length < VoiceNote.shortest) {
+      VoiceNotes.discard(note.path).ignore();
+      IqToast.show(context, holdToRecord, kind: IqToastKind.hint);
       return;
     }
     final previous = _staged;
@@ -583,7 +629,11 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
                     controller: _reply,
                     sending: _sending || (id != null && ticket == null),
                     onAttach: () => _attach(name),
-                    onVoiceNote: () => IqToast.show(context, holdToRecord),
+                    onVoiceNote: () => IqToast.show(
+                      context,
+                      holdToRecord,
+                      kind: IqToastKind.hint,
+                    ),
                     onSend: () => _send(ticket, activation),
                   ),
                 ),

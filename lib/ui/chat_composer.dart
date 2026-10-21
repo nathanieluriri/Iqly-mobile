@@ -8,6 +8,7 @@ import 'field.dart';
 import 'icon.dart';
 import 'pressable.dart';
 import 'sticker.dart';
+import 'text_link.dart';
 
 enum IqChatComposerState { empty, typed, recording }
 
@@ -21,6 +22,11 @@ enum IqChatComposerState { empty, typed, recording }
 /// tap is [onVoiceNote]. Recording keeps the bar's height: the red dot and
 /// [recordTime] where the field was, Slide to cancel drifting with the
 /// finger ([slide], 0 to 1 toward cancel), and the disc grown.
+///
+/// With a screen reader on (`accessibleNavigation`) a hold cannot be
+/// done, so the mic is tapped instead: Record voice note starts
+/// ([onHoldStart]), Stop and send ends it ([onHoldEnd]), and a Cancel
+/// link takes the place of Slide to cancel ([onHoldCancel]).
 class IqChatComposer extends StatelessWidget {
   const IqChatComposer({
     super.key,
@@ -57,8 +63,19 @@ class IqChatComposer extends StatelessWidget {
   Widget build(BuildContext context) {
     final typed = state == IqChatComposerState.typed;
     final recording = state == IqChatComposerState.recording;
-    final action = sending ? null : (typed ? onSend : onVoiceNote);
-    final holdable = !typed && !sending && onHoldStart != null;
+    final tapToRecord =
+        MediaQuery.accessibleNavigationOf(context) &&
+        !typed &&
+        !sending &&
+        onHoldStart != null;
+    final action = sending
+        ? null
+        : typed
+        ? onSend
+        : tapToRecord
+        ? (recording ? onHoldEnd : onHoldStart)
+        : onVoiceNote;
+    final holdable = !typed && !sending && !tapToRecord && onHoldStart != null;
     final reply = Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
@@ -83,9 +100,18 @@ class IqChatComposer extends StatelessWidget {
     Widget disc = IqPressable(
       semanticLabel: typed
           ? 'Send'
+          : tapToRecord
+          ? (recording ? 'Stop and send' : 'Record voice note')
           : recording
           ? 'Recording'
           : 'Voice note',
+      semanticHint: typed
+          ? null
+          : tapToRecord
+          ? (recording ? 'Sends the voice note' : 'Tap again to send')
+          : recording
+          ? null
+          : 'Hold to record',
       onTap: action,
       builder: (context, pressed) => SizedBox.square(
         dimension: 44,
@@ -117,7 +143,9 @@ class IqChatComposer extends StatelessWidget {
       ),
     );
     if (holdable) {
+      // A semantics long press would start and end the note at once.
       disc = RawGestureDetector(
+        excludeFromSemantics: true,
         gestures: {
           LongPressGestureRecognizer:
               GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
@@ -159,7 +187,11 @@ class IqChatComposer extends StatelessWidget {
                 ),
                 if (recording)
                   Positioned.fill(
-                    child: _Recording(time: recordTime, slide: slide),
+                    child: _Recording(
+                      time: recordTime,
+                      slide: slide,
+                      onCancel: tapToRecord ? onHoldCancel : null,
+                    ),
                   ),
               ],
             ),
@@ -173,12 +205,13 @@ class IqChatComposer extends StatelessWidget {
 }
 
 /// While the mic is held: the red dot and the time, and Slide to cancel
-/// drifting left as the finger does.
+/// drifting left as the finger does, or Cancel to tap ([onCancel]).
 class _Recording extends StatelessWidget {
-  const _Recording({required this.time, required this.slide});
+  const _Recording({required this.time, required this.slide, this.onCancel});
 
   final String time;
   final double slide;
+  final VoidCallback? onCancel;
 
   @override
   Widget build(BuildContext context) {
@@ -207,23 +240,36 @@ class _Recording extends StatelessWidget {
           Expanded(
             child: Align(
               alignment: Alignment.centerRight,
-              child: Transform.translate(
-                offset: Offset(-IqSpace.s12 * slide, 0),
-                child: Opacity(
-                  opacity: 1 - slide * 0.8,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const IqIcon(IqIcons.back, size: 16, color: IqColors.fg3),
-                      const SizedBox(width: IqSpace.s1),
-                      Text(
-                        'Slide to cancel',
-                        style: IqText.small.copyWith(color: IqColors.fg3),
+              child: onCancel != null
+                  ? Semantics(
+                      container: true,
+                      child: IqTextLink(
+                        label: 'Cancel',
+                        showIcon: false,
+                        onTap: onCancel,
                       ),
-                    ],
-                  ),
-                ),
-              ),
+                    )
+                  : Transform.translate(
+                      offset: Offset(-IqSpace.s12 * slide, 0),
+                      child: Opacity(
+                        opacity: 1 - slide * 0.8,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const IqIcon(
+                              IqIcons.back,
+                              size: 16,
+                              color: IqColors.fg3,
+                            ),
+                            const SizedBox(width: IqSpace.s1),
+                            Text(
+                              'Slide to cancel',
+                              style: IqText.small.copyWith(color: IqColors.fg3),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
             ),
           ),
           const SizedBox(width: IqSpace.s2),
