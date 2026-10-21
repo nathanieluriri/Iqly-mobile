@@ -10,11 +10,12 @@ import '../../ui/button.dart';
 import '../../ui/empty_state.dart';
 import '../../ui/illustration.dart';
 import '../../ui/notification.dart';
+import '../../ui/switch.dart';
 import '../shell/tablet_page.dart';
 import '../shell/tablet_sheet.dart';
 import 'notifications_state.dart';
 
-enum _Filter { all, deadlines, results, payouts, unread }
+enum _Filter { all, deadlines, results, payouts }
 
 /// T13 · Notifications (Mobile App · tablet, 1848:54861). Landscape keeps
 /// the 1024 split, the list beside the 412 detail; portrait gives the list
@@ -33,16 +34,19 @@ class TabletNotifications extends ConsumerStatefulWidget {
 
 class _TabletNotificationsState extends ConsumerState<TabletNotifications> {
   _Filter _filter = _Filter.all;
+  bool _unreadOnly = false;
   String? _open;
 
-  bool _keeps(NotificationItem item) => switch (_filter) {
+  bool _keeps(NotificationItem item) =>
+      (!_unreadOnly || item.note.unread) && _kind(item);
+
+  bool _kind(NotificationItem item) => switch (_filter) {
     _Filter.all => true,
     _Filter.deadlines =>
       item.kind == IqNotificationKind.deadline ||
           item.kind == IqNotificationKind.spots,
     _Filter.results => item.kind == IqNotificationKind.result,
     _Filter.payouts => item.kind == IqNotificationKind.payout,
-    _Filter.unread => item.note.unread,
   };
 
   Future<void> _tap(NotificationItem item) async {
@@ -84,7 +88,6 @@ class _TabletNotificationsState extends ConsumerState<TabletNotifications> {
               _Filter.deadlines => 'Deadlines',
               _Filter.results => 'Results',
               _Filter.payouts => 'Payouts',
-              _Filter.unread => 'Unread only',
             },
             state: f == _filter
                 ? IqBizSegmentState.selected
@@ -118,6 +121,13 @@ class _TabletNotificationsState extends ConsumerState<TabletNotifications> {
     } else {
       final today = data.today.where(_keeps).toList();
       final earlier = data.earlier.where(_keeps).toList();
+      // Landscape always shows a detail: the open row, else the first that
+      // has one.
+      final open = !expanded
+          ? null
+          : (_open == null ? null : data.item(_open!)) ??
+                [...today, ...earlier].where((i) => i.page != null).firstOrNull;
+      final selected = expanded ? open?.note.id : _open;
       Widget group(String title, List<NotificationItem> items) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -127,22 +137,18 @@ class _TabletNotificationsState extends ConsumerState<TabletNotifications> {
             child: Column(
               children: [
                 for (final (i, item) in items.indexed)
-                  ColoredBox(
-                    color: item.note.id == _open
-                        ? IqColors.secondary
-                        : IqColors.card,
-                    child: IqNotification(
-                      key: ValueKey(item.note.id),
-                      kind: item.kind,
-                      headline: item.title,
-                      detail: item.detail,
-                      resultDetail: item.detail,
-                      payoutDetail: item.detail,
-                      when: item.when,
-                      unread: item.note.unread,
-                      divider: i < items.length - 1,
-                      onTap: () => _tap(item),
-                    ),
+                  IqNotification(
+                    key: ValueKey(item.note.id),
+                    kind: item.kind,
+                    headline: item.title,
+                    detail: item.detail,
+                    resultDetail: item.detail,
+                    payoutDetail: item.detail,
+                    when: item.when,
+                    unread: item.note.unread,
+                    divider: i < items.length - 1,
+                    selected: item.note.id == selected,
+                    onTap: () => _tap(item),
                   ),
               ],
             ),
@@ -160,7 +166,6 @@ class _TabletNotificationsState extends ConsumerState<TabletNotifications> {
             const IqEmptyState(figure: IqFigures.caller, title: 'Nothing yet'),
         ],
       );
-      final open = expanded && _open != null ? data.item(_open!) : null;
       body = !expanded
           ? list
           : Row(
@@ -168,16 +173,14 @@ class _TabletNotificationsState extends ConsumerState<TabletNotifications> {
               children: [
                 Expanded(child: list),
                 const SizedBox(width: IqSpace.s6),
-                SizedBox(
+                Container(
                   width: 412,
-                  child: open == null
+                  decoration: const BoxDecoration(
+                    border: Border(left: BorderSide(color: IqColors.line)),
+                  ),
+                  child: open == null || open.page == null
                       ? const SizedBox.shrink()
-                      : TabletCard(
-                          child: NotificationDetailPanel(
-                            item: open,
-                            onClose: () => setState(() => _open = null),
-                          ),
-                        ),
+                      : NotificationDetailPanel(item: open, closable: false),
                 ),
               ],
             );
@@ -186,7 +189,23 @@ class _TabletNotificationsState extends ConsumerState<TabletNotifications> {
     return TabletPage(
       title: 'Notifications',
       children: [
-        Align(alignment: Alignment.centerLeft, child: filters),
+        Row(
+          children: [
+            filters,
+            const Spacer(),
+            Text(
+              'Unread only',
+              style: IqWebText.bodySmall.copyWith(color: IqColors.fg2),
+            ),
+            const SizedBox(width: IqSpace.s2),
+            IqSwitch(
+              semanticLabel: 'Unread only',
+              state: _unreadOnly ? IqSwitchState.on : IqSwitchState.off,
+              onChanged: (state) =>
+                  setState(() => _unreadOnly = state == IqSwitchState.on),
+            ),
+          ],
+        ),
         body,
       ],
     );
@@ -196,10 +215,16 @@ class _TabletNotificationsState extends ConsumerState<TabletNotifications> {
 /// A notification opened: the row, read, one line about it and the one
 /// button to the thing itself.
 class NotificationDetailPanel extends StatelessWidget {
-  const NotificationDetailPanel({super.key, required this.item, this.onClose});
+  const NotificationDetailPanel({
+    super.key,
+    required this.item,
+    this.onClose,
+    this.closable = true,
+  });
 
   final NotificationItem item;
   final VoidCallback? onClose;
+  final bool closable;
 
   @override
   Widget build(BuildContext context) {
@@ -217,7 +242,7 @@ class NotificationDetailPanel extends StatelessWidget {
                   style: IqText.mono.copyWith(color: IqColors.fg2),
                 ),
               ),
-              TabletClose(onTap: onClose),
+              if (closable) TabletClose(onTap: onClose),
             ],
           ),
           const SizedBox(height: IqSpace.s3),
@@ -238,7 +263,9 @@ class NotificationDetailPanel extends StatelessWidget {
             label: page.button,
             width: double.infinity,
             onTap: () {
-              if (onClose == null) Navigator.of(context).maybePop();
+              if (closable && onClose == null) {
+                Navigator.of(context).maybePop();
+              }
               page.link.tab
                   ? context.go(page.link.location)
                   : context.open(page.link.location);

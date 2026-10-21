@@ -147,6 +147,10 @@ class TabletCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: IqColors.card,
         borderRadius: BorderRadius.circular(IqRadius.xl2),
+      ),
+      // The border sits on top so filled rows do not cover it.
+      foregroundDecoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(IqRadius.xl2),
         border: Border.all(color: IqColors.line),
       ),
       child: child,
