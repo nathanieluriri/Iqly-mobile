@@ -17,13 +17,18 @@ void main() {
     'result': '/submissions/s2/result',
     'avatar': Routes.avatarEditor,
     'support': Routes.support,
+    'support_thread': '/help/t1',
     'help': Routes.helpCentre,
     'activation': '/activations/a2',
+    'proof': '/activations/a2/proof',
+    'withdrawal': '/wallet/withdrawals/w1',
   };
   const signedOut = {
     'landing': Routes.landing,
     'sign_in': Routes.signIn,
     'onboarding': Routes.onboarding,
+    'onboarding_about_you': Routes.onboardingAboutYou,
+    'sign_up_name': Routes.yourName,
   };
 
   for (final frame in [TabletFrameSize.portrait, TabletFrameSize.landscape]) {
