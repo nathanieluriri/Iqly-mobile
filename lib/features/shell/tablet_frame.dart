@@ -28,6 +28,8 @@ import '../more/more_state.dart';
 import '../onboarding/onboarding_draft.dart' show accountNameProvider;
 import '../settings/tablet_settings.dart';
 import 'tablet_routes.dart';
+import 'tablet_entry.dart';
+import 'tablet_splits.dart';
 import 'tablet_step_card.dart';
 import 'tablet_search.dart';
 
@@ -135,7 +137,29 @@ class _TabletFrameState extends ConsumerState<TabletFrame> {
     if (TabletSettings.covers(location)) {
       return TabletSettings(location: location, child: page);
     }
-    if (TabletStepCard.covers(location)) return TabletStepCard(child: page);
+    if (TabletStepCard.covers(location)) {
+      return TabletStepCard(location: location, child: page);
+    }
+    if (location == Routes.landing || location.startsWith('/invite/')) {
+      return TabletEntrySplit(page: page);
+    }
+    if (location == Routes.support) {
+      return const TabletLocation(
+        location: Routes.support,
+        onCard: true,
+        child: TabletSupportSplit(thread: null),
+      );
+    }
+    if (TabletSupportSplit.threadOf(location) case final id?) {
+      return TabletSupportSplit(thread: id, page: page);
+    }
+    if (TabletResultSplit.resultOf(location) case final id?) {
+      return TabletLocation(
+        location: location,
+        onCard: true,
+        child: TabletResultSplit(id: id, page: page),
+      );
+    }
     return page;
   }
 
@@ -165,6 +189,7 @@ class _TabletFrameState extends ConsumerState<TabletFrame> {
         size: size,
         panel: panel,
         decorate: _decorate,
+        cardPage: TabletStepCard.covers,
         child: _FrameStack(
           chromeFirst: chrome && !_popup,
           overlayOpen: chrome && _overlay != _Overlay.none,
