@@ -35,11 +35,19 @@ String helpFailureText(
   HelpFailure failure,
   HelpAttachmentKind? kind,
 ) => switch (kind ?? HelpAttachmentKind.video) {
-  HelpAttachmentKind.image || HelpAttachmentKind.file => (
+  HelpAttachmentKind.image => (
     title: failure == HelpFailure.tooLarge
         ? 'That picture is over 10 MB'
         : 'That picture can’t be sent',
     hint: 'Pictures go up to 10 MB: JPG, PNG, WebP or GIF.',
+  ),
+  HelpAttachmentKind.file => (
+    title: failure == HelpFailure.tooLarge
+        ? 'That document is over 10 MB'
+        : 'That document can’t be sent',
+    hint:
+        'Documents go up to 10 MB: PDF, Word, Excel, PowerPoint, TXT or '
+        'CSV.',
   ),
   HelpAttachmentKind.audio => (
     title: switch (failure) {

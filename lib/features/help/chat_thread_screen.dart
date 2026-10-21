@@ -184,7 +184,10 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
   }
 
   Future<void> _attach(String business) async {
-    final source = await chooseChatAttachment(context);
+    final source = await chooseChatAttachment(
+      context,
+      documents: ref.read(supportDocumentsProvider),
+    );
     if (source == null || !mounted) return;
     final key = await _uploads.pick(source, about: business);
     if (key == null) return;
@@ -211,6 +214,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
         ? null
         : ref.read(helpUploadsProvider)[stagedKey];
     if (_sending || (staged != null && staged.failed)) return;
+    if (widget.id != null && ticket == null) return;
     if (typed.isEmpty && staged == null) return;
     final body = typed.isEmpty ? attachmentOnlyBody(staged!.file.kind) : typed;
     final id = widget.id;
@@ -458,7 +462,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                         : IqChatComposerState.empty,
                     placeholder: 'Write to ${business ? name : 'support'}',
                     controller: _reply,
-                    sending: _sending || loading,
+                    sending: _sending || (id != null && ticket == null),
                     onAttach: () => _attach(name),
                     onVoiceNote: () => IqToast.show(context, voiceNotesComing),
                     onSend: () => _send(ticket, activation),
@@ -565,6 +569,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
           ValueKey('message $i'),
           _bubble(ticket!, message, tail: tail, business: business, iqly: iqly),
           day: lastDay,
+          isMessage: true,
         ),
       );
     }
@@ -604,6 +609,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
           ValueKey('outgoing ${out.id}'),
           _outgoing(widget.id!, out, tail: tail),
           day: lastDay,
+          isMessage: true,
         ),
       );
     }
@@ -775,14 +781,12 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
         onTap: open,
         semanticLabel: file.name,
       ),
-      HelpAttachmentKind.file => IqChatMedia(
-        kind: IqChatMediaKind.file,
+      HelpAttachmentKind.file => ChatDocument(
+        file: file,
         tone: tone,
-        width: 282,
-        name: file.name,
-        fileIcon: IqIcons.document,
-        meta: fileFacts(file),
-        onTap: open,
+        facts: uploading == null
+            ? fileFacts(file)
+            : '${(uploading * 100).round()}% · ${file.sizeLabel}',
       ),
     };
   }
@@ -803,15 +807,21 @@ String fileFacts(HelpAttachment file) {
 
 /// The kinds of file + offers, before any picker opens (owner, 21 Oct): only
 /// what the API takes (contract 12.1), so the person knows what they are
-/// sending. Voice notes are the mic's, never a file here. No frame draws
-/// it: the app's own sheet of rows, as Use a photo's is.
-Future<SupportSource?> chooseChatAttachment(BuildContext context) {
+/// sending, [documents] while health says `supportDocuments`. Voice notes
+/// are the mic's, never a file here. No frame draws it: the app's own sheet
+/// of rows, as Use a photo's is, hugging them over the home indicator as
+/// WhatsApp's does.
+Future<SupportSource?> chooseChatAttachment(
+  BuildContext context, {
+  bool documents = false,
+}) {
   return showIqSheet<SupportSource>(
     context,
     scrim: IqScrim.picker,
     (context) => Material(
       type: MaterialType.transparency,
       child: Container(
+        width: double.infinity,
         decoration: const BoxDecoration(
           color: IqColors.bg,
           borderRadius: BorderRadius.vertical(
@@ -820,31 +830,61 @@ Future<SupportSource?> chooseChatAttachment(BuildContext context) {
         ),
         padding: EdgeInsets.fromLTRB(
           IqSpace.s4,
-          IqSpace.s6,
+          IqSpace.s2,
           IqSpace.s4,
           IqSpace.s4 + MediaQuery.viewPaddingOf(context).bottom,
         ),
-        child: RowGroup(
-          outlined: true,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            IqListRow(
-              label: 'Photos and videos',
-              description: 'Pictures up to 10 MB, videos up to 60 s',
-              icon: IqIcons.background,
-              onTap: () => Navigator.of(context).pop(SupportSource.photos),
+            Center(
+              child: Container(
+                width: 36,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: IqColors.line2,
+                  borderRadius: BorderRadius.circular(IqRadius.full),
+                ),
+              ),
             ),
-            IqListRow(
-              label: 'Take a photo',
-              showDescription: false,
-              icon: IqIcons.camera,
-              onTap: () => Navigator.of(context).pop(SupportSource.camera),
-            ),
-            IqListRow(
-              label: 'Record a video',
-              description: 'Up to 60 s',
-              icon: IqIcons.video,
-              divider: false,
-              onTap: () => Navigator.of(context).pop(SupportSource.video),
+            const SizedBox(height: IqSpace.s4),
+            RowGroup(
+              outlined: true,
+              children: [
+                IqListRow(
+                  label: 'Photos and videos',
+                  description:
+                      'Pictures up to 10 MB, videos up to 60 s and 50 MB',
+                  icon: IqIcons.background,
+                  onTap: () => Navigator.of(context).pop(SupportSource.photos),
+                ),
+                IqListRow(
+                  label: 'Take a photo',
+                  showDescription: false,
+                  icon: IqIcons.camera,
+                  divider: DeviceSupportFiles.canRecordVideo || documents,
+                  onTap: () => Navigator.of(context).pop(SupportSource.camera),
+                ),
+                if (DeviceSupportFiles.canRecordVideo)
+                  IqListRow(
+                    label: 'Record a video',
+                    description: 'Up to 20 s and 50 MB',
+                    icon: IqIcons.video,
+                    divider: documents,
+                    onTap: () => Navigator.of(context).pop(SupportSource.video),
+                  ),
+                if (documents)
+                  IqListRow(
+                    label: 'Document',
+                    description:
+                        'PDF, Word, Excel, PowerPoint, TXT or CSV up to 10 MB',
+                    icon: IqIcons.document,
+                    divider: false,
+                    onTap: () =>
+                        Navigator.of(context).pop(SupportSource.document),
+                  ),
+              ],
             ),
           ],
         ),
@@ -854,60 +894,30 @@ Future<SupportSource?> chooseChatAttachment(BuildContext context) {
 }
 
 /// One line of a thread: [day] is the day it falls on, for the day pinned
-/// at the top while the thread scrolls; [isDay] marks a day's own pill.
+/// at the top while the thread scrolls; [isDay] marks a day's own pill and
+/// [isMessage] a message, counted when new ones wait below.
 class _Entry {
-  const _Entry(this.key, this.child, {this.day, this.isDay = false});
+  const _Entry(
+    this.key,
+    this.child, {
+    this.day,
+    this.isDay = false,
+    this.isMessage = false,
+  });
 
   final Key key;
   final Widget child;
   final String? day;
   final bool isDay;
+  final bool isMessage;
 }
 
-/// Keeps what the person is reading in place when the thread grows under
-/// it: a reversed list measures from its end, so new messages there would
-/// push everything up. At the newest message, they show.
-class _AnchoredPhysics extends ScrollPhysics {
-  const _AnchoredPhysics({super.parent});
-
-  @override
-  _AnchoredPhysics applyTo(ScrollPhysics? ancestor) =>
-      _AnchoredPhysics(parent: buildParent(ancestor));
-
-  @override
-  double adjustPositionForNewDimensions({
-    required ScrollMetrics oldPosition,
-    required ScrollMetrics newPosition,
-    required bool isScrolling,
-    required double velocity,
-  }) {
-    final grew =
-        newPosition.maxScrollExtent +
-        newPosition.viewportDimension -
-        oldPosition.maxScrollExtent -
-        oldPosition.viewportDimension;
-    // Only the extents of oldPosition are fresh: a scroll repaints without
-    // a layout, so its pixels may be stale.
-    if (newPosition.pixels > 0 &&
-        grew != 0 &&
-        newPosition.viewportDimension == oldPosition.viewportDimension) {
-      return (newPosition.pixels + grew).clamp(
-        newPosition.minScrollExtent,
-        newPosition.maxScrollExtent,
-      );
-    }
-    return super.adjustPositionForNewDimensions(
-      oldPosition: oldPosition,
-      newPosition: newPosition,
-      isScrolling: isScrolling,
-      velocity: velocity,
-    );
-  }
-}
-
-/// The thread's lines, top down: a short thread starts at the top, a long
-/// one opens at its newest line and grows there. While it scrolls, the day
-/// of the top line rides pinned at the top, gone a moment after it stops.
+/// The thread's lines, built only near the screen: a short thread starts
+/// at the top, a long one opens at its newest line. While it scrolls, the
+/// day of the top line rides pinned at the top, gone a moment after it
+/// stops. Scrolled up, new messages wait below what is being read, so
+/// nothing moves: the round down arrow counts them and takes the thread to
+/// its end, as reaching the end does.
 class _ThreadList extends StatefulWidget {
   const _ThreadList({super.key, required this.entries});
 
@@ -920,24 +930,55 @@ class _ThreadList extends StatefulWidget {
 class _ThreadListState extends State<_ThreadList> {
   final _scroll = ScrollController();
   final _boxes = <Key, GlobalKey>{};
+  late List<_Entry> _shown = widget.entries;
+  int _waiting = 0;
+  bool _away = false;
   String? _pinned;
   bool _scrolling = false;
   Timer? _hide;
 
+  /// How far up the thread counts as away from its end.
+  static const double _awayAt = 160;
+
+  bool get _atEnd => !_scroll.hasClients || _scroll.offset <= IqSpace.s6;
+
   /// Back to the newest line, as after the person sends.
   void toEnd() {
+    _adopt();
     if (!_scroll.hasClients || _scroll.offset <= 0) return;
-    _scroll.animateTo(
-      0,
-      duration: motion(context, IqDurations.screen),
-      curve: IqCurves.easeOut,
-    );
+    final duration = motion(context, IqDurations.screen);
+    if (duration == Duration.zero) {
+      _scroll.jumpTo(0);
+      return;
+    }
+    _scroll.animateTo(0, duration: duration, curve: IqCurves.easeOut);
+  }
+
+  void _adopt() {
+    if (identical(_shown, widget.entries) && _waiting == 0) return;
+    setState(() {
+      _shown = widget.entries;
+      _waiting = 0;
+    });
   }
 
   @override
   void didUpdateWidget(_ThreadList old) {
     super.didUpdateWidget(old);
-    final keys = {for (final entry in widget.entries) entry.key};
+    final next = widget.entries;
+    final shown = _shown;
+    final appended =
+        next.length > shown.length &&
+        [for (var i = 0; i < shown.length; i++) next[i].key == shown[i].key]
+            .every((same) => same);
+    if (!_atEnd && appended) {
+      _shown = next.sublist(0, shown.length);
+      _waiting = next.skip(shown.length).where((e) => e.isMessage).length;
+    } else {
+      _shown = next;
+      _waiting = 0;
+    }
+    final keys = {for (final entry in next) entry.key};
     _boxes.removeWhere((key, _) => !keys.contains(key));
   }
 
@@ -953,7 +994,7 @@ class _ThreadListState extends State<_ThreadList> {
   String? _topDay() {
     final viewport = context.findRenderObject();
     if (viewport is! RenderBox || !viewport.hasSize) return null;
-    for (final entry in widget.entries) {
+    for (final entry in _shown) {
       final box = _boxes[entry.key]?.currentContext?.findRenderObject();
       if (box is! RenderBox || !box.hasSize || !box.attached) continue;
       final top = box.localToGlobal(Offset.zero, ancestor: viewport).dy;
@@ -965,15 +1006,30 @@ class _ThreadListState extends State<_ThreadList> {
 
   bool _onScroll(ScrollNotification note) {
     if (note.depth != 0) return false;
+    final away = note.metrics.pixels > _awayAt;
+    if (away != _away) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _away = away);
+      });
+    }
+    if (_atEnd && _waiting > 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _adopt();
+      });
+    }
     if (note is ScrollStartNotification || note is ScrollUpdateNotification) {
       _hide?.cancel();
-      final day = _topDay();
-      if (!_scrolling || day != _pinned) {
-        setState(() {
-          _scrolling = true;
-          _pinned = day;
-        });
-      }
+      // A scroll can be told mid-layout, when no box may be measured.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final day = _topDay();
+        if (!_scrolling || day != _pinned) {
+          setState(() {
+            _scrolling = true;
+            _pinned = day;
+          });
+        }
+      });
     } else if (note is ScrollEndNotification) {
       _hide?.cancel();
       _hide = Timer(IqDurations.pinnedDay, () {
@@ -986,34 +1042,36 @@ class _ThreadListState extends State<_ThreadList> {
   @override
   Widget build(BuildContext context) {
     final pinned = _pinned;
+    final shown = _shown;
+    final index = {for (final (i, e) in shown.indexed) e.key: i};
     return NotificationListener<ScrollNotification>(
       onNotification: _onScroll,
       child: Stack(
         fit: StackFit.expand,
         children: [
-          LayoutBuilder(
-            builder: (context, box) => SingleChildScrollView(
+          Align(
+            alignment: Alignment.topCenter,
+            child: ListView.builder(
               key: chatThreadKey,
               controller: _scroll,
               reverse: true,
-              physics: const _AnchoredPhysics(),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: box.maxHeight),
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: IqSpace.s2),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (final entry in widget.entries)
-                        KeyedSubtree(
-                          key: _boxes.putIfAbsent(entry.key, GlobalKey.new),
-                          child: entry.child,
-                        ),
-                    ],
+              shrinkWrap: true,
+              padding: const EdgeInsets.only(bottom: IqSpace.s2),
+              itemCount: shown.length,
+              findChildIndexCallback: (key) {
+                final i = key is ValueKey<Key> ? index[key.value] : null;
+                return i == null ? null : shown.length - 1 - i;
+              },
+              itemBuilder: (context, i) {
+                final entry = shown[shown.length - 1 - i];
+                return KeyedSubtree(
+                  key: ValueKey<Key>(entry.key),
+                  child: KeyedSubtree(
+                    key: _boxes.putIfAbsent(entry.key, GlobalKey.new),
+                    child: entry.child,
                   ),
-                ),
-              ),
+                );
+              },
             ),
           ),
           Positioned(
@@ -1037,8 +1095,60 @@ class _ThreadListState extends State<_ThreadList> {
               ),
             ),
           ),
+          if (_away || _waiting > 0)
+            Positioned(
+              right: IqSpace.s3,
+              bottom: IqSpace.s3,
+              child: _ToNewest(count: _waiting, onTap: toEnd),
+            ),
         ],
       ),
+    );
+  }
+}
+
+/// The round down arrow over a thread scrolled up, with how many new
+/// messages wait below.
+class _ToNewest extends StatelessWidget {
+  const _ToNewest({required this.count, required this.onTap});
+
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        IqChatRoundButton(
+          icon: IqIcons.down,
+          semanticLabel: count > 0
+              ? '$count new message${count == 1 ? '' : 's'}'
+              : 'Newest messages',
+          onTap: onTap,
+        ),
+        if (count > 0)
+          Positioned(
+            top: -IqSpace.s1,
+            right: -IqSpace.s1,
+            child: IgnorePointer(
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 20),
+                padding: const EdgeInsets.symmetric(horizontal: IqSpace.s1p5),
+                height: 20,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: IqColors.accent,
+                  borderRadius: BorderRadius.circular(IqRadius.full),
+                ),
+                child: Text(
+                  '$count',
+                  style: IqText.smallStrong.copyWith(color: IqColors.primaryFg),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -1129,12 +1239,17 @@ class _Staged extends StatelessWidget {
                         : 'That file can’t be sent')
               : helpFailureText(failure)
         : going
-        ? '$kind · ${(upload.progress * 100).round()}%'
-        : [kind, ?file.lengthLabel, file.sizeLabel].join(' · ');
+        ? '${file.kind == HelpAttachmentKind.file ? file.name : kind} · '
+              '${(upload.progress * 100).round()}%'
+        : [
+            file.kind == HelpAttachmentKind.file ? file.name : kind,
+            ?file.lengthLabel,
+            file.sizeLabel,
+          ].join(' · ');
     final source = file.source;
     final Widget thumb = switch (file.kind) {
       HelpAttachmentKind.image =>
-        localPicture(context, file, width: _thumb) ??
+        localPicture(context, file, width: _thumb, height: _thumb) ??
             const ColoredBox(color: IqColors.secondary),
       HelpAttachmentKind.video => Stack(
         fit: StackFit.expand,

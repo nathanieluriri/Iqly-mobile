@@ -132,6 +132,7 @@ class RowGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final column = Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: children,
     );

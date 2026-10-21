@@ -54,7 +54,8 @@ HelpAttachment? helpAttachmentFromJson(Object? json) {
     kind: switch (j['kind']) {
       'image' => HelpAttachmentKind.image,
       'audio' => HelpAttachmentKind.audio,
-      _ => HelpAttachmentKind.video,
+      'video' => HelpAttachmentKind.video,
+      _ => HelpAttachmentKind.file,
     },
     mime: apiText(j['mime']),
     url: url == null ? null : Uri.tryParse(url),

@@ -239,11 +239,8 @@ class ScriptedFiles extends SignedInFiles {
       _waiting.remove(id)?.completeError(const ApiUnreachable());
 
   @override
-  Future<File?> kept({
-    required String userId,
-    required String id,
-    String name = '',
-  }) async => keptFiles[id];
+  File? kept({required String userId, required String id, String name = ''}) =>
+      keptFiles[id];
 
   @override
   Future<File> fetch({

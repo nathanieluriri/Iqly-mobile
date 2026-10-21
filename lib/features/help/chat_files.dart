@@ -1,37 +1,125 @@
+import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/help_data.dart';
+import '../../data/signed_in_files.dart';
+import '../../data/support_files.dart' show supportDocumentTypes;
 import '../../theme/theme.dart';
 import '../../ui/chat_media.dart';
+import '../../ui/icon.dart';
 import '../../ui/recording_player.dart';
+import '../../ui/toast.dart';
 import 'chat_state.dart';
 
 final _bytes = Expando<Future<Uint8List>>();
+
+/// [image] decoded just big enough to cover [size] (physical pixels)
+/// whatever its shape, as BoxFit.cover draws it: a decode by width alone
+/// leaves a wide picture too short for its frame, and blurry.
+class CoverImage extends ImageProvider<CoverImageKey> {
+  const CoverImage(this.image, this.size);
+
+  final ImageProvider<Object> image;
+  final Size size;
+
+  /// A picture for a [width] by [height] frame on this screen.
+  static CoverImage of(
+    BuildContext context,
+    ImageProvider<Object> image, {
+    required double width,
+    required double height,
+  }) {
+    final ratio = MediaQuery.devicePixelRatioOf(context);
+    return CoverImage(image, Size(width * ratio, height * ratio));
+  }
+
+  @override
+  Future<CoverImageKey> obtainKey(ImageConfiguration configuration) {
+    Completer<CoverImageKey>? completer;
+    SynchronousFuture<CoverImageKey>? result;
+    image.obtainKey(configuration).then((key) {
+      final cover = CoverImageKey(key, size);
+      if (completer == null) {
+        result = SynchronousFuture(cover);
+      } else {
+        completer.complete(cover);
+      }
+    });
+    final now = result;
+    if (now != null) return now;
+    completer = Completer<CoverImageKey>();
+    return completer.future;
+  }
+
+  @override
+  ImageStreamCompleter loadImage(
+    CoverImageKey key,
+    ImageDecoderCallback decode,
+  ) {
+    Future<ui.Codec> cover(
+      ui.ImmutableBuffer buffer, {
+      ui.TargetImageSizeCallback? getTargetSize,
+    }) => decode(
+      buffer,
+      getTargetSize: (width, height) => coverSize(size, width, height),
+    );
+    return image.loadImage(key.image, cover);
+  }
+
+  /// The smallest size of a [width] by [height] picture that covers [box],
+  /// never larger than the picture.
+  static ui.TargetImageSize coverSize(Size box, int width, int height) {
+    final scale = math.max(box.width / width, box.height / height);
+    if (scale >= 1) return const ui.TargetImageSize();
+    return ui.TargetImageSize(
+      width: (width * scale).ceil(),
+      height: (height * scale).ceil(),
+    );
+  }
+}
+
+@immutable
+class CoverImageKey {
+  const CoverImageKey(this.image, this.size);
+
+  final Object image;
+  final Size size;
+
+  @override
+  bool operator ==(Object other) =>
+      other is CoverImageKey && other.image == image && other.size == size;
+
+  @override
+  int get hashCode => Object.hash(image, size);
+}
 
 /// A file the person picked on this phone: drawn from there, never from
 /// the API, while it goes up and once it is sent.
 bool isLocalFile(HelpAttachment file) =>
     file.source != null || file.read != null;
 
-/// The picked picture [file] at [width] logical pixels, decoded at the
-/// screen's density: from its path, else from its bytes.
+/// The picked picture [file] for a [width] by [height] frame: from its
+/// path, else from its bytes.
 Widget? localPicture(
   BuildContext context,
   HelpAttachment file, {
   required double width,
+  required double height,
   BoxFit fit = BoxFit.cover,
 }) {
-  final cache = (width * MediaQuery.devicePixelRatioOf(context)).round();
+  ImageProvider<Object> sized(ImageProvider<Object> image) =>
+      CoverImage.of(context, image, width: width, height: height);
   final source = file.source;
   if (source != null && source.scheme == 'file') {
-    return Image.file(
-      File(source.toFilePath()),
+    return Image(
+      image: sized(FileImage(File(source.toFilePath()))),
       fit: fit,
-      cacheWidth: cache,
       gaplessPlayback: true,
       errorBuilder: _blank,
     );
@@ -44,10 +132,9 @@ Widget? localPicture(
     builder: (context, got) {
       final data = got.data;
       if (data == null) return const SizedBox.shrink();
-      return Image.memory(
-        data,
+      return Image(
+        image: sized(MemoryImage(data)),
         fit: fit,
-        cacheWidth: cache,
         gaplessPlayback: true,
         errorBuilder: _blank,
       );
@@ -104,7 +191,12 @@ class ChatPicture extends ConsumerWidget {
     if (isLocalFile(file)) {
       final uploading = this.uploading;
       return media(
-        localPicture(context, file, width: width),
+        localPicture(
+          context,
+          file,
+          width: width,
+          height: IqChatMedia.frameHeight,
+        ),
         state: uploading == null
             ? IqChatMediaState.ready
             : IqChatMediaState.loading,
@@ -114,13 +206,16 @@ class ChatPicture extends ConsumerWidget {
     final of = HelpFileRef.of(file);
     if (of == null) return media(null);
     final got = ref.watch(helpFileProvider(of));
-    final cache = (width * MediaQuery.devicePixelRatioOf(context)).round();
     return switch (got.status) {
       HelpFileStatus.ready => media(
-        Image.file(
-          got.file!,
+        Image(
+          image: CoverImage.of(
+            context,
+            FileImage(got.file!),
+            width: width,
+            height: IqChatMedia.frameHeight,
+          ),
           fit: BoxFit.cover,
-          cacheWidth: cache,
           gaplessPlayback: true,
           errorBuilder: _blank,
         ),
@@ -193,6 +288,105 @@ class ChatVideo extends ConsumerWidget {
       duration: file.lengthLabel ?? '',
       onTap: onTap,
       semanticLabel: file.name,
+    );
+  }
+}
+
+/// A document in its bubble: its name and facts ("PDF · 64 KB"). A tap
+/// brings it down once with the session token, its progress in the facts,
+/// then hands it to the phone's save dialog, as a submission's PDF is; one
+/// picked on this phone is saved from there.
+class ChatDocument extends ConsumerStatefulWidget {
+  const ChatDocument({
+    super.key,
+    required this.file,
+    required this.tone,
+    required this.facts,
+  });
+
+  final HelpAttachment file;
+  final IqChatMediaTone tone;
+  final String facts;
+
+  @override
+  ConsumerState<ChatDocument> createState() => _ChatDocumentState();
+}
+
+class _ChatDocumentState extends ConsumerState<ChatDocument> {
+  bool _wanted = false;
+
+  HelpFileRef? get _of =>
+      widget.file.source == null ? HelpFileRef.of(widget.file) : null;
+
+  Future<void> _save(File file) async {
+    _wanted = false;
+    final name = widget.file.name;
+    final dot = name.lastIndexOf('.');
+    final mime =
+        supportDocumentTypes[dot < 0
+            ? ''
+            : name.substring(dot + 1).toLowerCase()] ??
+        widget.file.mime ??
+        'application/octet-stream';
+    final saved = await ref
+        .read(fileSaverProvider)
+        .save(file, name: name, mime: mime);
+    if (!mounted) return;
+    switch (saved) {
+      case FileSave.saved:
+        IqToast.show(context, 'Document saved');
+      case FileSave.failed:
+        IqToast.show(
+          context,
+          'Document not saved. Try again.',
+          kind: IqToastKind.error,
+        );
+      case FileSave.cancelled:
+        break;
+    }
+  }
+
+  Future<void> _tap() async {
+    final source = widget.file.source;
+    if (source != null && source.scheme == 'file') {
+      return _save(File(source.toFilePath()));
+    }
+    final of = _of;
+    if (of == null) return;
+    final got = ref.read(helpFileProvider(of));
+    final kept = got.file;
+    if (got.status == HelpFileStatus.ready && kept != null) return _save(kept);
+    setState(() => _wanted = true);
+    await ref.read(helpFileProvider(of).notifier).fetch();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final of = _of;
+    final got = of == null ? null : ref.watch(helpFileProvider(of));
+    final kept = got?.file;
+    if (_wanted && got?.status == HelpFileStatus.ready && kept != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _wanted) _save(kept);
+      });
+    }
+    final loading = _wanted && got?.status == HelpFileStatus.loading;
+    final failed = _wanted && got?.status == HelpFileStatus.failed;
+    final progress = got?.progress;
+    final local = widget.file.source?.scheme == 'file';
+    return IqChatMedia(
+      kind: IqChatMediaKind.file,
+      tone: widget.tone,
+      width: 282,
+      name: widget.file.name,
+      fileIcon: IqIcons.document,
+      meta: failed
+          ? 'Couldn’t download. Tap to try again.'
+          : loading
+          ? 'Downloading… ${((progress ?? 0) * 100).round()}%'
+          : widget.facts,
+      onTap: of == null && !local ? null : _tap,
+      semanticLabel: widget.file.name,
     );
   }
 }

@@ -50,15 +50,12 @@ class SignedInFiles {
     );
   }
 
-  /// The file [id] when the account's folder already holds it.
-  Future<File?> kept({
-    required String userId,
-    required String id,
-    String name = '',
-  }) async {
+  /// The file [id] when the account's folder already holds it, looked up
+  /// at once so a screen draws it in its first frame.
+  File? kept({required String userId, required String id, String name = ''}) {
     final file = _file(userId, id, name);
     try {
-      return await file.exists() && await file.length() > 0 ? file : null;
+      return file.existsSync() && file.lengthSync() > 0 ? file : null;
     } on FileSystemException {
       return null;
     }

@@ -122,6 +122,7 @@ void main() {
           LiveFeature.supportChannels,
           LiveFeature.pollQuestions,
           LiveFeature.genderRequired,
+          LiveFeature.supportDocuments,
         }),
       );
     });
@@ -275,6 +276,7 @@ void main() {
         'supportChannels',
         'pollQuestions',
         'genderRequired',
+        'supportDocuments',
       ]);
     });
 
@@ -577,6 +579,7 @@ void main() {
         'supportChannels',
         'pollQuestions',
         'genderRequired',
+        'supportDocuments',
       ]);
       expect(backend.checkedAt, now);
       await backend.lock();
@@ -604,6 +607,7 @@ void main() {
         'supportChannels',
         'pollQuestions',
         'genderRequired',
+        'supportDocuments',
       ]);
     });
 

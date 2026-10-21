@@ -79,7 +79,7 @@ void main() {
     await _tap(tester, _label('Send'));
     expect(find.text('Thank you.'), findsOneWidget);
     final ticks = tester.widgetList<IqChatTicks>(find.byType(IqChatTicks));
-    expect(ticks.last.state, IqChatTicksState.saved);
+    expect(ticks.first.state, IqChatTicksState.saved);
 
     await _tap(tester, _label('Mark as resolved'));
     expect(find.byType(IqChatResolvedBar), findsOneWidget);

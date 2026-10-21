@@ -11,8 +11,8 @@ enum HelpAuthor { you, support }
 /// How iQLY's staff sign their replies.
 const iqlySupport = 'iQLY support';
 
-/// A [file] is a document (the demo's receipt); the API sends pictures,
-/// videos and voice notes only.
+/// A [file] is a document: a PDF, Word, Excel or PowerPoint file, a text
+/// or a CSV (the API's `document`, while health says `supportDocuments`).
 enum HelpAttachmentKind { image, video, audio, file }
 
 /// Who a thread is with and answered by (contract 12.1 `channel`): iQLY
@@ -28,7 +28,7 @@ String attachmentOnlyBody(HelpAttachmentKind kind) => switch (kind) {
   HelpAttachmentKind.audio => 'Voice note',
   HelpAttachmentKind.image => 'Photo',
   HelpAttachmentKind.video => 'Video',
-  HelpAttachmentKind.file => 'File',
+  HelpAttachmentKind.file => 'Document',
 };
 
 /// A file sent with a message: a screen recording in the frames, and on the
