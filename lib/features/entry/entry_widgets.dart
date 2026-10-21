@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -12,6 +14,7 @@ import '../../ui/field.dart';
 import '../../ui/pressable.dart';
 import '../../ui/step_mark.dart';
 import '../../ui/top_bar.dart';
+import '../shell/tablet_entry.dart';
 
 void goBack(BuildContext context, String fallback) {
   if (context.canPop()) {
@@ -171,9 +174,13 @@ class EntryScaffold extends StatelessWidget {
     this.settle = false,
     this.entrance,
     this.showBack = true,
+    this.tabletFooter,
   });
 
   final VoidCallback onBack;
+
+  /// Under the button in the tablet entry split ("New to iQLY? Sign up").
+  final Widget? tabletFooter;
 
   /// Reset link sent draws its Page bar with the back layer hidden.
   final bool showBack;
@@ -206,6 +213,35 @@ class EntryScaffold extends StatelessWidget {
     final entrance = this.entrance;
     if (entrance != null) {
       content = Sequence(length: entrance, play: arriving, child: content);
+    }
+    if (TabletEntryScope.of(context)) {
+      return AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.dark,
+        child: Scaffold(
+          backgroundColor: IqColors.bg,
+          resizeToAvoidBottomInset: hasFields,
+          body: LayoutBuilder(
+            builder: (context, box) => SingleChildScrollView(
+              padding: const EdgeInsets.all(IqSpace.s6),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: math.max(0, box.maxHeight - IqSpace.s6 * 2),
+                ),
+                child: Center(
+                  child: SizedBox(
+                    width: TabletEntryScope.formWidth,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [content, ?action, ?tabletFooter],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
     }
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
@@ -253,6 +289,8 @@ class StepMarkChrome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The tablet sign-up frames (1854:62713) draw no step mark.
+    if (TabletEntryScope.of(context)) return const SizedBox.shrink();
     return ChromeHero(
       tag: ChromeTags.stepMark,
       shuttle: (context, progress, from, to) => Stack(
@@ -289,12 +327,14 @@ class EntryAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        IqSpace.s4,
-        IqSpace.s3,
-        IqSpace.s4,
-        IqSpace.s6,
-      ),
+      padding: TabletEntryScope.of(context)
+          ? const EdgeInsets.only(top: IqSpace.s6, bottom: IqSpace.s4)
+          : const EdgeInsets.fromLTRB(
+              IqSpace.s4,
+              IqSpace.s3,
+              IqSpace.s4,
+              IqSpace.s6,
+            ),
       child: ChromeHero(
         tag: ChromeTags.next,
         child: IqButton(
@@ -368,7 +408,9 @@ class EntryButtons extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(IqSpace.s4, IqSpace.s3, IqSpace.s4, 0),
+      padding: TabletEntryScope.of(context)
+          ? const EdgeInsets.only(top: IqSpace.s6)
+          : const EdgeInsets.fromLTRB(IqSpace.s4, IqSpace.s3, IqSpace.s4, 0),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

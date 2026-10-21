@@ -19,6 +19,7 @@ import '../../ui/box_field.dart';
 import '../../ui/brand_logo.dart';
 import '../../ui/button.dart';
 import '../../ui/provider_button.dart';
+import '../shell/tablet_entry.dart';
 import 'entry_copy.dart';
 import 'entry_state.dart';
 import 'entry_widgets.dart';
@@ -304,6 +305,7 @@ class _LandingScreenState extends ConsumerState<LandingScreen>
                 onTap: () => _email.focus.unfocus(),
                 child: SafeArea(
                   child: CenteredContent(
+                    tablet: true,
                     child: Sequence(
                       length:
                           IqLandingTiming.rowsAt +
@@ -323,6 +325,7 @@ class _LandingScreenState extends ConsumerState<LandingScreen>
   }
 
   Widget _body(BuildContext context, bool focused) {
+    if (TabletEntryScope.of(context)) return _tabletBody();
     // The two groups sit at the top and bottom of at least a screen's
     // height and scroll when they do not fit. No intrinsic sizing: the
     // hidden banner still measures its strip.
@@ -339,6 +342,105 @@ class _LandingScreenState extends ConsumerState<LandingScreen>
                 children: [
                   Column(children: _top(focused)),
                   Column(children: _bottom(focused)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// T2 Sign up (1854:64811): the headline over the providers, the box and
+  /// Continue, then the sign in and legal lines, in the split's 400 column.
+  /// Nothing steps aside while the box has focus.
+  Widget _tabletBody() {
+    final auth = ref.read(authServiceProvider);
+    final banner = _lastBanner;
+    return LayoutBuilder(
+      builder: (context, box) => SingleChildScrollView(
+        padding: const EdgeInsets.all(IqSpace.s6),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: math.max(0, box.maxHeight - IqSpace.s6 * 2),
+          ),
+          child: Center(
+            child: SizedBox(
+              width: TabletEntryScope.formWidth,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Semantics(
+                    header: true,
+                    child: Text(
+                      'The arena for bold African thinkers.',
+                      style: IqText.display.copyWith(color: IqColors.fg),
+                    ),
+                  ),
+                  Semantics(
+                    liveRegion: true,
+                    child: IqBanner(
+                      kind: IqBannerKind.error,
+                      title: banner.message,
+                      action: 'Sign in',
+                      showAction: banner.signIn,
+                      onAction: _signIn,
+                      visible: _banner != null,
+                      margin: const EdgeInsets.only(top: IqSpace.s3),
+                    ),
+                  ),
+                  const SizedBox(height: IqSpace.s5),
+                  if (auth.offers(AuthProvider.apple)) ...[
+                    IqProviderButton(
+                      kind: IqProviderButtonKind.apple,
+                      width: double.infinity,
+                      onTap: () => _continueWith(AuthProvider.apple),
+                    ),
+                    const SizedBox(height: IqSpace.s5),
+                  ],
+                  if (auth.offers(AuthProvider.google)) ...[
+                    IqProviderButton(
+                      kind: IqProviderButtonKind.google,
+                      width: double.infinity,
+                      onTap: () => _continueWith(AuthProvider.google),
+                    ),
+                    const SizedBox(height: IqSpace.s5),
+                    const _OrDivider(),
+                    const SizedBox(height: IqSpace.s5),
+                  ],
+                  Shake(
+                    trigger: _email.fails,
+                    child: IqBoxField(
+                      tone: IqBoxFieldTone.paper,
+                      state: _email.error == null
+                          ? null
+                          : IqBoxFieldState.error,
+                      help: _email.error ?? '',
+                      controller: _email.controller,
+                      focusNode: _email.focus,
+                      width: double.infinity,
+                      textInputAction: TextInputAction.go,
+                      onSubmitted: (_) => _continueTapped(),
+                    ),
+                  ),
+                  const SizedBox(height: IqSpace.s5),
+                  IqButton(
+                    label: 'Continue',
+                    showIcon: false,
+                    width: double.infinity,
+                    disabled: _email.text.isEmpty,
+                    loading: _checking,
+                    onTap: _continueTapped,
+                  ),
+                  const SizedBox(height: IqSpace.s3),
+                  LinkRow(
+                    lead: 'Already with us?',
+                    link: 'Sign in',
+                    onTap: _signIn,
+                  ),
+                  const SizedBox(height: IqSpace.s2),
+                  _legal(),
                 ],
               ),
             ),

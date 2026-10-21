@@ -4,7 +4,7 @@ import '../../core/responsive.dart';
 import '../../theme/theme.dart';
 import '../../ui/illustration.dart';
 
-/// T2 and T3 (Mobile App · tablet): each sign-up, sign-in and onboarding
+/// T3 (Mobile App · tablet): each onboarding
 /// step on a tablet is one card centred on the cream canvas, 600 wide,
 /// with the step's own layout inside it.
 class TabletStepCard extends StatelessWidget {
@@ -24,10 +24,6 @@ class TabletStepCard extends StatelessWidget {
       location != '/onboarding/resume';
 
   static bool covers(String location) => const [
-    '/sign-up',
-    '/sign-in',
-    '/verify-email',
-    '/forgot-password',
     '/onboarding',
     '/turn-on-notifications',
   ].any((r) => location == r || location.startsWith('$r/'));

@@ -29,6 +29,7 @@ void main() {
     'onboarding': Routes.onboarding,
     'onboarding_about_you': Routes.onboardingAboutYou,
     'sign_up_name': Routes.yourName,
+    'sign_up_password': Routes.createPassword,
   };
 
   for (final frame in [TabletFrameSize.portrait, TabletFrameSize.landscape]) {

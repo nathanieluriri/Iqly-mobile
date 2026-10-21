@@ -137,11 +137,11 @@ class _TabletFrameState extends ConsumerState<TabletFrame> {
     if (TabletSettings.covers(location)) {
       return TabletSettings(location: location, child: page);
     }
+    if (TabletEntrySplit.covers(location)) {
+      return TabletEntrySplit(page: page);
+    }
     if (TabletStepCard.covers(location)) {
       return TabletStepCard(location: location, child: page);
-    }
-    if (location == Routes.landing || location.startsWith('/invite/')) {
-      return TabletEntrySplit(page: page);
     }
     if (location == Routes.support) {
       return const TabletLocation(
