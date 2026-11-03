@@ -11,6 +11,11 @@ on:
         description: Release to patch, as pubspec.yaml had it (0.1.0+1), or latest
         required: true
         default: latest
+      allow_diffs:
+        description: Publish the Dart patch even when native or asset files differ
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   patch:
@@ -32,9 +37,10 @@ jobs:
         run: |
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/iqly-upload.jks"
           echo "IQLY_KEYSTORE_PATH=$RUNNER_TEMP/iqly-upload.jks" >> "$GITHUB_ENV"
-      - run: shorebird patch android --release-version="$RELEASE_VERSION"
+      - run: shorebird patch android --release-version="$RELEASE_VERSION" $DIFFS
         env:
           RELEASE_VERSION: ${{ inputs.release_version }}
+          DIFFS: ${{ inputs.allow_diffs && '--allow-native-diffs --allow-asset-diffs' || '' }}
           IQLY_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           IQLY_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           IQLY_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
