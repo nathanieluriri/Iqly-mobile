@@ -8,11 +8,17 @@ import 'live/live_repository.dart';
 
 /// `GET /me/kyc`. Dojah has matched the name, or it has not.
 class KycStatus {
-  const KycStatus({this.verified = false, this.method, this.last4});
+  const KycStatus({
+    this.required = false,
+    this.verified = false,
+    this.method,
+    this.last4,
+  });
 
   factory KycStatus.fromJson(Map<String, dynamic> json) {
     final method = json['method'];
     return KycStatus(
+      required: json['required'] == true,
       verified: json['verified'] == true,
       method: method == 'bvn'
           ? KycMethod.bvn
@@ -23,9 +29,13 @@ class KycStatus {
     );
   }
 
+  /// False until both Dojah keys are set. Withdrawals are not gated before that.
+  final bool required;
   final bool verified;
   final KycMethod? method;
   final String? last4;
+
+  bool get needsCheck => required && !verified;
 }
 
 enum KycMethod { nin, bvn }

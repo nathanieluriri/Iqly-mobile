@@ -70,9 +70,13 @@ class _WithdrawEntryState extends ConsumerState<WithdrawEntry> {
     try {
       final status = await service.status();
       if (!mounted) return;
-      setState(() => _step = status.verified ? _Step.withdraw : _Step.prompt);
+      setState(() => _step = status.needsCheck ? _Step.prompt : _Step.withdraw);
     } on KycRefused catch (refused) {
       if (!mounted) return;
+      if (refused.problem == KycProblem.notConfigured) {
+        setState(() => _step = _Step.withdraw);
+        return;
+      }
       setState(() {
         _step = _Step.failed;
         _banner = kycError(refused);
