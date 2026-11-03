@@ -131,7 +131,8 @@ final kycServiceProvider = Provider<KycService?>((ref) {
 
 /// Words for a refused check.
 String kycError(KycRefused refused) => switch (refused.problem) {
-  KycProblem.mismatch => 'That name does not match this ID.',
+  KycProblem.mismatch =>
+    'That name does not match this ID. Check the name and the number.',
   KycProblem.unavailable => 'The identity check did not complete. Try again.',
   KycProblem.notConfigured => 'Identity checks are not set up yet.',
   KycProblem.invalid => 'Check the number and your name.',

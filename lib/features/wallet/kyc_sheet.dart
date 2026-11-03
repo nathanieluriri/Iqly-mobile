@@ -9,13 +9,15 @@ import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/button.dart';
 import '../../ui/field.dart';
+import '../../ui/segmented.dart';
 import '../../ui/spinner.dart';
 import '../../ui/top_bar.dart';
 import 'wallet_sheet.dart';
 import 'withdraw_sheet.dart';
 
-/// The withdraw route. A live wallet that has not matched a name yet shows
-/// the prompt, then the NIN or BVN form, then [WithdrawSheet].
+/// The withdraw route. A live wallet that still needs a name match shows the
+/// NIN or BVN fields here, then [WithdrawSheet]. No check, an existing match,
+/// or a wallet that is not configured opens [WithdrawSheet] at once.
 class WithdrawEntry extends ConsumerStatefulWidget {
   const WithdrawEntry({super.key, this.amountKobo, this.account});
 
@@ -26,7 +28,7 @@ class WithdrawEntry extends ConsumerStatefulWidget {
   ConsumerState<WithdrawEntry> createState() => _WithdrawEntryState();
 }
 
-enum _Step { checking, failed, prompt, form, withdraw }
+enum _Step { checking, failed, form, withdraw }
 
 class _WithdrawEntryState extends ConsumerState<WithdrawEntry> {
   final _number = TextEditingController();
@@ -70,7 +72,7 @@ class _WithdrawEntryState extends ConsumerState<WithdrawEntry> {
     try {
       final status = await service.status();
       if (!mounted) return;
-      setState(() => _step = status.needsCheck ? _Step.prompt : _Step.withdraw);
+      setState(() => _step = status.needsCheck ? _Step.form : _Step.withdraw);
     } on KycRefused catch (refused) {
       if (!mounted) return;
       if (refused.problem == KycProblem.notConfigured) {
@@ -140,11 +142,19 @@ class _WithdrawEntryState extends ConsumerState<WithdrawEntry> {
         if (status.verified) {
           _step = _Step.withdraw;
         } else {
-          _banner = 'That name does not match this ID.';
+          _banner =
+              'That name does not match this ID. Check the name and the number.';
         }
       });
     } on KycRefused catch (refused) {
       if (!mounted) return;
+      if (refused.problem == KycProblem.notConfigured) {
+        setState(() {
+          _busy = false;
+          _step = _Step.withdraw;
+        });
+        return;
+      }
       setState(() {
         _busy = false;
         _banner = kycError(refused);
@@ -192,26 +202,13 @@ class _WithdrawEntryState extends ConsumerState<WithdrawEntry> {
                   action: 'Try again',
                   onAction: _load,
                 )
-              else if (_step == _Step.checking)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: IqSpace.s4),
-                  child: Center(
-                    child: IqSpinner(color: IqColors.brand, size: 24),
-                  ),
-                )
-              else ...[
+              else if (_step == _Step.checking) ...[
+                const Center(child: IqSpinner(color: IqColors.brand, size: 24)),
+                const SizedBox(height: IqSpace.s3),
                 Text(
-                  'Before your first withdrawal, we match your name to your '
-                  'NIN or BVN. We store that it matched and the last 4 digits, '
-                  'not the full number.',
+                  'Checking your details.',
+                  textAlign: TextAlign.center,
                   style: IqText.body.copyWith(color: IqColors.fg2),
-                ),
-                const SizedBox(height: IqSpace.s4),
-                IqButton(
-                  label: 'Continue',
-                  showIcon: false,
-                  width: double.infinity,
-                  onTap: () => setState(() => _step = _Step.form),
                 ),
               ],
             ],
@@ -223,114 +220,146 @@ class _WithdrawEntryState extends ConsumerState<WithdrawEntry> {
 
   Widget _form() {
     final id = _method == KycMethod.nin ? 'NIN' : 'BVN';
-    final fields = SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(
-        IqSpace.s4,
-        IqSpace.s3,
-        IqSpace.s4,
-        IqSpace.s4,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (_banner != null) ...[
-            IqBanner(
-              kind: IqBannerKind.error,
-              title: _banner,
-              showAction: false,
-            ),
-            const SizedBox(height: IqSpace.s3),
+    final tablet = Layout.isTablet(context);
+    final fieldList = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Before your first withdrawal, we match your name to your '
+          'NIN or BVN.',
+          style: IqText.body.copyWith(color: IqColors.fg2),
+        ),
+        const SizedBox(height: IqSpace.s3),
+        IqSegmented(
+          option1: 'NIN',
+          option2: 'BVN',
+          option3: null,
+          selected: _method == KycMethod.nin
+              ? IqSegmentedSelected.first
+              : IqSegmentedSelected.second,
+          onChanged: (selected) => setState(() {
+            _method = selected == IqSegmentedSelected.first
+                ? KycMethod.nin
+                : KycMethod.bvn;
+          }),
+        ),
+        const SizedBox(height: IqSpace.s3),
+        IqField(
+          label: id,
+          value: '12345678901',
+          controller: _number,
+          state: _numberError == null ? null : IqFieldState.error,
+          help: _numberError ?? '11 digits.',
+          showNote: false,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          textInputAction: TextInputAction.next,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(11),
           ],
-          Row(
-            children: [
-              Expanded(child: _methodButton(KycMethod.nin, 'NIN')),
-              const SizedBox(width: IqSpace.s2),
-              Expanded(child: _methodButton(KycMethod.bvn, 'BVN')),
-            ],
-          ),
-          const SizedBox(height: IqSpace.s3),
-          IqField(
-            label: id,
-            value: '12345678901',
-            controller: _number,
-            state: _numberError == null ? null : IqFieldState.error,
-            help: _numberError ?? '11 digits.',
-            showNote: false,
-            keyboardType: TextInputType.number,
-            textInputAction: TextInputAction.next,
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-              LengthLimitingTextInputFormatter(11),
-            ],
-          ),
-          const SizedBox(height: IqSpace.s2),
-          IqField(
-            label: 'First name',
-            value: 'Adaeze',
-            controller: _first,
-            state: _firstError == null ? null : IqFieldState.error,
-            help: _firstError ?? '',
-            showNote: false,
-            textInputAction: TextInputAction.next,
-            autofillHints: const [AutofillHints.givenName],
-            keyboardType: TextInputType.name,
-          ),
-          const SizedBox(height: IqSpace.s2),
-          IqField(
-            label: 'Last name',
-            value: 'Okafor',
-            controller: _last,
-            state: _lastError == null ? null : IqFieldState.error,
-            help: _lastError ?? '',
-            showNote: false,
-            textInputAction: TextInputAction.done,
-            autofillHints: const [AutofillHints.familyName],
-            keyboardType: TextInputType.name,
-            onSubmitted: (_) => _confirm(),
-          ),
-          const SizedBox(height: IqSpace.s2),
-          IqField(
-            kind: IqFieldKind.picker,
-            pickerLabel: 'Date of birth',
-            pickerValue: _dob == null ? '' : _iso(_dob!),
-            pickerPlaceholder: 'Optional',
-            help: 'Optional.',
-            showNote: false,
-            showStatus: false,
-            onTap: _pickDob,
-          ),
-          const SizedBox(height: IqSpace.s4),
-          IqButton(
-            label: 'Confirm',
-            showIcon: false,
-            width: double.infinity,
-            loading: _busy,
-            onTap: _confirm,
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: IqSpace.s2),
+        IqField(
+          label: 'First name',
+          value: 'Adaeze',
+          controller: _first,
+          state: _firstError == null ? null : IqFieldState.error,
+          help: _firstError ?? '',
+          showNote: false,
+          textInputAction: TextInputAction.next,
+          autofillHints: const [AutofillHints.givenName],
+          keyboardType: TextInputType.name,
+        ),
+        const SizedBox(height: IqSpace.s2),
+        IqField(
+          label: 'Last name',
+          value: 'Okafor',
+          controller: _last,
+          state: _lastError == null ? null : IqFieldState.error,
+          help: _lastError ?? '',
+          showNote: false,
+          textInputAction: TextInputAction.done,
+          autofillHints: const [AutofillHints.familyName],
+          keyboardType: TextInputType.name,
+          onSubmitted: (_) => _confirm(),
+        ),
+        const SizedBox(height: IqSpace.s2),
+        IqField(
+          kind: IqFieldKind.picker,
+          pickerLabel: 'Date of birth',
+          pickerValue: _dob == null ? '' : _iso(_dob!),
+          pickerPlaceholder: 'Optional',
+          state: _dob == null ? IqFieldState.empty : IqFieldState.valid,
+          help: 'Optional.',
+          showNote: false,
+          showStatus: false,
+          onTap: _pickDob,
+        ),
+      ],
     );
+    // Tablet WalletSheet already scrolls. A nested scroll view has no height.
+    final fields = tablet
+        ? Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: IqSpace.s4,
+              vertical: IqSpace.s3,
+            ),
+            child: fieldList,
+          )
+        : SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(
+              horizontal: IqSpace.s4,
+              vertical: IqSpace.s3,
+            ),
+            child: fieldList,
+          );
     return WalletSheet(
       children: [
         IqTopBar(
           variant: IqTopBarVariant.sheet,
-          title: 'Your NIN or BVN',
+          title: 'Confirm your name',
           onClose: () => context.pop(),
         ),
-        // The tablet sheet already scrolls. A flex child there has no height.
-        if (Layout.isTablet(context)) fields else Flexible(child: fields),
+        if (_banner != null)
+          Padding(
+            padding: const EdgeInsets.only(
+              left: IqSpace.s4,
+              top: IqSpace.s3,
+              right: IqSpace.s4,
+            ),
+            child: IqBanner(
+              kind: IqBannerKind.error,
+              title: _banner,
+              showAction: false,
+            ),
+          ),
+        if (tablet) fields else Flexible(child: fields),
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: IqSpace.s4,
+            vertical: IqSpace.s3,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IqButton(
+                label: 'Check and continue',
+                showIcon: false,
+                width: double.infinity,
+                loading: _busy,
+                onTap: _confirm,
+              ),
+              const SizedBox(height: IqSpace.s3),
+              Text(
+                'We keep the last 4 digits, not the full number.',
+                textAlign: TextAlign.center,
+                style: IqText.small.copyWith(color: IqColors.fg3),
+              ),
+            ],
+          ),
+        ),
       ],
-    );
-  }
-
-  Widget _methodButton(KycMethod method, String label) {
-    final on = _method == method;
-    return IqButton(
-      label: label,
-      kind: on ? IqButtonKind.primary : IqButtonKind.secondary,
-      showIcon: false,
-      width: double.infinity,
-      onTap: () => setState(() => _method = method),
     );
   }
 }
