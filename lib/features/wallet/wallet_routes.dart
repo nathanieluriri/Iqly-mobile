@@ -12,8 +12,8 @@ import 'add_bank_screen.dart';
 import 'bank_account_sheet.dart';
 import 'select_bank_screen.dart';
 import 'wallet_balance_screen.dart';
+import 'kyc_sheet.dart';
 import 'wallet_screen.dart';
-import 'withdraw_sheet.dart';
 import 'withdrawal_pending_screen.dart';
 
 /// The tracker, arrived, failed and reversed states of one withdrawal. The
@@ -58,7 +58,7 @@ GoRoute walletTabRoute(GlobalKey<NavigatorState> rootKey) => GoRoute(
       parentNavigatorKey: rootKey,
       pageBuilder: (context, state) {
         final query = state.uri.queryParameters;
-        final sheet = WithdrawSheet(
+        final sheet = WithdrawEntry(
           amountKobo: int.tryParse(query['amount'] ?? ''),
           account: query['account'],
         );
