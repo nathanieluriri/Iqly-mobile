@@ -37,7 +37,7 @@ class _IqlyAppState extends ConsumerState<IqlyApp> {
         ref.read(updatesProvider.notifier).resumed();
         ref.read(backendProvider.notifier).resumed();
         ref.read(patchesProvider.notifier).resumed();
-        refreshUnseen(ref);
+        refreshUnseenOn(ref);
         if (!ref.read(liveModeProvider).isPreview &&
             ref.exists(mySubmissionsProvider)) {
           ref.read(mySubmissionsProvider.notifier).refreshQuietly();

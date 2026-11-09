@@ -86,6 +86,15 @@ void refreshUnseen(Ref ref) {
   }
 }
 
+/// Same as [refreshUnseen], for a widget's ref. Shorebird's Dart will not
+/// take a WidgetRef where a Ref is asked.
+void refreshUnseenOn(WidgetRef ref) {
+  ref.invalidate(unreadNotificationsProvider);
+  if (ref.exists(notificationsProvider)) {
+    ref.read(notificationsProvider.notifier).refreshQuietly().ignore();
+  }
+}
+
 /// A push landed with iQLY open: the bell, the feed, My submissions, the
 /// polls, the activations, the support badge and any open help thread read
 /// again behind what they show, whichever of them this run has loaded.
