@@ -56,6 +56,9 @@ class DemoPollsService implements PollsService {
   ];
 
   @override
+  Future<List<PollBusiness>> kept() async => const [];
+
+  @override
   Future<PollBusiness> poll(String pollId) async {
     for (final business in _businesses) {
       for (final poll in business.polls) {
@@ -177,6 +180,9 @@ class PausedPollsService implements PollsService {
   Future<List<PollBusiness>> businesses({
     bool fresh = false,
   }) => _paused();
+
+  @override
+  Future<List<PollBusiness>> kept() async => const [];
 
   @override
   Future<PollBusiness> poll(String pollId) => _paused();
