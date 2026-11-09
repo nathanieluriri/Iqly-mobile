@@ -54,7 +54,9 @@ import 'tablet_discover.dart';
 /// a time under the lens chips pinned as chrome. Pull to refresh shows
 /// Exp/PullIndicator above the chips (192:8909); the first visit shows
 /// skeleton cards (165:8171, 192:9042); a failed load shows the error
-/// banner and the Thinker (165:8401); an empty feed the Shrug (165:8285).
+/// banner and the Thinker (165:8401); an empty briefs list the Shrug
+/// (165:8285), with Quick polls and Activations still above it when those
+/// have something to show.
 ///
 /// Motion: the first load waits behind LoadingGate and its items arrive
 /// 40 ms apart; later dock returns show the feed as it was and refresh it
@@ -558,18 +560,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ? const _SetupNudgeSlot()
               : const ArriveItem(child: _SetupNudgeSlot()),
         ),
-      if (content)
-        if (data == null ? _failed() : _emptyFeed(data) case final empty?)
+      if (content) ...[
+        if (data == null)
           IqSliverEmptyFill(
             key: const ValueKey('feed'),
             bottom: AppShell.contentInset(context),
-            child: empty,
+            child: _failed(),
           )
+        else if (_emptyFeed(data) case final empty?)
+          ..._emptySlivers(empty, standing: standing)
         else
           SliverList.list(
             key: const ValueKey('feed'),
-            children: _spaced(_feed(data!), standing: standing),
+            children: _spaced(_feed(data), standing: standing),
           ),
+      ],
     ];
     if (slivers.isEmpty) return const SliverToBoxAdapter();
     return SliverMainAxisGroup(slivers: slivers);
@@ -615,9 +620,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   /// rest 12 apart; with [standing], what the skeleton drew (everything down
   /// to the Briefs heading) stands in place.
   List<Widget> _spaced(List<_Item> items, {bool standing = false}) {
-    final drawn = standing
-        ? items.indexWhere((item) => item.key == 'briefs-title')
-        : -1;
+    final cut = items.indexWhere((item) => item.key == 'briefs-title');
+    final drawn = standing ? (cut >= 0 ? cut : items.length - 1) : -1;
     return [
       for (final (i, item) in items.indexed)
         if (i <= drawn)
@@ -752,8 +756,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ];
   }
 
-  /// The empty feed, or null when it has briefs. Its button only leads
-  /// somewhere else: For you points to All, and filters can be cleared.
+  /// The empty briefs state under any Quick polls and Activations, so those
+  /// still show when there is nothing in the brief list.
+  List<Widget> _emptySlivers(Widget empty, {required bool standing}) {
+    final proposals = _proposals();
+    return [
+      if (proposals.isNotEmpty)
+        SliverList.list(
+          key: const ValueKey('proposals'),
+          children: _spaced(proposals, standing: standing),
+        ),
+      IqSliverEmptyFill(
+        key: const ValueKey('feed'),
+        bottom: AppShell.contentInset(context),
+        child: empty,
+      ),
+    ];
+  }
+
+  /// The empty briefs state, or null when it has briefs. Its button only
+  /// leads somewhere else: For you points to All, and filters can be cleared.
   Widget? _emptyFeed(FeedData data) {
     if (!_view(data).isEmpty) return null;
     final filters = ref.read(discoverFiltersProvider);

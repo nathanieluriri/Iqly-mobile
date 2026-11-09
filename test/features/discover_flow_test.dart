@@ -228,6 +228,9 @@ void main() {
       repository: ScriptedRepository([BriefsCall.empty]),
       overrides: discoverOverrides(),
     );
+    expect(find.text('Quick polls'), findsOneWidget);
+    expect(find.text('Which flavour should we launch first?'), findsOneWidget);
+    expect(find.text('Rate 3 recipes in the Orchid Foods app'), findsOneWidget);
     expect(find.text('No open briefs right now'), findsOneWidget);
     expect(find.text('New briefs land here.'), findsOneWidget);
     await _tap(tester, find.text('See all briefs'));
