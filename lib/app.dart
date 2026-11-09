@@ -11,6 +11,7 @@ import 'data/onboarding_service.dart' show genderAskedProvider;
 import 'features/onboarding/onboarding_flow.dart';
 import 'data/live/live_repository.dart';
 import 'features/activations/activations_state.dart';
+import 'features/notifications/notifications_state.dart';
 import 'features/polls/polls_state.dart';
 import 'features/shell/tablet_frame.dart';
 import 'features/splash/patch_dialog.dart';
@@ -36,6 +37,7 @@ class _IqlyAppState extends ConsumerState<IqlyApp> {
         ref.read(updatesProvider.notifier).resumed();
         ref.read(backendProvider.notifier).resumed();
         ref.read(patchesProvider.notifier).resumed();
+        refreshUnseen(ref);
         if (!ref.read(liveModeProvider).isPreview &&
             ref.exists(mySubmissionsProvider)) {
           ref.read(mySubmissionsProvider.notifier).refreshQuietly();

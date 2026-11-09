@@ -13,7 +13,9 @@ import 'repository.dart';
 /// the bell at the repository's unread count.
 abstract class NotificationsService {
   /// The feed, newest first.
-  Future<List<AppNotification>> notifications();
+  /// [fresh] skips the kept copy so a visit or a push can show a row that
+  /// landed after the last read.
+  Future<List<AppNotification>> notifications({bool fresh = false});
 
   /// The bell: what arrived since the person last saw the feed.
   Future<int> unseen();
@@ -49,7 +51,9 @@ class DemoNotificationsService implements NotificationsService {
   }
 
   @override
-  Future<List<AppNotification>> notifications() async => [...await _load()];
+  Future<List<AppNotification>> notifications({bool fresh = false}) async => [
+    ...await _load(),
+  ];
 
   @override
   Future<int> unseen() async => _seen ? 0 : repository.unreadNotifications();
@@ -73,7 +77,8 @@ class PausedNotificationsService implements NotificationsService {
       Future.error(const FeaturePaused(LiveFeature.notifications));
 
   @override
-  Future<List<AppNotification>> notifications() => _paused();
+  Future<List<AppNotification>> notifications({bool fresh = false}) =>
+      _paused();
 
   @override
   Future<int> unseen() async => 0;
