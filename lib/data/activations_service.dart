@@ -29,7 +29,9 @@ abstract class ActivationsService {
   /// Open activations, with your progress on the ones you started.
   /// [fresh] skips the kept copy so a refresh can show one that landed
   /// after the last read.
-  Future<List<Activation>> activations({bool fresh = false});
+  Future<List<Activation>> activations({
+    bool fresh = false,
+  });
 
   /// What the phone kept from the last list, without asking the API.
   Future<List<Activation>> kept() async => const [];
@@ -142,7 +144,9 @@ class DemoActivationsService implements ActivationsService {
   }
 
   @override
-  Future<List<Activation>> activations({bool fresh = false}) async {
+  Future<List<Activation>> activations({
+    bool fresh = false,
+  }) async {
     await _wait(load);
     if (loadFailures > 0) {
       loadFailures--;
@@ -391,7 +395,9 @@ class LiveActivationsService implements ActivationsService {
   /// The open activations and the person's runs on the rest, then any run
   /// of theirs that list left out.
   @override
-  Future<List<Activation>> activations({bool fresh = false}) async {
+  Future<List<Activation>> activations({
+    bool fresh = false,
+  }) async {
     final (:json, :fetchedAt) = await link.fetchDated(
       '/activations',
       AccountKeys.activations,
@@ -579,7 +585,9 @@ class PausedActivationsService implements ActivationsService {
       Future.error(const FeaturePaused(LiveFeature.activations));
 
   @override
-  Future<List<Activation>> activations({bool fresh = false}) => _paused();
+  Future<List<Activation>> activations({
+    bool fresh = false,
+  }) => _paused();
 
   @override
   Future<Activation> start(String id) => _paused();

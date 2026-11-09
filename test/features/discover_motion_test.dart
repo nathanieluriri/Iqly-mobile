@@ -102,7 +102,9 @@ class _LateActivations extends DemoActivationsService {
   final list = Completer<List<Activation>>();
 
   @override
-  Future<List<Activation>> activations({bool fresh = false}) => list.future;
+  Future<List<Activation>> activations({
+    bool fresh = false,
+  }) => list.future;
 }
 
 /// The feed fails to load, and the retry waits for the test.
