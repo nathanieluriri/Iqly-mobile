@@ -150,9 +150,9 @@ void main() {
         '3 s, not the 20 s timeout', () {
       fakeAsync((async) {
         List<Object?>? got;
-        repository(_api((_) => null))
-            .briefs(load: BriefsLoad.feed)
-            .then((v) => got = v);
+        repository(
+          _api((_) => null),
+        ).briefs(load: BriefsLoad.feed).then((v) => got = v);
         async.elapse(const Duration(milliseconds: 2900));
         expect(got, isNull);
         async.elapse(const Duration(milliseconds: 100));
@@ -188,9 +188,9 @@ void main() {
     test('an answer that lands after the wait is kept for next time', () {
       fakeAsync((async) {
         final late = Completer<http.Response>();
-        repository(_api((_) => late.future))
-            .briefs(load: BriefsLoad.feed)
-            .ignore();
+        repository(
+          _api((_) => late.future),
+        ).briefs(load: BriefsLoad.feed).ignore();
         async.elapse(const Duration(seconds: 3));
         late.complete(
           _json(200, {
@@ -232,6 +232,45 @@ void main() {
         throwsA(isA<ApiRefused>()),
         reason: 'nothing kept',
       );
+    });
+
+    test('a refresh does not answer the polls or activations kept', () {
+      fakeAsync((async) {
+        Map<String, dynamic>? polls;
+        Map<String, dynamic>? activations;
+        Object? pollsError;
+        Object? activationsError;
+        store.writeCache('u_1', AccountKeys.polls, {
+          'businesses': <Object>[],
+        }).ignore();
+        store.writeCache('u_1', AccountKeys.activations, {
+          'items': <Object>[],
+        }).ignore();
+        async.flushMicrotasks();
+        final link = AccountLink(
+          api: _api((_) => null),
+          store: store,
+          outbox: Outbox(store),
+          userId: () => 'u_1',
+        );
+        link
+            .fetch('/polls', AccountKeys.polls, allowCache: false)
+            .then((v) => polls = v)
+            .catchError((Object e) => pollsError = e);
+        link
+            .fetchDated(
+              '/activations',
+              AccountKeys.activations,
+              allowCache: false,
+            )
+            .then((v) => activations = v.json)
+            .catchError((Object e) => activationsError = e);
+        async.elapse(const Duration(seconds: 3));
+        expect(polls, isNull);
+        expect(activations, isNull);
+        expect(pollsError, isNull);
+        expect(activationsError, isNull);
+      });
     });
 
     group('GET /me', () {
