@@ -223,6 +223,18 @@ void main() {
       expect(await service.unseen(), 1);
     });
 
+    test(
+      'a fresh read asks the API so a kept copy cannot hide a new row',
+      () async {
+        api.routes['GET /notifications'] = (_) =>
+            answer(page([paidOutRow], unseen: 1));
+        await service.notifications();
+        api.routes['GET /notifications'] = (_) =>
+            answer(page([row(2)], unseen: 1));
+        expect((await service.notifications(fresh: true)).single.id, 'n_2');
+      },
+    );
+
     test('the bell reads unseen, and a seen mark still to go clears what it '
         'covers at once', () async {
       api.routes['GET /notifications'] = (_) =>

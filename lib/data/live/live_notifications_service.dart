@@ -127,8 +127,8 @@ class LiveNotificationsService implements NotificationsService {
   DateTime? _newest;
 
   @override
-  Future<List<AppNotification>> notifications() async {
-    final feed = await _feed();
+  Future<List<AppNotification>> notifications({bool fresh = false}) async {
+    final feed = await _feed(fresh: fresh);
     final read = {
       for (final mark in await link.waiting(AccountWrite.read)) ..._ids(mark),
     };
@@ -145,12 +145,14 @@ class LiveNotificationsService implements NotificationsService {
   }
 
   /// Every page up to [cap] rows, kept as one; the copy kept last when the
-  /// API does not answer ([orKept]).
-  Future<Map<String, dynamic>> _feed() {
+  /// API does not answer ([orKept]). [fresh] waits for the API so a new
+  /// row is not hidden by that copy.
+  Future<Map<String, dynamic>> _feed({bool fresh = false}) {
     final fetching = _pages().then((feed) async {
       await link.keep(AccountKeys.notifications, feed);
       return feed;
     });
+    if (fresh) return fetching;
     return orKept(
       fetching,
       link
@@ -175,8 +177,9 @@ class LiveNotificationsService implements NotificationsService {
   }
 
   Future<Map<String, dynamic>> _page(int limit, String? cursor) async {
-    final query = Uri(queryParameters: {'limit': '$limit', 'cursor': ?cursor})
-        .query;
+    final query = Uri(
+      queryParameters: {'limit': '$limit', 'cursor': ?cursor},
+    ).query;
     final res = await link.api.get(
       '/notifications?$query',
       etags: link.etagCache,

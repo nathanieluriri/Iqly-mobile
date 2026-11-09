@@ -52,7 +52,8 @@ DateTime figmaClock() => figmaNow;
 /// No notifications yet.
 class EmptyNotificationsService implements NotificationsService {
   @override
-  Future<List<AppNotification>> notifications() async => const [];
+  Future<List<AppNotification>> notifications({bool fresh = false}) async =>
+      const [];
 
   @override
   Future<int> unseen() async => 0;
@@ -70,7 +71,7 @@ class FailingNotificationsService extends EmptyNotificationsService {
   bool fail = true;
 
   @override
-  Future<List<AppNotification>> notifications() async {
+  Future<List<AppNotification>> notifications({bool fresh = false}) async {
     calls++;
     if (fail) throw Exception('offline');
     return const [];

@@ -219,7 +219,8 @@ final activationsShownProvider = Provider<bool>((ref) {
 });
 
 /// The bell's unread count, shared by every tab's top bar. It clears once
-/// the feed has been seen.
+/// the feed has been seen. A push, a resume or a pull reads it again;
+/// otherwise it stays at what the last read said.
 final unreadNotificationsProvider = FutureProvider<int>(
   (ref) => ref.watch(notificationsServiceProvider).unseen(),
 );

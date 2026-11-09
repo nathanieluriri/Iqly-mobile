@@ -37,6 +37,7 @@ import '../activations/activations_routes.dart';
 import '../activations/activations_state.dart';
 import '../entry/first_tip.dart';
 import '../entry/notifications_ask_screen.dart';
+import '../notifications/notifications_state.dart';
 import '../polls/polls_routes.dart';
 import '../polls/polls_state.dart';
 import '../polls/quick_poll_tile.dart';
@@ -172,6 +173,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     if (ref.read(activationsShownProvider)) {
       ref.read(activationsProvider.notifier).refreshQuietly();
     }
+    refreshUnseen(ref);
   }
 
   /// A pull hands its overscroll to the slot, so nothing jumps, and the list
@@ -363,6 +365,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       if (ref.read(activationsShownProvider)) {
         ref.read(activationsProvider.notifier).refreshQuietly();
       }
+      refreshUnseen(ref);
       // The tab is told before the dock switch shows it.
       WidgetsBinding.instance.addPostFrameCallback((_) => _offerUpdate());
     });

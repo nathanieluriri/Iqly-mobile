@@ -133,13 +133,16 @@ void main() {
     expect(devices.calls, ['register s1 android', 'register s1 android']);
   });
 
-  test('a tap opens the route the push carries; arrivals refresh', () async {
-    final p = push();
-    await p.start();
-    sdk.opened!({'route': '/wallet/withdrawals/w3'});
-    sdk.opened!({'other': 1});
-    sdk.arrived!();
-    expect(opened, ['/wallet/withdrawals/w3']);
-    expect(arrivals, 1);
-  });
+  test(
+    'a tap opens the route the push carries and reads the bell again',
+    () async {
+      final p = push();
+      await p.start();
+      sdk.opened!({'route': '/wallet/withdrawals/w3'});
+      sdk.opened!({'other': 1});
+      sdk.arrived!();
+      expect(opened, ['/wallet/withdrawals/w3']);
+      expect(arrivals, 3);
+    },
+  );
 }

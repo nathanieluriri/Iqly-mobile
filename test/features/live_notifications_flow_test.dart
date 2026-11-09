@@ -1,9 +1,11 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/data/live/live_account.dart';
 import 'package:iqly_mobile/data/live/live_repository.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/notifications/notification_screen.dart';
 import 'package:iqly_mobile/features/notifications/notifications_screen.dart';
+import 'package:iqly_mobile/features/notifications/notifications_state.dart';
 import 'package:iqly_mobile/features/outcomes/outcomes_routes.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/leaderboard_row.dart';
@@ -191,6 +193,28 @@ void main() {
     final seen = (await store.outbox('u_1')).single;
     expect(seen.kind, AccountWrite.seen.kind);
     expect(seen.payload, {'until': _ago(1)});
+  });
+
+  testWidgets('the bell reads unseen again after a new row lands', (
+    tester,
+  ) async {
+    var unseen = 0;
+    final api = accountApi({
+      'GET /notifications': (_) =>
+          answer({'items': _feed, 'nextCursor': null, 'unseen': unseen}),
+    });
+    final (container, _) = await pumpLive(tester, Routes.home, api);
+    expect(container.read(unreadNotificationsProvider).value, 0);
+
+    unseen = 2;
+    container.read(
+      Provider(
+        (ref) =>
+            () => refreshUnseen(ref),
+      ),
+    )();
+    await tester.pumpAndSettle();
+    expect(container.read(unreadNotificationsProvider).value, 2);
   });
 
   testWidgets('a live win opens its Notification page worded from the row, '

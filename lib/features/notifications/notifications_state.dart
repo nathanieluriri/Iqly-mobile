@@ -44,7 +44,9 @@ class NotificationsNotifier extends AsyncNotifier<List<AppNotification>> {
     final scope = ref.read(accountScopeProvider);
     final List<AppNotification> rows;
     try {
-      rows = await ref.read(notificationsServiceProvider).notifications();
+      rows = await ref
+          .read(notificationsServiceProvider)
+          .notifications(fresh: true);
     } on Object {
       return;
     }
@@ -75,11 +77,20 @@ final notificationsProvider =
       retry: (_, _) => null,
     );
 
+/// The bell and the feed read again: a push, a resume, a pull. The number
+/// on every tab's bell is a one-shot read until something asks again.
+void refreshUnseen(Ref ref) {
+  ref.invalidate(unreadNotificationsProvider);
+  if (ref.exists(notificationsProvider)) {
+    ref.read(notificationsProvider.notifier).refreshQuietly().ignore();
+  }
+}
+
 /// A push landed with iQLY open: the bell, the feed, My submissions, the
 /// polls, the activations, the support badge and any open help thread read
 /// again behind what they show, whichever of them this run has loaded.
 void readAgainOnPush(Ref ref) {
-  ref.invalidate(unreadNotificationsProvider);
+  refreshUnseen(ref);
   ref.invalidate(supportUnreadProvider);
   if (ref.exists(helpTicketsProvider)) {
     ref.read(helpTicketsProvider.notifier).refreshOpen();
@@ -87,9 +98,6 @@ void readAgainOnPush(Ref ref) {
   if (ref.exists(helpInboxProvider) &&
       ref.read(helpInboxProvider).tickets != null) {
     ref.read(helpInboxProvider.notifier).refresh(quiet: true).ignore();
-  }
-  if (ref.exists(notificationsProvider)) {
-    ref.read(notificationsProvider.notifier).refreshQuietly().ignore();
   }
   if (ref.exists(mySubmissionsProvider)) {
     ref.read(mySubmissionsProvider.notifier).refreshQuietly();

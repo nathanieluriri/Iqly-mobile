@@ -106,7 +106,8 @@ class Push {
   final bool Function() signedIn;
   final void Function(String route) onOpen;
 
-  /// A push landed while iQLY is open: the bell count and feed refresh.
+  /// A push landed, or the person opened one: the bell count and feed
+  /// refresh.
   final VoidCallback onArrive;
   final String appId;
   final PushSdk _sdk;
@@ -125,6 +126,7 @@ class Push {
     _started = true;
     await _sdk.initialize(appId);
     _sdk.onOpened((data) {
+      onArrive();
       final route = data['route'];
       if (route is String) onOpen(route);
     });
