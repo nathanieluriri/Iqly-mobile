@@ -156,6 +156,9 @@ class DemoActivationsService implements ActivationsService {
   }
 
   @override
+  Future<List<Activation>> kept() async => const [];
+
+  @override
   Future<Activation> start(String id) async {
     await _wait(delay);
     if (startFailures > 0) {
@@ -588,6 +591,9 @@ class PausedActivationsService implements ActivationsService {
   Future<List<Activation>> activations({
     bool fresh = false,
   }) => _paused();
+
+  @override
+  Future<List<Activation>> kept() async => const [];
 
   @override
   Future<Activation> start(String id) => _paused();
