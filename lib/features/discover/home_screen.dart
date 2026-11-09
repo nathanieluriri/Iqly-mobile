@@ -173,7 +173,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     if (ref.read(activationsShownProvider)) {
       ref.read(activationsProvider.notifier).refreshQuietly();
     }
-    refreshUnseen(ref);
+    refreshUnseenOn(ref);
   }
 
   /// A pull hands its overscroll to the slot, so nothing jumps, and the list
@@ -365,7 +365,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       if (ref.read(activationsShownProvider)) {
         ref.read(activationsProvider.notifier).refreshQuietly();
       }
-      refreshUnseen(ref);
+      refreshUnseenOn(ref);
       // The tab is told before the dock switch shows it.
       WidgetsBinding.instance.addPostFrameCallback((_) => _offerUpdate());
     });
