@@ -28,6 +28,11 @@ class ActivationsNotifier extends AsyncNotifier<List<Activation>> {
     final service = ref.watch(activationsServiceProvider);
     final changes = service.changes().listen(_land);
     ref.onDispose(changes.cancel);
+    final kept = await service.kept();
+    if (kept.isNotEmpty) {
+      Future<void>.delayed(Duration.zero, refreshQuietly);
+      return kept;
+    }
     return service.activations();
   }
 
@@ -36,14 +41,16 @@ class ActivationsNotifier extends AsyncNotifier<List<Activation>> {
   void retry() => ref.invalidateSelf();
 
   /// Reads the list again behind what shows (a live screen opening, a push,
-  /// a return to Discover); a failure keeps it. The preview's list is the
-  /// session's own and never reads again.
+  /// a return to Discover, a pull); a failure keeps it. The preview's list
+  /// is the session's own and never reads again. Asks the API so an
+  /// activation the person was just told about is not hidden by the kept
+  /// copy.
   Future<void> refreshQuietly() async {
     if (!state.hasValue || !ref.read(_liveProvider)) return;
     final scope = ref.read(accountScopeProvider);
     final List<Activation> fresh;
     try {
-      fresh = await _service.activations();
+      fresh = await _service.activations(fresh: true);
     } on Object {
       return;
     }

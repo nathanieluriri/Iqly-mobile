@@ -177,7 +177,7 @@ class HangingActivations extends DemoActivationsService {
   final _never = Completer<List<Activation>>();
 
   @override
-  Future<List<Activation>> activations() => _never.future;
+  Future<List<Activation>> activations({bool fresh = false}) => _never.future;
 }
 
 /// The demo wallet at the Figma 9:41 with [credits] already on the ledger,

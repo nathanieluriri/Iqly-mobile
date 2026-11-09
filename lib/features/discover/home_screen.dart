@@ -166,6 +166,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     if (data == null || data.refresh != RefreshPhase.idle || _slotOpen) return;
     _openSlot(steady: fromPull);
     ref.read(discoverFeedProvider.notifier).refresh();
+    if (ref.read(pollsShownProvider)) {
+      ref.read(pollsProvider.notifier).refreshQuietly();
+    }
+    if (ref.read(activationsShownProvider)) {
+      ref.read(activationsProvider.notifier).refreshQuietly();
+    }
   }
 
   /// A pull hands its overscroll to the slot, so nothing jumps, and the list

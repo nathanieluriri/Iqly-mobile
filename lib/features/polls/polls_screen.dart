@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -38,6 +40,12 @@ class PollsScreen extends ConsumerStatefulWidget {
 
 class _PollsScreenState extends ConsumerState<PollsScreen> {
   bool _opened = false;
+
+  @override
+  void initState() {
+    super.initState();
+    ref.read(pollsProvider.notifier).refreshQuietly().ignore();
+  }
 
   void _openFromBubble(List<PollBusiness> businesses) {
     final open = widget.open;

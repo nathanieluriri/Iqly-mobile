@@ -102,7 +102,7 @@ class _LateActivations extends DemoActivationsService {
   final list = Completer<List<Activation>>();
 
   @override
-  Future<List<Activation>> activations() => list.future;
+  Future<List<Activation>> activations({bool fresh = false}) => list.future;
 }
 
 /// The feed fails to load, and the retry waits for the test.
@@ -322,11 +322,11 @@ void main() {
       await tester.pump();
       expect(_skeletons, findsNWidgets(2));
       await tester.pump(_ms * 600);
-      await holds(tester, [
-        'Quick polls',
-        'Activations',
-        'Briefs',
-      ], land: () => activations.list.complete(DemoActivations(figmaNow).all));
+      await holds(
+        tester,
+        ['Quick polls', 'Activations', 'Briefs'],
+        land: () => activations.list.complete(DemoActivations(figmaNow).all),
+      );
     });
 
     testWidgets('proposals in first: they stand still while the cards fade', (

@@ -256,10 +256,12 @@ class AccountLink {
   /// ([orKept]) it answers what was kept last, and fails as the API did
   /// when nothing was. A refusal throws [ApiRefused].
   /// A [conditional] read sends the ETag kept for it ([etagCache]).
+  /// Without [allowCache] a refresh waits for the API, as briefs do.
   Future<Map<String, dynamic>> fetch(
     String path,
     String key, {
     bool conditional = false,
+    bool allowCache = true,
   }) {
     final fetching = api.get(path, etags: conditional ? etagCache : null).then((
       res,
@@ -268,6 +270,7 @@ class AccountLink {
       await keep(key, res.data);
       return res.data;
     });
+    if (!allowCache) return scope.guard(fetching);
     return scope.guard(
       orKept(
         fetching,
@@ -280,13 +283,15 @@ class AccountLink {
   /// else when the kept copy it falls back on was.
   Future<({Map<String, dynamic> json, DateTime? fetchedAt})> fetchDated(
     String path,
-    String key,
-  ) {
+    String key, {
+    bool allowCache = true,
+  }) {
     final fetching = api.get(path).then((res) async {
       if (!res.ok) throw ApiRefused.of(res);
       await keep(key, res.data);
       return (json: res.data, fetchedAt: null as DateTime?);
     });
+    if (!allowCache) return scope.guard(fetching);
     return scope.guard(
       orKept(
         fetching,

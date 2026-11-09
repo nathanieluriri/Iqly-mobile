@@ -11,6 +11,7 @@ import 'data/onboarding_service.dart' show genderAskedProvider;
 import 'features/onboarding/onboarding_flow.dart';
 import 'data/live/live_repository.dart';
 import 'features/activations/activations_state.dart';
+import 'features/polls/polls_state.dart';
 import 'features/shell/tablet_frame.dart';
 import 'features/splash/patch_dialog.dart';
 import 'features/submissions/submissions_state.dart';
@@ -41,6 +42,9 @@ class _IqlyAppState extends ConsumerState<IqlyApp> {
         }
         if (ref.exists(activationsProvider)) {
           ref.read(activationsProvider.notifier).refreshQuietly().ignore();
+        }
+        if (ref.exists(pollsProvider)) {
+          ref.read(pollsProvider.notifier).refreshQuietly().ignore();
         }
       },
     );

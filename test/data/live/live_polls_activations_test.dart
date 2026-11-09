@@ -171,6 +171,22 @@ void main() {
       },
     );
 
+    test(
+      'a fresh list asks the API so a kept copy cannot hide a new poll',
+      () async {
+        final api = _Api({
+          'GET /polls': (_) => _ok(_f.pollsJson([_f.pollJson(id: 'p_new')])),
+        });
+        await api.link.keep(AccountKeys.polls, _f.pollsJson([_f.pollJson()]));
+        final service = LivePollsService(api.link);
+        expect((await service.kept()).single.polls.single.id, 'p_1');
+        expect(
+          (await service.businesses(fresh: true)).single.polls.single.id,
+          'p_new',
+        );
+      },
+    );
+
     test('detail, vote and a refusal', () async {
       final api = _Api({
         'GET /polls/p_1': (_) => _ok(_f.pollJson()),
@@ -406,8 +422,9 @@ void main() {
           reason: 'per_run with steps still to do cannot finish',
         );
         expect(
-          closedHeld(stepRewards: [50000, 50000, 50000])
-              .phaseAt(_now.toLocal()),
+          closedHeld(
+            stepRewards: [50000, 50000, 50000],
+          ).phaseAt(_now.toLocal()),
           ActivationPhase.confirming,
         );
         expect(
@@ -631,6 +648,26 @@ void main() {
         isEmpty,
       );
     });
+
+    test(
+      'a fresh list asks the API so a kept copy cannot hide a new activation',
+      () async {
+        final api = _Api({
+          'GET /activations': (_) => _ok({
+            'items': [
+              _f.activationJson(id: 'a_new', title: 'Play Dead and Injured'),
+            ],
+          }),
+          'GET /activations/mine': (_) => _ok({'items': <Object>[]}),
+        });
+        await api.link.keep(AccountKeys.activations, {
+          'items': [_f.activationJson()],
+        });
+        final service = LiveActivationsService(api.link, clock: () => _now);
+        expect((await service.kept()).single.id, 'a_1');
+        expect((await service.activations(fresh: true)).single.id, 'a_new');
+      },
+    );
 
     test('start, refresh and proof answer the activation', () async {
       final api = _Api({

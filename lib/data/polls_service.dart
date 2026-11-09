@@ -12,7 +12,12 @@ import 'polls_data.dart';
 /// launch reads and votes on the API (contract 11.1).
 abstract class PollsService {
   /// The businesses with open polls, the person's own votes marked.
-  Future<List<PollBusiness>> businesses();
+  /// [fresh] skips the kept copy so a refresh can show a poll that landed
+  /// after the last read.
+  Future<List<PollBusiness>> businesses({bool fresh = false});
+
+  /// What the phone kept from the last list, without asking the API.
+  Future<List<PollBusiness>> kept() async => const [];
 
   /// One poll the person may see, under its business with that poll alone.
   Future<PollBusiness> poll(String pollId);
@@ -41,7 +46,7 @@ class DemoPollsService implements PollsService {
       delay == Duration.zero ? Future.value() : Future<void>.delayed(delay);
 
   @override
-  Future<List<PollBusiness>> businesses() async => [
+  Future<List<PollBusiness>> businesses({bool fresh = false}) async => [
     for (final business in _businesses)
       if (business.polls.any((p) => !p.closedAt(_clock()))) business,
   ];
@@ -96,12 +101,13 @@ class LivePollsService implements PollsService {
   final bool questions;
 
   @override
-  Future<List<PollBusiness>> businesses() async => pollBusinessesFromJson(
-    await link.fetch('/polls', AccountKeys.polls),
-    questions: questions,
-  );
+  Future<List<PollBusiness>> businesses({bool fresh = false}) async =>
+      pollBusinessesFromJson(
+        await link.fetch('/polls', AccountKeys.polls, allowCache: !fresh),
+        questions: questions,
+      );
 
-  /// What the phone kept from the last list, without asking the API.
+  @override
   Future<List<PollBusiness>> kept() async => pollBusinessesFromJson(
     await link.kept(AccountKeys.polls) ?? const {},
     questions: questions,
@@ -162,7 +168,7 @@ class PausedPollsService implements PollsService {
       Future.error(const FeaturePaused(LiveFeature.polls));
 
   @override
-  Future<List<PollBusiness>> businesses() => _paused();
+  Future<List<PollBusiness>> businesses({bool fresh = false}) => _paused();
 
   @override
   Future<PollBusiness> poll(String pollId) => _paused();

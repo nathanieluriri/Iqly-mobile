@@ -28,18 +28,30 @@ enum VoteOutcome {
 /// longer signed in changes nothing.
 class PollsNotifier extends AsyncNotifier<List<PollBusiness>> {
   @override
-  Future<List<PollBusiness>> build() =>
-      ref.watch(pollsServiceProvider).businesses();
+  Future<List<PollBusiness>> build() async {
+    final service = ref.watch(pollsServiceProvider);
+    final kept = await service.kept();
+    if (kept.isNotEmpty) {
+      Future<void>.delayed(Duration.zero, _reload);
+      return kept;
+    }
+    return service.businesses();
+  }
 
   void retry() => ref.invalidateSelf();
 
-  /// A return to Discover: the tiles stay as they are until the new list
-  /// lands; a failure keeps them.
-  Future<void> refreshQuietly() async {
+  /// A return to Discover, a pull, or a push: the tiles stay as they are
+  /// until the new list lands; a failure keeps them. Asks the API so a
+  /// poll the person was just told about is not hidden by the kept copy.
+  Future<void> refreshQuietly() => _reload();
+
+  Future<void> _reload() async {
     if (!state.hasValue) return;
     final scope = ref.read(accountScopeProvider);
     try {
-      final businesses = await ref.read(pollsServiceProvider).businesses();
+      final businesses = await ref
+          .read(pollsServiceProvider)
+          .businesses(fresh: true);
       if (ref.mounted && scope.open) state = AsyncData(businesses);
     } catch (_) {}
   }
