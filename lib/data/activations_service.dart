@@ -689,7 +689,7 @@ Activation? activationFromJson(
               rewardKobo: perStep ? apiInt(step['rewardKobo']) : null,
             ),
     ],
-    link: Uri.tryParse(apiText(json['link']) ?? '') ?? Uri(),
+    link: _startUri(json),
     progress: progress,
     live: true,
     logoUrl: apiText(json['logoUrl']),
@@ -700,6 +700,26 @@ Activation? activationFromJson(
     sentPhase: stepProof ? _phase(json['phase'], mode) : null,
     sentAt: stepProof ? now : null,
   );
+}
+
+/// iPhone opens App Store, Android opens Play, otherwise the website.
+Uri _startUri(Map<dynamic, dynamic> json) {
+  final fallback = Uri.tryParse(apiText(json['link']) ?? '') ?? Uri();
+  final raw = json['startLinks'];
+  if (raw is! Map) return fallback;
+  String? read(String key) => apiText(raw[key]);
+  final ios = read('appStore');
+  final android = read('googlePlay');
+  final web = read('website');
+  final preferred = Platform.isIOS
+      ? ios
+      : Platform.isAndroid
+      ? android
+      : web;
+  final href = preferred ?? web ?? android ?? ios;
+  return href == null || href.isEmpty
+      ? fallback
+      : (Uri.tryParse(href) ?? fallback);
 }
 
 /// The API's `phase` as the app names it: `not_confirmed` is the step to
