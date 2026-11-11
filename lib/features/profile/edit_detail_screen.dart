@@ -555,7 +555,7 @@ class _DateOfBirthEditState extends ConsumerState<_DateOfBirthEdit> {
             pickerLabel: 'Date of birth',
             pickerValue: date == null ? '' : birthDate(date),
             pickerPlaceholder: 'Pick a date',
-            help: 'You must be 18 or over to be paid.',
+            help: 'You must be 18 or older to join iQLY.',
             onTap: () => _pick(date),
           ),
         ],
