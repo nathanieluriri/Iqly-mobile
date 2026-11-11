@@ -42,9 +42,16 @@ class _DateOfBirthSheetState extends State<DateOfBirthSheet> {
   );
   int _turning = 0;
 
+  /// Latest date that is 18 today. Years after this cannot be a date of birth.
+  late final DateTime _latestAdult = DateTime(
+    _today.year - 18,
+    _today.month,
+    _today.day,
+  );
+
   DateTime _limit(DateTime date) {
     final day = DateUtils.dateOnly(date);
-    return day.isAfter(_today) ? _today : day;
+    return day.isAfter(_latestAdult) ? _latestAdult : day;
   }
 
   /// The date the wheels read, brought back inside the month and today.
@@ -58,9 +65,10 @@ class _DateOfBirthSheetState extends State<DateOfBirthSheet> {
 
   bool _dayValid(int day) =>
       day <= DateUtils.getDaysInMonth(_year, _month) &&
-      !DateTime(_year, _month, day).isAfter(_today);
+      !DateTime(_year, _month, day).isAfter(_latestAdult);
 
-  bool _monthValid(int month) => !DateTime(_year, month).isAfter(_today);
+  bool _monthValid(int month) =>
+      !DateTime(_year, month).isAfter(_latestAdult);
 
   @override
   void dispose() {
@@ -135,7 +143,7 @@ class _DateOfBirthSheetState extends State<DateOfBirthSheet> {
                 child: _Wheel(
                   name: 'Year',
                   controller: _years,
-                  count: _today.year - DateOfBirthSheet.firstYear + 1,
+                  count: _latestAdult.year - DateOfBirthSheet.firstYear + 1,
                   selected: _year - DateOfBirthSheet.firstYear,
                   offAxisFraction: 0.3,
                   last: true,
