@@ -2,10 +2,10 @@ name: shorebird-release
 
 # A release built through Shorebird, so later Dart-only changes can be
 # patched onto it. Run it from the Actions tab once the version in
-# pubspec.yaml is new: every release needs its own version. The signed APK
-# (to install) and app bundle (for Google Play) are kept for 90 days, and
-# the APK becomes the one the fixed download link serves (the staging API's
-# /mobile/download/android) once the R2 secrets are set.
+# pubspec.yaml is new: every release needs its own version. The app
+# bundle (for Google Play) is the artifact Shorebird tracks. An APK is
+# kept too when the build writes one, and that APK is what the staging
+# download link serves once the R2 secrets are set.
 # A pull request that changes the Shorebird setup gets a dry run instead.
 on:
   workflow_dispatch:
@@ -35,7 +35,7 @@ jobs:
         run: |
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/iqly-upload.jks"
           echo "IQLY_KEYSTORE_PATH=$RUNNER_TEMP/iqly-upload.jks" >> "$GITHUB_ENV"
-      - run: shorebird release android --artifact apk $DRY_RUN
+      - run: shorebird release android $DRY_RUN
         env:
           DRY_RUN: ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
           IQLY_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -45,10 +45,12 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           version=$(sed -n 's/^version: *//p' pubspec.yaml)
-          mv build/app/outputs/flutter-apk/app-release.apk "iqly-$version.apk"
           mv build/app/outputs/bundle/release/app-release.aab "iqly-$version.aab"
+          if [ -f build/app/outputs/flutter-apk/app-release.apk ]; then
+            mv build/app/outputs/flutter-apk/app-release.apk "iqly-$version.apk"
+          fi
       - name: Publish the APK to the download link
-        if: github.event_name != 'pull_request' && env.R2_ENDPOINT != ''
+        if: github.event_name != 'pull_request' && env.R2_ENDPOINT != '' && hashFiles('iqly-*.apk') != ''
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
