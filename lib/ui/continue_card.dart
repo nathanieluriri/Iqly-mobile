@@ -5,6 +5,7 @@ import '../theme/theme.dart';
 import 'cover_with_logo.dart';
 import 'icon.dart';
 import 'pressable.dart';
+import 'progress_line.dart';
 import 'sample_cover.dart';
 import 'sample_logo.dart';
 
@@ -78,29 +79,7 @@ class IqContinueCard extends StatelessWidget {
                       style: IqText.bodyStrong.copyWith(color: IqColors.fg),
                     ),
                     const SizedBox(height: IqSpace.s1p5),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(2),
-                      child: SizedBox(
-                        height: 4,
-                        child: Stack(
-                          children: [
-                            const Positioned.fill(
-                              child: ColoredBox(color: IqColors.line),
-                            ),
-                            FractionallySizedBox(
-                              widthFactor: progress.clamp(0, 1),
-                              heightFactor: 1,
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: IqColors.primary,
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                    IqProgressLine(value: progress),
                     const SizedBox(height: IqSpace.s1p5),
                     Text(
                       status,

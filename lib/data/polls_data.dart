@@ -244,6 +244,13 @@ class PollBusiness {
 
   bool get allAnswered => unanswered == 0;
 
+  /// Started and not finished: at least one answer, and a question still open.
+  bool get inProgress => answered > 0 && !allAnswered;
+
+  /// Answers given over every question the polls can ask.
+  double get progress =>
+      questionCount == 0 ? 0 : (answered / questionCount).clamp(0, 1);
+
   /// One of its polls asks more than one question: the sheet walks the
   /// questions one at a time.
   bool get stepped => polls.any((p) => p.followUps.isNotEmpty);
