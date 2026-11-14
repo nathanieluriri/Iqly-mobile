@@ -28,22 +28,29 @@ enum FeedSort {
   final String label;
 }
 
+/// The Discover lens chips. Pick up is first: only work already started.
+enum FeedLens { pickUp, forYou, all }
+
 /// The Filters sheet. A null tier or category is "all". "My interests
 /// first" is the For you feed; any other sort is the All feed.
 class DiscoverFilters {
   const DiscoverFilters({
+    this.lens = FeedLens.forYou,
     this.status = BriefStatus.live,
     this.tier,
     this.category,
     this.sort = FeedSort.myInterests,
   });
 
+  final FeedLens lens;
   final BriefStatus status;
   final Tier? tier;
   final Category? category;
   final FeedSort sort;
 
-  bool get forYou => sort == FeedSort.myInterests;
+  bool get pickUp => lens == FeedLens.pickUp;
+
+  bool get forYou => lens == FeedLens.forYou;
 
   /// True when the filters hide briefs; the sort alone does not.
   bool get narrowed =>
@@ -55,11 +62,13 @@ class DiscoverFilters {
       (category == null || brief.category == category);
 
   DiscoverFilters copyWith({
+    FeedLens? lens,
     BriefStatus? status,
     Tier? Function()? tier,
     Category? Function()? category,
     FeedSort? sort,
   }) => DiscoverFilters(
+    lens: lens ?? this.lens,
     status: status ?? this.status,
     tier: tier == null ? this.tier : tier(),
     category: category == null ? this.category : category(),
@@ -73,11 +82,17 @@ class DiscoverFiltersNotifier extends Notifier<DiscoverFilters> {
 
   void apply(DiscoverFilters filters) => state = filters;
 
-  void showForYou() => state = state.copyWith(sort: FeedSort.myInterests);
+  void showPickUp() => state = state.copyWith(lens: FeedLens.pickUp);
+
+  void showForYou() =>
+      state = state.copyWith(lens: FeedLens.forYou, sort: FeedSort.myInterests);
 
   /// All lists closing soon first (designer answer 20).
   void showAll() {
-    if (state.forYou) state = state.copyWith(sort: FeedSort.mostUrgent);
+    final sort = state.sort == FeedSort.myInterests
+        ? FeedSort.mostUrgent
+        : state.sort;
+    state = state.copyWith(lens: FeedLens.all, sort: sort);
   }
 }
 
@@ -617,10 +632,9 @@ final closeRemindersProvider =
 final briefDetailProvider = FutureProvider.autoDispose.family<Brief?, String>(
   retry: (_, _) => null,
   (ref, id) async {
-    Future<Brief?> saved() async =>
-        (await ref.watch(savedBriefsProvider.future))
-            .where((b) => b.id == id)
-            .firstOrNull;
+    Future<Brief?> saved() async => (await ref.watch(
+      savedBriefsProvider.future,
+    )).where((b) => b.id == id).firstOrNull;
     try {
       final brief = await ref.watch(repositoryProvider).brief(id);
       if (brief != null) return brief;

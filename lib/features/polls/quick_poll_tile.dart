@@ -30,6 +30,7 @@ class QuickPollTile extends ConsumerWidget {
           : questions(business.questionCount),
       cover: businessCover(business.cover),
       logo: businessLogo(business.logo),
+      progress: business.inProgress ? business.progress : null,
       onTap: closed ? null : onTap,
     );
     return closed ? Opacity(opacity: 0.5, child: tile) : tile;

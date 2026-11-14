@@ -6,6 +6,7 @@ import 'bookmark.dart';
 import 'cover_with_logo.dart';
 import 'meta.dart';
 import 'pressable.dart';
+import 'progress_line.dart';
 import 'sample_cover.dart';
 import 'sample_logo.dart';
 
@@ -44,6 +45,7 @@ class IqBriefCard extends StatelessWidget {
     this.bookmark = IqBookmarkState.off,
     this.onBookmarkChanged,
     this.closingSoon = false,
+    this.progress,
     this.time,
     this.onTap,
     this.widthOverride,
@@ -59,6 +61,10 @@ class IqBriefCard extends StatelessWidget {
   final IqBookmarkState bookmark;
   final ValueChanged<IqBookmarkState>? onBookmarkChanged;
   final bool closingSoon;
+
+  /// How far a draft or started run has got, 0 to 1. Null hides the bar.
+  /// The bar sits under the title in the text column, never under the photo.
+  final double? progress;
   final String? time;
   final VoidCallback? onTap;
 
@@ -74,7 +80,9 @@ class IqBriefCard extends StatelessWidget {
     final reduced = MediaQuery.disableAnimationsOf(context);
     final row = kind == IqBriefCardKind.row;
     final inset = row ? 4.0 : 6.0;
+    final started = progress != null;
     final card = LineCard(
+      color: !closingSoon && started ? IqColors.tint : IqColors.card,
       stroke: closingSoon ? IqColors.accent : IqColors.line,
       strokeWidth: closingSoon ? 2 : 1,
       overlay: [
@@ -185,6 +193,10 @@ class IqBriefCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: IqText.cardTitle.copyWith(color: IqColors.fg),
               ),
+              if (progress != null) ...[
+                const SizedBox(height: IqSpace.s1p5),
+                IqProgressLine(value: progress!),
+              ],
               const SizedBox(height: IqSpace.s1),
               _metaRow(IqSpace.s2),
             ],
@@ -243,6 +255,10 @@ class IqBriefCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: IqText.bodyStrong.copyWith(color: IqColors.fg),
                   ),
+                  if (progress != null) ...[
+                    const SizedBox(height: IqSpace.s1p5),
+                    IqProgressLine(value: progress!),
+                  ],
                   const SizedBox(height: IqSpace.s1),
                   _metaRow(IqSpace.s1),
                 ],
