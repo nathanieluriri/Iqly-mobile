@@ -336,6 +336,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   void _listen() {
+    ref.listen(pickUpAvailableProvider, (previous, next) {
+      if (!next && ref.read(discoverFiltersProvider).pickUp) {
+        ref.read(discoverFiltersProvider.notifier).showForYou();
+      }
+    });
     ref.listen(discoverFiltersProvider, (previous, next) {
       _crossContent();
       ref.read(discoverFeedProvider.notifier).resetWindow();

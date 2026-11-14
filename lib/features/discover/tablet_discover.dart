@@ -97,6 +97,13 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
         if (b.isLive) b,
     ];
     final drafts = ref.watch(draftsProvider).value ?? const [];
+    final showPickUp = hasPickUpDrafts(drafts);
+    ref.listen(draftsProvider, (previous, next) {
+      if (!hasPickUpDrafts(next.value ?? const []) &&
+          ref.read(discoverFiltersProvider).pickUp) {
+        ref.read(discoverFiltersProvider.notifier).showForYou();
+      }
+    });
     final draftIds = {
       for (final d in drafts)
         if (!d.isEmpty) d.briefId,
@@ -125,6 +132,7 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
 
     final toolbar = _toolbar(
       saved: saved,
+      showPickUp: showPickUp,
       pickUp: pickUp,
       forYou: forYou,
       sort: sort,
@@ -190,6 +198,7 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
 
   Widget _toolbar({
     required bool saved,
+    required bool showPickUp,
     required bool pickUp,
     required bool forYou,
     required FeedSort sort,
@@ -217,14 +226,15 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
       children: [
         IqBizSegment.track(
           children: [
-            IqBizSegment(
-              label: 'Pick up',
-              state: state(pickUp),
-              onTap: () {
-                leaveSaved();
-                lens.showPickUp();
-              },
-            ),
+            if (showPickUp)
+              IqBizSegment(
+                label: 'Pick up',
+                state: state(pickUp),
+                onTap: () {
+                  leaveSaved();
+                  lens.showPickUp();
+                },
+              ),
             IqBizSegment(
               label: 'For you',
               state: state(forYou),

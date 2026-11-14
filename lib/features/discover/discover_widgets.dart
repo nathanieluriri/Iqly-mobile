@@ -54,8 +54,8 @@ void browseForYou(BuildContext context, WidgetRef ref) {
   context.go(Routes.home);
 }
 
-/// The feed lens row: Pick up, For you, All and (behind Flags.savedBriefs)
-/// Saved. Pick up is only work already started.
+/// The feed lens row: Pick up (only while there is started work), For you,
+/// All and (behind Flags.savedBriefs) Saved.
 /// Each tap crosses the content under the chips into the picked lens while
 /// the chips hold still (spec 3.7).
 class FeedChips extends ConsumerWidget {
@@ -65,6 +65,7 @@ class FeedChips extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final showPickUp = ref.watch(pickUpAvailableProvider);
     void pick(FeedChip chip) {
       if (chip == selected) return;
       final filters = ref.read(discoverFiltersProvider.notifier);
@@ -96,7 +97,7 @@ class FeedChips extends ConsumerWidget {
         spacing: IqSpace.s2,
         runSpacing: IqSpace.s2,
         children: [
-          chip(FeedChip.pickUp, 'Pick up'),
+          if (showPickUp) chip(FeedChip.pickUp, 'Pick up'),
           chip(FeedChip.forYou, 'For you'),
           chip(FeedChip.all, 'All'),
           if (Flags.savedBriefs) chip(FeedChip.saved, 'Saved'),
