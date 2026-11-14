@@ -6,9 +6,25 @@ name: shorebird-release
 # (to install) and app bundle (for Google Play) are kept for 90 days, and
 # the APK becomes the one the fixed download link serves (the staging API's
 # /mobile/download/android) once the R2 secrets are set.
+# A manual run can also send the AAB to Play Console (internal by
+# default). That needs PLAY_SERVICE_ACCOUNT_JSON. See android/SIGNING.md.
 # A pull request that changes the Shorebird setup gets a dry run instead.
 on:
   workflow_dispatch:
+    inputs:
+      upload:
+        description: Send the AAB to Play Console
+        type: boolean
+        default: true
+      track:
+        description: Play track
+        type: choice
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
+        default: internal
   pull_request:
     paths:
       - shorebird.yaml
@@ -62,6 +78,25 @@ jobs:
             --endpoint-url "$R2_ENDPOINT" \
             --content-type application/vnd.android.package-archive \
             --metadata "version=$version"
+      - name: Check the Play secret
+        if: github.event_name == 'workflow_dispatch' && inputs.upload
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$PLAY_SERVICE_ACCOUNT_JSON" ]; then
+            echo "::error::Add the PLAY_SERVICE_ACCOUNT_JSON secret (see android/SIGNING.md)"
+            exit 1
+          fi
+      - name: Send the AAB to Play
+        if: github.event_name == 'workflow_dispatch' && inputs.upload
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: net.iqly.app
+          releaseFiles: iqly-*.aab
+          tracks: ${{ inputs.track }}
+          status: ${{ inputs.track == 'production' && 'draft' || 'completed' }}
+          changesNotSentForReview: true
       - uses: actions/upload-artifact@v4
         if: github.event_name != 'pull_request'
         with:
