@@ -7,15 +7,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/backend.dart';
 import '../../core/deadline.dart';
 import '../../core/session.dart';
+import '../../data/activations_data.dart';
 import '../../data/app_config.dart';
 import '../../data/demo_data.dart';
+import '../../data/drafts_data.dart';
 import '../../data/live/brief_marks_sync.dart';
 import '../../data/live/live_repository.dart';
 import '../../data/models.dart';
+import '../../data/polls_data.dart';
 import '../../data/reference_data.dart';
 import '../../data/repository.dart';
 import '../../surfaces/surfaces.dart';
+import '../activations/activations_state.dart';
+import '../drafts/drafts_state.dart';
 import '../onboarding/onboarding_draft.dart';
+import '../polls/polls_state.dart';
 import '../submissions/submissions_state.dart';
 
 enum FeedSort {
@@ -28,22 +34,29 @@ enum FeedSort {
   final String label;
 }
 
+/// The Discover lens chips. Pick up is first when there is started work.
+enum FeedLens { pickUp, forYou, all }
+
 /// The Filters sheet. A null tier or category is "all". "My interests
 /// first" is the For you feed; any other sort is the All feed.
 class DiscoverFilters {
   const DiscoverFilters({
+    this.lens = FeedLens.forYou,
     this.status = BriefStatus.live,
     this.tier,
     this.category,
     this.sort = FeedSort.myInterests,
   });
 
+  final FeedLens lens;
   final BriefStatus status;
   final Tier? tier;
   final Category? category;
   final FeedSort sort;
 
-  bool get forYou => sort == FeedSort.myInterests;
+  bool get pickUp => lens == FeedLens.pickUp;
+
+  bool get forYou => lens == FeedLens.forYou;
 
   /// True when the filters hide briefs; the sort alone does not.
   bool get narrowed =>
@@ -55,11 +68,13 @@ class DiscoverFilters {
       (category == null || brief.category == category);
 
   DiscoverFilters copyWith({
+    FeedLens? lens,
     BriefStatus? status,
     Tier? Function()? tier,
     Category? Function()? category,
     FeedSort? sort,
   }) => DiscoverFilters(
+    lens: lens ?? this.lens,
     status: status ?? this.status,
     tier: tier == null ? this.tier : tier(),
     category: category == null ? this.category : category(),
@@ -73,11 +88,23 @@ class DiscoverFiltersNotifier extends Notifier<DiscoverFilters> {
 
   void apply(DiscoverFilters filters) => state = filters;
 
-  void showForYou() => state = state.copyWith(sort: FeedSort.myInterests);
+  void showPickUp() {
+    if (!ref.read(pickUpAvailableProvider)) {
+      showForYou();
+      return;
+    }
+    state = state.copyWith(lens: FeedLens.pickUp);
+  }
+
+  void showForYou() =>
+      state = state.copyWith(lens: FeedLens.forYou, sort: FeedSort.myInterests);
 
   /// All lists closing soon first (designer answer 20).
   void showAll() {
-    if (state.forYou) state = state.copyWith(sort: FeedSort.mostUrgent);
+    final sort = state.sort == FeedSort.myInterests
+        ? FeedSort.mostUrgent
+        : state.sort;
+    state = state.copyWith(lens: FeedLens.all, sort: sort);
   }
 }
 
@@ -85,6 +112,51 @@ final discoverFiltersProvider =
     NotifierProvider<DiscoverFiltersNotifier, DiscoverFilters>(
       DiscoverFiltersNotifier.new,
     );
+
+/// An unfinished poll, a started open activation, or a brief draft with
+/// something written. Tablet Discover only has briefs, so it uses drafts
+/// alone.
+bool hasPickUpWork({
+  required Iterable<Draft> drafts,
+  required Iterable<PollBusiness> polls,
+  required Iterable<Activation> activations,
+  required DateTime now,
+}) {
+  for (final draft in drafts) {
+    if (!draft.isEmpty) return true;
+  }
+  for (final poll in polls) {
+    if (poll.inProgress) return true;
+  }
+  for (final activation in activations) {
+    if (activation.inProgressAt(now)) return true;
+  }
+  return false;
+}
+
+bool hasPickUpDrafts(Iterable<Draft> drafts) => hasPickUpWork(
+  drafts: drafts,
+  polls: const [],
+  activations: const [],
+  now: DateTime.fromMillisecondsSinceEpoch(0),
+);
+
+/// Whether the phone Discover chip can show Pick up.
+final pickUpAvailableProvider = Provider<bool>((ref) {
+  final drafts = ref.watch(draftsProvider).value ?? const <Draft>[];
+  final polls = ref.watch(pollsShownProvider)
+      ? ref.watch(pollsProvider).value ?? const <PollBusiness>[]
+      : const <PollBusiness>[];
+  final activations = ref.watch(activationsShownProvider)
+      ? ref.watch(activationsProvider).value ?? const <Activation>[]
+      : const <Activation>[];
+  return hasPickUpWork(
+    drafts: drafts,
+    polls: polls,
+    activations: activations,
+    now: ref.watch(clockProvider)(),
+  );
+});
 
 /// The gift's shine plays once a session, on the first Discover load, and
 /// not at all once Referrals has opened (designer answer 32). True once it
@@ -617,10 +689,9 @@ final closeRemindersProvider =
 final briefDetailProvider = FutureProvider.autoDispose.family<Brief?, String>(
   retry: (_, _) => null,
   (ref, id) async {
-    Future<Brief?> saved() async =>
-        (await ref.watch(savedBriefsProvider.future))
-            .where((b) => b.id == id)
-            .firstOrNull;
+    Future<Brief?> saved() async => (await ref.watch(
+      savedBriefsProvider.future,
+    )).where((b) => b.id == id).firstOrNull;
     try {
       final brief = await ref.watch(repositoryProvider).brief(id);
       if (brief != null) return brief;

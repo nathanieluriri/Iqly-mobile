@@ -19,6 +19,7 @@ import '../../theme/theme.dart';
 import '../../core/money.dart';
 import '../../data/activations_data.dart';
 import '../../data/device.dart';
+import '../../data/drafts_data.dart';
 import '../../data/repository.dart';
 import '../../data/polls_data.dart';
 import '../../ui/banner.dart';
@@ -41,6 +42,7 @@ import '../notifications/notifications_state.dart';
 import '../polls/polls_routes.dart';
 import '../polls/polls_state.dart';
 import '../polls/quick_poll_tile.dart';
+import '../drafts/drafts_state.dart';
 import '../onboarding/setup_nudge.dart';
 import '../withdrawals/payout_arrival.dart';
 import 'app_shell.dart';
@@ -50,9 +52,11 @@ import 'discover_widgets.dart';
 import 'feed_slivers.dart';
 import 'tablet_discover.dart';
 
-/// B1 · Discover · Home (31:24, For you; 480:20532, All): Quick polls,
-/// Activations, then Briefs (and on For you More briefs), loaded a page at
-/// a time under the lens chips pinned as chrome. Pull to refresh shows
+/// B1 · Discover · Home (31:24, For you; 480:20532, All; B23 Pick up):
+/// Quick polls, Activations, then Briefs (and on For you More briefs),
+/// loaded a page at a time under the lens chips pinned as chrome. Pick up
+/// is first and only shows work already started. A started card keeps its
+/// usual chips; the progress bar under the title is the continue mark. Pull to refresh shows
 /// Exp/PullIndicator above the chips (192:8909); the first visit shows
 /// skeleton cards (165:8171, 192:9042); a failed load shows the error
 /// banner and the Thinker (165:8401); an empty briefs list the Shrug
@@ -310,15 +314,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     });
   }
 
-  FeedView _view(FeedData data) => buildFeed(
-    briefs: data.briefs,
-    filters: ref.read(discoverFiltersProvider),
-    interests: ref.read(feedInterestsProvider),
-    now: ref.read(clockProvider)(),
-    window: data.window,
-  );
+  FeedView _view(FeedData data) {
+    final filters = ref.read(discoverFiltersProvider);
+    final drafts = ref.read(draftsProvider).value ?? const <Draft>[];
+    final draftIds = {
+      for (final d in drafts)
+        if (!d.isEmpty) d.briefId,
+    };
+    return buildFeed(
+      briefs: filters.pickUp
+          ? [
+              for (final b in data.briefs)
+                if (draftIds.contains(b.id)) b,
+            ]
+          : data.briefs,
+      filters: filters,
+      interests: ref.read(feedInterestsProvider),
+      now: ref.read(clockProvider)(),
+      window: data.window,
+    );
+  }
 
   void _listen() {
+    ref.listen(pickUpAvailableProvider, (previous, next) {
+      if (!next && ref.read(discoverFiltersProvider).pickUp) {
+        ref.read(discoverFiltersProvider.notifier).showForYou();
+      }
+    });
     ref.listen(discoverFiltersProvider, (previous, next) {
       _crossContent();
       ref.read(discoverFeedProvider.notifier).resetWindow();
@@ -379,6 +401,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final feed = ref.watch(discoverFeedProvider);
     final filters = ref.watch(discoverFiltersProvider);
     ref.watch(feedInterestsProvider);
+    ref.watch(draftsProvider);
     final data = feed.value;
     final failed = feed.hasError && !feed.isLoading;
     final proposalsPending =
@@ -430,9 +453,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                             // from the lens this page held before.
                             selected: ModalRoute.isCurrentOf(context) == false
                                 ? FeedChip.saved
-                                : filters.forYou
-                                ? FeedChip.forYou
-                                : FeedChip.all,
+                                : switch (filters.lens) {
+                                    FeedLens.pickUp => FeedChip.pickUp,
+                                    FeedLens.forYou => FeedChip.forYou,
+                                    FeedLens.all => FeedChip.all,
+                                  },
                           ),
                           SliverToBoxAdapter(
                             key: const ValueKey('banner'),
@@ -685,15 +710,44 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         ? ref.watch(activationsProvider).value ?? const <Activation>[]
         : const <Activation>[];
     final now = ref.watch(clockProvider)();
+    final pickUp = ref.watch(discoverFiltersProvider).pickUp;
+    final shownPolls = [
+      for (final business in businesses)
+        if (!pickUp || business.inProgress) business,
+    ];
     final open = [
       for (final a in activations)
-        if (!a.closedAt(now) && !a.credited) a,
+        if (!a.closedAt(now) && !a.credited && (!pickUp || a.started)) a,
     ]..sort((a, b) => a.closesAt.compareTo(b.closesAt));
+    final shownActivations = pickUp ? open : open.take(1).toList();
     void openActivations() => context.open(
-      open.length == 1 ? activationPath(open.single.id) : Routes.activations,
+      shownActivations.length == 1
+          ? activationPath(shownActivations.single.id)
+          : Routes.activations,
+    );
+    Widget activationCard(Activation activation) => IqBriefCard(
+      kind: IqBriefCardKind.row,
+      brand: activation.business,
+      title: activation.title,
+      cover: businessCover(activationCover(activation)),
+      logo: businessLogo(activationLogo(activation)),
+      progress: activation.runProgress,
+      meta: [
+        IqMeta(
+          kind: IqMetaKind.reward,
+          label: cardReward(activation, rewardShort(activation.rewardKobo)),
+        ),
+        IqMeta(
+          kind: IqMetaKind.urgent,
+          label: 'Closes in ${countdownText(activationLeft(activation, now))}',
+        ),
+      ],
+      onTap: pickUp
+          ? () => context.open(activationPath(activation.id))
+          : openActivations,
     );
     return [
-      if (businesses.isNotEmpty) ...[
+      if (shownPolls.isNotEmpty) ...[
         _Item(
           'polls-title',
           _inset(
@@ -712,7 +766,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: gappedRow([
-                for (final business in businesses)
+                for (final business in shownPolls)
                   QuickPollTile(
                     business: business,
                     onTap: () => context.open(quickPollsFor(business.id)),
@@ -722,7 +776,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ),
         ),
       ],
-      if (open.isNotEmpty) ...[
+      if (shownActivations.isNotEmpty) ...[
         _Item(
           'activations-title',
           _inset(
@@ -732,32 +786,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               onSeeAll: openActivations,
             ),
           ),
-          gap: businesses.isEmpty ? 0 : _section,
+          gap: shownPolls.isEmpty ? 0 : _section,
         ),
         _Item(
           'activations',
           _inset(
-            IqBriefCard(
-              kind: IqBriefCardKind.row,
-              brand: open.first.business,
-              title: open.first.title,
-              cover: businessCover(activationCover(open.first)),
-              logo: businessLogo(activationLogo(open.first)),
-              meta: [
-                IqMeta(
-                  kind: IqMetaKind.reward,
-                  label: cardReward(
-                    open.first,
-                    rewardShort(open.first.rewardKobo),
-                  ),
-                ),
-                IqMeta(
-                  kind: IqMetaKind.urgent,
-                  label:
-                      'Closes in ${countdownText(activationLeft(open.first, now))}',
-                ),
-              ],
-              onTap: openActivations,
+            Column(
+              children: gapped([
+                for (final activation in shownActivations)
+                  activationCard(activation),
+              ]),
             ),
           ),
         ),
@@ -783,11 +821,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ];
   }
 
-  /// The empty briefs state, or null when it has briefs. Its button only
-  /// leads somewhere else: For you points to All, and filters can be cleared.
+  /// The empty briefs state, or null when it has briefs. Polls and
+  /// activations still sit above it. Pick up is not empty while those have
+  /// started work. Its button only leads somewhere else: For you points to
+  /// All, and filters can be cleared.
   Widget? _emptyFeed(FeedData data) {
     if (!_view(data).isEmpty) return null;
     final filters = ref.read(discoverFiltersProvider);
+    if (filters.pickUp) {
+      if (_proposals().isNotEmpty) return null;
+      return IqEmptyState(
+        figure: IqFigures.shrug,
+        title: 'Nothing to pick up',
+        body: 'Polls, activations and briefs you start land here.',
+        action: 'See For you',
+        onAction: () {
+          _crossContent();
+          ref.read(discoverFiltersProvider.notifier).showForYou();
+        },
+      );
+    }
     final narrowed = filters.narrowed;
     return IqEmptyState(
       figure: narrowed ? IqFigures.shrug : IqFigures.writer,
@@ -815,26 +868,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final proposals = _proposals();
     final lead = proposals.isEmpty ? 0.0 : _section;
     final status = filters.status.label.toLowerCase();
+    final showBriefs = !filters.pickUp || !view.isEmpty;
     return [
       ...proposals,
-      _Item('briefs-title', _briefsTitle(), gap: lead),
-      for (final brief in view.briefs.briefs)
-        _Item('briefs:${brief.id}', _inset(BriefFeatureCard(brief: brief))),
-      if (view.more.briefs.isNotEmpty) ...[
-        _Item(
-          'more',
-          _inset(
-            IqSectionTitle(
-              title: view.more.title,
-              showCount: false,
-              link: 'Filter',
-              onSeeAll: () => context.go(Routes.filters),
+      if (showBriefs) ...[
+        _Item('briefs-title', _briefsTitle(), gap: lead),
+        for (final brief in view.briefs.briefs)
+          _Item('briefs:${brief.id}', _inset(BriefFeatureCard(brief: brief))),
+        if (view.more.briefs.isNotEmpty) ...[
+          _Item(
+            'more',
+            _inset(
+              IqSectionTitle(
+                title: view.more.title,
+                showCount: false,
+                link: 'Filter',
+                onSeeAll: () => context.go(Routes.filters),
+              ),
             ),
+            gap: _section,
           ),
-          gap: _section,
-        ),
-        for (final brief in view.more.briefs)
-          _Item('more:${brief.id}', _inset(BriefFeatureCard(brief: brief))),
+          for (final brief in view.more.briefs)
+            _Item('more:${brief.id}', _inset(BriefFeatureCard(brief: brief))),
+        ],
       ],
       _Item(
         'tail',
@@ -842,10 +898,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           loading: data.loadingMore,
           end: data.loadingMore || view.hasMore
               ? null
+              : view.total == 0
+              ? null
+              : filters.pickUp
+              ? view.total == 1
+                    ? 'That’s the only brief to pick up'
+                    : 'That’s all ${view.total} briefs to pick up'
               : view.total == 1
               ? 'That’s the only $status brief'
               : 'That’s all ${view.total} $status briefs',
-          onAdjust: () => context.open(Routes.yourDetails),
+          onAdjust: filters.pickUp
+              ? null
+              : () => context.open(Routes.yourDetails),
         ),
         gap: 0,
       ),
@@ -942,19 +1006,21 @@ class _Tail extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: IqSpace.s3),
-            Appear(
-              delay: IqDurations.stagger,
-              child: _inset(
-                IqButton(
-                  label: 'Adjust interests',
-                  kind: IqButtonKind.ghost,
-                  showIcon: false,
-                  width: double.infinity,
-                  onTap: onAdjust,
+            if (onAdjust != null) ...[
+              const SizedBox(height: IqSpace.s3),
+              Appear(
+                delay: IqDurations.stagger,
+                child: _inset(
+                  IqButton(
+                    label: 'Adjust interests',
+                    kind: IqButtonKind.ghost,
+                    showIcon: false,
+                    width: double.infinity,
+                    onTap: onAdjust,
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       );
