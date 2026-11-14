@@ -821,12 +821,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ];
   }
 
-  /// The empty briefs state, or null when it has briefs. Its button only
-  /// leads somewhere else: For you points to All, and filters can be cleared.
+  /// The empty briefs state, or null when it has briefs. Polls and
+  /// activations still sit above it. Pick up is not empty while those have
+  /// started work. Its button only leads somewhere else: For you points to
+  /// All, and filters can be cleared.
   Widget? _emptyFeed(FeedData data) {
-    if (!_view(data).isEmpty || _proposals().isNotEmpty) return null;
+    if (!_view(data).isEmpty) return null;
     final filters = ref.read(discoverFiltersProvider);
     if (filters.pickUp) {
+      if (_proposals().isNotEmpty) return null;
       return IqEmptyState(
         figure: IqFigures.shrug,
         title: 'Nothing to pick up',
@@ -895,10 +898,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           loading: data.loadingMore,
           end: data.loadingMore || view.hasMore
               ? null
+              : view.total == 0
+              ? null
               : filters.pickUp
-              ? view.isEmpty
-                    ? null
-                    : view.total == 1
+              ? view.total == 1
                     ? 'That’s the only brief to pick up'
                     : 'That’s all ${view.total} briefs to pick up'
               : view.total == 1

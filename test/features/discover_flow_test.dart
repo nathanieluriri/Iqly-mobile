@@ -14,6 +14,7 @@ import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/ui/bookmark.dart';
 import 'package:iqly_mobile/ui/brief_card.dart';
 import 'package:iqly_mobile/ui/button.dart';
+import 'package:iqly_mobile/ui/empty_state.dart';
 import 'package:iqly_mobile/ui/gift_button.dart';
 import 'package:iqly_mobile/ui/switch.dart';
 import 'package:iqly_mobile/ui/ticket_card.dart';
@@ -233,8 +234,12 @@ void main() {
     expect(find.text('Rate 3 recipes in the Orchid Foods app'), findsOneWidget);
     expect(find.text('No open briefs right now'), findsOneWidget);
     expect(find.text('New briefs land here.'), findsOneWidget);
+    expect(find.textContaining('That’s all 0'), findsNothing);
+    expect(find.byType(IqEmptyState), findsOneWidget);
     await _tap(tester, find.text('See all briefs'));
     expect(container.read(discoverFiltersProvider).forYou, isFalse);
+    expect(find.text('No open briefs right now'), findsOneWidget);
+    expect(find.textContaining('That’s all 0'), findsNothing);
   });
 
   testWidgets('Discover: failed load, Try again', (tester) async {
