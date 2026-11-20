@@ -57,9 +57,9 @@ Brief? briefFromJson(Object? json) {
         _time(j['deadline']),
     businessName: _text(j['brandName']),
     createdAt: _time(j['publishedAt']) ?? _time(j['createdAt']) ?? _unknownTime,
-    interest: _list(_map(j['audienceFilters'])?['interests'])
-        .whereType<String>()
-        .firstOrNull,
+    interest: _list(
+      _map(j['audienceFilters'])?['interests'],
+    ).whereType<String>().firstOrNull,
     spotsTotal: cap,
     spotsLeft: cap == null
         ? null
@@ -377,6 +377,7 @@ SubmitForm submitFormFromJson(Object? json) {
   final j = _map(json);
   final formats = _map(j?['acceptedFormats']);
   return SubmitForm(
+    deliverables: rowsOf(j?['deliverables'], _text),
     questions: rowsOf(
       _map(j?['audienceSurvey'])?['questions'],
       surveyQuestionFromJson,

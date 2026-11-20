@@ -34,6 +34,7 @@ class SubmitField extends StatefulWidget {
     this.error = false,
     this.help,
     this.many = false,
+    this.showLabel = true,
     this.inputHeight = defaultInputHeight,
     this.textInputAction,
     this.inputFormatters,
@@ -52,6 +53,7 @@ class SubmitField extends StatefulWidget {
   /// Shown under the line in Error.
   final String? help;
   final bool many;
+  final bool showLabel;
   final double inputHeight;
   final TextInputAction? textInputAction;
   final List<TextInputFormatter>? inputFormatters;
@@ -144,30 +146,32 @@ class _SubmitFieldState extends State<SubmitField> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ExcludeSemantics(
-            child: Row(
-              children: [
-                Expanded(
-                  child: AnimatedDefaultTextStyle(
-                    duration: duration,
-                    curve: IqCurves.easeOut,
-                    style: IqText.label.copyWith(color: ink),
-                    child: Text(
-                      widget.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+          if (widget.showLabel) ...[
+            ExcludeSemantics(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: AnimatedDefaultTextStyle(
+                      duration: duration,
+                      curve: IqCurves.easeOut,
+                      style: IqText.label.copyWith(color: ink),
+                      child: Text(
+                        widget.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: IqSpace.s2),
-                Text(
-                  widget.requirement,
-                  style: IqText.small.copyWith(color: IqColors.fg2),
-                ),
-              ],
+                  const SizedBox(width: IqSpace.s2),
+                  Text(
+                    widget.requirement,
+                    style: IqText.small.copyWith(color: IqColors.fg2),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: SubmitField._gap),
+            const SizedBox(height: SubmitField._gap),
+          ],
           ConstrainedBox(
             constraints: BoxConstraints(
               minHeight: widget.many ? math.max(0, widget.inputHeight) : 0,
