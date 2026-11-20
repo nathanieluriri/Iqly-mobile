@@ -689,9 +689,10 @@ final closeRemindersProvider =
 final briefDetailProvider = FutureProvider.autoDispose.family<Brief?, String>(
   retry: (_, _) => null,
   (ref, id) async {
-    Future<Brief?> saved() async => (await ref.watch(
-      savedBriefsProvider.future,
-    )).where((b) => b.id == id).firstOrNull;
+    Future<Brief?> saved() async =>
+        (await ref.watch(savedBriefsProvider.future))
+            .where((b) => b.id == id)
+            .firstOrNull;
     try {
       final brief = await ref.watch(repositoryProvider).brief(id);
       if (brief != null) return brief;

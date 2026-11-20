@@ -33,9 +33,8 @@ void main() {
       closeTo(1 / 3, 0.001),
     );
     final now = DateTime.utc(2026, 11, 14);
-    final kudi = DemoActivations(
-      now,
-    ).kudiBox.withProgress(DemoActivations(now).stuckAtStep2);
+    final kudi = DemoActivations(now).kudiBox
+        .withProgress(DemoActivations(now).stuckAtStep2);
     expect(kudi.inProgressAt(now), isTrue);
     expect(kudi.runProgress, closeTo(2 / 4, 0.001));
   });
@@ -77,9 +76,8 @@ void main() {
         drafts: const [],
         polls: const [],
         activations: [
-          DemoActivations(
-            now,
-          ).kudiBox.withProgress(DemoActivations(now).stuckAtStep2),
+          DemoActivations(now).kudiBox
+              .withProgress(DemoActivations(now).stuckAtStep2),
         ],
         now: now,
       ),

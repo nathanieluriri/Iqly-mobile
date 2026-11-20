@@ -422,9 +422,8 @@ void main() {
           reason: 'per_run with steps still to do cannot finish',
         );
         expect(
-          closedHeld(
-            stepRewards: [50000, 50000, 50000],
-          ).phaseAt(_now.toLocal()),
+          closedHeld(stepRewards: [50000, 50000, 50000])
+              .phaseAt(_now.toLocal()),
           ActivationPhase.confirming,
         );
         expect(

@@ -57,9 +57,9 @@ Brief? briefFromJson(Object? json) {
         _time(j['deadline']),
     businessName: _text(j['brandName']),
     createdAt: _time(j['publishedAt']) ?? _time(j['createdAt']) ?? _unknownTime,
-    interest: _list(
-      _map(j['audienceFilters'])?['interests'],
-    ).whereType<String>().firstOrNull,
+    interest: _list(_map(j['audienceFilters'])?['interests'])
+        .whereType<String>()
+        .firstOrNull,
     spotsTotal: cap,
     spotsLeft: cap == null
         ? null
