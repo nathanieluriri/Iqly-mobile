@@ -22,6 +22,9 @@ class Draft {
 
   bool get isEmpty => title.isEmpty && answer.isEmpty && answers.isEmpty;
 
+  /// How far the draft has got, 0 to 1, from its step of [DraftSteps.total].
+  double get progress => (step / DraftSteps.total).clamp(0, 1);
+
   Draft copyWith({
     String? title,
     String? answer,

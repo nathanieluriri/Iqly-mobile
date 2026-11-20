@@ -19,6 +19,7 @@ import '../../ui/chip.dart';
 import '../../ui/meta.dart';
 import '../../ui/ticket_card.dart';
 import '../../ui/top_bar.dart';
+import '../drafts/drafts_state.dart';
 import 'business_art.dart';
 import 'discover_state.dart';
 
@@ -46,14 +47,15 @@ class DiscoverTopBar extends ConsumerWidget {
   }
 }
 
-enum FeedChip { forYou, all, saved }
+enum FeedChip { pickUp, forYou, all, saved }
 
 void browseForYou(BuildContext context, WidgetRef ref) {
   ref.read(discoverFiltersProvider.notifier).showForYou();
   context.go(Routes.home);
 }
 
-/// The feed lens row: For you, All and (behind Flags.savedBriefs) Saved.
+/// The feed lens row: Pick up (only while there is started work), For you,
+/// All and (behind Flags.savedBriefs) Saved.
 /// Each tap crosses the content under the chips into the picked lens while
 /// the chips hold still (spec 3.7).
 class FeedChips extends ConsumerWidget {
@@ -63,11 +65,15 @@ class FeedChips extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final showPickUp = ref.watch(pickUpAvailableProvider);
     void pick(FeedChip chip) {
       if (chip == selected) return;
       final filters = ref.read(discoverFiltersProvider.notifier);
       LensCrossfade.cross(context, line: context);
       switch (chip) {
+        case FeedChip.pickUp:
+          filters.showPickUp();
+          context.go(Routes.home);
         case FeedChip.forYou:
           filters.showForYou();
           context.go(Routes.home);
@@ -91,6 +97,7 @@ class FeedChips extends ConsumerWidget {
         spacing: IqSpace.s2,
         runSpacing: IqSpace.s2,
         children: [
+          if (showPickUp) chip(FeedChip.pickUp, 'Pick up'),
           chip(FeedChip.forYou, 'For you'),
           chip(FeedChip.all, 'All'),
           if (Flags.savedBriefs) chip(FeedChip.saved, 'Saved'),
@@ -181,6 +188,9 @@ class BriefFeatureCard extends ConsumerWidget {
     final saved =
         ref.watch(savedBriefsProvider).value?.any((b) => b.id == brief.id) ??
         false;
+    final draft = (ref.watch(draftsProvider).value ?? const [])
+        .where((d) => d.briefId == brief.id && !d.isEmpty)
+        .firstOrNull;
     return IqBriefCard(
       kind: IqBriefCardKind.feature,
       brand: businessLabel(brief),
@@ -189,6 +199,7 @@ class BriefFeatureCard extends ConsumerWidget {
       logo: businessLogo(brief.logo),
       meta: briefMeta(brief, now),
       closingSoon: isClosingSoon(brief, now),
+      progress: draft?.progress,
       showBookmark: Flags.savedBriefs,
       bookmark: saved ? IqBookmarkState.on : IqBookmarkState.off,
       onBookmarkChanged: (state) => ref

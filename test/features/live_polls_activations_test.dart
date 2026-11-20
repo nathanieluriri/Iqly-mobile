@@ -14,6 +14,7 @@ import 'package:iqly_mobile/data/activations_service.dart';
 import 'package:iqly_mobile/data/api_client.dart';
 import 'package:iqly_mobile/data/live/live_account.dart';
 import 'package:iqly_mobile/data/live/live_repository.dart';
+import 'package:iqly_mobile/data/local/memory_local_store.dart';
 import 'package:iqly_mobile/data/polls_service.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/data/token_store.dart';
@@ -210,6 +211,61 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Quick polls'), findsOneWidget);
       expect(find.text('Activations'), findsOneWidget);
+    });
+
+    testWidgets('Discover opens all three activations from the API', (
+      tester,
+    ) async {
+      const second = 'Try the Harbour Telecom app';
+      const third = 'Complete a Harbour Telecom profile';
+      final secondActivation = _json.activationJson(
+        id: 'a_2',
+        title: second,
+        closesAt: _json.inn(const Duration(hours: 12)),
+      );
+      final thirdActivation = _json.activationJson(id: 'a_3', title: third);
+      final api = _Api({
+        'GET /activations': (_) => _ok({
+          'items': [
+            _json.activationJson(closesAt: _json.inn(const Duration(hours: 6))),
+            secondActivation,
+            thirdActivation,
+          ],
+        }),
+        'GET /activations/a_2': (_) => _ok(secondActivation),
+        'GET /activations/a_3': (_) => _ok(thirdActivation),
+      });
+      final store = MemoryLocalStore(clock: () => launchNow);
+      await store.writeCache('u_1', AccountKeys.activations, {
+        'items': [_json.activationJson()],
+      });
+      await pumpLiveLaunch(
+        tester,
+        Routes.home,
+        api: api.client,
+        store: store,
+        mode: _on,
+      );
+      await tester.pumpAndSettle();
+
+      expect(api.to('GET /activations'), isNotEmpty);
+      await _tap(tester, find.text(_plan));
+      expect(find.byType(ActivationsScreen), findsOneWidget);
+      expect(find.text(_plan), findsOneWidget);
+      expect(find.text(second), findsOneWidget);
+      expect(find.text(third), findsOneWidget);
+      await _tap(tester, find.text(second));
+      expect(
+        tester.widget<ActivationScreen>(find.byType(ActivationScreen)).id,
+        'a_2',
+      );
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await _tap(tester, find.text(third));
+      expect(
+        tester.widget<ActivationScreen>(find.byType(ActivationScreen)).id,
+        'a_3',
+      );
     });
 
     testWidgets('a vote goes to the API and its results show', (tester) async {

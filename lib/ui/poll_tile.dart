@@ -5,6 +5,7 @@ import '../theme/theme.dart';
 import 'cover_with_logo.dart';
 import 'meta.dart';
 import 'pressable.dart';
+import 'progress_line.dart';
 import 'sample_cover.dart';
 import 'sample_logo.dart';
 
@@ -26,6 +27,7 @@ class IqPollTile extends StatelessWidget {
     this.meta,
     this.cover = const IqSampleCover(IqSampleLogoBrand.orchidFoods),
     this.logo = const IqSampleLogo(IqSampleLogoBrand.orchidFoods),
+    this.progress,
     this.onTap,
   });
 
@@ -35,13 +37,22 @@ class IqPollTile extends StatelessWidget {
   final String? meta;
   final Widget cover;
   final Widget logo;
+
+  /// How far the person has got, 0 to 1. Null hides the bar. The bar sits
+  /// in the text column under the question, never under the photo.
+  final double? progress;
   final VoidCallback? onTap;
 
   bool get _answered => state == IqPollTileState.answered;
 
-  Size get size => layout == IqPollTileLayout.vertical
-      ? const Size(168, 214)
-      : const Size(300, 98);
+  bool get _started => progress != null && !_answered;
+
+  Size get size {
+    final extra = _started ? IqSpace.s1p5 + IqProgressLine.height : 0.0;
+    return layout == IqPollTileLayout.vertical
+        ? Size(168, 214 + extra)
+        : Size(300, 98 + extra);
+  }
 
   Widget get _meta => _answered
       ? IqMeta(kind: IqMetaKind.done, label: meta ?? 'Answered')
@@ -62,6 +73,7 @@ class IqPollTile extends StatelessWidget {
           size: size,
           child: LineCard(
             inset: layout == IqPollTileLayout.horizontal,
+            color: _started ? IqColors.tint : IqColors.card,
             child: body,
           ),
         ),
@@ -100,6 +112,10 @@ class IqPollTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: IqText.smallStrong.copyWith(color: IqColors.fg),
                   ),
+                  if (_started) ...[
+                    const SizedBox(height: IqSpace.s1p5),
+                    IqProgressLine(value: progress!),
+                  ],
                   const SizedBox(height: IqSpace.s2),
                   _meta,
                 ],
@@ -134,7 +150,7 @@ class IqPollTile extends StatelessWidget {
           const SizedBox(width: IqSpace.s3),
           Expanded(
             child: SizedBox(
-              height: 70,
+              height: _started ? 86 : 70,
               child: ClipRect(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -145,6 +161,10 @@ class IqPollTile extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: IqText.bodyStrong.copyWith(color: IqColors.fg),
                     ),
+                    if (_started) ...[
+                      const SizedBox(height: IqSpace.s1p5),
+                      IqProgressLine(value: progress!),
+                    ],
                     const SizedBox(height: IqSpace.s1p5),
                     _meta,
                   ],
