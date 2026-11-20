@@ -648,6 +648,31 @@ void main() {
       );
     });
 
+    test('the live list keeps all three open activations', () async {
+      final api = _Api({
+        'GET /activations': (_) => _ok({
+          'items': [
+            _f.activationJson(id: 'a_1', title: 'First activation'),
+            _f.activationJson(id: 'a_2', title: 'Second activation'),
+            _f.activationJson(id: 'a_3', title: 'Third activation'),
+          ],
+        }),
+        'GET /activations/mine': (_) => _ok({
+          'items': [_f.activationJson(id: 'a_2', progress: _f.runJson())],
+          'nextCursor': null,
+        }),
+      });
+      final all = await LiveActivationsService(
+        api.link,
+        clock: () => _now,
+      ).activations();
+      expect([for (final a in all) a.id], ['a_1', 'a_2', 'a_3']);
+      expect(
+        [for (final a in all) a.title],
+        ['First activation', 'Second activation', 'Third activation'],
+      );
+    });
+
     test(
       'a fresh list asks the API so a kept copy cannot hide a new activation',
       () async {

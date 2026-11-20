@@ -721,9 +721,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ]..sort((a, b) => a.closesAt.compareTo(b.closesAt));
     final shownActivations = pickUp ? open : open.take(1).toList();
     void openActivations() => context.open(
-      shownActivations.length == 1
-          ? activationPath(shownActivations.single.id)
-          : Routes.activations,
+      open.length == 1 ? activationPath(open.single.id) : Routes.activations,
     );
     Widget activationCard(Activation activation) => IqBriefCard(
       kind: IqBriefCardKind.row,
@@ -783,7 +781,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             IqSectionTitle(
               title: 'Activations',
               showCount: false,
-              onSeeAll: openActivations,
+              onSeeAll: () => context.open(Routes.activations),
             ),
           ),
           gap: shownPolls.isEmpty ? 0 : _section,

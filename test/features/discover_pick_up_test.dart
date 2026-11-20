@@ -29,7 +29,7 @@ void main() {
 
   test('a draft and a started activation both fill the bar', () {
     expect(
-      const Draft(briefId: 'c5', editedAt: DateTime(2026), step: 1).progress,
+      Draft(briefId: 'c5', editedAt: DateTime(2026), step: 1).progress,
       closeTo(1 / 3, 0.001),
     );
     final now = DateTime.utc(2026, 11, 14);
@@ -44,7 +44,7 @@ void main() {
     final orchid = demoPolls(now).first;
     expect(
       hasPickUpWork(
-        drafts: const [Draft(briefId: 'c5', editedAt: DateTime(2026))],
+        drafts: [Draft(briefId: 'c5', editedAt: DateTime(2026))],
         polls: [orchid],
         activations: [DemoActivations(now).orchidFoods],
         now: now,
@@ -53,7 +53,7 @@ void main() {
     );
     expect(
       hasPickUpWork(
-        drafts: const [
+        drafts: [
           Draft(briefId: 'c5', editedAt: DateTime(2026), title: 'A tagline'),
         ],
         polls: const [],
