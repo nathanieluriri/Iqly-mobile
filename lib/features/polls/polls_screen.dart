@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
+import '../../core/deadline.dart' show clockProvider;
 import '../../core/session.dart';
 import '../../data/polls_data.dart';
 import '../../theme/theme.dart';

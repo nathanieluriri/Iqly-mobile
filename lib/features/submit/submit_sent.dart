@@ -7,17 +7,11 @@ import '../../ui/button.dart';
 import '../../ui/illustration.dart';
 import 'submit_widgets.dart';
 
-/// "29 people have submitted so far, including you." (34:269), from the
-/// entries the API counts with this one.
-String submittedSoFar(int entries) =>
-    '$entries ${entries == 1 ? 'person has' : 'people have'} submitted so '
-    'far, including you.';
-
 /// B3 · Submit · sent (34:269), a moment: the Sender figure arrives, then
-/// the title, the line and the count settle in one after another; the
-/// buttons are there from the first frame. Without a [receipt] the entry
-/// waits on the phone for the network (contract 13.4): the same moment
-/// says so and offers Discover only (no frame draws it).
+/// the title and the line settle in one after another; the buttons are
+/// there from the first frame. Without a [receipt] the entry waits on the
+/// phone for the network (contract 13.4): the same moment says so and
+/// offers Discover only (no frame draws it).
 class SentMoment extends StatelessWidget {
   const SentMoment({
     super.key,
@@ -34,7 +28,6 @@ class SentMoment extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final entries = receipt?.entries;
     final queued = receipt == null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -71,22 +64,11 @@ class SentMoment extends StatelessWidget {
                             queued
                                 ? 'No connection right now. It goes by itself '
                                       'once you’re back online.'
-                                : "Winners are picked after the brief closes. We'll tell you.",
+                                : 'You will get notified if your submission is selected.',
                             textAlign: TextAlign.center,
                             style: IqText.body.copyWith(color: IqColors.fg2),
                           ),
                         ),
-                        if (entries != null) ...[
-                          const SizedBox(height: IqSpace.s4),
-                          Appear(
-                            delay: IqDurations.stagger * 4,
-                            child: Text(
-                              submittedSoFar(entries),
-                              textAlign: TextAlign.center,
-                              style: IqText.body.copyWith(color: IqColors.fg2),
-                            ),
-                          ),
-                        ],
                       ],
                     ),
                   ),

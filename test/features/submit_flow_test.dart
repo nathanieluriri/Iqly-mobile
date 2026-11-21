@@ -162,8 +162,9 @@ void main() {
               as IqSheetRoute;
       expect(route.transitionDuration, IqDurations.sheetRise);
       expect(route.reverseTransitionDuration, IqDurations.sheetDrop);
-      final brief = DemoData(now: figmaNow).briefs
-          .firstWhere((b) => b.id == 'c5');
+      final brief = DemoData(
+        now: figmaNow,
+      ).briefs.firstWhere((b) => b.id == 'c5');
       expect(
         find.descendant(
           of: find.byType(BriefSheet),
@@ -288,13 +289,10 @@ void main() {
       await _tap(tester, find.text('Submit'));
       expect(find.text('Submitted. Good luck!'), findsOneWidget);
       expect(
-        find.text("Winners are picked after the brief closes. We'll tell you."),
+        find.text('You will get notified if your submission is selected.'),
         findsOneWidget,
       );
-      expect(
-        find.text('29 people have submitted so far, including you.'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('submitted so far'), findsNothing);
       expect(haptics, [_success]);
       final request = service.requests.single;
       expect(request.briefId, 'c5');
