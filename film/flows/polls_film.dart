@@ -27,7 +27,7 @@ void main() {
     await d.arrive(find.byType(PollSheet), hold: 1.2);
 
     await d.tap(find.text('Zobo and ginger'));
-    await d.waitFor(find.text('You voted · 214 votes'));
+    await d.waitFor(find.text('214 votes'));
     await d.hold(1.4);
 
     await d.scroll(

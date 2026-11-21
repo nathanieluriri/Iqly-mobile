@@ -293,7 +293,7 @@ void main() {
       await tester.pumpAndSettle();
       await _tap(tester, find.text('Completed'));
       await _tap(tester, find.text(question));
-      expect(find.text('You voted · 5 votes'), findsOneWidget);
+      expect(find.text('5 votes'), findsOneWidget);
       expect(find.text('Tiger nut'), findsOneWidget);
       await _tap(tester, find.text('Tiger nut'));
       expect(api.to('POST /polls/past/vote'), isEmpty);
@@ -353,7 +353,7 @@ void main() {
       expect(jsonDecode(api.to('POST /polls/p_1/vote').single.body), {
         'choice': 0,
       });
-      expect(find.text('You voted · 214 votes'), findsOneWidget);
+      expect(find.text('214 votes'), findsOneWidget);
       expect(find.textContaining('Couldn’t send'), findsNothing);
     });
 
@@ -375,7 +375,7 @@ void main() {
       await _tap(tester, find.text('Zobo and ginger'));
       expect(find.text('Couldn’t send.'), findsOneWidget);
       expect(api.to('GET /polls/p_1'), hasLength(1));
-      expect(find.text('You voted · 214 votes'), findsOneWidget);
+      expect(find.text('214 votes'), findsOneWidget);
     });
 
     testWidgets('a closed poll the API reports shows as closed', (
@@ -413,7 +413,7 @@ void main() {
         find.text('Couldn’t send. Check your connection.'),
         findsOneWidget,
       );
-      expect(find.text('You voted · 214 votes'), findsNothing);
+      expect(find.text('214 votes'), findsNothing);
     });
 
     testWidgets('a closing account goes to Restore', (tester) async {
@@ -471,7 +471,7 @@ void main() {
       expect(api.to('GET /polls/p_9'), hasLength(1));
       expect(find.byType(PollSheet), findsOneWidget);
       expect(find.text('Where do you buy your noodles?'), findsOneWidget);
-      expect(find.text('You voted · 97 votes'), findsOneWidget);
+      expect(find.text('97 votes'), findsOneWidget);
     });
 
     testWidgets('start goes to the API and the steps follow', (tester) async {

@@ -100,11 +100,12 @@ class DemoPollsService implements PollsService {
     for (final business in _businesses) {
       for (final poll in business.polls) {
         if (poll.id != pollId) continue;
-        if (poll.voted || poll.closedAt(_clock())) return poll;
+        if (poll.closedAt(_clock()) || !poll.changeableAt(_clock())) {
+          return poll;
+        }
         var counted = poll;
         for (final (:question, :choice) in answers) {
-          if (question < counted.questions.length &&
-              !counted.questions[question].answered) {
+          if (question < counted.questions.length) {
             counted = counted.withVote(choice, question: question);
           }
         }
@@ -144,8 +145,9 @@ class LivePollsService implements PollsService {
 
   @override
   Future<PollHistoryPage> history({String? cursor}) async {
-    final query = Uri(queryParameters: {'limit': '50', 'cursor': ?cursor})
-        .query;
+    final query = Uri(
+      queryParameters: {'limit': '50', 'cursor': ?cursor},
+    ).query;
     final res = await link.scope.guard(link.api.get('/polls/history?$query'));
     if (!res.ok) throw ApiRefused.of(res);
     return PollHistoryPage(
@@ -303,6 +305,8 @@ Poll? pollFromJson(Object? json, {bool questions = false}) {
     closed: json['closed'] == true,
     followUps: followUps,
     completed: json['answered'] is bool ? json['answered'] as bool : null,
+    changes: apiInt(json['changes']) ?? 0,
+    canChange: json['canChange'] is bool ? json['canChange'] as bool : null,
   );
 }
 

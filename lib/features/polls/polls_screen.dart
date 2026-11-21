@@ -138,19 +138,20 @@ class _PollsScreenState extends ConsumerState<PollsScreen> {
                     ],
                   ),
                 ),
-                if (_completed)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      IqSpace.s4,
-                      IqSpace.s2,
-                      IqSpace.s4,
-                      0,
-                    ),
-                    child: Text(
-                      'Your poll answers are available for up to 6 months.',
-                      style: IqText.small.copyWith(color: IqColors.fg3),
-                    ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    IqSpace.s4,
+                    IqSpace.s2,
+                    IqSpace.s4,
+                    0,
                   ),
+                  child: Text(
+                    _completed
+                        ? 'Thank you for answering honestly.'
+                        : 'Your answers are valuable. Please answer honestly.',
+                    style: IqText.small.copyWith(color: IqColors.fg3),
+                  ),
+                ),
                 const SizedBox(height: IqSpace.s3),
                 Expanded(
                   child: LoadingGate(

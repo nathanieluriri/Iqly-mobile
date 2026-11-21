@@ -80,7 +80,7 @@ void main() {
     await _tap(tester, find.text('Zobo and ginger'));
     expect(haptics, [_light, _light, _select]);
     expect(_card(tester, _flavour).selected, 0);
-    expect(find.text('You voted · 214 votes'), findsNothing);
+    expect(find.text('214 votes'), findsNothing);
 
     await _tap(tester, find.text('Next question'));
     expect(find.text('QUESTION 2 OF 3'), findsOneWidget);
@@ -105,9 +105,9 @@ void main() {
       isFalse,
     );
     await _tap(tester, find.text('Done'));
-    expect(find.text('You voted · 214 votes'), findsOneWidget);
+    expect(find.text('214 votes'), findsOneWidget);
     expect(find.text('45%'), findsOneWidget);
-    expect(find.text('You voted · 96 votes'), findsOneWidget);
+    expect(find.text('96 votes'), findsOneWidget);
     final chosen = tester.widget<IqPollOption>(
       find.byWidgetPredicate(
         (w) => w is IqPollOption && w.label == 'Zobo and ginger',
@@ -298,10 +298,10 @@ void main() {
     await _tap(tester, find.text('Completed'));
     await _tap(tester, find.text(_kiosk));
     expect(find.text('You’re done'), findsOneWidget);
-    expect(find.text('You voted · 176 votes'), findsOneWidget);
+    expect(find.text('176 votes'), findsOneWidget);
     expect(find.text('Closes in 1 day'), findsOneWidget);
     await _tap(tester, find.text('6 am'));
-    expect(find.text('You voted · 176 votes'), findsOneWidget);
+    expect(find.text('176 votes'), findsOneWidget);
   });
 
   testWidgets('B2: a closed answered poll remains available in history', (
@@ -318,7 +318,7 @@ void main() {
     await _tap(tester, find.text('Completed'));
     expect(_tile(tester, _kiosk).onTap, isNotNull);
     await _tap(tester, find.text(_kiosk));
-    expect(find.text('You voted · 176 votes'), findsOneWidget);
+    expect(find.text('176 votes'), findsOneWidget);
     expect(find.text('Closed'), findsOneWidget);
   });
 
@@ -350,7 +350,7 @@ void main() {
     polls.release();
     await tester.pumpAndSettle();
     expect(_card(tester, _books).state, IqPollCardState.voted);
-    expect(find.text('You voted · 98 votes'), findsOneWidget);
+    expect(find.text('98 votes'), findsOneWidget);
     expect(find.text('You’re done'), findsOneWidget);
   });
 }

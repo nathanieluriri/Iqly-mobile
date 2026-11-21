@@ -70,12 +70,13 @@ class IqPollOption extends StatelessWidget {
       ),
     };
     return IqPressable(
-      onTap: _voting ? onTap : null,
+      onTap: onTap,
       haptic: IqHaptics.select,
       builder: (context, _) => SizedBox(
         width: width,
         height: height,
         child: Stack(
+          clipBehavior: Clip.none,
           children: [
             Positioned.fill(
               child: AnimatedSwitcher(

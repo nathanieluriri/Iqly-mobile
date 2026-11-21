@@ -719,7 +719,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       for (final a in activations)
         if (!a.closedAt(now) && !a.credited && (!pickUp || a.started)) a,
     ]..sort((a, b) => a.closesAt.compareTo(b.closesAt));
-    final shownActivations = pickUp ? open : open.take(1).toList();
+    final shownActivations = pickUp ? open : open.take(5).toList();
     void openActivations() => context.open(
       open.length == 1 ? activationPath(open.single.id) : Routes.activations,
     );
@@ -874,18 +874,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         for (final brief in view.briefs.briefs)
           _Item('briefs:${brief.id}', _inset(BriefFeatureCard(brief: brief))),
         if (view.more.briefs.isNotEmpty) ...[
-          _Item(
-            'more',
-            _inset(
-              IqSectionTitle(
-                title: view.more.title,
-                showCount: false,
-                link: 'Filter',
-                onSeeAll: () => context.go(Routes.filters),
+          if (view.briefs.briefs.isNotEmpty)
+            _Item(
+              'more',
+              _inset(
+                IqSectionTitle(
+                  title: view.more.title,
+                  showCount: false,
+                  link: 'Filter',
+                  onSeeAll: () => context.go(Routes.filters),
+                ),
               ),
+              gap: _section,
             ),
-            gap: _section,
-          ),
           for (final brief in view.more.briefs)
             _Item('more:${brief.id}', _inset(BriefFeatureCard(brief: brief))),
         ],

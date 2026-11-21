@@ -97,12 +97,25 @@ class _IqPollCardState extends State<IqPollCard>
     final hint = switch (widget.state) {
       IqPollCardState.open =>
         widget.hint ?? 'Pick one · results show after you vote',
-      IqPollCardState.voted => 'You voted · $votes',
-      IqPollCardState.closed => 'Final · $votes',
+      IqPollCardState.voted => votes,
+      IqPollCardState.closed => votes,
     };
-    final hintLine = Text(
-      hint,
-      style: IqText.small.copyWith(color: IqColors.fg3),
+    final hintLine = Text.rich(
+      TextSpan(
+        style: IqText.small.copyWith(color: IqColors.fg3),
+        children: [
+          if (widget.state != IqPollCardState.open)
+            TextSpan(
+              text: hint,
+              style: IqText.small.copyWith(
+                color: IqColors.fg,
+                fontWeight: FontWeight.w700,
+              ),
+            )
+          else
+            TextSpan(text: hint),
+        ],
+      ),
     );
     return Container(
       padding: const EdgeInsets.all(IqSpace.s4),
@@ -147,12 +160,12 @@ class _IqPollCardState extends State<IqPollCard>
               ),
             ),
             const SizedBox(height: IqSpace.s3),
-            Text(
-              widget.state == IqPollCardState.closed
-                  ? 'Closed'
-                  : widget.timeLeft,
-              style: IqText.small.copyWith(color: IqColors.fg3),
-            ),
+            if (widget.state != IqPollCardState.closed &&
+                widget.timeLeft.isNotEmpty)
+              Text(
+                widget.timeLeft,
+                style: IqText.small.copyWith(color: IqColors.fg3),
+              ),
           ],
         ),
       ),

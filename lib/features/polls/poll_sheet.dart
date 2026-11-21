@@ -18,6 +18,7 @@ import '../../ui/brand_header.dart';
 import '../../ui/button.dart';
 import '../../ui/poll_card.dart';
 import '../../ui/skeleton.dart';
+import '../../ui/toast.dart';
 import '../../ui/step_mark.dart';
 import '../../ui/top_bar.dart';
 import '../discover/business_art.dart';
@@ -291,10 +292,35 @@ class _PollsState extends ConsumerState<_Polls> {
         VoteOutcome.counted => null,
         VoteOutcome.offline => 'Couldn’t send. Check your connection.',
         VoteOutcome.closing when Flags.deleteAccount => null,
+        VoteOutcome.closed => 'No longer accepting responses',
+        VoteOutcome.recorded => 'Your response has already been recorded.',
         VoteOutcome.refused || VoteOutcome.closing => 'Couldn’t send.',
       };
     });
-    if (outcome == VoteOutcome.counted) return;
+    if (outcome == VoteOutcome.counted) {
+      final poll = widget.business?.polls.firstOrNull;
+      final left = poll?.remainingChanges;
+      if (left != null && mounted) {
+        IqToast.show(
+          context,
+          left == 1
+              ? '1 change left on this poll.'
+              : '$left changes left on this poll.',
+        );
+      }
+      return;
+    }
+    if (outcome == VoteOutcome.closed || outcome == VoteOutcome.recorded) {
+      if (mounted) {
+        IqToast.show(
+          context,
+          outcome == VoteOutcome.closed
+              ? 'No longer accepting responses'
+              : 'Your response has already been recorded.',
+          kind: IqToastKind.error,
+        );
+      }
+    }
     errorHaptic();
     if (outcome == VoteOutcome.closing && Flags.deleteAccount) {
       await showClosingAccount(context, ref);
@@ -417,7 +443,8 @@ class _PollsState extends ConsumerState<_Polls> {
                   setState(() => (_held[poll.id] ??= {})[question] = choice),
       );
     }
-    final voting = !poll.voted && !asked.answered && !closed && _picks.isEmpty;
+    final changeable = poll.changeableAt(now);
+    final voting = (!asked.answered || changeable) && !closed && _picks.isEmpty;
     return IqPollCard(
       key: ValueKey(_key(poll, question)),
       question: asked.question,
@@ -432,12 +459,26 @@ class _PollsState extends ConsumerState<_Polls> {
       ],
       votes: asked.total,
       timeLeft: closed
-          ? 'Closed'
+          ? ''
           : 'Closes in ${pollTimeLeft(timeLeft(poll.closesAt, now)!)}',
       chosen: asked.chosen ?? 0,
       selected: _picks[_key(poll, question)],
       hint: 'Pick one',
-      onVote: voting && question == 0 ? (choice) => _vote(poll, choice) : null,
+      onVote: !voting
+          ? (choice) {
+              if (closed) {
+                IqToast.show(context, 'No longer accepting responses');
+              } else {
+                IqToast.show(
+                  context,
+                  'Your response has already been recorded.',
+                  kind: IqToastKind.error,
+                );
+              }
+            }
+          : question == 0
+          ? (choice) => _vote(poll, choice)
+          : null,
     );
   }
 

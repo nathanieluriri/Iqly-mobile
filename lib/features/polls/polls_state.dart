@@ -20,6 +20,12 @@ enum VoteOutcome {
 
   /// The account is closing, so it takes no writes.
   closing,
+
+  /// The poll is closed, so it takes no more answers.
+  closed,
+
+  /// The person has used every change.
+  recorded,
 }
 
 /// The businesses with open polls and the person's votes, shared by the
@@ -72,6 +78,8 @@ class PollsNotifier extends AsyncNotifier<List<PollBusiness>> {
     } on ApiRefused catch (refusal) {
       if (unanswered(refusal)) return VoteOutcome.offline;
       if (refusal.code == 'ACCOUNT_CLOSING') return VoteOutcome.closing;
+      if (refusal.code == 'POLL_CLOSED') return VoteOutcome.closed;
+      if (refusal.code == 'POLL_CHANGE_LIMIT') return VoteOutcome.recorded;
       await bring(pollId);
       return VoteOutcome.refused;
     } catch (_) {
@@ -172,7 +180,9 @@ List<PollBusiness> pollTiles(
 }) => [
   for (final business in businesses)
     for (final poll in business.polls)
-      if (completed ? poll.voted : !poll.voted && !poll.closedAt(now))
+      if (completed
+          ? poll.voted && !poll.changeableAt(now)
+          : poll.changeableAt(now))
         business.only(poll),
 ];
 

@@ -87,6 +87,8 @@ class Poll {
     this.closed = false,
     this.followUps = const [],
     this.completed,
+    this.changes = 0,
+    this.canChange,
   });
 
   final String id;
@@ -100,6 +102,8 @@ class Poll {
   final bool closed;
   final List<PollQuestion> followUps;
   final bool? completed;
+  final int changes;
+  final bool? canChange;
 
   /// Every question, the first included.
   List<PollQuestion> get questions => [
@@ -156,6 +160,18 @@ class Poll {
 
   bool closedAt(DateTime now) => closed || !closesAt.isAfter(now);
 
+  bool changeableAt(DateTime now) {
+    if (closedAt(now)) return false;
+    if (canChange != null) return canChange!;
+    return changes < 10;
+  }
+
+  /// Remaining writes to toast after a successful write, or null.
+  int? get remainingChanges {
+    if (changes < 7 || changes > 10) return null;
+    return 11 - changes;
+  }
+
   List<int> get shares => wholeShares(votes);
 
   /// This poll with [choice] picked on its question at [question], not yet
@@ -169,6 +185,8 @@ class Poll {
     chosen: question == 0 ? choice : chosen,
     closed: closed,
     completed: completed,
+    changes: changes,
+    canChange: canChange,
     followUps: [
       for (final (i, q) in followUps.indexed)
         i + 1 == question
@@ -203,6 +221,8 @@ class Poll {
       chosen: first?.chosen ?? chosen,
       closed: closed,
       completed: completed,
+      changes: changes + 1,
+      canChange: changes + 1 < 10,
       followUps: [
         for (final (i, q) in followUps.indexed)
           i + 1 == question ? q.withVote(choice) : q,

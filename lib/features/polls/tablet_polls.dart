@@ -109,7 +109,8 @@ class _TabletPollsState extends ConsumerState<TabletPolls> {
 
     return TabletPage(
       title: 'Quick polls',
-      subtitle: 'Each poll takes seconds. Businesses share the results in about a week.',
+      subtitle:
+          'Each poll takes seconds. Businesses share the results in about a week.',
       children: [
         IqBizSegment.track(
           children: [
@@ -129,11 +130,12 @@ class _TabletPollsState extends ConsumerState<TabletPolls> {
             ),
           ],
         ),
-        if (_completed)
-          Text(
-            'Your poll answers are available for up to 6 months.',
-            style: IqWebText.bodySmall.copyWith(color: IqColors.fg3),
-          ),
+        Text(
+          _completed
+              ? 'Thank you for answering honestly.'
+              : 'Your answers are valuable. Please answer honestly.',
+          style: IqWebText.bodySmall.copyWith(color: IqColors.fg3),
+        ),
         if ((_completed ? history?.hasError == true : polls.hasError) &&
             shown.isEmpty)
           IqBanner(
