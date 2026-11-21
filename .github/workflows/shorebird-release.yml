@@ -3,9 +3,9 @@ name: shorebird-release
 # A release built through Shorebird, so later Dart-only changes can be
 # patched onto it. Run it from the Actions tab once the version in
 # pubspec.yaml is new: every release needs its own version. The app
-# bundle (for Google Play) is the artifact Shorebird tracks. An APK is
-# kept too when the build writes one, and that APK is what the staging
-# download link serves once the R2 secrets are set.
+# bundle is uploaded to Play's internal track, and kept as a GitHub
+# artifact. An APK is kept too when the build writes one, and that APK
+# is what the staging download link serves once the R2 secrets are set.
 # A pull request that changes the Shorebird setup gets a dry run instead.
 on:
   workflow_dispatch:
@@ -64,6 +64,15 @@ jobs:
             --endpoint-url "$R2_ENDPOINT" \
             --content-type application/vnd.android.package-archive \
             --metadata "version=$version"
+      - name: Upload the bundle to Play internal
+        if: github.event_name != 'pull_request'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: net.iqly.app
+          releaseFiles: iqly-*.aab
+          tracks: internal
+          status: completed
       - uses: actions/upload-artifact@v4
         if: github.event_name != 'pull_request'
         with:
