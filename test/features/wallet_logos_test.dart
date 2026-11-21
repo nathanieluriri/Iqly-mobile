@@ -105,6 +105,10 @@ void main() {
     expect(find.byType(IqNetworkImage), findsOneWidget);
   });
 
+  test('activation logos are a String-keyed map', () {
+    expect(activationLogosOf(const []), isA<Map<String, String?>>());
+  });
+
   testWidgets('a live activation reward uses the business initial', (
     tester,
   ) async {

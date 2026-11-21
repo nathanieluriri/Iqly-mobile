@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import '../../core/money.dart';
 import '../../core/navigation.dart';
 import '../../core/relative_time.dart';
+import '../../data/activations_data.dart';
 import '../../data/models.dart';
 import '../../theme/theme.dart';
 import '../../ui/brand_logo.dart';
@@ -18,6 +19,11 @@ const hiddenAmount = '₦ • • • •';
 
 /// "−₦10,000.00": Figma sets the true minus sign.
 String debit(int kobo) => '−${naira(kobo.abs())}';
+
+/// Logos for reward rows, keyed by activation id.
+Map<String, String?> activationLogosOf(Iterable<Activation> activations) => {
+  for (final a in activations) a.id: activationLogo(a),
+};
 
 IqWalletRowStatus rowStatus(Withdrawal w) => switch (w.status) {
   WithdrawalStatus.pending ||
