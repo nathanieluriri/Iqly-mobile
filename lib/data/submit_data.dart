@@ -38,12 +38,16 @@ class SurveyQuestion {
 /// What a brief asks for beyond the title and the answer.
 class SubmitForm {
   const SubmitForm({
+    this.deliverables = const [],
     this.questions = const [],
     this.acceptsImages = false,
     this.acceptsPdfs = false,
   });
 
+  final List<String> deliverables;
   final List<SurveyQuestion> questions;
+
+  bool get hasDeliverables => deliverables.isNotEmpty;
 
   /// The kinds of file the brief takes (its `acceptedFormats`): a brief can
   /// take images only, PDFs only, both or none.
@@ -158,6 +162,12 @@ class SubmitReceipt {
 /// alone. The picked files are the three of 481:21544, 4.1 MB together.
 abstract final class SubmitDemo {
   static const forms = <String, SubmitForm>{
+    'c10': SubmitForm(
+      deliverables: [
+        'Describe your print & colour',
+        'What would make you buy again?',
+      ],
+    ),
     'c5': SubmitForm(
       questions: [
         SurveyQuestion(

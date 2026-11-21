@@ -422,9 +422,8 @@ void main() {
           reason: 'per_run with steps still to do cannot finish',
         );
         expect(
-          closedHeld(
-            stepRewards: [50000, 50000, 50000],
-          ).phaseAt(_now.toLocal()),
+          closedHeld(stepRewards: [50000, 50000, 50000])
+              .phaseAt(_now.toLocal()),
           ActivationPhase.confirming,
         );
         expect(
@@ -646,6 +645,31 @@ void main() {
       expect(
         Recordings.headersFor(Uri.parse('https://elsewhere.test/v.mp4')),
         isEmpty,
+      );
+    });
+
+    test('the live list keeps all three open activations', () async {
+      final api = _Api({
+        'GET /activations': (_) => _ok({
+          'items': [
+            _f.activationJson(id: 'a_1', title: 'First activation'),
+            _f.activationJson(id: 'a_2', title: 'Second activation'),
+            _f.activationJson(id: 'a_3', title: 'Third activation'),
+          ],
+        }),
+        'GET /activations/mine': (_) => _ok({
+          'items': [_f.activationJson(id: 'a_2', progress: _f.runJson())],
+          'nextCursor': null,
+        }),
+      });
+      final all = await LiveActivationsService(
+        api.link,
+        clock: () => _now,
+      ).activations();
+      expect([for (final a in all) a.id], ['a_1', 'a_2', 'a_3']);
+      expect(
+        [for (final a in all) a.title],
+        ['First activation', 'Second activation', 'Third activation'],
       );
     });
 

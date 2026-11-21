@@ -142,7 +142,8 @@ class _WithdrawEntryState extends ConsumerState<WithdrawEntry> {
         if (status.verified) {
           _step = _Step.withdraw;
         } else {
-          _banner = 'That name does not match this ID. '
+          _banner =
+              'That name does not match this ID. '
               'Check the name and the number.';
         }
       });

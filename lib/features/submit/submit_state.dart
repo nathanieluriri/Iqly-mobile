@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart' show immutable;
 
 import '../../core/deadline.dart';
 import '../../core/session.dart';
@@ -13,7 +14,7 @@ import '../../data/submit_service.dart';
 import '../discover/discover_state.dart' show briefDetailProvider;
 import '../drafts/drafts_state.dart';
 
-enum SubmitStep { answer, questions, sent }
+enum SubmitStep { answer, deliverables, questions, review, sent }
 
 /// Trimmed, as iqly.net counts the title, so spaces never reach a minimum.
 int titleLength(Draft draft) => draft.title.trim().length;
@@ -21,6 +22,35 @@ int answerLength(Draft draft) => draft.answer.trim().length;
 
 bool titleReady(Draft draft) => titleLength(draft) >= SubmitLimits.titleMin;
 bool answerReady(Draft draft) => answerLength(draft) >= SubmitLimits.answerMin;
+
+String deliverableKey(int index) => 'deliverable_${index + 1}';
+
+String deliverableAnswer(Draft draft, int index) =>
+    (draft.answers[deliverableKey(index)] ?? const []).firstOrNull ?? '';
+
+int deliverableAnswerLength(Draft draft, int index) =>
+    deliverableAnswer(draft, index).trim().length;
+
+bool deliverableAnswerReady(Draft draft, int index) =>
+    deliverableAnswerLength(draft, index) >= SubmitLimits.answerMin &&
+    deliverableAnswerLength(draft, index) <= SubmitLimits.answerMax;
+
+String deliverableText(Draft draft, List<String> deliverables) => [
+  for (final (index, prompt) in deliverables.indexed)
+    '$prompt\n${deliverableAnswer(draft, index).trim()}',
+].join('\n\n');
+
+String submissionTitle(String title) {
+  const prefix = 'Response to ';
+  return '$prefix${title.length > 120 - prefix.length ? title.substring(0, 120 - prefix.length) : title}';
+}
+
+extension SubmitStepNavigation on SubmitStep {
+  bool get goesBack =>
+      this == SubmitStep.deliverables ||
+      this == SubmitStep.questions ||
+      this == SubmitStep.review;
+}
 
 /// "4 more characters" (34:24, after Continue) and "4 more characters to
 /// go" (313:13631, while writing).
@@ -54,10 +84,12 @@ String? uploadError(UploadRefused refused, AttachmentFile file) =>
 /// "Question 2 needs an answer", from Figma 34:186.
 String needsAnswer(int index) => 'Question ${index + 1} needs an answer';
 
+@immutable
 class SubmitFlow {
   const SubmitFlow({
     required this.draft,
     this.step = SubmitStep.answer,
+    this.deliverableIndex = 0,
     this.files = const [],
     this.fileError,
     this.answerTries = 0,
@@ -72,6 +104,7 @@ class SubmitFlow {
   });
 
   final SubmitStep step;
+  final int deliverableIndex;
   final Draft draft;
   final List<Attachment> files;
 
@@ -108,6 +141,7 @@ class SubmitFlow {
 
   SubmitFlow copyWith({
     SubmitStep? step,
+    int? deliverableIndex,
     Draft? draft,
     List<Attachment>? files,
     String? Function()? fileError,
@@ -118,6 +152,7 @@ class SubmitFlow {
     bool? back,
   }) => SubmitFlow(
     step: step ?? this.step,
+    deliverableIndex: deliverableIndex ?? this.deliverableIndex,
     draft: draft ?? this.draft,
     files: files ?? this.files,
     fileError: fileError == null ? this.fileError : fileError(),
@@ -158,12 +193,27 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
     if (saved == null || saved.isEmpty) {
       return SubmitFlow(
         draft: Draft(briefId: briefId, editedAt: _now()),
+        step: _form.hasDeliverables
+            ? SubmitStep.deliverables
+            : SubmitStep.answer,
+      );
+    }
+    if (_form.hasDeliverables && saved.step >= DraftSteps.questions) {
+      final questions = saved.step >= DraftSteps.ready && _form.hasQuestions;
+      return SubmitFlow(
+        draft: saved,
+        step: questions ? SubmitStep.questions : SubmitStep.review,
+        restored: saved.editedAt,
       );
     }
     final questions = saved.step >= DraftSteps.questions && _form.hasQuestions;
     return SubmitFlow(
       draft: saved,
-      step: questions ? SubmitStep.questions : SubmitStep.answer,
+      step: _form.hasDeliverables
+          ? SubmitStep.deliverables
+          : questions
+          ? SubmitStep.questions
+          : SubmitStep.answer,
       restored: saved.editedAt,
     );
   }
@@ -179,7 +229,11 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
   }
 
   int _reached(Draft draft) {
-    if (state.step == SubmitStep.answer) return DraftSteps.answer;
+    if (state.step == SubmitStep.answer ||
+        state.step == SubmitStep.deliverables) {
+      return DraftSteps.answer;
+    }
+    if (state.step == SubmitStep.review) return DraftSteps.questions;
     return firstUnanswered(_form, draft) == null
         ? DraftSteps.ready
         : DraftSteps.questions;
@@ -188,6 +242,59 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
   void setTitle(String title) => _save(state.draft.copyWith(title: title));
 
   void setAnswer(String answer) => _save(state.draft.copyWith(answer: answer));
+
+  void setDeliverableAnswer(int index, String answer) {
+    final answers = {...state.draft.answers};
+    if (answer.isEmpty) {
+      answers.remove(deliverableKey(index));
+    } else {
+      answers[deliverableKey(index)] = [answer];
+    }
+    _save(state.draft.copyWith(answers: answers));
+  }
+
+  bool nextDeliverable() {
+    final index = state.deliverableIndex;
+    if (!deliverableAnswerReady(state.draft, index)) {
+      state = state.copyWith(answerTries: state.answerTries + 1);
+      return false;
+    }
+    final last = index >= _form.deliverables.length - 1;
+    state = state.copyWith(
+      step: last ? SubmitStep.review : SubmitStep.deliverables,
+      deliverableIndex: last ? index : index + 1,
+      answerTries: 0,
+      back: false,
+    );
+    _save(state.draft);
+    return true;
+  }
+
+  void editDeliverable(int index) {
+    state = state.copyWith(
+      step: SubmitStep.deliverables,
+      deliverableIndex: index,
+      answerTries: 0,
+      back: true,
+    );
+  }
+
+  void continueToQuestions() {
+    state = state.copyWith(step: SubmitStep.questions, back: false);
+    _save(state.draft);
+  }
+
+  void review() {
+    if (!_form.hasDeliverables ||
+        _form.deliverables.indexed.any(
+          (entry) => !deliverableAnswerReady(state.draft, entry.$1),
+        )) {
+      state = state.copyWith(answerTries: state.answerTries + 1);
+      return;
+    }
+    state = state.copyWith(step: SubmitStep.review, back: false);
+    _save(state.draft);
+  }
 
   /// A single choice keeps the one picked; a multiple choice toggles it.
   void pick(SurveyQuestion question, String option) {
@@ -344,8 +451,26 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
   }
 
   void back() {
-    if (state.step != SubmitStep.questions) return;
-    state = state.copyWith(step: SubmitStep.answer, back: true);
+    switch (state.step) {
+      case SubmitStep.questions when _form.hasDeliverables:
+        state = state.copyWith(step: SubmitStep.review, back: true);
+      case SubmitStep.questions:
+        state = state.copyWith(step: SubmitStep.answer, back: true);
+      case SubmitStep.review:
+        state = state.copyWith(
+          step: SubmitStep.deliverables,
+          deliverableIndex: _form.deliverables.length - 1,
+          back: true,
+        );
+      case SubmitStep.deliverables when state.deliverableIndex > 0:
+        state = state.copyWith(
+          deliverableIndex: state.deliverableIndex - 1,
+          answerTries: 0,
+          back: true,
+        );
+      default:
+        return;
+    }
   }
 
   bool _answerStepReady() {
@@ -377,6 +502,8 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
     );
   }
 
+  Future<void> retrySend() => send(_form);
+
   /// Drops the draft once its answer is sent.
   Future<void> discard() =>
       ref.read(draftsProvider.notifier).discard([briefId]);
@@ -386,7 +513,16 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
   /// their rows show them going up with it. An answer that lands once its
   /// account is no longer signed in leaves the flow and the drafts be.
   Future<SubmitResult?> send(SubmitForm form) async {
-    if (!form.hasQuestions && !_answerStepReady()) return null;
+    if (form.hasDeliverables) {
+      if (!_form.deliverables.indexed.every(
+        (entry) => deliverableAnswerReady(state.draft, entry.$1),
+      )) {
+        review();
+        return null;
+      }
+    } else if (!form.hasQuestions && !_answerStepReady()) {
+      return null;
+    }
     if (!canSend(form)) return null;
     final scope = ref.read(accountScopeProvider);
     state = state.copyWith(sending: true, failed: false, refusedFile: false);
@@ -408,9 +544,25 @@ class SubmitFlowNotifier extends Notifier<SubmitFlow> {
         .submit(
           SubmitRequest(
             briefId: briefId,
-            title: draft.title.trim(),
-            answer: draft.answer.trim(),
+            title: form.hasDeliverables
+                ? submissionTitle(
+                    ref
+                            .read(submitOpeningProvider(briefId))
+                            .value
+                            ?.brief
+                            ?.title ??
+                        'the brief',
+                  )
+                : draft.title.trim(),
+            answer: form.hasDeliverables
+                ? deliverableText(draft, form.deliverables)
+                : draft.answer.trim(),
             answers: {
+              if (form.hasDeliverables)
+                for (final (index, _) in form.deliverables.indexed)
+                  deliverableKey(index): [
+                    deliverableAnswer(draft, index).trim(),
+                  ],
               for (final q in form.questions)
                 q.id: [
                   for (final a in draft.answers[q.id] ?? const <String>[])

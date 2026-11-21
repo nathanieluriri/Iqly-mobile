@@ -19,6 +19,7 @@ import 'package:iqly_mobile/features/activations/my_activations_screen.dart';
 import 'package:iqly_mobile/features/activations/proof_player_screen.dart';
 import 'package:iqly_mobile/features/activations/proof_screen.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
+import 'package:iqly_mobile/features/discover/discover_state.dart';
 import 'package:iqly_mobile/features/help/help_request_screen.dart';
 import 'package:iqly_mobile/features/wallet/wallet_screen.dart';
 import 'package:iqly_mobile/features/wallet/wallet_state.dart';
@@ -28,6 +29,7 @@ import 'package:iqly_mobile/ui/banner.dart';
 import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/pressable.dart';
 import 'package:iqly_mobile/ui/proof_tile.dart';
+import 'package:iqly_mobile/ui/section_title.dart';
 import 'package:iqly_mobile/ui/video_preview.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -65,6 +67,13 @@ IqButton _iqButton(WidgetTester tester, String label) =>
     tester.widget<IqButton>(
       find.byWidgetPredicate((w) => w is IqButton && w.label == label),
     );
+
+Finder _activationsSeeAll() => find.descendant(
+  of: find.byWidgetPredicate(
+    (w) => w is IqSectionTitle && w.title == 'Activations',
+  ),
+  matching: _button('See all'),
+);
 
 /// The activation rewards on the wallet, by ledger id.
 Map<String, int> _awards(ProviderContainer container) => {
@@ -187,6 +196,79 @@ void main() {
       expect(find.byType(WalletScreen), findsOneWidget);
     },
   );
+
+  testWidgets('Discover: See all shows every activation from each lens', (
+    tester,
+  ) async {
+    final container = await pumpActivations(
+      tester,
+      Routes.home,
+      now: thursday,
+      service: instantActivations(
+        now: thursday,
+        seed: Figma.world(thursday, kudiBox: Figma.step1),
+      ),
+    );
+
+    for (final lens in ['For you', 'All', 'Pick up']) {
+      if (lens != 'For you') await _tap(tester, find.text(lens));
+      final scroll = tester.state<ScrollableState>(
+        find
+            .descendant(
+              of: find.byType(CustomScrollView).first,
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      scroll.position.jumpTo(0);
+      await tester.pumpAndSettle();
+      if (lens == 'Pick up') {
+        expect(container.read(discoverFiltersProvider).pickUp, isTrue);
+        expect(
+          container.read(activationsProvider).value!.where((a) => a.started),
+          isNotEmpty,
+        );
+        expect(find.text(_kudiBox), findsOneWidget);
+      }
+      expect(_activationsSeeAll(), findsOneWidget, reason: lens);
+      await _tap(tester, _activationsSeeAll());
+      expect(find.byType(ActivationsScreen), findsOneWidget, reason: lens);
+      expect(find.text('Rate 3 recipes in the Orchid Foods app'), findsOne);
+      expect(find.text(_kudiBox), findsOne);
+      expect(find.text('Place your first Unibooks order'), findsOne);
+      await _tap(tester, find.bySemanticsLabel(RegExp('Back')).first);
+      expect(find.byType(HomeScreen), findsOneWidget, reason: lens);
+    }
+
+    await _tap(tester, find.text(_kudiBox));
+    expect(
+      tester.widget<ActivationScreen>(find.byType(ActivationScreen)).id,
+      'a2',
+    );
+  });
+
+  testWidgets('Discover: a single activation still opens its detail', (
+    tester,
+  ) async {
+    await pumpActivations(
+      tester,
+      Routes.home,
+      now: thursday,
+      service: instantActivations(
+        now: thursday,
+        seed: [DemoActivations(thursday).orchidFoods],
+      ),
+    );
+
+    await _tap(tester, _activationsSeeAll());
+    expect(find.byType(ActivationsScreen), findsOneWidget);
+    await _tap(tester, find.bySemanticsLabel(RegExp('Back')).first);
+    await _tap(tester, find.text('Rate 3 recipes in the Orchid Foods app'));
+    expect(
+      tester.widget<ActivationScreen>(find.byType(ActivationScreen)).id,
+      'a1',
+    );
+  });
 
   testWidgets('B8: My activations lists both under way; Done holds the paid '
       'one; back returns to the opener', (tester) async {

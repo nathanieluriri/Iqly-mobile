@@ -312,7 +312,19 @@ class Activation {
 
   bool get started => progress != null;
 
+  /// Confirmed steps plus the start itself, so a just-started run still
+  /// fills the bar. Null until they start.
+  double? get runProgress {
+    if (!started) return null;
+    final n = steps.length;
+    if (n == 0) return 0;
+    return ((confirmed + 1) / (n + 1)).clamp(0, 1);
+  }
+
   bool get credited => progress?.paidAt != null;
+
+  /// Started, not paid, and still open at [now].
+  bool inProgressAt(DateTime now) => started && !credited && !closedAt(now);
 
   /// Started and not paid yet.
   bool get inFlight => started && !credited;
