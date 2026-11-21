@@ -35,7 +35,7 @@ jobs:
         run: |
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/iqly-upload.jks"
           echo "IQLY_KEYSTORE_PATH=$RUNNER_TEMP/iqly-upload.jks" >> "$GITHUB_ENV"
-      - run: shorebird release android $DRY_RUN
+      - run: shorebird release android --flutter-version=3.50.1 $DRY_RUN
         env:
           DRY_RUN: ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
           IQLY_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
