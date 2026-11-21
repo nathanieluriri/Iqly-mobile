@@ -9,10 +9,19 @@ import 'poll_sheet.dart';
 import 'polls_screen.dart';
 
 /// One business's poll sheet over the Quick polls page.
-String pollsOf(String businessId) => '${Routes.polls}/$businessId';
+String pollsOf(String businessId, {String? pollId, bool history = false}) =>
+    _pollPath('${Routes.polls}/$businessId', pollId, history);
 
 /// The same polls as a full page, where the sheet goes when dragged up.
-String pollPageOf(String businessId) => '${Routes.polls}/$businessId/full';
+String pollPageOf(String businessId, {String? pollId, bool history = false}) =>
+    _pollPath('${Routes.polls}/$businessId/full', pollId, history);
+
+String _pollPath(String path, String? pollId, bool history) {
+  final query = Uri(
+    queryParameters: {'poll': ?pollId, if (history) 'history': '1'},
+  ).query;
+  return query.isEmpty ? path : '$path?$query';
+}
 
 /// The Quick polls page as a Discover tile opens it: with [businessId] its
 /// sheet rises over the page. A poll's id opens its business's sheet too.
@@ -37,7 +46,11 @@ final pollsRoutes = <RouteBase>[
           path: ':id/full',
           pageBuilder: (context, state) => pushPage(
             state,
-            PollPage(businessId: state.pathParameters['id']!),
+            PollPage(
+              businessId: state.pathParameters['id']!,
+              pollId: state.uri.queryParameters['poll'],
+              history: state.uri.queryParameters['history'] == '1',
+            ),
           ),
         ),
         GoRoute(
@@ -46,14 +59,26 @@ final pollsRoutes = <RouteBase>[
               ? TabletDialogPage(
                   key: state.pageKey,
                   name: state.name ?? state.path,
-                  child: PollSheet(businessId: state.pathParameters['id']!),
+                  child: PollSheet(
+                    businessId: state.pathParameters['id']!,
+                    pollId: state.uri.queryParameters['poll'],
+                    history: state.uri.queryParameters['history'] == '1',
+                  ),
                 )
               : sheetPage(
                   state,
-                  PollSheet(businessId: state.pathParameters['id']!),
+                  PollSheet(
+                    businessId: state.pathParameters['id']!,
+                    pollId: state.uri.queryParameters['poll'],
+                    history: state.uri.queryParameters['history'] == '1',
+                  ),
                   scrim: IqScrim.sheet,
                   expand: (context) => context.pushReplacement(
-                    pollPageOf(state.pathParameters['id']!),
+                    pollPageOf(
+                      state.pathParameters['id']!,
+                      pollId: state.uri.queryParameters['poll'],
+                      history: state.uri.queryParameters['history'] == '1',
+                    ),
                     extra: Arrival.sheet,
                   ),
                 ),

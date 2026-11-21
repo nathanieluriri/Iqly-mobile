@@ -6,6 +6,7 @@ import '../../core/deadline.dart';
 import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
+import '../../core/session.dart';
 import '../../core/transitions.dart';
 import '../../data/polls_data.dart';
 import '../../theme/theme.dart';
@@ -34,20 +35,23 @@ import '../shell/tablet_sheet.dart' show TabletClose;
 /// a vote that does not go in clears the pick, with the error haptic and
 /// banner. Dragging the sheet up opens the same polls as a page (345:15957).
 class PollSheet extends ConsumerWidget {
-  const PollSheet({super.key, required this.businessId});
+  const PollSheet({
+    super.key,
+    required this.businessId,
+    this.pollId,
+    this.history = false,
+  });
 
   final String businessId;
+  final String? pollId;
+  final bool history;
 
   /// Figma's sheet tops out 52 under the status bar.
   static const double topGap = 52;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final business = ref
-        .watch(pollsProvider)
-        .value
-        ?.where((b) => b.id == businessId)
-        .firstOrNull;
+    final business = _business(ref, businessId, pollId, history: history);
     final media = MediaQuery.of(context);
     final done = pollsDone(business);
 
@@ -122,17 +126,20 @@ class PollSheet extends ConsumerWidget {
 /// sub page (Page top bar, Back, no dock), with Exp/BrandHeader Leading
 /// across the full width.
 class PollPage extends ConsumerWidget {
-  const PollPage({super.key, required this.businessId});
+  const PollPage({
+    super.key,
+    required this.businessId,
+    this.pollId,
+    this.history = false,
+  });
 
   final String businessId;
+  final String? pollId;
+  final bool history;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final business = ref
-        .watch(pollsProvider)
-        .value
-        ?.where((b) => b.id == businessId)
-        .firstOrNull;
+    final business = _business(ref, businessId, pollId, history: history);
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
@@ -167,6 +174,32 @@ class PollPage extends ConsumerWidget {
       ),
     );
   }
+}
+
+PollBusiness? _business(
+  WidgetRef ref,
+  String businessId,
+  String? pollId, {
+  required bool history,
+}) {
+  final state = ref.watch(pollsProvider);
+  final current = state.isReloading
+      ? const <PollBusiness>[]
+      : state.value ?? const <PollBusiness>[];
+  final previous = history
+      ? pollHistoryFor(
+              ref.watch(pollHistoryProvider),
+              ref.watch(accountProvider),
+            )?.businesses ??
+            const <PollBusiness>[]
+      : const <PollBusiness>[];
+  final business = mergePollBusinesses(
+    previous,
+    current,
+  ).where((b) => b.id == businessId).firstOrNull;
+  if (business == null || pollId == null) return business;
+  final poll = business.polls.where((p) => p.id == pollId).firstOrNull;
+  return poll == null ? null : business.only(poll);
 }
 
 /// Whether the sheet says "You’re done": every question answered.
@@ -384,7 +417,7 @@ class _PollsState extends ConsumerState<_Polls> {
                   setState(() => (_held[poll.id] ??= {})[question] = choice),
       );
     }
-    final voting = !asked.answered && !closed && _picks.isEmpty;
+    final voting = !poll.voted && !asked.answered && !closed && _picks.isEmpty;
     return IqPollCard(
       key: ValueKey(_key(poll, question)),
       question: asked.question,
@@ -399,7 +432,7 @@ class _PollsState extends ConsumerState<_Polls> {
       ],
       votes: asked.total,
       timeLeft: closed
-          ? ''
+          ? 'Closed'
           : 'Closes in ${pollTimeLeft(timeLeft(poll.closesAt, now)!)}',
       chosen: asked.chosen ?? 0,
       selected: _picks[_key(poll, question)],

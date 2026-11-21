@@ -81,9 +81,13 @@ class _Label extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          column.label,
-          style: IqWebText.metaCaption.copyWith(color: IqColors.fg2),
+        Flexible(
+          child: Text(
+            column.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: IqWebText.metaCaption.copyWith(color: IqColors.fg2),
+          ),
         ),
         if (column.sorted) ...[
           const SizedBox(width: IqSpace.s1),

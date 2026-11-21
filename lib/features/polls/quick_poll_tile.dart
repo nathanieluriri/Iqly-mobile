@@ -11,10 +11,16 @@ import 'polls_state.dart';
 /// question and how many there are, or Answered once all are. A business
 /// whose polls have all closed dims to half and takes no taps (480:22779).
 class QuickPollTile extends ConsumerWidget {
-  const QuickPollTile({super.key, required this.business, this.onTap});
+  const QuickPollTile({
+    super.key,
+    required this.business,
+    this.onTap,
+    this.showResults = false,
+  });
 
   final PollBusiness business;
   final VoidCallback? onTap;
+  final bool showResults;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -30,8 +36,8 @@ class QuickPollTile extends ConsumerWidget {
           : questions(business.questionCount),
       cover: businessCover(business.cover),
       logo: businessLogo(business.logo),
-      onTap: closed ? null : onTap,
+      onTap: closed && !showResults ? null : onTap,
     );
-    return closed ? Opacity(opacity: 0.5, child: tile) : tile;
+    return closed && !showResults ? Opacity(opacity: 0.5, child: tile) : tile;
   }
 }
