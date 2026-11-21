@@ -159,7 +159,7 @@ class LiveHealthService implements HealthService {
       HealthReport.fromJson((await api.get('/health')).body);
 }
 
-/// Null in the preview build, which never asks.
+/// Null in tests that never ask the API.
 final healthServiceProvider = Provider<HealthService?>((ref) => null);
 
 /// A contract 1 feature that a live launch does not run: health switched it
@@ -181,17 +181,18 @@ Duration? retryUnlessPaused(int retryCount, Object error) =>
     ? null
     : ProviderContainer.defaultRetry(retryCount, error);
 
-/// The features this launch runs on the API. A launch that runs none is a
-/// preview launch, on the preview data everywhere; in a live launch every
-/// feature not live is paused.
+/// The features this launch runs on the API. [preview] is the shipped
+/// demo data, used only by tests. A live launch with nothing on is
+/// [none]: every feature is paused, and no demo data stands in.
 @immutable
 class Backend {
-  const Backend(this.live);
+  const Backend(this.live, {this.useDemo = false});
 
   /// A live feature needs health to say it is ready for this contract, and
-  /// on for it and for everything it needs.
+  /// on for it and for everything it needs. Not ready, or the wrong
+  /// contract, pauses everything. It does not open the demo.
   factory Backend.from(HealthReport report) {
-    if (!report.ready || report.contract != contract) return preview;
+    if (!report.ready || report.contract != contract) return none;
     return Backend.of(report.features);
   }
 
@@ -207,13 +208,20 @@ class Backend {
   /// The contract this build speaks.
   static const contract = 1;
 
-  static const preview = Backend(<LiveFeature>{});
+  static const preview = Backend(<LiveFeature>{}, useDemo: true);
+
+  /// A live launch that runs nothing: health is down or every feature is
+  /// off. Screens stay empty; the demo does not stand in.
+  static const none = Backend(<LiveFeature>{});
 
   final Set<LiveFeature> live;
 
+  /// Tests and goldens. A store build never sets this.
+  final bool useDemo;
+
   bool isLive(LiveFeature feature) => live.contains(feature);
 
-  bool get isPreview => live.isEmpty;
+  bool get isPreview => useDemo;
 
   /// Not live in a live launch.
   bool isPaused(LiveFeature feature) => !isPreview && !isLive(feature);
@@ -226,13 +234,19 @@ class Backend {
 
   @override
   bool operator ==(Object other) =>
-      other is Backend && setEquals(other.live, live);
+      other is Backend &&
+      useDemo == other.useDemo &&
+      setEquals(other.live, live);
 
   @override
-  int get hashCode => Object.hashAllUnordered(live);
+  int get hashCode => Object.hash(useDemo, Object.hashAllUnordered(live));
 
   @override
-  String toString() => isPreview ? 'Preview' : 'Live: ${names.join(', ')}';
+  String toString() => isPreview
+      ? 'Preview'
+      : names.isEmpty
+      ? 'Live'
+      : 'Live: ${names.join(', ')}';
 }
 
 /// The preview build: every feature on the data the app ships with, for
@@ -261,24 +275,12 @@ class BackendNotifier extends Notifier<Backend> {
   Future<void> get locked => Future.value();
 
   void resumed() {}
-
-  /// Whether [force] can change the mode: only a build on the API can.
-  bool get canForce => false;
-
-  /// Whether the person held the app in preview from Try notifications;
-  /// otherwise health decides alone.
-  bool get forcedPreview => false;
-
-  /// Holds every launch from now on in preview ([preview] true) or hands
-  /// the mode back to health, and starts the launch's mode over so the
-  /// splash can decide and lock it again.
-  Future<void> force({required bool preview}) async {}
 }
 
 /// Decides each launch's mode from `GET /health`. A launch starts from what
 /// the last answer decided and asks again; an answer before the splash
 /// locks the mode decides this launch, any later one only the next. A check
-/// that fails keeps what was decided, and nothing decided is preview.
+/// that fails keeps what was decided, and nothing decided pauses everything.
 class LiveBackendNotifier extends BackendNotifier {
   LiveBackendNotifier({required this.forgetPreview});
 
@@ -292,10 +294,6 @@ class LiveBackendNotifier extends BackendNotifier {
   /// Set once the first launch to run anything live has cleared what the
   /// preview left; a preview launch after it never brings the clear back.
   static const previewClearedKey = 'backend.previewCleared';
-
-  /// Set while the person holds the app in preview; health still decides
-  /// what [decidedKey] keeps, for when they hand the mode back.
-  static const forcedKey = 'backend.forced';
 
   /// A resume asks again at most this often.
   static const resumeEvery = Duration(minutes: 15);
@@ -312,25 +310,7 @@ class LiveBackendNotifier extends BackendNotifier {
   SharedPreferences get _prefs => ref.read(sharedPreferencesProvider);
 
   @override
-  Backend build() => forcedPreview ? Backend.preview : _stored(decidedKey);
-
-  @override
-  bool get canForce => true;
-
-  @override
-  bool get forcedPreview => _prefs.getString(forcedKey) == 'preview';
-
-  @override
-  Future<void> force({required bool preview}) async {
-    if (preview) {
-      await _prefs.setString(forcedKey, 'preview');
-    } else {
-      await _prefs.remove(forcedKey);
-    }
-    _locking = null;
-    if (_locked.isCompleted) _locked = Completer<void>();
-    state = build();
-  }
+  Backend build() => _stored(decidedKey);
 
   @override
   bool get checking => _running != null;
@@ -352,7 +332,7 @@ class LiveBackendNotifier extends BackendNotifier {
       final report = await health.check();
       if (!ref.mounted) return;
       final decided = Backend.from(report);
-      if (_locking == null) state = forcedPreview ? Backend.preview : decided;
+      if (_locking == null) state = decided;
       await Future.wait([
         _prefs.setStringList(decidedKey, decided.names),
         _prefs.setString(
@@ -385,9 +365,9 @@ class LiveBackendNotifier extends BackendNotifier {
   Future<void> _lock(Backend mode) async {
     // A build from before the record locked a launch live only once it had
     // cleared.
-    var cleared =
-        (_prefs.getBool(previewClearedKey) ?? false) ||
-        !_stored(launchedKey).isPreview;
+    final launched = _prefs.getStringList(launchedKey);
+    final wasDemo = launched == null || launched.isEmpty;
+    var cleared = (_prefs.getBool(previewClearedKey) ?? false) || !wasDemo;
     if (!cleared && !mode.isPreview) {
       try {
         await forgetPreview(ref);
@@ -399,6 +379,7 @@ class LiveBackendNotifier extends BackendNotifier {
       cleared = true;
     }
     if (cleared) await _prefs.setBool(previewClearedKey, true);
+    await _prefs.remove('backend.forced');
     await _prefs.setStringList(launchedKey, mode.names);
   }
 
@@ -413,7 +394,7 @@ class LiveBackendNotifier extends BackendNotifier {
 
   Backend _stored(String key) {
     final names = _prefs.getStringList(key);
-    if (names == null) return Backend.preview;
+    if (names == null) return Backend.none;
     final byName = LiveFeature.values.asNameMap();
     return Backend.of(names.map((name) => byName[name]).nonNulls);
   }

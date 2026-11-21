@@ -2,8 +2,8 @@
 ///
 /// `--dart-define=IQLY_API_URL=https://api.iqly.net` and
 /// `--dart-define=IQLY_WEB_URL=https://iqly.net` point a build at
-/// production; `--dart-define=IQLY_LIVE_AUTH=false` keeps the demo sign-in
-/// for preview films.
+/// production. `--dart-define=IQLY_LIVE_AUTH=false` is for tests that
+/// keep the demo sign-in.
 abstract final class ApiConfig {
   static const baseUrl = String.fromEnvironment(
     'IQLY_API_URL',

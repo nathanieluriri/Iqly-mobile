@@ -12,14 +12,12 @@ import 'package:iqly_mobile/core/backend.dart';
 import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/data/api_client.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
-import 'package:iqly_mobile/data/drafts_data.dart';
 import 'package:iqly_mobile/data/local/local_providers.dart';
 import 'package:iqly_mobile/data/local/memory_local_store.dart';
 import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/data/token_store.dart';
 import 'package:iqly_mobile/features/discover/discover_state.dart';
-import 'package:iqly_mobile/features/drafts/drafts_state.dart';
 import 'package:iqly_mobile/features/profile/profile_state.dart';
 import 'package:iqly_mobile/surfaces/notification_content.dart';
 import 'package:iqly_mobile/surfaces/surfaces.dart';
@@ -130,15 +128,6 @@ class _Phone {
   ];
 }
 
-/// A sample brief open long enough for its reminder to be scheduled.
-Future<Brief> _openSample(ProviderContainer c) async => [
-  for (final b in await c.read(repositoryProvider).briefs())
-    if (b.isLive &&
-        b.deadline != null &&
-        b.deadline!.isAfter(DateTime.now().add(const Duration(hours: 3))))
-      b,
-].first;
-
 void main() {
   late _Phone phone;
 
@@ -173,7 +162,7 @@ void main() {
     addTearDown(() => messenger.setMockMethodCallHandler(_plugin, null));
   }
 
-  testWidgets('a preview launch between live ones leaves what the person '
+  testWidgets('an unready launch between live ones leaves what the person '
       'saved live: the brief, its reminder and the reminder the OS holds', (
     tester,
   ) async {
@@ -190,7 +179,7 @@ void main() {
 
       phone.ready = false;
       c = await phone.launch();
-      expect(c.read(backendProvider).isPreview, isTrue);
+      expect(c.read(backendProvider).isPreview, isFalse);
       expect(
         [for (final b in await c.read(savedBriefsProvider.future)) b.id],
         ['c_1'],
@@ -213,78 +202,13 @@ void main() {
     });
   }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 
-  testWidgets('what a later preview launch makes never shows as the '
-      'person\'s, or fires, in a live launch: a sample brief saved, a '
-      'reminder on one, a draft on one', (tester) async {
-    osNotifications(tester);
-    await tester.runAsync(() async {
-      var c = await phone.launch();
-      final brief = (await c.read(repositoryProvider).brief('c_1'))!;
-      await c.read(savedBriefsProvider.future);
-      await c.read(savedBriefsProvider.notifier).setSaved(brief, true);
-      await c.read(closeRemindersProvider.future);
-      await c.read(closeRemindersProvider.notifier).setReminder('c_1', true);
-
-      phone.ready = false;
-      c = await phone.launch();
-      final sample = await _openSample(c);
-      await c.read(savedBriefsProvider.future);
-      await c.read(savedBriefsProvider.notifier).setSaved(sample, true);
-      await c.read(closeRemindersProvider.future);
-      await c
-          .read(closeRemindersProvider.notifier)
-          .setReminder(sample.id, true);
-      await c.read(draftsProvider.future);
-      await c
-          .read(draftsProvider.notifier)
-          .save(
-            Draft(
-              briefId: sample.id,
-              title: 'Sample',
-              answer: 'Sample',
-              editedAt: DateTime.now(),
-            ),
-          );
-      expect(
-        phone.reminding,
-        unorderedEquals([
-          '${closeReminderPrefix}c_1',
-          '$closeReminderPrefix${sample.id}',
-        ]),
-      );
-
-      phone.ready = true;
-      c = await phone.launch();
-      expect(
-        [for (final b in await c.read(savedBriefsProvider.future)) b.id],
-        ['c_1'],
-      );
-      expect(await c.read(closeRemindersProvider.future), {'c_1'});
-      expect(await c.read(draftsProvider.future), isEmpty);
-      expect(phone.reminding, ['${closeReminderPrefix}c_1']);
-      expect(
-        phone.prefs.getString(SavedBriefsNotifier.key),
-        isNot(contains(sample.id)),
-      );
-      expect(phone.prefs.getStringList(CloseRemindersNotifier.key), ['c_1']);
-    });
-  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
-
   testWidgets('a live launch that cannot read a reminded brief keeps its '
-      'reminder, and still drops what a preview launch set on a sample '
-      'brief', (tester) async {
+      'reminder', (tester) async {
     osNotifications(tester);
     await tester.runAsync(() async {
       var c = await phone.launch();
       await c.read(closeRemindersProvider.future);
       await c.read(closeRemindersProvider.notifier).setReminder('c_1', true);
-
-      phone.ready = false;
-      c = await phone.launch();
-      final sample = (await _openSample(c)).id;
-      await c.read(closeRemindersProvider.future);
-      await c.read(closeRemindersProvider.notifier).setReminder(sample, true);
-      expect(phone.reminding, contains('$closeReminderPrefix$sample'));
 
       phone
         ..ready = true

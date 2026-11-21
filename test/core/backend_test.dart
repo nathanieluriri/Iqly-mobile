@@ -127,41 +127,41 @@ void main() {
       );
     });
 
-    test('no mobile block is preview', () {
+    test('no mobile block pauses everything', () {
       expect(
         _decide({
           'success': true,
           'data': {'ok': true, 'db': true},
         }),
-        Backend.preview,
+        Backend.none,
       );
     });
 
-    test('any contract but this build\'s, or none, is preview', () {
-      expect(_decide(_health(contract: 0)), Backend.preview);
-      expect(_decide(_health(contract: null)), Backend.preview);
-      expect(_decide(_health(contract: '1')), Backend.preview);
-      expect(_decide(_health(contract: 2)), Backend.preview);
+    test('any contract but this build\'s, or none, pauses everything', () {
+      expect(_decide(_health(contract: 0)), Backend.none);
+      expect(_decide(_health(contract: null)), Backend.none);
+      expect(_decide(_health(contract: '1')), Backend.none);
+      expect(_decide(_health(contract: 2)), Backend.none);
       expect(_decide(_health(contract: 1)), _all);
     });
 
-    test('not ready is preview', () {
-      expect(_decide(_health(ready: false)), Backend.preview);
+    test('not ready pauses everything', () {
+      expect(_decide(_health(ready: false)), Backend.none);
     });
 
-    test('anything unreadable is preview', () async {
-      expect(_decide(const {}), Backend.preview);
+    test('anything unreadable pauses everything', () async {
+      expect(_decide(const {}), Backend.none);
       expect(
         _decide({
           'data': [1, 2],
         }),
-        Backend.preview,
+        Backend.none,
       );
       expect(
         _decide({
           'data': {'mobile': 'ready'},
         }),
-        Backend.preview,
+        Backend.none,
       );
       expect(
         _decide({
@@ -173,7 +173,7 @@ void main() {
             },
           },
         }),
-        Backend.preview,
+        Backend.none,
       );
       final garbled = LiveHealthService(
         ApiClient(
@@ -181,7 +181,7 @@ void main() {
           client: MockClient((_) async => http.Response('<html>', 502)),
         ),
       );
-      expect(Backend.from(await garbled.check()), Backend.preview);
+      expect(Backend.from(await garbled.check()), Backend.none);
     });
 
     test('the API reports the features on, apart from what they need', () {
@@ -402,11 +402,11 @@ void main() {
       }
     });
 
-    test('a feature on its own without what it needs stays preview', () {
-      expect(Backend.of({LiveFeature.withdrawals}), Backend.preview);
+    test('a feature on its own without what it needs stays paused', () {
+      expect(Backend.of({LiveFeature.withdrawals}), Backend.none);
       expect(
         Backend.of({LiveFeature.withdrawals, LiveFeature.wallet}),
-        Backend.preview,
+        Backend.none,
       );
       expect(
         Backend.of({
@@ -477,70 +477,13 @@ void main() {
       return c;
     }
 
-    group('forced from Try notifications', () {
-      test('a forced preview wins over a ready API on this launch and the '
-          'next, while health still keeps its answer', () async {
-        final c = launch();
-        final backend = c.read(backendProvider.notifier);
-        await backend.check();
-        await backend.lock();
-        expect(c.read(backendProvider), _all);
-
-        await backend.force(preview: true);
-        expect(c.read(backendProvider), Backend.preview);
-        expect(prefs.getString(LiveBackendNotifier.forcedKey), 'preview');
-        await backend.check();
-        expect(c.read(backendProvider), Backend.preview);
-        await backend.lock();
-        expect(prefs.getStringList(LiveBackendNotifier.launchedKey), isEmpty);
-        expect(prefs.getStringList(LiveBackendNotifier.decidedKey), _all.names);
-
-        final next = launch();
-        expect(next.read(backendProvider), Backend.preview);
-        await next.read(backendProvider.notifier).check();
-        expect(next.read(backendProvider), Backend.preview);
-        expect(next.read(backendProvider.notifier).forcedPreview, isTrue);
-      });
-
-      test('switching back to live hands the mode to health, which still '
-          'needs the API ready', () async {
-        final c = launch();
-        final backend = c.read(backendProvider.notifier);
-        await backend.force(preview: true);
-        await backend.lock();
-
-        health.answer = () async => _report(_health(ready: false));
-        await backend.force(preview: false);
-        expect(prefs.getString(LiveBackendNotifier.forcedKey), isNull);
-        await backend.check();
-        expect(c.read(backendProvider), Backend.preview);
-
-        health.answer = () async => _report(_health());
-        await backend.check();
-        expect(c.read(backendProvider), _all);
-        await backend.lock();
-        expect(
-          prefs.getStringList(LiveBackendNotifier.launchedKey),
-          _all.names,
-        );
-      });
-
-      test('the preview build cannot be forced', () async {
-        final c = ProviderContainer(
-          overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
-        );
-        addTearDown(c.dispose);
-        expect(c.read(backendProvider.notifier).canForce, isFalse);
-      });
-    });
-
-    test('with nothing kept and no answer, it is preview', () async {
+    test('with nothing kept and no answer, everything is paused', () async {
       health.answer = () => Future.error(const ApiUnreachable());
       final c = launch();
       final backend = c.read(backendProvider.notifier);
       await backend.check();
       await backend.lock();
-      expect(c.read(backendProvider), Backend.preview);
+      expect(c.read(backendProvider), Backend.none);
       expect(backend.checkedAt, isNull);
       expect(prefs.getStringList(LiveBackendNotifier.decidedKey), isNull);
       expect(prefs.getStringList(LiveBackendNotifier.launchedKey), isEmpty);
@@ -551,7 +494,7 @@ void main() {
       health.answer = () async => _report(_health(off: {LiveFeature.wallet}));
       final c = launch();
       final backend = c.read(backendProvider.notifier);
-      expect(c.read(backendProvider), Backend.preview);
+      expect(c.read(backendProvider), Backend.none);
       await backend.check();
       expect(c.read(backendProvider).isLive(LiveFeature.briefs), isTrue);
       expect(c.read(backendProvider).isLive(LiveFeature.wallet), isFalse);
@@ -653,7 +596,7 @@ void main() {
       expect(prefs.getStringList(LiveBackendNotifier.decidedKey), isEmpty);
 
       final next = launch();
-      expect(next.read(backendProvider), Backend.preview);
+      expect(next.read(backendProvider), Backend.none);
     });
 
     test('a check that answers only after the lock leaves the launch on '
@@ -672,7 +615,7 @@ void main() {
       answer.complete(_report(_health()));
       await pumpEventQueue();
       expect(backend.checking, isFalse);
-      expect(c.read(backendProvider), Backend.preview);
+      expect(c.read(backendProvider), Backend.none);
       expect(listened, isEmpty);
       expect(prefs.getStringList(LiveBackendNotifier.launchedKey), isEmpty);
       expect(launch().read(backendProvider), _all);

@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/backend.dart';
 import '../../core/flags.dart';
 import '../../core/money.dart';
-import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/patches.dart';
 import '../../core/responsive.dart';
@@ -313,18 +311,12 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
       ),
       Padding(
         padding: const EdgeInsets.only(bottom: IqSpace.s2),
-        child: GestureDetector(
-          onLongPress: () {
-            IqHaptics.hold.play();
-            context.open(Routes.tryNotifications);
-          },
-          child: Text(
-            (ref.watch(buildInfoProvider).value ?? BuildInfo.sample).footer(
-              ios: ios,
-            ),
-            textAlign: TextAlign.center,
-            style: IqText.mono.copyWith(color: IqColors.fg3),
+        child: Text(
+          (ref.watch(buildInfoProvider).value ?? BuildInfo.sample).footer(
+            ios: ios,
           ),
+          textAlign: TextAlign.center,
+          style: IqText.mono.copyWith(color: IqColors.fg3),
         ),
       ),
     ];
@@ -508,17 +500,11 @@ extension on _MoreScreenState {
           ],
         ),
       ),
-      GestureDetector(
-        onLongPress: () {
-          IqHaptics.hold.play();
-          context.open(Routes.tryNotifications);
-        },
-        child: Text(
-          (ref.watch(buildInfoProvider).value ?? BuildInfo.sample).footer(
-            ios: ios,
-          ),
-          style: IqText.mono.copyWith(color: IqColors.fg3),
+      Text(
+        (ref.watch(buildInfoProvider).value ?? BuildInfo.sample).footer(
+          ios: ios,
         ),
+        style: IqText.mono.copyWith(color: IqColors.fg3),
       ),
     ];
     return Material(
