@@ -299,14 +299,9 @@ class _PollsState extends ConsumerState<_Polls> {
     });
     if (outcome == VoteOutcome.counted) {
       final poll = widget.business?.polls.firstOrNull;
-      final left = poll?.remainingChanges;
-      if (left != null && mounted) {
-        IqToast.show(
-          context,
-          left == 1
-              ? '1 change left on this poll.'
-              : '$left changes left on this poll.',
-        );
+      final note = poll?.remainingChangeNote;
+      if (note != null && mounted) {
+        IqToast.show(context, note);
       }
       return;
     }

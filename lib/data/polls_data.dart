@@ -168,8 +168,17 @@ class Poll {
 
   /// Remaining writes to toast after a successful write, or null.
   int? get remainingChanges {
-    if (changes < 7 || changes > 10) return null;
+    if (changes < 7 || changes >= 10) return null;
     return 11 - changes;
+  }
+
+  String? get remainingChangeNote {
+    if (changes == 10) return 'That was your last change on this poll.';
+    final left = remainingChanges;
+    if (left == null) return null;
+    return left == 1
+        ? '1 change left on this poll.'
+        : '$left changes left on this poll.';
   }
 
   List<int> get shares => wholeShares(votes);
