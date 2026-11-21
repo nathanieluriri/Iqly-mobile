@@ -8,6 +8,9 @@ name: shorebird-release-ios
 # ASC_KEY_P8_BASE64 (the .p8 key, base64 encoded). Signing is automatic:
 # Xcode creates the certificate and profile through the API key, so the key
 # needs the Admin or App Manager role.
+#
+# Apple rejects uploads built with the default Xcode on macos-15 (16.4,
+# iOS 18.5 SDK). App Store Connect wants Xcode 26 and the iOS 26 SDK.
 on:
   workflow_dispatch:
     inputs:
@@ -15,6 +18,10 @@ on:
         description: Send the build to App Store Connect (TestFlight)
         type: boolean
         default: true
+      replace:
+        description: Delete this version on iOS in Shorebird first (only if that build never reached TestFlight)
+        type: boolean
+        default: false
 
 jobs:
   release:
@@ -23,6 +30,9 @@ jobs:
       SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.2'
       - uses: shorebirdtech/setup-shorebird@v1
         with:
           cache: true
@@ -47,9 +57,15 @@ jobs:
           mkdir -p "$RUNNER_TEMP/keys"
           echo "$ASC_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8"
           echo "ASC_KEY_PATH=$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8" >> "$GITHUB_ENV"
+      - name: Drop this version on iOS in Shorebird
+        if: ${{ inputs.replace }}
+        run: |
+          version=$(sed -n 's/^version: *//p' pubspec.yaml)
+          shorebird releases delete --release-version "$version" --platform ios --yes
       # Unsigned here; the export below signs with the API key, which also
       # creates the distribution certificate and profile on first run.
-      - run: shorebird release ios --no-codesign
+      # Flutter version must match the Android 1.0 line on the same release.
+      - run: shorebird release ios --no-codesign --flutter-version=3.50.1
       - name: Write the export options
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
