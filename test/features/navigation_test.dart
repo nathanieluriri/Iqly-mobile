@@ -100,6 +100,18 @@ void main() {
     expect(_stack(tester), [submissionPath('s1'), Routes.brief('c1')]);
   });
 
+  testWidgets(
+    'Android back from a cold-opened submission goes to My submissions',
+    (tester) async {
+      await pumpApp(tester, submissionPath('s1'));
+      expect(find.byType(SubmissionDetailScreen), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.byType(SubmissionDetailScreen), findsNothing);
+      expect(find.byType(MySubmissionsScreen), findsOneWidget);
+    },
+  );
+
   testWidgets('closing back to an open page plays Back: the top page leaves '
       'over it, and pages between go without a move', (tester) async {
     await pumpApp(tester, Routes.submissions, reducedMotion: false);

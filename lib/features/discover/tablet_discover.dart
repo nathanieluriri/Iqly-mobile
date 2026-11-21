@@ -630,6 +630,12 @@ class _GridCard extends ConsumerWidget {
             ),
         ],
         closingSoon: isClosingSoon(brief, now),
+        progress: briefCardProgress(
+          draft: (ref.watch(draftsProvider).value ?? const [])
+              .where((d) => d.briefId == brief.id && !d.isEmpty)
+              .firstOrNull,
+          submitted: submittedBriefIds(ref).contains(brief.id),
+        ),
         showBookmark: Flags.savedBriefs,
         bookmark: saved ? IqBookmarkState.on : IqBookmarkState.off,
         onBookmarkChanged: (state) => ref
@@ -935,8 +941,9 @@ class TicketZoom extends StatelessWidget {
         child: SizedBox.fromSize(
           size: size,
           child: MediaQuery(
-            data: MediaQuery.of(context)
-                .copyWith(textScaler: TextScaler.noScaling),
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.noScaling),
             child: child,
           ),
         ),

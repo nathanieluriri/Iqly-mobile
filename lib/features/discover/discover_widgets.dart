@@ -8,6 +8,7 @@ import '../../core/flags.dart';
 import '../../core/money.dart';
 import '../../core/navigation.dart';
 import '../../core/transitions.dart';
+import '../../data/drafts_data.dart';
 import '../../data/models.dart';
 import '../../data/referrals_service.dart' show referralsShownProvider;
 import '../../data/repository.dart';
@@ -20,8 +21,24 @@ import '../../ui/meta.dart';
 import '../../ui/ticket_card.dart';
 import '../../ui/top_bar.dart';
 import '../drafts/drafts_state.dart';
+import '../submissions/submissions_state.dart';
 import 'business_art.dart';
 import 'discover_state.dart';
+
+/// How far a Discover brief card has got: full when sent, else the draft.
+double? briefCardProgress({Draft? draft, required bool submitted}) {
+  if (submitted) return 1;
+  return draft?.progress;
+}
+
+Set<String> submittedBriefIds(WidgetRef ref) {
+  final mine = ref.watch(mySubmissionsProvider).value?.items ?? const [];
+  final sent = ref.watch(sentSubmissionsProvider);
+  return {
+    for (final item in mine) item.submission.briefId,
+    for (final item in sent) item.submission.briefId,
+  };
+}
 
 /// Exp/TopBar Home: "Discover", the gift and the bell with the unread
 /// count. [giftShine] runs the gift's one shine. The gift opens Referrals,
@@ -191,6 +208,7 @@ class BriefFeatureCard extends ConsumerWidget {
     final draft = (ref.watch(draftsProvider).value ?? const [])
         .where((d) => d.briefId == brief.id && !d.isEmpty)
         .firstOrNull;
+    final submitted = submittedBriefIds(ref).contains(brief.id);
     return IqBriefCard(
       kind: IqBriefCardKind.feature,
       brand: businessLabel(brief),
@@ -199,7 +217,7 @@ class BriefFeatureCard extends ConsumerWidget {
       logo: businessLogo(brief.logo),
       meta: briefMeta(brief, now),
       closingSoon: isClosingSoon(brief, now),
-      progress: draft?.progress,
+      progress: briefCardProgress(draft: draft, submitted: submitted),
       showBookmark: Flags.savedBriefs,
       bookmark: saved ? IqBookmarkState.on : IqBookmarkState.off,
       onBookmarkChanged: (state) => ref

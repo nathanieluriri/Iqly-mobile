@@ -47,89 +47,102 @@ class SubmissionDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final loaded = ref.watch(submissionItemProvider(id));
     final item = loaded.value;
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
-      child: Scaffold(
-        resizeToAvoidBottomInset: false,
-        backgroundColor: IqColors.bg,
-        body: SafeArea(
-          maintainBottomViewPadding: true,
-          child: CenteredContent(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                IqTopBar(
-                  variant: IqTopBarVariant.page,
-                  title: 'Submission',
-                  onBack: () => context.canPop()
-                      ? context.pop()
-                      : context.go(
-                          Routes.submissions,
-                          extra: NavDirection.back,
-                        ),
-                ),
-                Expanded(
-                  child: LoadingGate(
-                    loading: item == null && loaded.isLoading,
-                    skeleton: const _Skeleton(),
-                    child: item != null
-                        ? _Body(
-                            item: item,
-                            now: ref.watch(clockProvider)(),
-                            note: ref.watch(businessNoteShownProvider)
-                                ? item.submission.note
-                                : null,
-                          )
-                        : loaded.hasError
-                        ? Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: IqSpace.s4,
-                            ),
-                            child: Align(
-                              alignment: Alignment.topCenter,
-                              child: IqBanner(
-                                kind: IqBannerKind.error,
-                                title: 'Couldn’t load. Check your connection.',
-                                action: 'Try again',
-                                onAction: () =>
-                                    ref.invalidate(submissionItemProvider(id)),
+    return PopScope(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) leaveSubmission(context);
+      },
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.dark,
+        child: Scaffold(
+          resizeToAvoidBottomInset: false,
+          backgroundColor: IqColors.bg,
+          body: SafeArea(
+            maintainBottomViewPadding: true,
+            child: CenteredContent(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  IqTopBar(
+                    variant: IqTopBarVariant.page,
+                    title: 'Submission',
+                    onBack: () => leaveSubmission(context),
+                  ),
+                  Expanded(
+                    child: LoadingGate(
+                      loading: item == null && loaded.isLoading,
+                      skeleton: const _Skeleton(),
+                      child: item != null
+                          ? _Body(
+                              item: item,
+                              now: ref.watch(clockProvider)(),
+                              note: ref.watch(businessNoteShownProvider)
+                                  ? item.submission.note
+                                  : null,
+                            )
+                          : loaded.hasError
+                          ? Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: IqSpace.s4,
+                              ),
+                              child: Align(
+                                alignment: Alignment.topCenter,
+                                child: IqBanner(
+                                  kind: IqBannerKind.error,
+                                  title:
+                                      'Couldn’t load. Check your connection.',
+                                  action: 'Try again',
+                                  onAction: () => ref.invalidate(
+                                    submissionItemProvider(id),
+                                  ),
+                                ),
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  ),
+                  if (item != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: IqSpace.s4,
+                        vertical: IqSpace.s3,
+                      ),
+                      child: _notSelected(item)
+                          ? IqButton(
+                              label: 'See what won',
+                              kind: IqButtonKind.secondary,
+                              showIcon: false,
+                              width: double.infinity,
+                              onTap: () =>
+                                  context.open(leaderboardPath(item.id)),
+                            )
+                          : IqButton(
+                              label: 'View the brief',
+                              kind: IqButtonKind.secondary,
+                              showIcon: false,
+                              width: double.infinity,
+                              onTap: () => context.open(
+                                Routes.brief(item.submission.briefId),
+                                extra: item.brief,
                               ),
                             ),
-                          )
-                        : const SizedBox.shrink(),
-                  ),
-                ),
-                if (item != null)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: IqSpace.s4,
-                      vertical: IqSpace.s3,
                     ),
-                    child: _notSelected(item)
-                        ? IqButton(
-                            label: 'See what won',
-                            kind: IqButtonKind.secondary,
-                            showIcon: false,
-                            width: double.infinity,
-                            onTap: () => context.open(leaderboardPath(item.id)),
-                          )
-                        : IqButton(
-                            label: 'View the brief',
-                            kind: IqButtonKind.secondary,
-                            showIcon: false,
-                            width: double.infinity,
-                            onTap: () => context.open(
-                              Routes.brief(item.submission.briefId),
-                              extra: item.brief,
-                            ),
-                          ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
+  }
+}
+
+/// Back to the opener, or to My submissions when this page is the stack.
+void leaveSubmission(BuildContext context) {
+  if (context.canPop()) {
+    context.pop();
+  } else {
+    context.go(Routes.submissions, extra: NavDirection.back);
   }
 }
 

@@ -15,6 +15,8 @@ import '../../ui/quick_action.dart';
 import '../../ui/segmented.dart';
 import '../../ui/text_link.dart';
 import '../../ui/wallet_card.dart';
+import '../activations/activations_state.dart';
+import '../discover/business_art.dart';
 import 'wallet_arrives.dart';
 import 'wallet_routes.dart';
 import 'wallet_rows.dart';
@@ -60,6 +62,10 @@ class WalletOverview extends ConsumerWidget {
     final hidden = lens.hidden;
     final now = ref.watch(clockProvider)();
     final briefs = ref.watch(rewardBriefsProvider).value ?? const {};
+    final activationLogos = {
+      for (final a in ref.watch(activationsProvider).value ?? const [])
+        a.id: activationLogo(a),
+    };
     final bank = data.savedBank;
     final available = naira(totals.withdrawableKobo);
     final onItsWay = naira(totals.pendingWithdrawalsKobo);
@@ -186,6 +192,7 @@ class WalletOverview extends ConsumerWidget {
                         key: ValueKey(item.key),
                         item: item,
                         briefs: briefs,
+                        activationLogos: activationLogos,
                         now: now,
                         hidden: hidden,
                         divider: i < items.length - 1,

@@ -2,7 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../data/activations_data.dart';
 import '../../data/demo_data.dart';
-
+import '../../theme/theme.dart';
 import '../../ui/network_image.dart';
 import '../../ui/sample_cover.dart';
 import '../../ui/sample_logo.dart';
@@ -31,6 +31,53 @@ Widget _networkArt(
     round: round,
     error: error,
   );
+}
+
+/// A list mark: the photo, a sample brand, the first letter, or the
+/// anonymous mark when the business keeps its name out.
+Widget businessMark({String? logo, String? name, double size = 40}) {
+  if (logo != null && logo.isNotEmpty) return businessLogo(logo, size: size);
+  final trimmed = name?.trim() ?? '';
+  if (trimmed.isEmpty) {
+    return IqSampleLogo(IqSampleLogoBrand.private, size: size);
+  }
+  final brand = IqSampleLogoBrand.values
+      .where(
+        (b) => b != IqSampleLogoBrand.private && trimmed.startsWith(b.label),
+      )
+      .firstOrNull;
+  if (brand != null) return IqSampleLogo(brand, size: size);
+  return _LetterMark(
+    letter: trimmed.characters.first.toUpperCase(),
+    size: size,
+  );
+}
+
+class _LetterMark extends StatelessWidget {
+  const _LetterMark({required this.letter, required this.size});
+
+  final String letter;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        color: IqColors.tintStrong,
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        letter,
+        style: IqText.label.copyWith(
+          color: IqColors.brand,
+          fontSize: size * 0.42,
+        ),
+      ),
+    );
+  }
 }
 
 /// A business logo from the data: the Sample/Logo art for the demo's asset

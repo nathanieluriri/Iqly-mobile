@@ -4,6 +4,7 @@ import 'package:iqly_mobile/data/activations_service.dart';
 import 'package:iqly_mobile/data/drafts_data.dart';
 import 'package:iqly_mobile/data/polls_data.dart';
 import 'package:iqly_mobile/features/discover/discover_state.dart';
+import 'package:iqly_mobile/features/discover/discover_widgets.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
 import 'package:iqly_mobile/features/discover/tablet_discover.dart';
 import 'package:iqly_mobile/router.dart';
@@ -27,14 +28,34 @@ void main() {
     expect(started.progress, lessThan(1));
   });
 
+  test('a sent brief fills the progress line', () {
+    expect(briefCardProgress(submitted: true), 1);
+    expect(
+      briefCardProgress(
+        draft: Draft(briefId: 'c5', editedAt: DateTime(2026), step: 1),
+        submitted: false,
+      ),
+      closeTo(1 / 3, 0.001),
+    );
+    expect(briefCardProgress(submitted: false), isNull);
+    expect(
+      briefCardProgress(
+        draft: Draft(briefId: 'c5', editedAt: DateTime(2026), step: 1),
+        submitted: true,
+      ),
+      1,
+    );
+  });
+
   test('a draft and a started activation both fill the bar', () {
     expect(
       Draft(briefId: 'c5', editedAt: DateTime(2026), step: 1).progress,
       closeTo(1 / 3, 0.001),
     );
     final now = DateTime.utc(2026, 11, 14);
-    final kudi = DemoActivations(now).kudiBox
-        .withProgress(DemoActivations(now).stuckAtStep2);
+    final kudi = DemoActivations(
+      now,
+    ).kudiBox.withProgress(DemoActivations(now).stuckAtStep2);
     expect(kudi.inProgressAt(now), isTrue);
     expect(kudi.runProgress, closeTo(2 / 4, 0.001));
   });
@@ -76,8 +97,9 @@ void main() {
         drafts: const [],
         polls: const [],
         activations: [
-          DemoActivations(now).kudiBox
-              .withProgress(DemoActivations(now).stuckAtStep2),
+          DemoActivations(
+            now,
+          ).kudiBox.withProgress(DemoActivations(now).stuckAtStep2),
         ],
         now: now,
       ),
@@ -185,5 +207,16 @@ void main() {
     expect(find.byType(TabletDiscover), findsOneWidget);
     expect(find.text('Pick up'), findsNothing);
     expect(find.text('For you'), findsOneWidget);
+  });
+
+  testWidgets('a sent brief shows a full progress line', (tester) async {
+    await pumpApp(tester, Routes.home, overrides: discoverOverrides());
+    final card = tester.widget<IqBriefCard>(
+      find.byWidgetPredicate(
+        (w) => w is IqBriefCard && w.title.contains('campus bookshop'),
+        skipOffstage: false,
+      ),
+    );
+    expect(card.progress, 1);
   });
 }

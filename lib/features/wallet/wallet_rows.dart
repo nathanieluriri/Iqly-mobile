@@ -6,8 +6,8 @@ import '../../core/relative_time.dart';
 import '../../data/models.dart';
 import '../../theme/theme.dart';
 import '../../ui/brand_logo.dart';
-import '../../ui/sample_logo.dart';
 import '../../ui/wallet_row.dart';
+import '../discover/business_art.dart';
 import 'wallet_routes.dart';
 import 'wallet_state.dart';
 
@@ -34,6 +34,7 @@ class WalletActivityRow extends StatelessWidget {
     super.key,
     required this.item,
     required this.briefs,
+    this.activationLogos = const {},
     required this.now,
     required this.hidden,
     required this.divider,
@@ -43,6 +44,9 @@ class WalletActivityRow extends StatelessWidget {
 
   /// From [rewardBriefsProvider]: the brief behind each submission reward.
   final Map<String, Brief> briefs;
+
+  /// Activation id to its logo URL, when the wallet has loaded activations.
+  final Map<String, String?> activationLogos;
   final DateTime now;
   final bool hidden;
   final bool divider;
@@ -90,15 +94,17 @@ class WalletActivityRow extends StatelessWidget {
         return (
           business ?? 'Private business',
           brief?.title ?? '',
-          _logo(business),
+          businessMark(logo: brief?.logo, name: business),
         );
       case RewardSource.activation:
+        final id = award.activationId;
         return (
           award.business ?? 'Activation',
           award.note ?? 'activation',
-          award.activationId == null
-              ? _logo(award.business)
-              : const IqSampleLogo(IqSampleLogoBrand.private, size: 40),
+          businessMark(
+            logo: id == null ? null : activationLogos[id],
+            name: award.business,
+          ),
         );
       case RewardSource.referral:
         return (
@@ -112,16 +118,6 @@ class WalletActivityRow extends StatelessWidget {
           ),
         );
     }
-  }
-
-  static Widget _logo(String? business) {
-    final brand = business == null
-        ? IqSampleLogoBrand.private
-        : IqSampleLogoBrand.values
-                  .where((b) => business.startsWith(b.label))
-                  .firstOrNull ??
-              IqSampleLogoBrand.private;
-    return IqSampleLogo(brand, size: 40);
   }
 }
 
