@@ -21,6 +21,22 @@ class ProofUpload {
   final String? id;
 }
 
+class ActivationHistoryPage {
+  const ActivationHistoryPage({
+    required this.activations,
+    this.nextCursor,
+    this.loadingMore = false,
+    this.loadMoreFailed = false,
+    this.account,
+  });
+
+  final List<Activation> activations;
+  final String? nextCursor;
+  final bool loadingMore;
+  final bool loadMoreFailed;
+  final String? account;
+}
+
 /// Activations (behind Flags.activations). The business confirms steps on
 /// its side and iQLY pays the wallet; the app starts activations, follows
 /// [changes] and sends proof. On the API a refusal throws [ApiRefused] with
@@ -33,6 +49,8 @@ abstract class ActivationsService {
 
   /// What the phone kept from the last list, without asking the API.
   Future<List<Activation>> kept() async => const [];
+
+  Future<ActivationHistoryPage> history({String? cursor});
 
   /// Starts [id] for you.
   Future<Activation> start(String id);
@@ -153,6 +171,15 @@ class DemoActivationsService implements ActivationsService {
 
   @override
   Future<List<Activation>> kept() async => const [];
+
+  @override
+  Future<ActivationHistoryPage> history({String? cursor}) async =>
+      ActivationHistoryPage(
+        activations: [
+          for (final a in _store.values)
+            if (a.started) a,
+        ],
+      );
 
   @override
   Future<Activation> start(String id) async {
@@ -418,16 +445,28 @@ class LiveActivationsService implements ActivationsService {
     return _items(json);
   }
 
+  @override
+  Future<ActivationHistoryPage> history({String? cursor}) async {
+    final query = Uri(queryParameters: {'limit': '$_page', 'cursor': ?cursor})
+        .query;
+    final res = await link.scope.guard(_api.get('/activations/mine?$query'));
+    if (!res.ok) throw ApiRefused.of(res);
+    return ActivationHistoryPage(
+      activations: _items(res.data),
+      nextCursor: apiText(res.data['nextCursor']),
+    );
+  }
+
   Future<List<Activation>> _mine() async {
     final runs = <Activation>[];
     String? cursor;
     for (var page = 0; page < _maxPages; page++) {
-      final query = Uri(queryParameters: {'limit': '$_page', 'cursor': ?cursor})
-          .query;
-      final res = await link.scope.guard(_api.get('/activations/mine?$query'));
-      if (!res.ok) throw ApiRefused.of(res);
-      runs.addAll(_items(res.data));
-      cursor = apiText(res.data['nextCursor']);
+      final result = await history(cursor: cursor);
+      runs.addAll(result.activations);
+      if (result.nextCursor != null && result.nextCursor == cursor) {
+        throw StateError('Repeated activation cursor');
+      }
+      cursor = result.nextCursor;
       if (cursor == null) break;
     }
     return runs;
@@ -587,6 +626,9 @@ class PausedActivationsService implements ActivationsService {
   Future<List<Activation>> kept() async => const [];
 
   @override
+  Future<ActivationHistoryPage> history({String? cursor}) => _paused();
+
+  @override
   Future<Activation> start(String id) => _paused();
 
   @override
@@ -686,6 +728,7 @@ Activation? activationFromJson(
     logoUrl: apiText(json['logoUrl']),
     imageUrl: apiText(json['imageUrl']),
     paused: json['status'] == 'paused',
+    completedCount: apiInt(json['completedCount']),
     confirmationMode: mode,
     rewardMode: perStep ? RewardMode.perStep : RewardMode.perRun,
     sentPhase: stepProof ? _phase(json['phase'], mode) : null,

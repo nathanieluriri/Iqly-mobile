@@ -7,11 +7,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
+import '../../core/deadline.dart';
+import '../../core/session.dart';
 import '../../data/polls_data.dart';
 import '../../theme/theme.dart';
 import '../../ui/empty_state.dart';
 import '../../ui/illustration.dart';
 import '../../ui/banner.dart';
+import '../../ui/button.dart';
+import '../../ui/chip.dart';
 import '../../ui/section_title.dart';
 import '../../ui/skeleton.dart';
 import '../../ui/top_bar.dart';
@@ -40,6 +44,7 @@ class PollsScreen extends ConsumerStatefulWidget {
 
 class _PollsScreenState extends ConsumerState<PollsScreen> {
   bool _opened = false;
+  bool _completed = false;
 
   @override
   void initState() {
@@ -70,10 +75,30 @@ class _PollsScreenState extends ConsumerState<PollsScreen> {
   @override
   Widget build(BuildContext context) {
     final polls = ref.watch(pollsProvider);
-    final data = polls.hasValue && !polls.hasError ? polls.value : null;
+    final data = polls.hasValue && !polls.hasError && !polls.isReloading
+        ? polls.value
+        : null;
     final failed = data == null && polls.hasError && !polls.isLoading;
     if (data != null) _openFromBubble(data);
     if (Layout.isTablet(context)) return const TabletPolls();
+    final history = _completed ? ref.watch(pollHistoryProvider) : null;
+    final historyPage = pollHistoryFor(history, ref.watch(accountProvider));
+    final all = mergePollBusinesses(
+      historyPage?.businesses ?? const [],
+      data ?? const [],
+    );
+    final shown = pollTiles(
+      all,
+      completed: _completed,
+      now: ref.watch(clockProvider)(),
+    );
+    final historyFailed = history?.hasError ?? false;
+    final loading = _completed
+        ? shown.isEmpty &&
+              history != null &&
+              historyPage == null &&
+              !historyFailed
+        : data == null && !failed;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
@@ -91,20 +116,64 @@ class _PollsScreenState extends ConsumerState<PollsScreen> {
                   title: 'Quick polls',
                   onBack: () => leave(context),
                 ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
+                  child: Row(
+                    children: [
+                      IqChip(
+                        label: 'Available',
+                        state: !_completed
+                            ? IqChipState.selected
+                            : IqChipState.standard,
+                        onChanged: (_) => setState(() => _completed = false),
+                      ),
+                      const SizedBox(width: IqSpace.s2),
+                      IqChip(
+                        label: 'Completed',
+                        state: _completed
+                            ? IqChipState.selected
+                            : IqChipState.standard,
+                        onChanged: (_) => setState(() => _completed = true),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_completed)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      IqSpace.s4,
+                      IqSpace.s2,
+                      IqSpace.s4,
+                      0,
+                    ),
+                    child: Text(
+                      'Your poll answers are available for up to 6 months.',
+                      style: IqText.small.copyWith(color: IqColors.fg3),
+                    ),
+                  ),
+                const SizedBox(height: IqSpace.s3),
                 Expanded(
                   child: LoadingGate(
-                    loading: data == null && !failed,
+                    loading: loading,
                     skeleton: const _Skeleton(),
-                    child: failed
+                    child:
+                        (_completed ? historyFailed && shown.isEmpty : failed)
                         ? _Failed(
-                            onRetry: () =>
-                                ref.read(pollsProvider.notifier).retry(),
+                            onRetry: () {
+                              if (_completed) {
+                                ref.invalidate(pollHistoryProvider);
+                              } else {
+                                ref.read(pollsProvider.notifier).retry();
+                              }
+                            },
                           )
-                        : data == null
+                        : loading
                         ? const SizedBox.shrink()
-                        : data.isEmpty
-                        ? const _Empty()
-                        : _Businesses(businesses: data),
+                        : shown.isEmpty
+                        ? _completed && historyPage?.nextCursor != null
+                              ? const _MoreHistory()
+                              : _Empty(completed: _completed)
+                        : _Businesses(businesses: shown, history: _completed),
                   ),
                 ),
               ],
@@ -131,9 +200,10 @@ class _Page extends StatelessWidget {
 }
 
 class _Businesses extends ConsumerStatefulWidget {
-  const _Businesses({required this.businesses});
+  const _Businesses({required this.businesses, required this.history});
 
   final List<PollBusiness> businesses;
+  final bool history;
 
   @override
   ConsumerState<_Businesses> createState() => _BusinessesState();
@@ -161,8 +231,8 @@ class _BusinessesState extends ConsumerState<_Businesses> {
         children: [
           StaggerItem(
             index: 0,
-            child: const IqSectionTitle(
-              title: 'Open polls',
+            child: IqSectionTitle(
+              title: widget.history ? 'Completed polls' : 'Open polls',
               showCount: false,
               showLink: false,
             ),
@@ -172,14 +242,68 @@ class _BusinessesState extends ConsumerState<_Businesses> {
             StaggerItem(
               index: i + 1,
               child: QuickPollTile(
-                key: ValueKey(business.id),
+                key: ValueKey(business.polls.single.id),
                 business: business,
-                onTap: () => context.open(pollsOf(business.id)),
+                showResults: widget.history,
+                onTap: () => context.open(
+                  pollsOf(
+                    business.id,
+                    pollId: business.polls.single.id,
+                    history: widget.history,
+                  ),
+                ),
               ),
             ),
           ],
+          if (widget.history) ...[
+            const SizedBox(height: IqSpace.s3),
+            const _HistoryFooter(),
+          ],
         ],
       ),
+    );
+  }
+}
+
+class _MoreHistory extends StatelessWidget {
+  const _MoreHistory();
+
+  @override
+  Widget build(BuildContext context) => const _Page(
+    children: [
+      IqEmptyState(
+        figure: IqFigures.shrug,
+        title: 'No completed polls on this page',
+      ),
+      SizedBox(height: IqSpace.s3),
+      _HistoryFooter(),
+    ],
+  );
+}
+
+class _HistoryFooter extends ConsumerWidget {
+  const _HistoryFooter();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final history = ref.watch(pollHistoryProvider);
+    if (history.hasError) {
+      return IqBanner(
+        kind: IqBannerKind.error,
+        title: "Couldn't load older polls.",
+        action: 'Try again',
+        onAction: () => ref.invalidate(pollHistoryProvider),
+      );
+    }
+    final page = pollHistoryFor(history, ref.watch(accountProvider));
+    if (page?.nextCursor == null) return const SizedBox.shrink();
+    return IqButton(
+      label: page!.loadMoreFailed ? 'Try again' : 'Load more',
+      kind: IqButtonKind.secondary,
+      showIcon: false,
+      loading: page.loadingMore,
+      width: double.infinity,
+      onTap: () => ref.read(pollHistoryProvider.notifier).loadMore(),
     );
   }
 }
@@ -226,15 +350,19 @@ class _Failed extends StatelessWidget {
 }
 
 class _Empty extends StatelessWidget {
-  const _Empty();
+  const _Empty({required this.completed});
+
+  final bool completed;
 
   @override
   Widget build(BuildContext context) {
-    return const IqEmptyFill(
+    return IqEmptyFill(
       child: IqEmptyState(
         figure: IqFigures.shrug,
-        title: 'No open polls right now',
-        body: 'New polls land here.',
+        title: completed ? 'No completed polls yet' : 'No open polls right now',
+        body: completed
+            ? 'Polls you answer will appear here.'
+            : 'New polls land here.',
       ),
     );
   }

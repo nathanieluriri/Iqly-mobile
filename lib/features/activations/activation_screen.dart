@@ -91,9 +91,10 @@ _Layout _layoutOf(ActivationPhase phase) => switch (phase) {
 /// Open go, the steps nothing can confirm any more read "Ended with the
 /// activation", and the progress counts only what can still be paid.
 class ActivationScreen extends ConsumerStatefulWidget {
-  const ActivationScreen({super.key, required this.id});
+  const ActivationScreen({super.key, required this.id, this.history = false});
 
   final String id;
+  final bool history;
 
   @override
   ConsumerState<ActivationScreen> createState() => _ActivationScreenState();
@@ -309,7 +310,8 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
     } else {
       final phase = activation.phaseAt(now);
       _watchWindow(activation, now);
-      layout = _layoutOf(phase);
+      final history = widget.history && phase == ActivationPhase.credited;
+      layout = history ? _Layout.steps : _layoutOf(phase);
       page = switch (layout) {
         _Layout.offer => _OfferPage(
           activation: activation,
@@ -325,6 +327,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
           phase: phase,
           now: now,
           chained: _chained,
+          history: history,
           support: ref.watch(supportShownProvider),
           onBack: _back,
           onRefresh: _refresh,
@@ -1044,6 +1047,7 @@ class _StepsPage extends StatelessWidget {
     required this.phase,
     required this.now,
     required this.chained,
+    this.history = false,
     required this.support,
     required this.onBack,
     required this.onRefresh,
@@ -1056,6 +1060,7 @@ class _StepsPage extends StatelessWidget {
   final ActivationPhase phase;
   final DateTime now;
   final int? chained;
+  final bool history;
 
   /// Whether this launch has support to ask, so Ask for help shows.
   final bool support;
@@ -1094,6 +1099,14 @@ class _StepsPage extends StatelessWidget {
         divider: divider,
         showReward: showReward,
         reward: amount,
+      );
+    }
+    if (history) {
+      return IqStepRow(
+        number: number,
+        title: step.title,
+        body: 'Confirmation not recorded',
+        divider: divider,
       );
     }
     if (a.stepEndedAt(i, now)) {
@@ -1145,24 +1158,35 @@ class _StepsPage extends StatelessWidget {
     final proof = a.proofStep;
     final proving = (_stuck || _recording) && proof != null;
     final closed = a.closedAt(now);
-    final code = a.confirmationMode == ConfirmationMode.postback && !closed
+    final paid = a.perStep
+        ? a.progress!.stepPayouts.fold<int>(
+            0,
+            (sum, payout) => sum + payout.kobo,
+          )
+        : a.rewardKobo;
+    final code =
+        !history && a.confirmationMode == ConfirmationMode.postback && !closed
         ? a.progress?.refCode
         : null;
     return _Page(
-      activation: activation,
+      activation: history ? null : activation,
       title: 'Activation',
       onBack: onBack,
-      phone: !closed,
+      phone: !history && !closed,
       status: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: IqSpace.s4,
           vertical: IqSpace.s2,
         ),
         child: IqProgressThread(
-          status: _stuck && waiting != null
+          status: history
+              ? 'Completed'
+              : _stuck && waiting != null
               ? 'Step ${waiting + 1} not confirmed yet'
               : progressLine(a),
-          count: _stuck && waiting != null
+          count: history
+              ? '${a.confirmed} of ${a.steps.length} steps'
+              : _stuck && waiting != null
               ? waitingCount(a, now)
               : deadlineText(a, now),
         ),
@@ -1172,56 +1196,70 @@ class _StepsPage extends StatelessWidget {
         children: _gapped([
           _Header(activation: a),
           if (code != null) _RunCode(code: code, business: a.business),
-          const IqSectionTitle(title: 'What to do', showLink: false),
+          IqSectionTitle(
+            title: history ? 'Completed steps' : 'What to do',
+            showLink: false,
+          ),
           for (var i = 0; i < a.steps.length; i++) _step(i),
-          MergeSemantics(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: a.perStep
-                  ? [
-                      Text(
-                        'Your progress:',
-                        style: IqText.small.copyWith(color: IqColors.fg2),
-                      ),
-                      const SizedBox(width: IqSpace.s2),
-                      Flexible(
-                        child: Text(
-                          earnedLine(a, now: now),
+          if (history) ...[
+            Text(
+              '${rewardPool(paid)} paid to your wallet',
+              style: IqText.bodyStrong.copyWith(color: IqColors.brand),
+            ),
+            if (a.completedCount case final int count?)
+              Text(
+                '$count ${count == 1 ? 'person' : 'people'} completed this activation.',
+                style: IqText.small.copyWith(color: IqColors.fg2),
+              ),
+          ] else
+            MergeSemantics(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: a.perStep
+                    ? [
+                        Text(
+                          'Your progress:',
+                          style: IqText.small.copyWith(color: IqColors.fg2),
+                        ),
+                        const SizedBox(width: IqSpace.s2),
+                        Flexible(
+                          child: Text(
+                            earnedLine(a, now: now),
+                            style: IqText.bodyStrong.copyWith(
+                              color: IqColors.brand,
+                            ),
+                          ),
+                        ),
+                      ]
+                    : [
+                        Text(
+                          'Earn ${reward(a)}',
                           style: IqText.bodyStrong.copyWith(
                             color: IqColors.brand,
                           ),
                         ),
-                      ),
-                    ]
-                  : [
-                      Text(
-                        'Earn ${reward(a)}',
-                        style: IqText.bodyStrong.copyWith(
-                          color: IqColors.brand,
+                        const SizedBox(width: IqSpace.s2),
+                        Flexible(
+                          child: Text(
+                            'when all ${a.steps.length} steps are confirmed',
+                            style: IqText.small.copyWith(color: IqColors.fg2),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: IqSpace.s2),
-                      Flexible(
-                        child: Text(
-                          'when all ${a.steps.length} steps are confirmed',
-                          style: IqText.small.copyWith(color: IqColors.fg2),
-                        ),
-                      ),
-                    ],
+                      ],
+              ),
             ),
-          ),
-          if (support) _AskForHelp(onTap: onHelp),
+          if (support && !history) _AskForHelp(onTap: onHelp),
         ], IqSpace.s4),
       ),
       actions: [
-        if (proving)
+        if (!history && proving)
           IqButton(
             label: 'Upload proof of step ${proof + 1}',
             showIcon: false,
             width: double.infinity,
             onTap: onProof,
           ),
-        if (!closed)
+        if (!history && !closed)
           IqButton(
             label: 'Open ${a.business}',
             kind: proving ? IqButtonKind.ghost : IqButtonKind.primary,

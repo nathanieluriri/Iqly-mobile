@@ -86,6 +86,7 @@ class Poll {
     this.chosen,
     this.closed = false,
     this.followUps = const [],
+    this.completed,
   });
 
   final String id;
@@ -98,6 +99,7 @@ class Poll {
   /// The API says it has closed, whatever this phone's clock says.
   final bool closed;
   final List<PollQuestion> followUps;
+  final bool? completed;
 
   /// Every question, the first included.
   List<PollQuestion> get questions => [
@@ -142,6 +144,7 @@ class Poll {
 
   /// Every question it asks is answered.
   bool get voted {
+    if (completed != null) return completed!;
     final all = questions;
     for (var i = 0; i < all.length; i++) {
       if (!all[i].answered && !skips(i)) return false;
@@ -165,6 +168,7 @@ class Poll {
     closesAt: closesAt,
     chosen: question == 0 ? choice : chosen,
     closed: closed,
+    completed: completed,
     followUps: [
       for (final (i, q) in followUps.indexed)
         i + 1 == question
@@ -198,6 +202,7 @@ class Poll {
       closesAt: closesAt,
       chosen: first?.chosen ?? chosen,
       closed: closed,
+      completed: completed,
       followUps: [
         for (final (i, q) in followUps.indexed)
           i + 1 == question ? q.withVote(choice) : q,

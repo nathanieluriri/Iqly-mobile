@@ -116,10 +116,14 @@ class IqWebPollRow extends StatelessWidget {
                               color: IqColors.ok,
                             ),
                             const SizedBox(width: IqSpace.s1p5),
-                            Text(
-                              'Answered',
-                              style: IqWebText.bodySmall.copyWith(
-                                color: IqColors.fg2,
+                            Flexible(
+                              child: Text(
+                                'Answered',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: IqWebText.bodySmall.copyWith(
+                                  color: IqColors.fg2,
+                                ),
                               ),
                             ),
                           ],

@@ -267,6 +267,7 @@ class Activation {
     this.logoUrl,
     this.imageUrl,
     this.paused = false,
+    this.completedCount,
     this.confirmationMode,
     this.rewardMode = RewardMode.perRun,
     this.sentPhase,
@@ -295,6 +296,7 @@ class Activation {
 
   /// The business has stopped new starts for now; runs under way go on.
   final bool paused;
+  final int? completedCount;
 
   /// "about 10 min".
   final int minutes;
@@ -547,6 +549,7 @@ class Activation {
     logoUrl: logoUrl,
     imageUrl: imageUrl,
     paused: paused,
+    completedCount: completedCount,
     confirmationMode: confirmationMode,
     rewardMode: rewardMode,
   );

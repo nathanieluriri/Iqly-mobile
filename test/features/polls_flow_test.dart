@@ -134,6 +134,8 @@ void main() {
     await _tap(tester, _labelled('Close'));
     expect(find.byType(PollSheet), findsNothing);
     expect(find.byType(PollsScreen), findsOneWidget);
+    expect(find.text(_flavour), findsNothing);
+    await _tap(tester, find.text('Completed'));
     expect(_tile(tester, _flavour).state, IqPollTileState.answered);
 
     await _tap(tester, _labelled('Back'));
@@ -293,6 +295,7 @@ void main() {
     tester,
   ) async {
     await pumpApp(tester, Routes.polls, overrides: pollsLane());
+    await _tap(tester, find.text('Completed'));
     await _tap(tester, find.text(_kiosk));
     expect(find.text('You’re done'), findsOneWidget);
     expect(find.text('You voted · 176 votes'), findsOneWidget);
@@ -301,7 +304,7 @@ void main() {
     expect(find.text('You voted · 176 votes'), findsOneWidget);
   });
 
-  testWidgets('B2: a closed poll dims its tile and takes no taps', (
+  testWidgets('B2: a closed answered poll remains available in history', (
     tester,
   ) async {
     await pumpApp(
@@ -310,8 +313,13 @@ void main() {
       overrides: pollsLane(),
       clock: () => figmaNow.add(const Duration(days: 1, minutes: 1)),
     );
-    expect(_tile(tester, _kiosk).onTap, isNull);
     expect(_tile(tester, _flavour).onTap, isNotNull);
+    expect(find.text(_kiosk), findsNothing);
+    await _tap(tester, find.text('Completed'));
+    expect(_tile(tester, _kiosk).onTap, isNotNull);
+    await _tap(tester, find.text(_kiosk));
+    expect(find.text('You voted · 176 votes'), findsOneWidget);
+    expect(find.text('Closed'), findsOneWidget);
   });
 
   testWidgets('B2: a vote that does not count clears the pick', (tester) async {

@@ -93,11 +93,12 @@ class _IqPollCardState extends State<IqPollCard>
 
   @override
   Widget build(BuildContext context) {
+    final votes = '${widget.votes} ${widget.votes == 1 ? 'vote' : 'votes'}';
     final hint = switch (widget.state) {
       IqPollCardState.open =>
         widget.hint ?? 'Pick one · results show after you vote',
-      IqPollCardState.voted => 'You voted · ${widget.votes} votes',
-      IqPollCardState.closed => 'Final · ${widget.votes} votes',
+      IqPollCardState.voted => 'You voted · $votes',
+      IqPollCardState.closed => 'Final · $votes',
     };
     final hintLine = Text(
       hint,

@@ -268,6 +268,74 @@ void main() {
       );
     });
 
+    testWidgets('a past API poll opens its saved results without voting', (
+      tester,
+    ) async {
+      const question = 'A poll answered last month';
+      final api = _Api({
+        'GET /polls/history': (_) => _ok({
+          ..._json.pollsJson([
+            {
+              ..._json.pollJson(
+                id: 'past',
+                question: question,
+                chosen: 1,
+                votes: [2, 3, 0],
+                closed: true,
+              ),
+              'answered': true,
+            },
+          ]),
+          'nextCursor': null,
+        }),
+      });
+      await pumpLiveLaunch(tester, Routes.polls, api: api.client, mode: _on);
+      await tester.pumpAndSettle();
+      await _tap(tester, find.text('Completed'));
+      await _tap(tester, find.text(question));
+      expect(find.text('You voted · 5 votes'), findsOneWidget);
+      expect(find.text('Tiger nut'), findsOneWidget);
+      await _tap(tester, find.text('Tiger nut'));
+      expect(api.to('POST /polls/past/vote'), isEmpty);
+      expect(api.to('POST /polls/past/answers'), isEmpty);
+    });
+
+    testWidgets('a completed API activation shows paid steps and count', (
+      tester,
+    ) async {
+      final at = _json.at(const Duration(hours: 1));
+      final paid = {
+        ..._json.activationJson(
+          progress: _json.runJson(
+            status: 'paid',
+            confirmedAt: [at, at, at],
+            paidAt: at,
+          ),
+        ),
+        'completedCount': 7,
+      };
+      final api = _Api({
+        'GET /activations': (_) => _ok({
+          'items': [paid],
+        }),
+        'GET /activations/a_1': (_) => _ok(paid),
+      });
+      await pumpLiveLaunch(
+        tester,
+        Routes.activations,
+        api: api.client,
+        mode: _on,
+      );
+      await tester.pumpAndSettle();
+      await _tap(tester, find.text('Completed'));
+      await _tap(tester, find.text(_plan));
+      expect(find.text('Completed steps'), findsOneWidget);
+      expect(find.text('7 people completed this activation.'), findsOneWidget);
+      expect(_button('Start activation'), findsNothing);
+      expect(_button('Open Harbour Telecom'), findsNothing);
+      expect(api.to('POST /activations/a_1/start'), isEmpty);
+    });
+
     testWidgets('a vote goes to the API and its results show', (tester) async {
       final api = _Api({
         'POST /polls/p_1/vote': (_) =>
