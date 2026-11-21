@@ -24,16 +24,19 @@ class IqImagePlaceholder extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: IqColors.tint,
+        color: IqColors.tintStrong,
         shape: round ? BoxShape.circle : BoxShape.rectangle,
       ),
     );
-    if (MediaQuery.disableAnimationsOf(context)) return fill;
+    final plate = width == null && height == null
+        ? SizedBox.expand(child: fill)
+        : fill;
+    if (MediaQuery.disableAnimationsOf(context)) return plate;
     return Shimmer.fromColors(
-      baseColor: IqColors.tint,
-      highlightColor: IqColors.tintStrong,
+      baseColor: IqColors.tintStrong,
+      highlightColor: IqColors.card,
       period: IqDurations.skeletonPulse,
-      child: fill,
+      child: plate,
     );
   }
 }
