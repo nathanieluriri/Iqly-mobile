@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/backend.dart';
 import '../../core/flags.dart';
 import '../../core/money.dart';
+import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/patches.dart';
 import '../../core/responsive.dart';
