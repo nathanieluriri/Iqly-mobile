@@ -3,7 +3,7 @@ import 'package:flutter/widgets.dart';
 import '../../data/activations_data.dart';
 import '../../data/demo_data.dart';
 
-import '../../ui/image_placeholder.dart';
+import '../../ui/network_image.dart';
 import '../../ui/sample_cover.dart';
 import '../../ui/sample_logo.dart';
 
@@ -23,21 +23,13 @@ Widget _networkArt(
   required Widget error,
   bool round = false,
 }) {
-  return Image.network(
-    source,
+  return IqNetworkImage(
+    url: source,
     width: width,
     height: height,
     fit: fit,
-    gaplessPlayback: true,
-    frameBuilder: (context, child, frame, sync) {
-      if (sync || frame != null) return child;
-      return IqImagePlaceholder(width: width, height: height, round: round);
-    },
-    loadingBuilder: (context, child, progress) {
-      if (progress == null) return child;
-      return IqImagePlaceholder(width: width, height: height, round: round);
-    },
-    errorBuilder: (_, _, _) => error,
+    round: round,
+    error: error,
   );
 }
 
