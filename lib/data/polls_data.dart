@@ -67,6 +67,22 @@ class PollQuestion {
     chosen: choice,
     showIf: showIf,
   );
+
+  /// Moves the person's pick. A first pick adds one; a change takes one
+  /// off the old choice so the card does not count both.
+  PollQuestion withChange(int choice) {
+    if (chosen == choice) return this;
+    return PollQuestion(
+      question: question,
+      choices: choices,
+      votes: [
+        for (var i = 0; i < votes.length; i++)
+          votes[i] + (i == choice ? 1 : 0) - (i == chosen ? 1 : 0),
+      ],
+      chosen: choice,
+      showIf: showIf,
+    );
+  }
 }
 
 /// One poll a business runs (Exp/PollCard), behind Flags.polls: the
@@ -235,6 +251,27 @@ class Poll {
       followUps: [
         for (final (i, q) in followUps.indexed)
           i + 1 == question ? q.withVote(choice) : q,
+      ],
+    );
+  }
+
+  /// Instant card update: move the pick without waiting on the API.
+  Poll withChange(int choice, {int question = 0}) {
+    final first = question == 0 ? questions.first.withChange(choice) : null;
+    return Poll(
+      id: id,
+      question: this.question,
+      choices: choices,
+      votes: first?.votes ?? votes,
+      closesAt: closesAt,
+      chosen: first?.chosen ?? chosen,
+      closed: closed,
+      completed: completed,
+      changes: changes,
+      canChange: canChange,
+      followUps: [
+        for (final (i, q) in followUps.indexed)
+          i + 1 == question ? q.withChange(choice) : q,
       ],
     );
   }

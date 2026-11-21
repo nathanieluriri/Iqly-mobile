@@ -24,6 +24,7 @@ import '../../ui/top_bar.dart';
 import '../discover/business_art.dart';
 import '../discover/discover_routes.dart';
 import '../settings/restore_account_screen.dart' show showClosingAccount;
+import 'latest_poll_vote.dart';
 import 'polls_state.dart';
 import '../shell/tablet_sheet.dart' show TabletClose;
 
@@ -257,16 +258,35 @@ class _PollsState extends ConsumerState<_Polls> {
     return view;
   }
 
+  final _queues = <String, LatestPollVote>{};
+  int? _wanted;
+
+  LatestPollVote _queueFor(Poll poll) {
+    return _queues[poll.id] ??= LatestPollVote((choice) {
+      return ref
+          .read(pollsProvider.notifier)
+          .vote(
+            poll.id,
+            choice,
+            apply: () => _wanted == null || _wanted == choice,
+          );
+    });
+  }
+
   Future<void> _vote(Poll poll, int choice) async {
-    if (_picks.isNotEmpty) return;
-    final key = _key(poll, 0);
-    setState(() => _picks[key] = choice);
-    final outcome = await ref
-        .read(pollsProvider.notifier)
-        .vote(poll.id, choice);
+    if (poll.chosen == choice && poll.voted) return;
+    _wanted = choice;
+    ref.read(pollsProvider.notifier).show(poll.withChange(choice));
+    setState(() {
+      _picks[_key(poll, 0)] = choice;
+      _failed = null;
+    });
+    final outcome = await _queueFor(poll).enqueue(choice);
     if (!mounted) return;
-    setState(() => _picks.remove(key));
-    await _counted(outcome);
+    if (_wanted == choice) {
+      setState(() => _picks.remove(_key(poll, 0)));
+      await _counted(outcome);
+    }
   }
 
   /// Done: each poll's answers go together; the results show once in.
@@ -439,7 +459,7 @@ class _PollsState extends ConsumerState<_Polls> {
       );
     }
     final changeable = poll.changeableAt(now);
-    final voting = (!asked.answered || changeable) && !closed && _picks.isEmpty;
+    final voting = (!asked.answered || changeable) && !closed;
     return IqPollCard(
       key: ValueKey(_key(poll, question)),
       question: asked.question,

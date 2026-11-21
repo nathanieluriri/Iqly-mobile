@@ -62,15 +62,29 @@ class PollsNotifier extends AsyncNotifier<List<PollBusiness>> {
     } catch (_) {}
   }
 
+  /// Instantly shows [poll] on the card, before the API answers.
+  void show(Poll poll) => _put(poll);
+
   /// Votes [choice] on [pollId]'s one question.
-  Future<VoteOutcome> vote(String pollId, int choice) =>
-      _counting(pollId, ref.read(pollsServiceProvider).vote(pollId, choice));
+  Future<VoteOutcome> vote(
+    String pollId,
+    int choice, {
+    bool Function()? apply,
+  }) => _counting(
+    pollId,
+    ref.read(pollsServiceProvider).vote(pollId, choice),
+    apply: apply,
+  );
 
   /// Sends the walk's [answers] to [pollId] together (contract 14.1).
   Future<VoteOutcome> answer(String pollId, List<PollAnswer> answers) =>
       _counting(pollId, ref.read(pollsServiceProvider).answer(pollId, answers));
 
-  Future<VoteOutcome> _counting(String pollId, Future<Poll> sent) async {
+  Future<VoteOutcome> _counting(
+    String pollId,
+    Future<Poll> sent, {
+    bool Function()? apply,
+  }) async {
     final scope = ref.read(accountScopeProvider);
     final Poll poll;
     try {
@@ -86,7 +100,7 @@ class PollsNotifier extends AsyncNotifier<List<PollBusiness>> {
       return VoteOutcome.offline;
     }
     if (!ref.mounted || !scope.open) return VoteOutcome.offline;
-    _put(poll);
+    if (apply == null || apply()) _put(poll);
     ref.invalidate(pollHistoryProvider);
     republishSurfaces(ref).ignore();
     return VoteOutcome.counted;
