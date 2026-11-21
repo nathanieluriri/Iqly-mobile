@@ -1,0 +1,27 @@
+name: ios
+
+# Builds the app with its widget extension for iOS, unsigned, so Swift that
+# no one has compiled on a Mac is checked. Runs when iOS files change, or on
+# demand from the Actions tab.
+on:
+  pull_request:
+    paths:
+      - 'ios/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/ios.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter build ios --debug --no-codesign
+      - name: The widget extension is in the app
+        run: test -d build/ios/iphoneos/Runner.app/PlugIns/IqlySurfaces.appex

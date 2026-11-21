@@ -8,21 +8,56 @@ void main() {
   final data = DemoData(now: now);
   final polls = demoPolls(now);
 
-  test('Medium: the two briefs closing soonest (347:16187)', () {
+  test('Medium: the two briefs closing soonest first (347:16187), then the '
+      'next for the second page', () {
     final s = WidgetSnapshot.of(briefs: data.briefs, polls: polls, now: now);
     expect(
       [for (final r in s.closingSoon) r.title],
       [
         'A tagline for a solar kiosk network',
         'Redesign the first five minutes of our savings app',
+        'Packaging ideas for a cassava snack',
       ],
     );
     expect(
-      [for (final r in s.closingSoon) r.meta],
+      [for (final r in s.closingSoon.take(WidgetSnapshot.medium)) r.meta],
       ['6h left · ₦150,000 pool', '1 day left · ₦500,000 pool'],
     );
     expect(s.closingSoon.first.thumb, 'thumb_sunline.png');
     expect(s.closingSoon.first.toJson()['link'], 'iqly://app/briefs/c5');
+  });
+
+  test('a brief within 24 hours counts down live; one further out keeps its '
+      'day count (1340:28510)', () {
+    final s = WidgetSnapshot.of(briefs: data.briefs, polls: polls, now: now);
+    final [sunline, kudi, ...] = s.closingSoon;
+    expect(sunline.closesAt, now.add(const Duration(hours: 6)));
+    expect(sunline.live, '%s left · ₦150,000 pool');
+    expect(
+      sunline.toJson()['closesAt'],
+      sunline.closesAt!.millisecondsSinceEpoch,
+    );
+    expect(kudi.closesAt, isNull);
+    expect(kudi.toJson().containsKey('live'), isFalse);
+    expect(s.pollsLive, 'Sunline closes in %s');
+    expect(s.pollsClosesAt, sunline.closesAt);
+  });
+
+  test('the Medium widget holds up to four rows, for Android to show two at '
+      'a time', () {
+    final later = [
+      for (final b in data.briefs)
+        if (b.isLive && b.deadline != null) b,
+    ];
+    final s = WidgetSnapshot.of(
+      briefs: later,
+      polls: polls,
+      now: now.subtract(const Duration(days: 30)),
+    );
+    expect(
+      s.closingSoon.length,
+      lessThanOrEqualTo(WidgetSnapshot.medium * WidgetSnapshot.pages),
+    );
   });
 
   test('Small: unanswered polls and the soonest close', () {

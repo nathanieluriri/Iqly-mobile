@@ -38,6 +38,30 @@ object WidgetStore {
         return picked ?: if (entries.length() > 0) entries.getJSONObject(0) else null
     }
 
+    // When the widgets next need drawing: the next hourly snapshot, or a
+    // brief in the current one reaching its close.
+    fun nextChange(context: Context, now: Long): Long? {
+        val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY, null) ?: return null
+        val entries = try {
+            JSONObject(raw).getJSONArray("entries")
+        } catch (e: org.json.JSONException) {
+            return null
+        }
+        val times = mutableListOf<Long>()
+        for (i in 0 until entries.length()) times += entries.getJSONObject(i).optLong("at")
+        current(context, now)?.let { entry ->
+            val rows = entry.optJSONObject("closingSoon")?.optJSONArray("rows")
+            if (rows != null) {
+                for (i in 0 until rows.length()) {
+                    times += rows.optJSONObject(i)?.optLong("closesAt") ?: 0L
+                }
+            }
+            times += entry.optJSONObject("polls")?.optLong("closesAt") ?: 0L
+        }
+        return times.filter { it > now }.minOrNull()
+    }
+
     fun thumb(context: Context, name: String): Bitmap? {
         val file = File(File(context.filesDir, DIR), File(name).name)
         return if (file.exists()) BitmapFactory.decodeFile(file.path) else null
