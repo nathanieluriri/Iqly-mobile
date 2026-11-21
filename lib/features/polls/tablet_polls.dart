@@ -35,7 +35,6 @@ class TabletPolls extends ConsumerStatefulWidget {
 class _TabletPollsState extends ConsumerState<TabletPolls> {
   bool _completed = false;
   PollListSort _sort = PollListSort.closing;
-  bool _closingSoon = false;
 
   @override
   Widget build(BuildContext context) {
@@ -55,8 +54,7 @@ class _TabletPollsState extends ConsumerState<TabletPolls> {
         completed: _completed,
         now: now,
       ))
-        if (!_closingSoon || pollClosingSoon(business.polls.single, now))
-          business,
+        business,
     ], _sort);
 
     Widget group(List<PollBusiness> businesses) => Column(
@@ -131,24 +129,11 @@ class _TabletPollsState extends ConsumerState<TabletPolls> {
               ],
             ),
             IqBizFilterChip(
-              label: _sort == PollListSort.votes
-                  ? 'Sort: Most votes'
-                  : 'Sort: Closing soonest',
+              label: 'Sort: ${_sort.label}',
               onTap: () => setState(
-                () => _sort = _sort == PollListSort.closing
-                    ? PollListSort.votes
-                    : PollListSort.closing,
+                () => _sort = PollListSort
+                    .values[(_sort.index + 1) % PollListSort.values.length],
               ),
-            ),
-            IqBizFilterChip(
-              label: _closingSoon ? 'Closing soon' : 'Filters',
-              state: _closingSoon
-                  ? IqBizFilterChipState.active
-                  : IqBizFilterChipState.standard,
-              onTap: () => setState(() => _closingSoon = !_closingSoon),
-              onClear: _closingSoon
-                  ? () => setState(() => _closingSoon = false)
-                  : null,
             ),
             IqPressable(
               tactile: false,

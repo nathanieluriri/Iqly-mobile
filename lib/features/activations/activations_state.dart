@@ -323,6 +323,43 @@ class ActivationHistoryNotifier extends AsyncNotifier<ActivationHistoryPage> {
   }
 }
 
+enum ActivationListSort {
+  closing,
+  latest,
+  reward;
+
+  String get label => switch (this) {
+    closing => 'Closing soonest',
+    latest => 'Closing latest',
+    reward => 'Biggest reward',
+  };
+}
+
+List<Activation> sortActivationTiles(
+  List<Activation> activations,
+  ActivationListSort sort, {
+  bool completed = false,
+}) {
+  final tiles = [...activations];
+  tiles.sort((a, b) {
+    switch (sort) {
+      case ActivationListSort.reward:
+        return b.rewardKobo.compareTo(a.rewardKobo);
+      case ActivationListSort.latest:
+        if (completed) {
+          return a.progress!.paidAt!.compareTo(b.progress!.paidAt!);
+        }
+        return b.closesAt.compareTo(a.closesAt);
+      case ActivationListSort.closing:
+        if (completed) {
+          return b.progress!.paidAt!.compareTo(a.progress!.paidAt!);
+        }
+        return a.closesAt.compareTo(b.closesAt);
+    }
+  });
+  return tiles;
+}
+
 final activationHistoryProvider =
     AsyncNotifierProvider<ActivationHistoryNotifier, ActivationHistoryPage>(
       ActivationHistoryNotifier.new,

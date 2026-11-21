@@ -20,6 +20,9 @@ class UpdatesNotifier extends Notifier<AppRelease?> {
   /// A resume checks again at most this often.
   static const resumeEvery = Duration(hours: 1);
 
+  /// While the app is open, a timer asks again this often.
+  static const backgroundEvery = Duration(minutes: 15);
+
   /// How long the splash holds past its own run for an answer.
   static const splashWait = Duration(seconds: 2);
 
@@ -33,9 +36,11 @@ class UpdatesNotifier extends Notifier<AppRelease?> {
 
   bool get required => state?.status == UpdateStatus.required;
 
-  /// Asks the API, one check at a time.
-  Future<void> check() =>
-      _running ??= _check().whenComplete(() => _running = null);
+  /// Asks the API, one check at a time. [force] ignores the hourly throttle.
+  Future<void> check({bool force = false}) {
+    if (force) _checkedAt = null;
+    return _running ??= _check().whenComplete(() => _running = null);
+  }
 
   Future<void> _check() async {
     _checkedAt = ref.read(clockProvider)();
@@ -52,10 +57,15 @@ class UpdatesNotifier extends Notifier<AppRelease?> {
   }
 
   /// Back in the foreground: checks again once an hour has passed.
-  void resumed() {
+  void resumed() => _askIfDue(resumeEvery);
+
+  /// The open-app timer: checks again once [backgroundEvery] has passed.
+  void scheduled() => _askIfDue(backgroundEvery);
+
+  void _askIfDue(Duration every) {
     final last = _checkedAt;
     final now = ref.read(clockProvider)();
-    if (last != null && now.difference(last) < resumeEvery) return;
+    if (last != null && now.difference(last) < every) return;
     unawaited(check());
   }
 

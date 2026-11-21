@@ -65,6 +65,7 @@ void main() {
     expect(find.byType(PollSheet), findsNothing);
     expect(find.text('Available'), findsOneWidget);
     expect(find.textContaining('Sort:'), findsOneWidget);
+    expect(find.text('Filters'), findsNothing);
 
     await _tap(tester, find.text(_flavour));
     expect(find.byType(PollSheet), findsOneWidget);

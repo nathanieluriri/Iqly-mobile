@@ -125,8 +125,8 @@ void main() {
         service: _live(thursday),
       );
       expect(find.byType(HomeScreen), findsOneWidget);
-      // Discover waits for its Activations block, then opens the list with
-      // what it loaded.
+      // Discover waits for its Activations block, then opens that
+      // activation, not the list.
       await tester.pump(const Duration(milliseconds: 1300));
       await tester.pumpAndSettle();
       expect(find.text('Activations'), findsOneWidget);
@@ -134,6 +134,12 @@ void main() {
 
       await tester.tap(find.text('Rate 3 recipes in the Orchid Foods app'));
       await tester.pumpAndSettle();
+      expect(find.byType(ActivationScreen), findsOneWidget);
+      expect(find.byType(ActivationsScreen), findsNothing);
+      await _tap(tester, find.bySemanticsLabel(RegExp('Back')));
+      expect(find.byType(HomeScreen), findsOneWidget);
+
+      await _tap(tester, _activationsSeeAll());
       expect(find.byType(ActivationsScreen), findsOneWidget);
       expect(find.byType(ActivationsLoading), findsNothing);
       expect(find.text('Rate 3 recipes in the Orchid Foods app'), findsOne);
@@ -349,8 +355,9 @@ void main() {
   });
 
   testWidgets('B8: an activation that has ended cannot start', (tester) async {
-    final ended = DemoActivations(thursday).kudiBox.closesAt
-        .add(const Duration(days: 2));
+    final ended = DemoActivations(
+      thursday,
+    ).kudiBox.closesAt.add(const Duration(days: 2));
     await pumpActivations(
       tester,
       activationPath('a2'),

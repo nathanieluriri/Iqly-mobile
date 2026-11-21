@@ -2,7 +2,8 @@ name: shorebird-patch
 
 # Ships the Dart in this branch as an update to a release made by
 # shorebird-release. Phones download it in the background and run it from
-# their next launch. Native code, the manifest, assets and the Flutter
+# their next launch. Published to the stable track so every install of that
+# release gets it. Native code, the manifest, assets and the Flutter
 # version cannot be patched: those need a new release.
 on:
   workflow_dispatch:
@@ -37,7 +38,7 @@ jobs:
         run: |
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/iqly-upload.jks"
           echo "IQLY_KEYSTORE_PATH=$RUNNER_TEMP/iqly-upload.jks" >> "$GITHUB_ENV"
-      - run: shorebird patch android --release-version="$RELEASE_VERSION" $DIFFS
+      - run: shorebird patch android --release-version="$RELEASE_VERSION" --track=stable $DIFFS
         env:
           RELEASE_VERSION: ${{ inputs.release_version }}
           DIFFS: ${{ inputs.allow_diffs && '--allow-native-diffs --allow-asset-diffs' || '' }}

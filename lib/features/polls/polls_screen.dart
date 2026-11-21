@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
@@ -12,7 +11,6 @@ import '../../core/deadline.dart' show clockProvider;
 import '../../core/session.dart';
 import '../../data/polls_data.dart';
 import '../../theme/theme.dart';
-import '../../router.dart';
 import '../../ui/empty_state.dart';
 import '../../ui/illustration.dart';
 import '../../ui/banner.dart';
@@ -48,7 +46,6 @@ class _PollsScreenState extends ConsumerState<PollsScreen> {
   bool _opened = false;
   bool _completed = false;
   PollListSort _sort = PollListSort.closing;
-  bool _closingSoon = false;
 
   @override
   void initState() {
@@ -66,9 +63,7 @@ class _PollsScreenState extends ConsumerState<PollsScreen> {
           children: [
             for (final sort in PollListSort.values)
               ListTile(
-                title: Text(
-                  sort == PollListSort.votes ? 'Most votes' : 'Closing soonest',
-                ),
+                title: Text(sort.label),
                 onTap: () => Navigator.pop(context, sort),
               ),
           ],
@@ -76,31 +71,6 @@ class _PollsScreenState extends ConsumerState<PollsScreen> {
       ),
     );
     if (next != null && mounted) setState(() => _sort = next);
-  }
-
-  Future<void> _pickFilter(BuildContext context) async {
-    final next = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: IqColors.card,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: const Text('Closing soon'),
-              onTap: () => Navigator.pop(context, 'soon'),
-            ),
-            ListTile(
-              title: const Text('Adjust interests'),
-              onTap: () => Navigator.pop(context, 'interests'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (!mounted || next == null) return;
-    if (next == 'soon') setState(() => _closingSoon = true);
-    if (next == 'interests') context.go(Routes.filters);
   }
 
   void _openFromBubble(List<PollBusiness> businesses) {
@@ -141,8 +111,7 @@ class _PollsScreenState extends ConsumerState<PollsScreen> {
     final now = ref.watch(clockProvider)();
     final shown = sortPollTiles([
       for (final business in pollTiles(all, completed: _completed, now: now))
-        if (!_closingSoon || pollClosingSoon(business.polls.single, now))
-          business,
+        business,
     ], _sort);
     final historyFailed = history?.hasError ?? false;
     final loading = _completed
@@ -195,20 +164,8 @@ class _PollsScreenState extends ConsumerState<PollsScreen> {
                         onChanged: (_) => setState(() => _completed = true),
                       ),
                       IqBizFilterChip(
-                        label: _sort == PollListSort.votes
-                            ? 'Sort: Most votes'
-                            : 'Sort: Closing soonest',
+                        label: 'Sort: ${_sort.label}',
                         onTap: () => _pickSort(context),
-                      ),
-                      IqBizFilterChip(
-                        label: _closingSoon ? 'Closing soon' : 'Filters',
-                        state: _closingSoon
-                            ? IqBizFilterChipState.active
-                            : IqBizFilterChipState.standard,
-                        onTap: () => _pickFilter(context),
-                        onClear: _closingSoon
-                            ? () => setState(() => _closingSoon = false)
-                            : null,
                       ),
                     ],
                   ),

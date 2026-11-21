@@ -809,10 +809,15 @@ class _RewardPanel extends StatelessWidget {
 /// The business beside its name and "Activation". A name from the API can
 /// run long, so it gives way with an ellipsis.
 class _BrandRow extends StatelessWidget {
-  const _BrandRow({required this.activation, this.logo = true});
+  const _BrandRow({
+    required this.activation,
+    this.logo = true,
+    this.kind = true,
+  });
 
   final Activation activation;
   final bool logo;
+  final bool kind;
 
   @override
   Widget build(BuildContext context) {
@@ -831,8 +836,13 @@ class _BrandRow extends StatelessWidget {
               style: IqText.smallStrong.copyWith(color: IqColors.fg),
             ),
           ),
-          const SizedBox(width: 10),
-          Text('Activation', style: IqText.small.copyWith(color: IqColors.fg3)),
+          if (kind) ...[
+            const SizedBox(width: 10),
+            Text(
+              'Activation',
+              style: IqText.small.copyWith(color: IqColors.fg3),
+            ),
+          ],
         ],
       ),
     );
@@ -1037,6 +1047,139 @@ class _Header extends StatelessWidget {
   }
 }
 
+/// A finished run: cover and logo, then the name and title, no
+/// "Activation" label and no "Completed N of N steps". A long page pins
+/// the top bar and lets the cover scroll away.
+class _CompletedHistory extends StatelessWidget {
+  const _CompletedHistory({
+    required this.activation,
+    required this.onBack,
+    required this.steps,
+  });
+
+  final Activation activation;
+  final VoidCallback onBack;
+  final List<Widget> steps;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = activation;
+    final paid = a.perStep
+        ? a.progress!.stepPayouts.fold<int>(
+            0,
+            (sum, payout) => sum + payout.kobo,
+          )
+        : a.rewardKobo;
+    final details = [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(66, 5, IqSpace.s4, 0),
+        child: _BrandRow(activation: a, logo: false, kind: false),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(
+          IqSpace.s4,
+          IqSpace.s2,
+          IqSpace.s4,
+          0,
+        ),
+        child: Text(a.title, style: IqText.title.copyWith(color: IqColors.fg)),
+      ),
+      const Padding(
+        padding: EdgeInsets.fromLTRB(IqSpace.s4, IqSpace.s4, IqSpace.s4, 0),
+        child: IqSectionTitle(title: 'Completed steps', showLink: false),
+      ),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
+        child: Column(children: steps),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(
+          IqSpace.s4,
+          IqSpace.s4,
+          IqSpace.s4,
+          IqSpace.s2,
+        ),
+        child: Text(
+          '${rewardPool(paid)} paid to your wallet',
+          style: IqText.bodyStrong.copyWith(color: IqColors.brand),
+        ),
+      ),
+      if (a.completedCount case final int count?)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            IqSpace.s4,
+            0,
+            IqSpace.s4,
+            IqSpace.s6,
+          ),
+          child: Text(
+            '$count ${count == 1 ? 'person' : 'people'} completed this activation.',
+            style: IqText.small.copyWith(color: IqColors.fg2),
+          ),
+        )
+      else
+        const SizedBox(height: IqSpace.s6),
+    ];
+    if (Layout.isTablet(context)) {
+      return _Page(
+        title: a.business,
+        onBack: onBack,
+        body: _Body(
+          padding: EdgeInsets.zero,
+          children: [
+            _Hero(
+              child: IqBriefHero(
+                cover: activationCoverArt(a),
+                logo: activationLogoArt(a),
+                showDots: false,
+              ),
+            ),
+            ...details,
+          ],
+        ),
+      );
+    }
+    return NestedScrollView(
+      headerSliverBuilder: (context, inner) => [
+        SliverAppBar(
+          pinned: true,
+          automaticallyImplyLeading: false,
+          backgroundColor: IqColors.bg,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          toolbarHeight: 56,
+          expandedHeight: 56 + _Hero.height,
+          flexibleSpace: FlexibleSpaceBar(
+            collapseMode: CollapseMode.pin,
+            background: ColoredBox(
+              color: IqColors.bg,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  IqTopBar(
+                    variant: IqTopBarVariant.page,
+                    title: inner ? a.title : '',
+                    onBack: onBack,
+                  ),
+                  _Hero(
+                    child: IqBriefHero(
+                      cover: activationCoverArt(a),
+                      logo: activationLogoArt(a),
+                      showDots: false,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+      body: ListView(padding: EdgeInsets.zero, children: details),
+    );
+  }
+}
+
 /// Just started (179:8001), in progress (141:5090) and step not confirmed
 /// (154:6202): the thread pinned under the top bar, the steps as they
 /// stand, the reward, and the bar for the business's app (and the proof
@@ -1153,6 +1296,13 @@ class _StepsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (history) {
+      return _CompletedHistory(
+        activation: activation,
+        onBack: onBack,
+        steps: [for (var i = 0; i < activation.steps.length; i++) _step(i)],
+      );
+    }
     final a = activation;
     final waiting = a.waitingStep;
     final proof = a.proofStep;

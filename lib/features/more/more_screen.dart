@@ -8,8 +8,12 @@ import '../../core/flags.dart';
 import '../../core/money.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
+import '../../core/patches.dart';
 import '../../core/responsive.dart';
+import '../../core/updates.dart';
+import '../../data/app_version.dart';
 import '../../data/cache_service.dart';
+import '../../data/device.dart';
 import '../../data/live/live_repository.dart' show liveModeProvider;
 import '../../data/pin_service.dart';
 import '../help/help_state.dart' show supportUnreadProvider;
@@ -27,6 +31,7 @@ import '../../ui/switch.dart';
 import '../../ui/pressable.dart';
 import '../../ui/referral_card.dart';
 import '../../ui/skeleton.dart';
+import '../../ui/toast.dart';
 import '../../ui/top_bar.dart';
 import '../avatar/avatar_state.dart';
 import '../avatar/choose_avatar.dart';
@@ -68,6 +73,7 @@ class MoreScreen extends ConsumerStatefulWidget {
 
 class _MoreScreenState extends ConsumerState<MoreScreen> {
   final _scroll = ScrollController();
+  bool _checkingUpdates = false;
 
   @override
   void dispose() {
@@ -92,6 +98,36 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
       confirmKind: IqButtonKind.primary,
     );
     if (clear) await ref.read(cacheProvider.notifier).clear();
+  }
+
+  Future<void> _checkUpdates() async {
+    if (_checkingUpdates) return;
+    setState(() => _checkingUpdates = true);
+    final updates = ref.read(updatesProvider.notifier);
+    final patches = ref.read(patchesProvider.notifier);
+    await Future.wait([updates.check(force: true), patches.check(force: true)]);
+    if (!mounted) return;
+    setState(() => _checkingUpdates = false);
+    final release = ref.read(updatesProvider);
+    final phase = ref.read(patchesProvider);
+    final url = release?.updateUrl;
+    if (release != null &&
+        (release.status == UpdateStatus.available ||
+            release.status == UpdateStatus.required) &&
+        url != null) {
+      final go = await showIqConfirmSheet(
+        Navigator.of(context, rootNavigator: true).context,
+        title: 'A new version is available',
+        body: 'Update iQLY to get the latest fixes and features.',
+        confirmLabel: 'Update iQLY',
+        cancelLabel: 'Not now',
+        confirmKind: IqButtonKind.primary,
+      );
+      if (go && mounted) await ref.read(deviceServiceProvider).openUrl(url);
+      return;
+    }
+    if (phase == PatchPhase.downloading || phase == PatchPhase.ready) return;
+    IqToast.show(context, "You're up to date", kind: IqToastKind.hint);
   }
 
   @override
@@ -244,6 +280,14 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
       ),
       RowGroup(
         children: [
+          IqListRow(
+            label: _checkingUpdates
+                ? 'Checking for updates'
+                : 'Check for updates',
+            showDescription: false,
+            icon: IqIcons.refresh,
+            onTap: _checkingUpdates ? null : _checkUpdates,
+          ),
           IqListRow(
             label: 'Clear cache',
             showDescription: false,
@@ -418,6 +462,14 @@ extension on _MoreScreenState {
             showDescription: false,
             icon: IqIcons.shield,
             onTap: () => context.open(Routes.privacy),
+          ),
+          IqListRow(
+            label: _checkingUpdates
+                ? 'Checking for updates'
+                : 'Check for updates',
+            showDescription: false,
+            icon: IqIcons.refresh,
+            onTap: _checkingUpdates ? null : _checkUpdates,
           ),
           IqListRow(
             label: 'Clear cache',

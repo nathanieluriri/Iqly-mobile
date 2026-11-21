@@ -314,7 +314,17 @@ String pollDoneDetail(PollBusiness business) {
   return 'Thank you for answering honestly.';
 }
 
-enum PollListSort { closing, votes }
+enum PollListSort {
+  closing,
+  latest,
+  votes;
+
+  String get label => switch (this) {
+    closing => 'Closing soonest',
+    latest => 'Closing latest',
+    votes => 'Most votes',
+  };
+}
 
 List<PollBusiness> sortPollTiles(
   List<PollBusiness> businesses,
@@ -324,10 +334,11 @@ List<PollBusiness> sortPollTiles(
   tiles.sort((a, b) {
     final left = a.polls.single;
     final right = b.polls.single;
-    if (sort == PollListSort.votes) {
-      return right.total.compareTo(left.total);
-    }
-    return left.closesAt.compareTo(right.closesAt);
+    return switch (sort) {
+      PollListSort.votes => right.total.compareTo(left.total),
+      PollListSort.latest => right.closesAt.compareTo(left.closesAt),
+      PollListSort.closing => left.closesAt.compareTo(right.closesAt),
+    };
   });
   return tiles;
 }

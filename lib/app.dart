@@ -28,6 +28,7 @@ class IqlyApp extends ConsumerStatefulWidget {
 
 class _IqlyAppState extends ConsumerState<IqlyApp> {
   late final AppLifecycleListener _lifecycle;
+  Timer? _checks;
 
   @override
   void initState() {
@@ -51,10 +52,15 @@ class _IqlyAppState extends ConsumerState<IqlyApp> {
       },
     );
     unawaited(ref.read(patchesProvider.notifier).check());
+    _checks = Timer.periodic(UpdatesNotifier.backgroundEvery, (_) {
+      ref.read(updatesProvider.notifier).scheduled();
+      ref.read(patchesProvider.notifier).scheduled();
+    });
   }
 
   @override
   void dispose() {
+    _checks?.cancel();
     _lifecycle.dispose();
     super.dispose();
   }

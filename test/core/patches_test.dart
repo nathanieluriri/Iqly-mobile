@@ -106,6 +106,35 @@ void main() {
     expect(service.checks, 2);
   });
 
+  test('a scheduled tick checks again after 15 minutes', () async {
+    final c = container();
+    final patches = c.read(patchesProvider.notifier);
+    await patches.check();
+    now = now.add(const Duration(minutes: 14));
+    patches.scheduled();
+    expect(service.checks, 1);
+    now = now.add(const Duration(minutes: 1));
+    patches.scheduled();
+    expect(service.checks, 2);
+  });
+
+  test(
+    'a forced check ignores the hourly throttle and a dismissed failure',
+    () async {
+      service.found = [PatchCheck.available];
+      service.fail = true;
+      final c = container();
+      final patches = c.read(patchesProvider.notifier);
+      await patches.check();
+      expect(c.read(patchesProvider), PatchPhase.failed);
+      patches.dismiss();
+      service.fail = false;
+      service.found = [PatchCheck.ready];
+      await patches.check(force: true);
+      expect(c.read(patchesProvider), PatchPhase.ready);
+    },
+  );
+
   test('Close on Update applied only takes the dialog down', () async {
     service.found = [PatchCheck.ready];
     final c = container();

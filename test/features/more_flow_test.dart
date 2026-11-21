@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:iqly_mobile/data/app_version.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
+import 'package:iqly_mobile/data/device.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/entry/landing_screen.dart';
 import 'package:iqly_mobile/features/more/more_screen.dart';
@@ -54,6 +56,7 @@ void main() {
       'dock and Back returns to it', (tester) async {
     await pumpMore(tester, Routes.more);
     expect(find.byType(MoreScreen), findsOneWidget);
+    expect(find.text('Check for updates'), findsOneWidget);
     expect(
       tester.widget<IqDock>(find.byType(IqDock)).active,
       IqDockActive.more,
@@ -300,8 +303,9 @@ void main() {
       'Referrals', (tester) async {
     await pumpMore(tester, Routes.referrals);
     expect(find.text('Enter an invite code'), findsNothing);
-    GoRouter.of(tester.element(find.byType(Navigator).first))
-        .push(Routes.inviteCode);
+    GoRouter.of(
+      tester.element(find.byType(Navigator).first),
+    ).push(Routes.inviteCode);
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(EditableText), 'nope');
     await tester.pumpAndSettle();
@@ -376,8 +380,9 @@ void main() {
     await _tap(tester, find.text('Report an issue'));
     tester.view.viewInsets = const FakeViewPadding(bottom: 336);
     await tester.pump();
-    GoRouter.of(tester.element(find.byType(Navigator).first))
-        .pushReplacement(Routes.reportSent, extra: 'IQ-HELP-2041');
+    GoRouter.of(
+      tester.element(find.byType(Navigator).first),
+    ).pushReplacement(Routes.reportSent, extra: 'IQ-HELP-2041');
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(find.text('Report sent'), findsOneWidget);
@@ -395,6 +400,48 @@ void main() {
     expect(find.textContaining('Ticket IQ-HELP-2041.'), findsOneWidget);
     await _tap(tester, find.text('Back to Help'));
     expect(_path(tester), Routes.helpCentre);
+  });
+
+  testWidgets('Check for updates says so when this build is current', (
+    tester,
+  ) async {
+    await pumpMore(tester, Routes.more);
+    await tester.ensureVisible(find.text('Check for updates'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Check for updates'));
+    await tester.pumpAndSettle();
+    expect(find.text("You're up to date"), findsOneWidget);
+  });
+
+  testWidgets('Check for updates offers a store build when one is waiting', (
+    tester,
+  ) async {
+    final device = DemoDeviceService(delay: Duration.zero);
+    const url = 'https://play.google.com/store/apps/details?id=net.iqly.app';
+    await pumpMore(
+      tester,
+      Routes.more,
+      device: device,
+      overrides: [
+        appVersionServiceProvider.overrideWithValue(
+          DemoAppVersionService(
+            AppRelease(
+              installed: '0.6.2+9',
+              status: UpdateStatus.available,
+              latest: '0.6.3+10',
+              updateUrl: Uri.parse(url),
+            ),
+          ),
+        ),
+      ],
+    );
+    await tester.ensureVisible(find.text('Check for updates'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Check for updates'));
+    await tester.pumpAndSettle();
+    expect(find.text('A new version is available'), findsOneWidget);
+    await _tap(tester, find.text('Update iQLY'));
+    expect(device.opened.single.toString(), url);
   });
 }
 

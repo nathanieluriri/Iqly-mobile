@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import '../../data/activations_data.dart';
 import '../../data/demo_data.dart';
 
+import '../../ui/image_placeholder.dart';
 import '../../ui/sample_cover.dart';
 import '../../ui/sample_logo.dart';
 
@@ -14,18 +15,43 @@ IqSampleLogoBrand _brand(String slug) => IqSampleLogoBrand.values.firstWhere(
   orElse: () => IqSampleLogoBrand.private,
 );
 
+Widget _networkArt(
+  String source, {
+  double? width,
+  double? height,
+  BoxFit fit = BoxFit.cover,
+  required Widget error,
+  bool round = false,
+}) {
+  return Image.network(
+    source,
+    width: width,
+    height: height,
+    fit: fit,
+    gaplessPlayback: true,
+    frameBuilder: (context, child, frame, sync) {
+      if (sync || frame != null) return child;
+      return IqImagePlaceholder(width: width, height: height, round: round);
+    },
+    loadingBuilder: (context, child, progress) {
+      if (progress == null) return child;
+      return IqImagePlaceholder(width: width, height: height, round: round);
+    },
+    errorBuilder: (_, _, _) => error,
+  );
+}
+
 /// A business logo from the data: the Sample/Logo art for the demo's asset
 /// paths, the image at a URL from the API, the anonymous mark when unset or
 /// when the image cannot be had.
 Widget businessLogo(String? source, {double size = 120}) {
   if (source != null && source.startsWith('http')) {
-    return Image.network(
+    return _networkArt(
       source,
       width: size,
       height: size,
-      fit: BoxFit.cover,
-      errorBuilder: (_, _, _) =>
-          IqSampleLogo(IqSampleLogoBrand.private, size: size),
+      round: true,
+      error: IqSampleLogo(IqSampleLogoBrand.private, size: size),
     );
   }
   final slug = source == null ? null : _sampleLogo.firstMatch(source)?[1];
@@ -38,10 +64,9 @@ Widget businessLogo(String? source, {double size = 120}) {
 /// A business photo from the data, as [businessLogo] reads its logo.
 Widget businessCover(String? source) {
   if (source != null && source.startsWith('http')) {
-    return Image.network(
+    return _networkArt(
       source,
-      fit: BoxFit.cover,
-      errorBuilder: (_, _, _) => const IqSampleCover(IqSampleLogoBrand.private),
+      error: const IqSampleCover(IqSampleLogoBrand.private),
     );
   }
   final match = source == null ? null : _sampleCover.firstMatch(source);

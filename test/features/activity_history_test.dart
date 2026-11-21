@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iqly_mobile/core/session.dart';
@@ -429,6 +430,14 @@ void main() {
     expect(find.text('42 people completed this activation.'), findsOneWidget);
     expect(find.text('Start activation'), findsNothing);
     expect(find.text('Open Kudi Box'), findsNothing);
+    expect(find.text('Activation'), findsNothing);
+    expect(find.text('Completed 4 of 4 steps'), findsNothing);
+    expect(
+      find.textContaining('of ${finished.steps.length} steps'),
+      findsNothing,
+    );
+    expect(find.byType(SliverAppBar), findsOneWidget);
+    expect(find.text(finished.business), findsWidgets);
     final rows = tester.widgetList<IqStepRow>(find.byType(IqStepRow));
     expect(rows.length, finished.steps.length);
     expect(rows.every((row) => row.state == IqStepRowState.done), isTrue);

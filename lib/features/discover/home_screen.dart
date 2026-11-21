@@ -720,9 +720,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         if (!a.closedAt(now) && !a.credited && (!pickUp || a.started)) a,
     ]..sort((a, b) => a.closesAt.compareTo(b.closesAt));
     final shownActivations = pickUp ? open : open.take(5).toList();
-    void openActivations() => context.open(
-      open.length == 1 ? activationPath(open.single.id) : Routes.activations,
-    );
     Widget activationCard(Activation activation) => IqBriefCard(
       kind: IqBriefCardKind.row,
       brand: activation.business,
@@ -740,9 +737,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           label: 'Closes in ${countdownText(activationLeft(activation, now))}',
         ),
       ],
-      onTap: pickUp
-          ? () => context.open(activationPath(activation.id))
-          : openActivations,
+      onTap: () => context.open(activationPath(activation.id)),
     );
     return [
       if (shownPolls.isNotEmpty) ...[
