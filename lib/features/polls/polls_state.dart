@@ -285,12 +285,42 @@ String pollDetail(PollBusiness business) {
   return '1 poll · ${questions(count)} · about ${count * 5} seconds';
 }
 
-/// Once every question is answered: "2 answers sent. Orchid Foods shares
-/// the results in about a week."
+const openPollNote = 'Your answers are valuable. Please answer honestly.';
+
+/// Share of the person's first answered question, under the brand name.
 String pollDoneDetail(PollBusiness business) {
-  final count = business.answered;
-  return '$count answer${count == 1 ? '' : 's'} sent. '
-      '${business.name} shares the results in about a week.';
+  for (final poll in business.polls) {
+    for (var i = 0; i < poll.questions.length; i++) {
+      final question = poll.questions[i];
+      final chosen = question.chosen;
+      if (!poll.asks(i) || chosen == null) continue;
+      return '${question.shares[chosen]}% chose the same as you.';
+    }
+  }
+  return 'Thank you for answering honestly.';
+}
+
+enum PollListSort { closing, votes }
+
+List<PollBusiness> sortPollTiles(
+  List<PollBusiness> businesses,
+  PollListSort sort,
+) {
+  final tiles = [...businesses];
+  tiles.sort((a, b) {
+    final left = a.polls.single;
+    final right = b.polls.single;
+    if (sort == PollListSort.votes) {
+      return right.total.compareTo(left.total);
+    }
+    return left.closesAt.compareTo(right.closesAt);
+  });
+  return tiles;
+}
+
+bool pollClosingSoon(Poll poll, DateTime now) {
+  final left = poll.closesAt.difference(now);
+  return !left.isNegative && left < const Duration(days: 2);
 }
 
 /// Whether every poll the business runs has closed: its tile dims and

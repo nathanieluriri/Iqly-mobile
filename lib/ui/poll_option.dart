@@ -77,6 +77,7 @@ class IqPollOption extends StatelessWidget {
         height: height,
         child: Stack(
           clipBehavior: Clip.none,
+          fit: StackFit.expand,
           children: [
             Positioned.fill(
               child: AnimatedSwitcher(
@@ -192,15 +193,9 @@ class IqPollOption extends StatelessWidget {
         return [
           _box(null, Border.all(color: IqColors.line)),
           _share(IqColors.panel),
-          Positioned(
-            left: 0,
-            top: 0,
-            width: 324.02,
-            height: 51.26,
-            child: IqVector(
-              'assets/vectors/poll-option-outline-result.svg',
-              color: IqColors.line2,
-            ),
+          _outline(
+            'assets/vectors/poll-option-outline-result.svg',
+            IqColors.line2,
           ),
         ];
       case IqPollOptionState.chosen:
@@ -222,16 +217,8 @@ class IqPollOption extends StatelessWidget {
     ),
   );
 
-  Widget _outline(String asset, Color color) => Positioned(
-    left: 0,
-    top: 0,
-    // Figma insets the brush 0.52% from the right, so it stretches with a
-    // pill wider than the master (B3's 358 single choice); PollCard's 324
-    // column keeps the master's brush.
-    width: width > 326 ? 324.32 * width / 326 : 324.32,
-    height: 51.82,
-    child: IqVector(asset, color: color),
-  );
+  Widget _outline(String asset, Color color) =>
+      Positioned.fill(child: IqVector(asset, color: color));
 
   Widget _share(Color color) {
     final s = share.clamp(0.0, 1.0);
@@ -240,7 +227,7 @@ class IqPollOption extends StatelessWidget {
     return Positioned(
       left: 4,
       top: 6,
-      width: 318,
+      right: 4,
       height: 40,
       child: DecoratedBox(
         decoration: BoxDecoration(

@@ -63,12 +63,13 @@ void main() {
     await _tap(tester, _labelled('See all').first);
     expect(find.byType(PollsScreen), findsOneWidget);
     expect(find.byType(PollSheet), findsNothing);
-    expect(find.text('Open polls'), findsOneWidget);
+    expect(find.text('Available'), findsOneWidget);
+    expect(find.textContaining('Sort:'), findsOneWidget);
 
     await _tap(tester, find.text(_flavour));
     expect(find.byType(PollSheet), findsOneWidget);
     expect(
-      find.text('1 poll · 3 questions · about 15 seconds'),
+      find.text('Your answers are valuable. Please answer honestly.'),
       findsOneWidget,
     );
     expect(find.text('QUESTION 1 OF 3'), findsOneWidget);
@@ -115,12 +116,7 @@ void main() {
     );
     expect(chosen.state, IqPollOptionState.chosen);
     expect(find.text('You’re done'), findsOneWidget);
-    expect(
-      find.text(
-        '3 answers sent. Orchid Foods shares the results in about a week.',
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('45% chose the same as you.'), findsOneWidget);
     expect(find.text('Pick one'), findsNothing);
     expect(
       container
@@ -156,12 +152,7 @@ void main() {
     expect(find.text(_size), findsOneWidget);
     await _tap(tester, find.text('50cl can'));
     await _tap(tester, find.text('Done'));
-    expect(
-      find.text(
-        '2 answers sent. Orchid Foods shares the results in about a week.',
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('45% chose the same as you.'), findsOneWidget);
     await _tap(tester, _labelled('Close'));
   });
 
@@ -172,7 +163,10 @@ void main() {
     await _tap(tester, find.text(_books));
     expect(find.byType(PollsScreen), findsOneWidget);
     expect(find.byType(PollSheet), findsOneWidget);
-    expect(find.text('1 poll · 1 question · about 5 seconds'), findsOneWidget);
+    expect(
+      find.text('Your answers are valuable. Please answer honestly.'),
+      findsOneWidget,
+    );
 
     await _tap(tester, _labelled('Close'));
     expect(find.byType(PollSheet), findsNothing);

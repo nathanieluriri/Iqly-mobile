@@ -118,6 +118,7 @@ class _IqPollCardState extends State<IqPollCard>
       ),
     );
     return Container(
+      clipBehavior: Clip.none,
       padding: const EdgeInsets.all(IqSpace.s4),
       decoration: BoxDecoration(
         color: IqColors.card,

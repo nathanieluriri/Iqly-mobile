@@ -361,7 +361,7 @@ class _PollsState extends ConsumerState<_Polls> {
           inset(_FailedVote(title: _failed)),
           _header(
             business,
-            widget.done ? pollDoneDetail(business) : pollDetail(business),
+            widget.done ? pollDoneDetail(business) : openPollNote,
           ),
           SizedBox(height: leading ? IqSpace.s4 : IqSpace.s3),
           for (final (i, card) in [
@@ -545,7 +545,7 @@ class _PollsState extends ConsumerState<_Polls> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           inset(_FailedVote(title: _failed)),
-          _header(business, pollDetail(business)),
+          _header(business, openPollNote),
           SizedBox(height: leading ? IqSpace.s4 : IqSpace.s3),
           inset(
             Text(
