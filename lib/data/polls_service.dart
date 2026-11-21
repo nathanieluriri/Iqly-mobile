@@ -7,6 +7,22 @@ import 'live/live_account.dart';
 import 'live/live_repository.dart' show liveModeProvider;
 import 'polls_data.dart';
 
+class PollHistoryPage {
+  const PollHistoryPage({
+    required this.businesses,
+    this.nextCursor,
+    this.loadingMore = false,
+    this.loadMoreFailed = false,
+    this.account,
+  });
+
+  final List<PollBusiness> businesses;
+  final String? nextCursor;
+  final bool loadingMore;
+  final bool loadMoreFailed;
+  final String? account;
+}
+
 /// Polls (Flags.polls): the demo answers with the B2 figures after a short
 /// delay and keeps the person's votes for as long as the app runs; a live
 /// launch reads and votes on the API (contract 11.1).
@@ -14,12 +30,12 @@ abstract class PollsService {
   /// The businesses with open polls, the person's own votes marked.
   /// [fresh] skips the kept copy so a refresh can show a poll that landed
   /// after the last read.
-  Future<List<PollBusiness>> businesses({
-    bool fresh = false,
-  });
+  Future<List<PollBusiness>> businesses({bool fresh = false});
 
   /// What the phone kept from the last list, without asking the API.
   Future<List<PollBusiness>> kept() async => const [];
+
+  Future<PollHistoryPage> history({String? cursor});
 
   /// One poll the person may see, under its business with that poll alone.
   Future<PollBusiness> poll(String pollId);
@@ -48,15 +64,21 @@ class DemoPollsService implements PollsService {
       delay == Duration.zero ? Future.value() : Future<void>.delayed(delay);
 
   @override
-  Future<List<PollBusiness>> businesses({
-    bool fresh = false,
-  }) async => [
+  Future<List<PollBusiness>> businesses({bool fresh = false}) async => [
     for (final business in _businesses)
       if (business.polls.any((p) => !p.closedAt(_clock()))) business,
   ];
 
   @override
   Future<List<PollBusiness>> kept() async => const [];
+
+  @override
+  Future<PollHistoryPage> history({String? cursor}) async => PollHistoryPage(
+    businesses: [
+      for (final business in _businesses)
+        if (business.polls.any((poll) => poll.voted)) business,
+    ],
+  );
 
   @override
   Future<PollBusiness> poll(String pollId) async {
@@ -108,9 +130,7 @@ class LivePollsService implements PollsService {
   final bool questions;
 
   @override
-  Future<List<PollBusiness>> businesses({
-    bool fresh = false,
-  }) async =>
+  Future<List<PollBusiness>> businesses({bool fresh = false}) async =>
       pollBusinessesFromJson(
         await link.fetch('/polls', AccountKeys.polls, allowCache: !fresh),
         questions: questions,
@@ -121,6 +141,18 @@ class LivePollsService implements PollsService {
     await link.kept(AccountKeys.polls) ?? const {},
     questions: questions,
   );
+
+  @override
+  Future<PollHistoryPage> history({String? cursor}) async {
+    final query = Uri(queryParameters: {'limit': '50', 'cursor': ?cursor})
+        .query;
+    final res = await link.scope.guard(link.api.get('/polls/history?$query'));
+    if (!res.ok) throw ApiRefused.of(res);
+    return PollHistoryPage(
+      businesses: pollBusinessesFromJson(res.data, questions: questions),
+      nextCursor: apiText(res.data['nextCursor']),
+    );
+  }
 
   @override
   Future<PollBusiness> poll(String pollId) async {
@@ -177,12 +209,13 @@ class PausedPollsService implements PollsService {
       Future.error(const FeaturePaused(LiveFeature.polls));
 
   @override
-  Future<List<PollBusiness>> businesses({
-    bool fresh = false,
-  }) => _paused();
+  Future<List<PollBusiness>> businesses({bool fresh = false}) => _paused();
 
   @override
   Future<List<PollBusiness>> kept() async => const [];
+
+  @override
+  Future<PollHistoryPage> history({String? cursor}) => _paused();
 
   @override
   Future<PollBusiness> poll(String pollId) => _paused();
@@ -269,6 +302,7 @@ Poll? pollFromJson(Object? json, {bool questions = false}) {
     chosen: _pick(json['chosen'], choices.length),
     closed: json['closed'] == true,
     followUps: followUps,
+    completed: json['answered'] is bool ? json['answered'] as bool : null,
   );
 }
 

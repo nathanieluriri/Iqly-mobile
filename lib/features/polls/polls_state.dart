@@ -79,6 +79,7 @@ class PollsNotifier extends AsyncNotifier<List<PollBusiness>> {
     }
     if (!ref.mounted || !scope.open) return VoteOutcome.offline;
     _put(poll);
+    ref.invalidate(pollHistoryProvider);
     republishSurfaces(ref).ignore();
     return VoteOutcome.counted;
   }
@@ -142,6 +143,106 @@ final pollsProvider = AsyncNotifierProvider<PollsNotifier, List<PollBusiness>>(
   PollsNotifier.new,
   retry: (_, _) => null,
 );
+
+List<PollBusiness> mergePollBusinesses(
+  List<PollBusiness> first,
+  List<PollBusiness> second,
+) {
+  final businesses = <String, PollBusiness>{for (final b in first) b.id: b};
+  for (final business in second) {
+    var merged = businesses[business.id];
+    if (merged == null) {
+      businesses[business.id] = business;
+      continue;
+    }
+    for (final poll in business.polls) {
+      final previous = merged!.polls.where((p) => p.id == poll.id).firstOrNull;
+      if (previous?.voted == true && !poll.voted) continue;
+      merged = merged.withPoll(poll);
+    }
+    businesses[business.id] = merged!;
+  }
+  return businesses.values.toList();
+}
+
+List<PollBusiness> pollTiles(
+  List<PollBusiness> businesses, {
+  required bool completed,
+  required DateTime now,
+}) => [
+  for (final business in businesses)
+    for (final poll in business.polls)
+      if (completed ? poll.voted : !poll.voted && !poll.closedAt(now))
+        business.only(poll),
+];
+
+class PollHistoryNotifier extends AsyncNotifier<PollHistoryPage> {
+  @override
+  Future<PollHistoryPage> build() async {
+    final account = ref.watch(accountProvider);
+    final scope = ref.watch(accountScopeProvider);
+    final page = await scope.guard(ref.watch(pollsServiceProvider).history());
+    return PollHistoryPage(
+      businesses: page.businesses,
+      nextCursor: page.nextCursor,
+      account: account,
+    );
+  }
+
+  Future<void> loadMore() async {
+    final current = state.value;
+    final cursor = current?.nextCursor;
+    if (current == null || cursor == null || current.loadingMore) return;
+    final scope = ref.read(accountScopeProvider);
+    final loading = PollHistoryPage(
+      businesses: current.businesses,
+      nextCursor: cursor,
+      loadingMore: true,
+      account: current.account,
+    );
+    state = AsyncData(loading);
+    try {
+      final next = await ref.read(pollsServiceProvider).history(cursor: cursor);
+      if (!ref.mounted || !scope.open || !identical(state.value, loading)) {
+        return;
+      }
+      if (next.nextCursor == cursor) throw StateError('Repeated poll cursor');
+      state = AsyncData(
+        PollHistoryPage(
+          businesses: mergePollBusinesses(current.businesses, next.businesses),
+          nextCursor: next.nextCursor,
+          account: current.account,
+        ),
+      );
+    } on Object {
+      if (!ref.mounted || !scope.open || !identical(state.value, loading)) {
+        return;
+      }
+      state = AsyncData(
+        PollHistoryPage(
+          businesses: current.businesses,
+          nextCursor: cursor,
+          loadMoreFailed: true,
+          account: current.account,
+        ),
+      );
+    }
+  }
+}
+
+final pollHistoryProvider =
+    AsyncNotifierProvider<PollHistoryNotifier, PollHistoryPage>(
+      PollHistoryNotifier.new,
+      retry: (_, _) => null,
+    );
+
+PollHistoryPage? pollHistoryFor(
+  AsyncValue<PollHistoryPage>? history,
+  String? account,
+) {
+  final page = history?.value;
+  return page?.account == account ? page : null;
+}
 
 /// Whether the Polls list has arrived once this session; later visits show
 /// it in place (MOTION-SPEC §2.6).
