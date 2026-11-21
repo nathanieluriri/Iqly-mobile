@@ -67,10 +67,7 @@ void main() {
       expect(ginger.questions[1].shares, [26, 48, 26]);
       final done = orchid.withPoll(ginger.withVote(2, question: 2));
       expect(done.allAnswered, isTrue);
-      expect(
-        pollDoneDetail(done),
-        '3 answers sent. Orchid Foods shares the results in about a week.',
-      );
+      expect(pollDoneDetail(done), '45% chose the same as you.');
       final tiger = poll.withVote(1);
       expect(tiger.skips(1), isTrue);
       expect(tiger.withVote(0, question: 2).voted, isTrue);

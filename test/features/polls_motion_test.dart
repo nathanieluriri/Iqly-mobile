@@ -64,7 +64,7 @@ void main() {
       await tester.pumpWidget(_card(IqPollCardState.voted));
       expect(_option(tester, 'Zobo and ginger').share, 0);
       expect(find.text('0%'), findsNWidgets(3));
-      expect(find.text('You voted · 214 votes'), findsOneWidget);
+      expect(find.text('214 votes'), findsOneWidget);
 
       await tester.pump(const Duration(milliseconds: 300));
       final mid = _option(tester, 'Zobo and ginger').share;
@@ -85,7 +85,7 @@ void main() {
       await tester.pumpWidget(_card(IqPollCardState.open, selected: 0));
       await tester.pumpAndSettle();
       await tester.pumpWidget(_card(IqPollCardState.voted));
-      final line = find.text('You voted · 214 votes');
+      final line = find.text('214 votes');
       final appear = find.ancestor(of: line, matching: find.byType(Appear));
       expect(appear, findsOneWidget);
       await tester.pump(const Duration(milliseconds: 110));
@@ -104,7 +104,7 @@ void main() {
       expect(_option(tester, 'Zobo and ginger').share, 0.45);
       expect(
         find.ancestor(
-          of: find.text('You voted · 214 votes'),
+          of: find.text('214 votes'),
           matching: find.byType(Appear),
         ),
         findsNothing,

@@ -16,6 +16,7 @@ import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/empty_state.dart';
 import '../../ui/banner.dart';
+import '../../ui/biz_filter_chip.dart';
 import '../../ui/button.dart';
 import '../../ui/chip.dart';
 import '../../ui/illustration.dart';
@@ -44,11 +45,14 @@ class ActivationsScreen extends ConsumerStatefulWidget {
   ConsumerState<ActivationsScreen> createState() => _ActivationsScreenState();
 }
 
+enum _ActivationSort { closing, reward }
+
 class _ActivationsScreenState extends ConsumerState<ActivationsScreen> {
   bool _skeleton = false;
   bool _minimumMet = true;
   bool _retrying = false;
   bool _completed = false;
+  _ActivationSort _sort = _ActivationSort.closing;
   Timer? _delay;
   Timer? _minimum;
 
@@ -125,6 +129,10 @@ class _ActivationsScreenState extends ConsumerState<ActivationsScreen> {
       for (final a in all)
         if (a.credited) a,
     ]..sort((a, b) => b.progress!.paidAt!.compareTo(a.progress!.paidAt!));
+    if (_sort == _ActivationSort.reward) {
+      open.sort((a, b) => b.rewardKobo.compareTo(a.rewardKobo));
+      completed.sort((a, b) => b.rewardKobo.compareTo(a.rewardKobo));
+    }
     final shown = _completed ? completed : open;
     final Widget body;
     if (!_completed && (_loading(state) || held)) {
@@ -174,8 +182,16 @@ class _ActivationsScreenState extends ConsumerState<ActivationsScreen> {
                   onBack: () => leave(context),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
-                  child: Row(
+                  padding: const EdgeInsets.fromLTRB(
+                    IqSpace.s4,
+                    0,
+                    IqSpace.s4,
+                    IqSpace.s3,
+                  ),
+                  child: Wrap(
+                    spacing: IqSpace.s2,
+                    runSpacing: IqSpace.s2,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       IqChip(
                         label: 'Available',
@@ -184,13 +200,22 @@ class _ActivationsScreenState extends ConsumerState<ActivationsScreen> {
                             : IqChipState.standard,
                         onChanged: (_) => setState(() => _completed = false),
                       ),
-                      const SizedBox(width: IqSpace.s2),
                       IqChip(
                         label: 'Completed',
                         state: _completed
                             ? IqChipState.selected
                             : IqChipState.standard,
                         onChanged: (_) => setState(() => _completed = true),
+                      ),
+                      IqBizFilterChip(
+                        label: _sort == _ActivationSort.reward
+                            ? 'Sort: Biggest reward'
+                            : 'Sort: Closing soonest',
+                        onTap: () => setState(
+                          () => _sort = _sort == _ActivationSort.closing
+                              ? _ActivationSort.reward
+                              : _ActivationSort.closing,
+                        ),
                       ),
                     ],
                   ),

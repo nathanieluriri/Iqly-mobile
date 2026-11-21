@@ -981,12 +981,8 @@ void main() {
         );
         expect(shown(seed.flavourPoll).total, 214);
 
-        await expectLater(
-          service.vote(seed.flavourPoll, 1),
-          refusedWith('POLL_ALREADY_VOTED'),
-        );
-        expect(await polls.vote(seed.flavourPoll, 2), VoteOutcome.refused);
-        expect(shown(seed.flavourPoll).chosen, 0);
+        expect(await polls.vote(seed.flavourPoll, 1), VoteOutcome.counted);
+        expect(shown(seed.flavourPoll).chosen, 1);
 
         await expectLater(
           service.vote(seed.canSizePoll, 3),

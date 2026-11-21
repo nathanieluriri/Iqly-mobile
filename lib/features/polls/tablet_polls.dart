@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/deadline.dart';
 import '../../core/navigation.dart';
 import '../../core/session.dart';
 import '../../data/polls_data.dart';
+import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
+import '../../ui/biz_filter_chip.dart';
 import '../../ui/biz_segment.dart';
 import '../../ui/button.dart';
 import '../../ui/empty_state.dart';
 import '../../ui/illustration.dart';
+import '../../ui/pressable.dart';
 import '../../ui/web_poll_row.dart';
 import '../discover/business_art.dart';
 import '../shell/tablet_page.dart';
@@ -30,6 +34,8 @@ class TabletPolls extends ConsumerStatefulWidget {
 
 class _TabletPollsState extends ConsumerState<TabletPolls> {
   bool _completed = false;
+  PollListSort _sort = PollListSort.closing;
+  bool _closingSoon = false;
 
   @override
   Widget build(BuildContext context) {
@@ -40,31 +46,22 @@ class _TabletPollsState extends ConsumerState<TabletPolls> {
     final now = ref.watch(clockProvider)();
     final history = _completed ? ref.watch(pollHistoryProvider) : null;
     final historyPage = pollHistoryFor(history, ref.watch(accountProvider));
-    final shown = pollTiles(
-      mergePollBusinesses(
-        historyPage?.businesses ?? const [],
-        data ?? const [],
-      ),
-      completed: _completed,
-      now: now,
-    );
+    final shown = sortPollTiles([
+      for (final business in pollTiles(
+        mergePollBusinesses(
+          historyPage?.businesses ?? const [],
+          data ?? const [],
+        ),
+        completed: _completed,
+        now: now,
+      ))
+        if (!_closingSoon || pollClosingSoon(business.polls.single, now))
+          business,
+    ], _sort);
 
-    Widget group(String title, List<PollBusiness> businesses) => Column(
+    Widget group(List<PollBusiness> businesses) => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Text(title, style: IqText.title.copyWith(color: IqColors.fg)),
-            const SizedBox(width: IqSpace.s2),
-            Text(
-              '${businesses.length}',
-              style: IqWebText.bodySmall.copyWith(color: IqColors.fg3),
-            ),
-          ],
-        ),
-        const SizedBox(height: IqSpace.s4),
         TabletCard(
           child: Column(
             children: [
@@ -109,31 +106,61 @@ class _TabletPollsState extends ConsumerState<TabletPolls> {
 
     return TabletPage(
       title: 'Quick polls',
-      subtitle: 'Each poll takes seconds. Businesses share the results in about a week.',
       children: [
-        IqBizSegment.track(
+        Wrap(
+          spacing: IqSpace.s3,
+          runSpacing: IqSpace.s2,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            IqBizSegment(
-              label: 'Available',
-              state: !_completed
-                  ? IqBizSegmentState.selected
-                  : IqBizSegmentState.standard,
-              onTap: () => setState(() => _completed = false),
+            IqBizSegment.track(
+              children: [
+                IqBizSegment(
+                  label: 'Available',
+                  state: !_completed
+                      ? IqBizSegmentState.selected
+                      : IqBizSegmentState.standard,
+                  onTap: () => setState(() => _completed = false),
+                ),
+                IqBizSegment(
+                  label: 'Completed',
+                  state: _completed
+                      ? IqBizSegmentState.selected
+                      : IqBizSegmentState.standard,
+                  onTap: () => setState(() => _completed = true),
+                ),
+              ],
             ),
-            IqBizSegment(
-              label: 'Completed',
-              state: _completed
-                  ? IqBizSegmentState.selected
-                  : IqBizSegmentState.standard,
-              onTap: () => setState(() => _completed = true),
+            IqBizFilterChip(
+              label: _sort == PollListSort.votes
+                  ? 'Sort: Most votes'
+                  : 'Sort: Closing soonest',
+              onTap: () => setState(
+                () => _sort = _sort == PollListSort.closing
+                    ? PollListSort.votes
+                    : PollListSort.closing,
+              ),
+            ),
+            IqBizFilterChip(
+              label: _closingSoon ? 'Closing soon' : 'Filters',
+              state: _closingSoon
+                  ? IqBizFilterChipState.active
+                  : IqBizFilterChipState.standard,
+              onTap: () => setState(() => _closingSoon = !_closingSoon),
+              onClear: _closingSoon
+                  ? () => setState(() => _closingSoon = false)
+                  : null,
+            ),
+            IqPressable(
+              tactile: false,
+              semanticLabel: 'Adjust interests',
+              onTap: () => context.go(Routes.filters),
+              builder: (context, _) => Text(
+                'Adjust interests',
+                style: IqWebText.bodySmall.copyWith(color: IqColors.primary),
+              ),
             ),
           ],
         ),
-        if (_completed)
-          Text(
-            'Your poll answers are available for up to 6 months.',
-            style: IqWebText.bodySmall.copyWith(color: IqColors.fg3),
-          ),
         if ((_completed ? history?.hasError == true : polls.hasError) &&
             shown.isEmpty)
           IqBanner(
@@ -173,7 +200,7 @@ class _TabletPollsState extends ConsumerState<TabletPolls> {
                 : 'New polls land here.',
           )
         else ...[
-          group(_completed ? 'Completed polls' : 'Open polls', shown),
+          group(shown),
         ],
         if (_completed && history?.hasError == true && shown.isNotEmpty)
           IqBanner(

@@ -3,20 +3,21 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
-import '../../core/deadline.dart';
 import '../../core/session.dart';
 import '../../data/polls_data.dart';
 import '../../theme/theme.dart';
+import '../../router.dart';
 import '../../ui/empty_state.dart';
 import '../../ui/illustration.dart';
 import '../../ui/banner.dart';
+import '../../ui/biz_filter_chip.dart';
 import '../../ui/button.dart';
 import '../../ui/chip.dart';
-import '../../ui/section_title.dart';
 import '../../ui/skeleton.dart';
 import '../../ui/top_bar.dart';
 import '../discover/discover_routes.dart';
@@ -45,11 +46,60 @@ class PollsScreen extends ConsumerStatefulWidget {
 class _PollsScreenState extends ConsumerState<PollsScreen> {
   bool _opened = false;
   bool _completed = false;
+  PollListSort _sort = PollListSort.closing;
+  bool _closingSoon = false;
 
   @override
   void initState() {
     super.initState();
     ref.read(pollsProvider.notifier).refreshQuietly().ignore();
+  }
+
+  Future<void> _pickSort(BuildContext context) async {
+    final next = await showModalBottomSheet<PollListSort>(
+      context: context,
+      backgroundColor: IqColors.card,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final sort in PollListSort.values)
+              ListTile(
+                title: Text(
+                  sort == PollListSort.votes ? 'Most votes' : 'Closing soonest',
+                ),
+                onTap: () => Navigator.pop(context, sort),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (next != null && mounted) setState(() => _sort = next);
+  }
+
+  Future<void> _pickFilter(BuildContext context) async {
+    final next = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: IqColors.card,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: const Text('Closing soon'),
+              onTap: () => Navigator.pop(context, 'soon'),
+            ),
+            ListTile(
+              title: const Text('Adjust interests'),
+              onTap: () => Navigator.pop(context, 'interests'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || next == null) return;
+    if (next == 'soon') setState(() => _closingSoon = true);
+    if (next == 'interests') context.go(Routes.filters);
   }
 
   void _openFromBubble(List<PollBusiness> businesses) {
@@ -87,11 +137,12 @@ class _PollsScreenState extends ConsumerState<PollsScreen> {
       historyPage?.businesses ?? const [],
       data ?? const [],
     );
-    final shown = pollTiles(
-      all,
-      completed: _completed,
-      now: ref.watch(clockProvider)(),
-    );
+    final now = ref.watch(clockProvider)();
+    final shown = sortPollTiles([
+      for (final business in pollTiles(all, completed: _completed, now: now))
+        if (!_closingSoon || pollClosingSoon(business.polls.single, now))
+          business,
+    ], _sort);
     final historyFailed = history?.hasError ?? false;
     final loading = _completed
         ? shown.isEmpty &&
@@ -117,8 +168,16 @@ class _PollsScreenState extends ConsumerState<PollsScreen> {
                   onBack: () => leave(context),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
-                  child: Row(
+                  padding: const EdgeInsets.fromLTRB(
+                    IqSpace.s4,
+                    0,
+                    IqSpace.s4,
+                    IqSpace.s3,
+                  ),
+                  child: Wrap(
+                    spacing: IqSpace.s2,
+                    runSpacing: IqSpace.s2,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       IqChip(
                         label: 'Available',
@@ -127,7 +186,6 @@ class _PollsScreenState extends ConsumerState<PollsScreen> {
                             : IqChipState.standard,
                         onChanged: (_) => setState(() => _completed = false),
                       ),
-                      const SizedBox(width: IqSpace.s2),
                       IqChip(
                         label: 'Completed',
                         state: _completed
@@ -135,23 +193,25 @@ class _PollsScreenState extends ConsumerState<PollsScreen> {
                             : IqChipState.standard,
                         onChanged: (_) => setState(() => _completed = true),
                       ),
+                      IqBizFilterChip(
+                        label: _sort == PollListSort.votes
+                            ? 'Sort: Most votes'
+                            : 'Sort: Closing soonest',
+                        onTap: () => _pickSort(context),
+                      ),
+                      IqBizFilterChip(
+                        label: _closingSoon ? 'Closing soon' : 'Filters',
+                        state: _closingSoon
+                            ? IqBizFilterChipState.active
+                            : IqBizFilterChipState.standard,
+                        onTap: () => _pickFilter(context),
+                        onClear: _closingSoon
+                            ? () => setState(() => _closingSoon = false)
+                            : null,
+                      ),
                     ],
                   ),
                 ),
-                if (_completed)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      IqSpace.s4,
-                      IqSpace.s2,
-                      IqSpace.s4,
-                      0,
-                    ),
-                    child: Text(
-                      'Your poll answers are available for up to 6 months.',
-                      style: IqText.small.copyWith(color: IqColors.fg3),
-                    ),
-                  ),
-                const SizedBox(height: IqSpace.s3),
                 Expanded(
                   child: LoadingGate(
                     loading: loading,
@@ -229,18 +289,10 @@ class _BusinessesState extends ConsumerState<_Businesses> {
       play: _arrive,
       child: _Page(
         children: [
-          StaggerItem(
-            index: 0,
-            child: IqSectionTitle(
-              title: widget.history ? 'Completed polls' : 'Open polls',
-              showCount: false,
-              showLink: false,
-            ),
-          ),
           for (final (i, business) in businesses.indexed) ...[
-            SizedBox(height: i == 0 ? IqSpace.s3 : IqSpace.s2p5),
+            if (i > 0) const SizedBox(height: IqSpace.s2p5),
             StaggerItem(
-              index: i + 1,
+              index: i,
               child: QuickPollTile(
                 key: ValueKey(business.polls.single.id),
                 business: business,

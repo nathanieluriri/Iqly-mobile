@@ -309,7 +309,7 @@ void main() {
     expect(find.text('A poll to answer'), findsNothing);
     expect(find.text('A poll I answered'), findsOneWidget);
     await _tap(tester, find.text('A poll I answered'));
-    expect(find.text('You voted · 5 votes'), findsOneWidget);
+    expect(find.text('5 votes'), findsOneWidget);
     expect(find.text('Closed'), findsOneWidget);
     final card = tester.widget<IqPollCard>(find.byType(IqPollCard));
     expect(card.onVote, isNull);
@@ -330,7 +330,7 @@ void main() {
     expect(service.pages, [null, 'next']);
     expect(find.text('An older poll'), findsOneWidget);
     await _tap(tester, find.text('An older poll'));
-    expect(find.text('You voted · 5 votes'), findsOneWidget);
+    expect(find.text('5 votes'), findsOneWidget);
     expect(service.sends, 0);
   });
 
@@ -546,7 +546,7 @@ void main() {
     expect(find.text('A poll to answer'), findsOneWidget);
     await _tap(tester, find.text('Completed'));
     await _tap(tester, find.text('A poll I answered'));
-    expect(find.text('You voted · 5 votes'), findsOneWidget);
+    expect(find.text('5 votes'), findsOneWidget);
     expect(tester.widget<IqPollCard>(find.byType(IqPollCard)).onVote, isNull);
   });
 
