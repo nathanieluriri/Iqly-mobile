@@ -436,8 +436,12 @@ void main() {
       find.textContaining('of ${finished.steps.length} steps'),
       findsNothing,
     );
-    expect(find.byType(SliverAppBar), findsOneWidget);
+    expect(find.bySemanticsLabel('Back'), findsOneWidget);
     expect(find.text(finished.business), findsWidgets);
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -400));
+    await tester.pumpAndSettle();
+    expect(find.bySemanticsLabel('Back'), findsOneWidget);
+    expect(find.text('Activation'), findsOneWidget);
     final rows = tester.widgetList<IqStepRow>(find.byType(IqStepRow));
     expect(rows.length, finished.steps.length);
     expect(rows.every((row) => row.state == IqStepRowState.done), isTrue);

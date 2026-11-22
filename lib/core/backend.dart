@@ -279,8 +279,11 @@ class BackendNotifier extends Notifier<Backend> {
 
 /// Decides each launch's mode from `GET /health`. A launch starts from what
 /// the last answer decided and asks again; an answer before the splash
-/// locks the mode decides this launch, any later one only the next. A check
-/// that fails keeps what was decided, and nothing decided pauses everything.
+/// locks the mode decides this launch, any later one only the next, except
+/// a first install that still has nothing kept: a late answer opens this
+/// launch rather than leaving every page paused until the next open. A
+/// check that fails keeps what was decided, and nothing decided pauses
+/// everything.
 class LiveBackendNotifier extends BackendNotifier {
   LiveBackendNotifier({required this.forgetPreview});
 
@@ -332,7 +335,7 @@ class LiveBackendNotifier extends BackendNotifier {
       final report = await health.check();
       if (!ref.mounted) return;
       final decided = Backend.from(report);
-      if (_locking == null) state = decided;
+      if (_locking == null || state == Backend.none) state = decided;
       await Future.wait([
         _prefs.setStringList(decidedKey, decided.names),
         _prefs.setString(

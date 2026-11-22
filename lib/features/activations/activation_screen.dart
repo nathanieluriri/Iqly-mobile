@@ -1072,7 +1072,12 @@ class _CompletedHistory extends StatelessWidget {
         : a.rewardKobo;
     final details = [
       Padding(
-        padding: const EdgeInsets.fromLTRB(66, 5, IqSpace.s4, 0),
+        padding: const EdgeInsets.fromLTRB(
+          IqSpace.s4,
+          IqSpace.s3,
+          IqSpace.s4,
+          0,
+        ),
         child: _BrandRow(activation: a, logo: false, kind: false),
       ),
       Padding(
@@ -1139,45 +1144,134 @@ class _CompletedHistory extends StatelessWidget {
         ),
       );
     }
-    return NestedScrollView(
-      headerSliverBuilder: (context, inner) => [
-        SliverAppBar(
+    return CustomScrollView(
+      slivers: [
+        SliverPersistentHeader(
           pinned: true,
-          automaticallyImplyLeading: false,
-          backgroundColor: IqColors.bg,
-          surfaceTintColor: Colors.transparent,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          toolbarHeight: 56,
-          expandedHeight: 56 + _Hero.height,
-          flexibleSpace: FlexibleSpaceBar(
-            collapseMode: CollapseMode.pin,
-            background: ColoredBox(
-              color: IqColors.bg,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  IqTopBar(
-                    variant: IqTopBarVariant.page,
-                    title: inner ? a.title : '',
-                    onBack: onBack,
-                  ),
-                  _Hero(
-                    child: IqBriefHero(
-                      cover: activationCoverArt(a),
-                      logo: activationLogoArt(a),
-                      showDots: false,
-                    ),
-                  ),
-                ],
+          delegate: _CompletedHeaderDelegate(activation: a, onBack: onBack),
+        ),
+        SliverList.list(children: details),
+      ],
+    );
+  }
+}
+
+/// Cover and hanging logo while open; back stays, and the logo rides into
+/// the bar with "Activation" as the cover collapses.
+class _CompletedHeaderDelegate extends SliverPersistentHeaderDelegate {
+  _CompletedHeaderDelegate({required this.activation, required this.onBack});
+
+  final Activation activation;
+  final VoidCallback onBack;
+
+  static const double _bar = 56;
+  static const double _cover = _Hero.height;
+  static const double _logoHang = 28;
+  static const double _expandedLogo = 56;
+  static const double _collapsedLogo = 28;
+
+  @override
+  double get minExtent => _bar;
+
+  @override
+  double get maxExtent => _bar + _cover + _logoHang;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    final range = maxExtent - minExtent;
+    final open = (1 - shrinkOffset / range).clamp(0.0, 1.0);
+    final shut = 1 - open;
+    final logoSize = _collapsedLogo + (_expandedLogo - _collapsedLogo) * open;
+    const expandedLeft = IqSpace.s4;
+    const collapsedLeft = IqSpace.s3 + 44 + IqSpace.s2;
+    final logoLeft = expandedLeft + (collapsedLeft - expandedLeft) * shut;
+    final expandedTop = _bar + _cover - _logoHang;
+    final collapsedTop = (_bar - _collapsedLogo) / 2;
+    final logoTop = expandedTop * open + collapsedTop * shut;
+    return ColoredBox(
+      color: IqColors.bg,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            left: 0,
+            right: 0,
+            top: _bar,
+            height: _cover,
+            child: IgnorePointer(
+              child: Opacity(
+                opacity: open,
+                child: IqBriefHero(
+                  height: _cover,
+                  cover: activationCoverArt(activation),
+                  showDots: false,
+                  showLogo: false,
+                ),
               ),
             ),
           ),
-        ),
-      ],
-      body: ListView(padding: EdgeInsets.zero, children: details),
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            height: _bar,
+            child: IqTopBar(
+              variant: IqTopBarVariant.page,
+              title: '',
+              onBack: onBack,
+            ),
+          ),
+          if (shut > 0.05)
+            Positioned(
+              left: collapsedLeft + _collapsedLogo + IqSpace.s2,
+              right: 56,
+              top: 0,
+              height: _bar,
+              child: Opacity(
+                opacity: shut,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Activation',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: IqText.cardTitle.copyWith(color: IqColors.brand),
+                  ),
+                ),
+              ),
+            ),
+          Positioned(
+            left: logoLeft,
+            top: logoTop,
+            width: logoSize,
+            height: logoSize,
+            child: DecoratedBox(
+              decoration: const BoxDecoration(
+                color: IqColors.card,
+                shape: BoxShape.circle,
+              ),
+              child: Padding(
+                padding: EdgeInsets.all(
+                  logoSize * (IqSpace.s1 / _expandedLogo),
+                ),
+                child: ClipOval(
+                  child: activationLogoArt(activation, size: logoSize),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
+
+  @override
+  bool shouldRebuild(_CompletedHeaderDelegate oldDelegate) =>
+      activation != oldDelegate.activation || onBack != oldDelegate.onBack;
 }
 
 /// Just started (179:8001), in progress (141:5090) and step not confirmed

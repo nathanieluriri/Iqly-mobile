@@ -599,8 +599,8 @@ void main() {
       expect(next.read(backendProvider), Backend.none);
     });
 
-    test('a check that answers only after the lock leaves the launch on '
-        'what was kept', () async {
+    test('a check that answers only after the lock still opens a first '
+        'launch that had nothing kept', () async {
       final answer = Completer<HealthReport>();
       health.answer = () => answer.future;
       final c = launch();
@@ -615,8 +615,8 @@ void main() {
       answer.complete(_report(_health()));
       await pumpEventQueue();
       expect(backend.checking, isFalse);
-      expect(c.read(backendProvider), Backend.none);
-      expect(listened, isEmpty);
+      expect(c.read(backendProvider), _all);
+      expect(listened, [_all]);
       expect(prefs.getStringList(LiveBackendNotifier.launchedKey), isEmpty);
       expect(launch().read(backendProvider), _all);
     });
