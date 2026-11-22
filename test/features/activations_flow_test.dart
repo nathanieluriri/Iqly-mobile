@@ -167,6 +167,7 @@ void main() {
       await _tap(tester, find.text('Start activation'));
       expect(haptics, [...opened, _commit]);
       expect(find.text('Not started · 3 steps'), findsOneWidget);
+      expect(find.text('Closes in 2 days'), findsNothing);
       expect(find.text('Settings → Verification'), findsOneWidget);
       expect(
         find.text('Earn ₦1,500 when all 3 steps are confirmed'),

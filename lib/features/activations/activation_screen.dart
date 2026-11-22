@@ -1512,11 +1512,7 @@ class _StepsPage extends StatelessWidget {
               : _stuck && waiting != null
               ? 'Step ${waiting + 1} not confirmed yet'
               : progressLine(a),
-          count: history
-              ? '${a.confirmed} of ${a.steps.length} steps'
-              : _stuck && waiting != null
-              ? ''
-              : deadlineText(a, now),
+          count: '',
         ),
       ),
       body: _Body(
