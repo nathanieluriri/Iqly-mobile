@@ -28,8 +28,8 @@ import 'submission_files.dart';
 import 'submissions_state.dart';
 
 /// B4 Submission detail (35:146), a sub page: the brief's photo with the
-/// business logo, who it is for and the status, your title, when you sent it
-/// and the brief, the pool and deadline, your answer and when results come,
+/// business logo, who it is for and the status, your title, the pool and
+/// deadline, and your answer,
 /// what the person sent with it (no frame draws the files: they keep the submit
 /// flow's attachments group), and the business's note once its results are out
 /// (contract 12.2). View the brief opens Brief detail. Not selected
@@ -257,17 +257,6 @@ class _Body extends StatelessWidget {
                       style: IqText.headline.copyWith(color: IqColors.fg),
                     ),
                   ),
-                  gap(),
-                  StaggerItem(
-                    index: 1,
-                    child: Text(
-                      [
-                        sentAgo(item.submission.createdAt, now),
-                        if (brief != null) 'For: ${brief.title}',
-                      ].join(' · '),
-                      style: IqText.small.copyWith(color: IqColors.fg3),
-                    ),
-                  ),
                   if (brief != null) ...[
                     gap(),
                     StaggerItem(
@@ -326,16 +315,6 @@ class _Body extends StatelessWidget {
                         note: note,
                         brief: brief,
                         now: now,
-                      ),
-                    ),
-                  ],
-                  if (item.underReview) ...[
-                    gap(),
-                    StaggerItem(
-                      index: 4,
-                      child: Text(
-                        'Results after the brief closes.',
-                        style: IqText.small.copyWith(color: IqColors.fg3),
                       ),
                     ),
                   ],

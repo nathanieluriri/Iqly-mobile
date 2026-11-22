@@ -392,10 +392,11 @@ abstract final class IqRadius {
 abstract final class IqFonts {
   /// Figma sets Bricolage at an automatic optical size, so each Mob size
   /// has its own instance (tool/gen_fonts.py).
-  static const bricolage32 = 'Bricolage Grotesque 32pt';
-  static const bricolage22 = 'Bricolage Grotesque 22pt';
   static const bricolage17 = 'Bricolage Grotesque 17pt';
+  static const bricolage22 = 'Bricolage Grotesque 22pt';
+  static const bricolage28 = 'Bricolage Grotesque 28pt';
   static const bricolage30 = 'Bricolage Grotesque 30pt';
+  static const bricolage32 = 'Bricolage Grotesque 32pt';
   static const jakarta = 'Plus Jakarta Sans';
   static const geistMono = 'Geist Mono';
 }
@@ -493,10 +494,10 @@ abstract final class IqText {
   /// Quiet headline for the landing and interstitials. Lighter than Mob/Display.
   static const headline = TextStyle(
     fontFamily: IqFonts.bricolage22,
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: FontWeight.w600,
-    height: 1.1818,
-    letterSpacing: -0.22,
+    height: 1.2,
+    letterSpacing: -0.2,
   );
 
   /// Emoji used as an avatar (120 circle). Rendered with the system emoji font.
@@ -861,7 +862,7 @@ abstract final class IqLandText {
     letterSpacing: -0.36,
   );
   static const figureSmall = TextStyle(
-    fontFamily: IqFonts.bricolage22,
+    fontFamily: IqFonts.bricolage28,
     fontSize: 26,
     fontWeight: FontWeight.w800,
     height: 1.1,

@@ -104,8 +104,9 @@ String _argb(String hex) {
   return h.length == 8 ? '${h.substring(6)}${h.substring(0, 6)}' : 'FF$h';
 }
 
-String _snake(String name) => _ident(name)
-    .replaceAllMapped(RegExp('[A-Z0-9]+'), (m) => '_${m[0]!.toLowerCase()}');
+String _snake(String name) => _ident(
+  name,
+).replaceAllMapped(RegExp('[A-Z0-9]+'), (m) => '_${m[0]!.toLowerCase()}');
 
 /// Runs the generated source through dart format so the committed file is
 /// stable under the repo's format check.
@@ -257,6 +258,10 @@ const _families = {
   'Geist Mono': 'IqFonts.geistMono',
 };
 
+/// Optical sizes we actually ship. A Mob size without a cut uses the
+/// nearest of these, so 20 pt still reads with the 22 pt instance.
+const _shippedBricolage = {'17', '22', '28', '30', '32'};
+
 String _family(Map<String, dynamic> style, Set<String> cut) {
   if (style['fontFamily'] != 'Bricolage Grotesque') {
     return _families[style['fontFamily']]!;
@@ -278,11 +283,7 @@ void _writeText(StringBuffer b, List<Map<String, dynamic>> allStyles) {
   final styles = allStyles
       .where((s) => (s['name'] as String).startsWith('Mob/'))
       .toList();
-  final opticalSizes = {
-    for (final s in styles)
-      if (s['fontFamily'] == 'Bricolage Grotesque')
-        _num((s['fontSize'] as num).toDouble()),
-  };
+  final opticalSizes = _shippedBricolage;
   b.writeln('abstract final class IqFonts {');
   b.writeln(
     '  /// Figma sets Bricolage at an automatic optical size, so each Mob size',
@@ -426,9 +427,9 @@ String _round(double v) {
 /// layers with opacity, a clip or a layer blur as groups. Person parts use
 /// the slots the avatar record controls; buddies keep their variable names.
 String _generateAvatarArt() {
-  final bindings = jsonDecode(
-    File('$_avatarSource/bindings.json').readAsStringSync(),
-  ) as Map<String, dynamic>;
+  final bindings =
+      jsonDecode(File('$_avatarSource/bindings.json').readAsStringSync())
+          as Map<String, dynamic>;
   const parts = {
     'hair-back': 'hairBack',
     'hair-front': 'hairFront',
@@ -484,8 +485,9 @@ String _generateAvatarArt() {
         ),
     };
     final root = svg.children.firstWhere((e) => e.name == 'g');
-    final variant = RegExp(r'^(?:Style|Expression|Kind)=(.+)$')
-        .firstMatch(root.attrs['id']!)?[1];
+    final variant = RegExp(
+      r'^(?:Style|Expression|Kind)=(.+)$',
+    ).firstMatch(root.attrs['id']!)?[1];
     final nodes = _avatarNodes([root], null, fills, slot, clips, blurs);
     art.putIfAbsent(part, () => {})[variant ?? ''] =
         '<AvatarNode>[${nodes.join(', ')}]';

@@ -28,12 +28,6 @@ class SubmissionAnswerCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            pairs.length == 1 && pairs.first.prompt == null
-                ? 'Your answer'
-                : 'Your answers',
-            style: IqText.smallStrong.copyWith(color: IqColors.fg3),
-          ),
           for (final (index, pair) in pairs.indexed) ...[
             if (index > 0) ...[
               const SizedBox(height: IqSpace.s4),
@@ -43,8 +37,7 @@ class SubmissionAnswerCard extends StatelessWidget {
                 child: ColoredBox(color: IqColors.line),
               ),
               const SizedBox(height: IqSpace.s4),
-            ] else
-              const SizedBox(height: IqSpace.s2p5),
+            ],
             _PairPreview(index: index, pair: pair, count: pairs.length),
           ],
         ],

@@ -36,15 +36,10 @@ void main() {
     await _tap(tester, find.text('Bring the shop to the hostel'));
     expect(find.byType(SubmissionDetailScreen), findsOneWidget);
     expect(find.byType(IqDock), findsNothing);
-    expect(
-      find.text(
-        'Sent 1 day ago · For: How should a campus bookshop sell '
-        'online?',
-      ),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Sent 1 day ago · For:'), findsNothing);
+    expect(find.text('Your answers'), findsNothing);
+    expect(find.text('Results after the brief closes.'), findsNothing);
     expect(find.text('₦100k'), findsOneWidget);
-    expect(find.text('Results after the brief closes.'), findsOneWidget);
 
     await _tap(tester, find.text('View the brief'));
     expect(find.byType(BriefDetailScreen), findsOneWidget);
