@@ -41,7 +41,7 @@ jobs:
         run: |
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/iqly-upload.jks"
           echo "IQLY_KEYSTORE_PATH=$RUNNER_TEMP/iqly-upload.jks" >> "$GITHUB_ENV"
-      - run: shorebird patch android --release-version="$RELEASE_VERSION" --flutter-version=3.50.1 --track=stable $DIFFS
+      - run: shorebird patch android --release-version="$RELEASE_VERSION" --track=stable $DIFFS
         env:
           RELEASE_VERSION: ${{ inputs.release_version }}
           DIFFS: ${{ inputs.allow_diffs && '--allow-native-diffs --allow-asset-diffs' || '' }}
@@ -58,7 +58,7 @@ jobs:
       - uses: shorebirdtech/setup-shorebird@v1
         with:
           cache: true
-      - run: shorebird patch ios --release-version="$RELEASE_VERSION" --flutter-version=3.50.1 --track=stable $DIFFS
+      - run: shorebird patch ios --no-codesign --release-version="$RELEASE_VERSION" --track=stable $DIFFS
         env:
           RELEASE_VERSION: ${{ inputs.release_version }}
           DIFFS: ${{ inputs.allow_diffs && '--allow-native-diffs --allow-asset-diffs' || '' }}
