@@ -12,6 +12,7 @@ import 'package:iqly_mobile/features/activations/activation_screen.dart';
 import 'package:iqly_mobile/features/activations/activations_state.dart';
 import 'package:iqly_mobile/features/polls/polls_state.dart';
 import 'package:iqly_mobile/router.dart';
+import 'package:iqly_mobile/ui/brief_hero.dart';
 import 'package:iqly_mobile/ui/poll_card.dart';
 import 'package:iqly_mobile/ui/poll_option.dart';
 import 'package:iqly_mobile/ui/pressable.dart';
@@ -446,6 +447,51 @@ void main() {
     expect(rows.length, finished.steps.length);
     expect(rows.every((row) => row.state == IqStepRowState.done), isTrue);
   });
+
+  testWidgets(
+    'completed history keeps the name and title off the collapsing cover',
+    (tester) async {
+      final finished = _finishedActivation(figmaNow);
+      await pumpApp(
+        tester,
+        Routes.activations,
+        overrides: [
+          activationsServiceProvider.overrideWithValue(
+            DemoActivationsService(
+              seed: [DemoActivations(figmaNow).orchidFoods, finished],
+              clock: () => figmaNow,
+              load: Duration.zero,
+              delay: Duration.zero,
+              step: null,
+            ),
+          ),
+        ],
+      );
+      await _tap(tester, find.text('Completed'));
+      await _tap(tester, find.text(finished.title));
+
+      void expectTitleOffCover() {
+        final covers = find.byType(IqBriefHero);
+        if (covers.evaluate().isEmpty) return;
+        final cover = tester.getRect(covers.first);
+        if (cover.height < 1) return;
+        expect(
+          tester.getRect(find.text(finished.title)).overlaps(cover),
+          isFalse,
+        );
+        expect(
+          tester.getRect(find.text(finished.business).first).overlaps(cover),
+          isFalse,
+        );
+      }
+
+      expectTitleOffCover();
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -160));
+      await tester.pumpAndSettle();
+      expectTitleOffCover();
+      expect(find.bySemanticsLabel('Back'), findsOneWidget);
+    },
+  );
 
   testWidgets('older completed activations load and open from history', (
     tester,
