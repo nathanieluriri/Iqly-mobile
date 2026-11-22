@@ -623,7 +623,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final cards = gapped([
       _inset(const _SkeletonCard()),
       _inset(const _SkeletonCard()),
-    ]);
+    ], gap: _cardGap);
     if (!(_standing ?? false)) return cards;
     final proposals = _proposals();
     final lead = Column(
@@ -636,7 +636,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         ],
         _sectionGap,
         _briefsTitle(),
-        const SizedBox(height: IqSpace.s3),
+        const SizedBox(height: _cardGap),
       ],
     );
     return [
@@ -651,7 +651,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   /// Each item arrives on its own, the first right under the chips, the
-  /// rest 12 apart; with [standing], what the skeleton drew (everything down
+  /// rest 24 apart; with [standing], what the skeleton drew (everything down
   /// to the Briefs heading) stands in place.
   List<Widget> _spaced(List<_Item> items, {bool standing = false}) {
     final cut = items.indexWhere((item) => item.key == 'briefs-title');
@@ -688,6 +688,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   static bool _pending(AsyncValue<Object?> value) =>
       !value.hasValue && !value.hasError;
 
+  static const double _cardGap = IqSpace.s6;
   static const double _section = IqSpace.s6 + IqSpace.s3;
   static const Widget _sectionGap = SizedBox(height: _section);
 
@@ -788,7 +789,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               children: gapped([
                 for (final activation in shownActivations)
                   activationCard(activation),
-              ]),
+              ], gap: _cardGap),
             ),
           ),
         ),
@@ -912,7 +913,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 }
 
 class _Item {
-  const _Item(this.key, this.child, {this.gap = IqSpace.s3});
+  const _Item(this.key, this.child, {this.gap = IqSpace.s6});
 
   final String key;
   final Widget child;

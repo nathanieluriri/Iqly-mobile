@@ -708,30 +708,13 @@ class ActivationProofSide extends StatelessWidget {
                 divider: false,
               ),
               const SizedBox(height: IqSpace.s2),
-              if (a.perStep)
-                Text(
-                  perStepLine(a),
-                  style: IqText.small.copyWith(color: IqColors.fg2),
-                )
-              else
-                Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: 'Earn ${reward(a)}',
-                        style: IqText.bodyStrong.copyWith(
-                          color: IqColors.brand,
-                        ),
-                      ),
-                      TextSpan(
-                        text:
-                            '  when all ${a.steps.length} steps are '
-                            'confirmed',
-                        style: IqText.small.copyWith(color: IqColors.fg2),
-                      ),
-                    ],
-                  ),
-                ),
+              Text(
+                a.perStep
+                    ? perStepLine(a)
+                    : 'Earn ${reward(a)} when all ${a.steps.length} '
+                          'steps are confirmed',
+                style: IqText.body.copyWith(color: IqColors.fg),
+              ),
             ],
           ),
         ),
@@ -771,13 +754,11 @@ class _RewardPanel extends StatelessWidget {
           const SizedBox(height: IqSpace.s2),
           Text(reward(a), style: IqText.figure.copyWith(color: IqColors.brand)),
           const SizedBox(height: IqSpace.s2),
-          Text(
-            a.perStep
-                ? perStepLine(a)
-                : 'Paid to your iQLY wallet once ${a.business} '
-                      'confirms, usually within 24 hours.',
-            style: IqText.small.copyWith(color: IqColors.fg2),
-          ),
+          if (a.perStep)
+            Text(
+              perStepLine(a),
+              style: IqText.small.copyWith(color: IqColors.fg2),
+            ),
           if (a.spotsTotal > 0) ...[
             const SizedBox(height: IqSpace.s3),
             Text(
@@ -807,18 +788,13 @@ class _RewardPanel extends StatelessWidget {
   }
 }
 
-/// The business beside its name and "Activation". A name from the API can
-/// run long, so it gives way with an ellipsis.
+/// The business beside its name. A name from the API can run long, so it
+/// gives way with an ellipsis.
 class _BrandRow extends StatelessWidget {
-  const _BrandRow({
-    required this.activation,
-    this.logo = true,
-    this.kind = true,
-  });
+  const _BrandRow({required this.activation, this.logo = true});
 
   final Activation activation;
   final bool logo;
-  final bool kind;
 
   @override
   Widget build(BuildContext context) {
@@ -837,13 +813,6 @@ class _BrandRow extends StatelessWidget {
               style: IqText.smallStrong.copyWith(color: IqColors.fg),
             ),
           ),
-          if (kind) ...[
-            const SizedBox(width: 10),
-            Text(
-              'Activation',
-              style: IqText.small.copyWith(color: IqColors.fg3),
-            ),
-          ],
         ],
       ),
     );
@@ -929,8 +898,10 @@ class _OfferPage extends StatelessWidget {
                   style: IqText.headline.copyWith(color: IqColors.fg),
                 ),
                 Wrap(
-                  spacing: IqSpace.s1p5,
-                  runSpacing: IqSpace.s1p5,
+                  spacing: MediaQuery.sizeOf(context).width >= 420
+                      ? IqSpace.s5
+                      : IqSpace.s3,
+                  runSpacing: IqSpace.s2,
                   children: [
                     IqMeta(kind: IqMetaKind.reward, label: offerReward(a)),
                     IqMeta(kind: IqMetaKind.time, label: minutesText(a)),
@@ -942,13 +913,11 @@ class _OfferPage extends StatelessWidget {
                     ),
                   ],
                 ),
-                Text(
-                  a.perStep
-                      ? perStepLine(a)
-                      : 'Paid to your iQLY wallet once ${a.business} '
-                            'confirms, usually within 24 hours.',
-                  style: IqText.body.copyWith(color: IqColors.fg),
-                ),
+                if (a.perStep)
+                  Text(
+                    perStepLine(a),
+                    style: IqText.body.copyWith(color: IqColors.fg),
+                  ),
                 const IqSectionTitle(title: 'What to do', showLink: false),
                 for (final (i, step) in a.steps.indexed)
                   IqStepRow(
@@ -1079,7 +1048,7 @@ class _CompletedHistory extends StatelessWidget {
           IqSpace.s4,
           0,
         ),
-        child: _BrandRow(activation: a, logo: false, kind: false),
+        child: _BrandRow(activation: a, logo: false),
       ),
       Padding(
         padding: const EdgeInsets.fromLTRB(
@@ -1546,7 +1515,7 @@ class _StepsPage extends StatelessWidget {
           count: history
               ? '${a.confirmed} of ${a.steps.length} steps'
               : _stuck && waiting != null
-              ? waitingCount(a, now)
+              ? ''
               : deadlineText(a, now),
         ),
       ),
@@ -1591,17 +1560,11 @@ class _StepsPage extends StatelessWidget {
                         ),
                       ]
                     : [
-                        Text(
-                          'Earn ${reward(a)}',
-                          style: IqText.bodyStrong.copyWith(
-                            color: IqColors.brand,
-                          ),
-                        ),
-                        const SizedBox(width: IqSpace.s2),
                         Flexible(
                           child: Text(
-                            'when all ${a.steps.length} steps are confirmed',
-                            style: IqText.small.copyWith(color: IqColors.fg2),
+                            'Earn ${reward(a)} when all ${a.steps.length} '
+                            'steps are confirmed',
+                            style: IqText.body.copyWith(color: IqColors.fg),
                           ),
                         ),
                       ],

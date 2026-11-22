@@ -26,7 +26,7 @@ void main() {
             trail: 'Earn ₦500',
           ),
           IqWebAccountMenuItem(
-            label: 'iQL points',
+            label: 'iQ points',
             icon: IqIcons.medal,
             trail: '1,240',
           ),

@@ -129,21 +129,21 @@ void main() {
     await tester.pump(const Duration(minutes: 1));
   });
 
-  testWidgets('the summary card foots to the account: 1,240 iQL points, '
+  testWidgets('the summary card foots to the account: 1,240 iQ points, '
       '#7 this month on the points board and the invite code', (tester) async {
     final container = await pumpMore(tester, Routes.more);
     final board = await container.read(repositoryProvider).pointsLeaderboard();
     expect(board.you?.rank, 7);
     expect(board.you?.points, 1240);
     expect(find.text('1,240'), findsOneWidget);
-    expect(find.text('iQL points'), findsOneWidget);
+    expect(find.text('iQ points'), findsOneWidget);
     expect(find.text('#7'), findsOneWidget);
     expect(find.text('this month'), findsOneWidget);
     expect(find.text('ADAEZE24'), findsOneWidget);
     expect(find.text('Invite friends, earn ₦500'), findsOneWidget);
   });
 
-  testWidgets('the pass reads iQL points through the repository', (
+  testWidgets('the pass reads iQ points through the repository', (
     tester,
   ) async {
     await pumpMore(tester, Routes.more, repository: _PointsRepository(98765));

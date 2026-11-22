@@ -38,12 +38,6 @@ bool closingSoon(Activation activation, DateTime now) =>
     !activation.closedAt(now) &&
     activationLeft(activation, now) < ActivationRules.closingSoon;
 
-/// The ProgressThread count once a step is past its window: "1 day waiting".
-String waitingCount(Activation activation, DateTime now) {
-  final since = activation.waitingSince ?? now;
-  return '${_count(now.difference(since).inDays, 'day')} waiting';
-}
-
 /// "Thu, 1:52 pm", as the B8 and B9 timelines write a moment.
 String dayTime(DateTime at) =>
     '${DateFormat('EEE').format(at)}, '

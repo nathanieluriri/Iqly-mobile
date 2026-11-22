@@ -58,7 +58,7 @@ class PointsLeaderboardScreen extends ConsumerWidget {
               children: [
                 IqTopBar(
                   variant: IqTopBarVariant.page,
-                  title: 'iQL points',
+                  title: 'iQ points',
                   onBack: () => context.canPop()
                       ? context.pop()
                       : context.go(Routes.more, extra: NavDirection.back),

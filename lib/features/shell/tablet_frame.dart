@@ -483,7 +483,7 @@ class _AccountMenu extends ConsumerWidget {
           ),
         if (points)
           IqWebAccountMenuItem(
-            label: 'iQL points',
+            label: 'iQ points',
             icon: IqIcons.medal,
             trail: switch (pass?.points) {
               final p? => wholeNumber(p),

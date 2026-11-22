@@ -316,7 +316,7 @@ class _Mine extends StatelessWidget {
                 ),
                 if (waiting)
                   Text(
-                    'Step $next not confirmed yet · ${waitingCount(lead, now)}',
+                    'Step $next not confirmed yet',
                     style: IqWebText.metaCaption.copyWith(
                       color: IqColors.accentStrong,
                     ),

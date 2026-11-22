@@ -44,7 +44,7 @@ class IqProgressThread extends StatelessWidget {
       IqProgressThreadState.ready => (readyText, IqIcons.success),
       IqProgressThreadState.error => (errorText, IqIcons.error),
     };
-    final showCount = state != IqProgressThreadState.ready;
+    final showCount = state != IqProgressThreadState.ready && count.isNotEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,

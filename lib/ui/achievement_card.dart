@@ -115,7 +115,7 @@ class IqAchievementCard extends StatelessWidget {
                       const SizedBox(width: IqSpace.s1),
                       Flexible(
                         child: Text(
-                          'iQL points',
+                          'iQ points',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: IqText.small.copyWith(color: IqColors.fg2),
