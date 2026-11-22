@@ -41,7 +41,16 @@ jobs:
         run: |
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/iqly-upload.jks"
           echo "IQLY_KEYSTORE_PATH=$RUNNER_TEMP/iqly-upload.jks" >> "$GITHUB_ENV"
-      - run: shorebird patch android --release-version="$RELEASE_VERSION" --track=stable $DIFFS
+      - run: |
+          set -e
+          for attempt in 1 2 3 4 5; do
+            if shorebird patch android --release-version="$RELEASE_VERSION" --track=stable $DIFFS; then
+              exit 0
+            fi
+            echo "Android patch attempt $attempt failed. Waiting before retry."
+            sleep $((attempt * 45))
+          done
+          exit 1
         env:
           RELEASE_VERSION: ${{ inputs.release_version }}
           DIFFS: ${{ inputs.allow_diffs && '--allow-native-diffs --allow-asset-diffs' || '' }}
