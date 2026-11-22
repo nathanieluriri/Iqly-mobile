@@ -23,6 +23,7 @@ import '../../ui/top_bar.dart';
 import '../outcomes/business_note.dart';
 import '../outcomes/outcomes_routes.dart' show leaderboardPath;
 import 'brief_art.dart';
+import 'submission_answer.dart';
 import 'submission_files.dart';
 import 'submissions_state.dart';
 
@@ -294,33 +295,7 @@ class _Body extends StatelessWidget {
                   gap(),
                   StaggerItem(
                     index: 3,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: IqSpace.s4,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: IqColors.line),
-                        borderRadius: BorderRadius.circular(IqRadius.xl2),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Your answer',
-                            style: IqText.smallStrong.copyWith(
-                              color: IqColors.fg3,
-                            ),
-                          ),
-                          const SizedBox(height: IqSpace.s1p5),
-                          Text(
-                            item.submission.body,
-                            style: IqText.body.copyWith(color: IqColors.fg),
-                          ),
-                        ],
-                      ),
-                    ),
+                    child: SubmissionAnswerCard(body: item.submission.body),
                   ),
                   if (item.submission.files case final files
                       when files.isNotEmpty) ...[

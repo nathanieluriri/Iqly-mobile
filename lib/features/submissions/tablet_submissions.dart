@@ -29,6 +29,7 @@ import '../shell/tablet_page.dart';
 import '../shell/tablet_popover.dart';
 import '../shell/tablet_sheet.dart';
 import 'brief_art.dart';
+import 'submission_answer.dart';
 import 'submissions_state.dart';
 
 enum _Lens { all, underReview, winners, notSelected, drafts }
@@ -554,23 +555,7 @@ class SubmissionPanel extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: IqSpace.s5),
-          TabletCard(
-            padding: const EdgeInsets.all(IqSpace.s4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Your answer',
-                  style: IqWebText.metaCaption.copyWith(color: IqColors.fg3),
-                ),
-                const SizedBox(height: IqSpace.s1),
-                Text(
-                  item.submission.body,
-                  style: IqWebText.bodyBase.copyWith(color: IqColors.fg),
-                ),
-              ],
-            ),
-          ),
+          SubmissionAnswerCard(body: item.submission.body),
           const SizedBox(height: IqSpace.s5),
           if (item.status == SubmissionStatus.filteredOut) ...[
             Text(
