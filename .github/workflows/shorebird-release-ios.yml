@@ -10,7 +10,8 @@ name: shorebird-release-ios
 # needs the Admin or App Manager role.
 #
 # Apple rejects uploads built with the default Xcode on macos-15 (16.4,
-# iOS 18.5 SDK). App Store Connect wants Xcode 26 and the iOS 26 SDK.
+# iOS 18.5 SDK). From April 2027 it also wants the iOS 27 SDK, so this
+# job runs on GitHub's xcode-27 image.
 on:
   workflow_dispatch:
     inputs:
@@ -26,8 +27,132 @@ on:
         description: Only list TestFlight builds with the App Store Connect key
         type: boolean
         default: false
+      setup_testers:
+        description: Create the Internal Testing group if it is missing
+        type: boolean
+        default: false
 
 jobs:
+  testers:
+    if: ${{ inputs.setup_testers }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the Apple secrets
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          for name in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8_BASE64; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Add the $name secret"
+              exit 1
+            fi
+          done
+      - name: Restore the App Store Connect key
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/keys"
+          echo "$ASC_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8"
+          echo "ASC_KEY_PATH=$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8" >> "$GITHUB_ENV"
+      - name: Create the Internal Testing group
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          python3 -m pip install --quiet 'pyjwt[crypto]'
+          python3 <<'PY'
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          import jwt
+
+          key_id = os.environ["ASC_KEY_ID"]
+          issuer = os.environ["ASC_ISSUER_ID"]
+          with open(os.environ["ASC_KEY_PATH"], "r", encoding="utf-8") as fh:
+              private_key = fh.read()
+          now = int(time.time())
+          token = jwt.encode(
+              {
+                  "iss": issuer,
+                  "iat": now,
+                  "exp": now + 12 * 60,
+                  "aud": "appstoreconnect-v1",
+              },
+              private_key,
+              algorithm="ES256",
+              headers={"kid": key_id, "typ": "JWT"},
+          )
+
+          def call(method: str, path: str, body: dict | None = None) -> dict:
+              data = None if body is None else json.dumps(body).encode()
+              req = urllib.request.Request(
+                  "https://api.appstoreconnect.apple.com" + path,
+                  data=data,
+                  method=method,
+                  headers={
+                      "Authorization": f"Bearer {token}",
+                      "Content-Type": "application/json",
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(req) as resp:
+                      raw = resp.read()
+                      return json.loads(raw) if raw else {}
+              except urllib.error.HTTPError as err:
+                  text = err.read().decode("utf-8", errors="replace")
+                  raise SystemExit(f"App Store Connect {err.code} on {path}: {text}") from err
+
+          apps = call("GET", "/v1/apps?filter[bundleId]=net.iqly.app")
+          if not apps.get("data"):
+              raise SystemExit("No App Store Connect app for net.iqly.app")
+          app_id = apps["data"][0]["id"]
+          query = urllib.parse.urlencode({"filter[app]": app_id, "limit": "50"})
+          groups = call("GET", f"/v1/betaGroups?{query}").get("data") or []
+          internal = [
+              g
+              for g in groups
+              if g.get("attributes", {}).get("isInternalGroup")
+          ]
+          if internal:
+              for group in internal:
+                  name = group["attributes"].get("name")
+                  print(f"internal group already exists: {name} ({group['id']})")
+          else:
+              created = call(
+                  "POST",
+                  "/v1/betaGroups",
+                  {
+                      "data": {
+                          "type": "betaGroups",
+                          "attributes": {
+                              "name": "Team",
+                              "isInternalGroup": True,
+                          },
+                          "relationships": {
+                              "app": {
+                                  "data": {"type": "apps", "id": app_id},
+                              }
+                          },
+                      }
+                  },
+              )
+              group = created["data"]
+              print(
+                  f"created internal group: "
+                  f"{group['attributes'].get('name')} ({group['id']})"
+              )
+          PY
+      - name: Remove the key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/keys"
+
   status:
     if: ${{ inputs.check_only }}
     runs-on: ubuntu-latest
@@ -137,15 +262,12 @@ jobs:
         run: rm -rf "$RUNNER_TEMP/keys"
 
   release:
-    if: ${{ !inputs.check_only }}
-    runs-on: macos-15
+    if: ${{ !inputs.check_only && !inputs.setup_testers }}
+    runs-on: xcode-27
     env:
       SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-      - uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: '26.2'
       - uses: shorebirdtech/setup-shorebird@v1
         with:
           cache: true
