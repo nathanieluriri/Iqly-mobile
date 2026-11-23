@@ -9,6 +9,7 @@ import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../data/device.dart';
 import '../../data/models.dart';
+import '../../data/assessment_service.dart';
 import '../../data/submit_service.dart' show briefAudienceProvider;
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -156,6 +157,7 @@ class _ActionBar extends ConsumerWidget {
         brief.inAudience == false && ref.watch(briefAudienceProvider);
     final full = brief.spotsLeft == 0;
     final sent = ref.watch(briefSubmissionProvider(brief.id));
+    final access = ref.watch(assessmentAccessProvider).valueOrNull;
     final Widget button;
     if (sent != null) {
       button = IqButton(
@@ -163,6 +165,14 @@ class _ActionBar extends ConsumerWidget {
         kind: IqButtonKind.secondary,
         width: double.infinity,
         onTap: () => context.open(submissionPath(sent)),
+      );
+    } else if (access != null && !access.canAccessChallenges) {
+      button = IqButton(
+        label: access.state == 'unavailable'
+            ? 'New challenges are currently unavailable'
+            : 'Continue check-in',
+        width: double.infinity,
+        onTap: () => context.open(Routes.assessment),
       );
     } else {
       button = IqButton(

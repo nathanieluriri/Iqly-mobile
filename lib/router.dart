@@ -73,6 +73,7 @@ abstract final class Routes {
   static const notifications = '/notifications';
   static const briefDetail = '/briefs/:id';
   static const submit = '/briefs/:id/submit';
+  static const assessment = '/assessment';
   static const pickBrief = '/pick-a-brief';
   static const drafts = '/drafts';
   static const polls = '/polls';

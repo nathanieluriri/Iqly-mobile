@@ -12,6 +12,7 @@ import '../notifications/notifications_routes.dart';
 import '../polls/polls_routes.dart';
 import '../more/more_routes.dart';
 import '../submissions/my_submissions_screen.dart';
+import '../assessments/assessment_screen.dart';
 import '../submit/submit_routes.dart';
 import '../wallet/wallet_routes.dart';
 import 'app_shell.dart';
@@ -85,6 +86,10 @@ final discoverRoutes = <RouteBase>[
       ),
     ),
     routes: [...submitRoutes],
+  ),
+  GoRoute(
+    path: Routes.assessment,
+    pageBuilder: (context, state) => pushPage(state, const AssessmentScreen()),
   ),
   ...notificationsRoutes,
   ...pollsRoutes,

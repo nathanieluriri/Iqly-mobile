@@ -9,6 +9,7 @@ import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../core/session.dart';
 import '../../core/transitions.dart';
+import '../../data/assessment_service.dart';
 import '../../data/models.dart';
 import '../../data/submit_data.dart';
 import '../../data/submit_service.dart';
@@ -62,6 +63,12 @@ class SubmitScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final opening = ref.watch(submitOpeningProvider(briefId));
     final drafts = ref.watch(draftsProvider);
+    final access = ref.watch(assessmentAccessProvider).valueOrNull;
+    if (access != null &&
+        !access.canAccessChallenges &&
+        opening.value?.block != SubmitBlock.alreadySubmitted) {
+      return _ToAssessment();
+    }
     ref.listen(
       submitOpeningProvider(briefId),
       (_, next) => _openSubmitted(context, ref, next.value),
@@ -674,4 +681,22 @@ class _LoadFailed extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ToAssessment extends StatefulWidget {
+  @override
+  State<_ToAssessment> createState() => _ToAssessmentState();
+}
+
+class _ToAssessmentState extends State<_ToAssessment> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.go(Routes.assessment);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }
