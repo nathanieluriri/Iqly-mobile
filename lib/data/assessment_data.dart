@@ -23,6 +23,24 @@ class AssessmentAccess {
       );
 }
 
+typedef AssessmentNudgeCopy = ({String label, String description});
+
+/// Discover row copy. Hidden after a pass or during a wait so nobody is
+/// invited to retake.
+AssessmentNudgeCopy? assessmentNudge(AssessmentAccess? access) {
+  if (access == null) return null;
+  if (access.canResume) {
+    return (
+      label: 'Continue check-in',
+      description: 'Pick up where you left off',
+    );
+  }
+  if (access.canTake) {
+    return (label: 'A short check-in', description: 'Needed before new briefs');
+  }
+  return null;
+}
+
 class AssessmentOption {
   const AssessmentOption({required this.index, required this.text});
 

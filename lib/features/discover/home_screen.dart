@@ -43,6 +43,9 @@ import '../polls/polls_routes.dart';
 import '../polls/polls_state.dart';
 import '../polls/quick_poll_tile.dart';
 import '../drafts/drafts_state.dart';
+import '../../data/assessment_data.dart';
+import '../../data/assessment_service.dart';
+import '../assessments/assessment_nudge.dart';
 import '../onboarding/setup_nudge.dart';
 import '../withdrawals/payout_arrival.dart';
 import 'app_shell.dart';
@@ -412,6 +415,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       sessionProvider.select((s) => s.onboardingDone),
     );
     final nudge = _nudge ??= !onboardingDone;
+    final needCheckIn =
+        assessmentNudge(ref.watch(assessmentAccessProvider).value) != null;
     final payout = ref.watch(recentPayoutProvider);
     _proposalsPending = proposalsPending;
     final loading = (data == null && !failed) || proposalsPending;
@@ -494,8 +499,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                               _arrivals.play(after: after);
                               _land(after);
                             },
-                            builder: (context, phase, skeletonOpacity) =>
-                                _body(phase, skeletonOpacity, data, nudge),
+                            builder: (context, phase, skeletonOpacity) => _body(
+                              phase,
+                              skeletonOpacity,
+                              data,
+                              nudge,
+                              needCheckIn,
+                            ),
                           ),
                           SliverToBoxAdapter(
                             key: const ValueKey('inset'),
@@ -566,6 +576,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     Animation<double> skeletonOpacity,
     FeedData? data,
     bool nudge,
+    bool needCheckIn,
   ) {
     if (phase == GatePhase.waiting) _standing = null;
     if (phase == GatePhase.skeleton) {
@@ -587,7 +598,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             child: Column(children: _loading(nudge: nudge, handover: true)),
           ),
         ),
-      if (content && nudge)
+      if (content && (nudge || needCheckIn))
         SliverToBoxAdapter(
           key: const ValueKey('nudge'),
           child: standing
@@ -936,13 +947,20 @@ List<Widget> gappedRow(Iterable<Widget> items) {
   return out;
 }
 
-/// The setup nudge with the gap under it, so both fold away together.
+/// Setup and check-in rows with the gap under each, so they fold away
+/// together.
 class _SetupNudgeSlot extends StatelessWidget {
   const _SetupNudgeSlot();
 
   @override
-  Widget build(BuildContext context) =>
-      _inset(const SetupNudge(gap: IqSpace.s3));
+  Widget build(BuildContext context) => _inset(
+    const Column(
+      children: [
+        SetupNudge(gap: IqSpace.s3),
+        AssessmentNudge(gap: IqSpace.s3),
+      ],
+    ),
+  );
 }
 
 /// The end of the list: the next page's skeleton with "LOADING MORE"

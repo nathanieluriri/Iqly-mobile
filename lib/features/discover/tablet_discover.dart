@@ -24,6 +24,7 @@ import '../../ui/pressable.dart';
 import '../../ui/ticket_card.dart';
 import '../../ui/web_filter_option.dart';
 import '../../ui/web_range_field.dart';
+import '../assessments/assessment_nudge.dart';
 import '../drafts/drafts_state.dart';
 import '../shell/tablet_page.dart';
 import '../shell/tablet_popover.dart';
@@ -145,6 +146,7 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
 
     final children = <Widget>[
       toolbar,
+      const AssessmentNudge(),
       if (chips.isNotEmpty)
         Wrap(
           spacing: IqSpace.s2,

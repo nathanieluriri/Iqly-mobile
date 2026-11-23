@@ -90,6 +90,9 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
         _session = session;
         _busy = false;
       });
+      if (session.status == 'passed' || session.status == 'failed') {
+        ref.invalidate(assessmentAccessProvider);
+      }
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
