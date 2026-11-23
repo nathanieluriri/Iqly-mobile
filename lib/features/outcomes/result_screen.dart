@@ -10,6 +10,7 @@ import '../../core/tablet_layout.dart';
 import '../../core/responsive.dart';
 import '../../core/session.dart';
 import '../../core/transitions.dart';
+import '../../data/models.dart';
 import '../../data/outcomes_service.dart' show businessNoteShownProvider;
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -508,7 +509,9 @@ class NotSelectedView extends ConsumerWidget {
                   ),
                   settle(
                     Text(
-                      'Not selected this time',
+                      data.item.status == SubmissionStatus.filteredOut
+                          ? 'Rejected'
+                          : 'Not selected this time',
                       style: IqText.display.copyWith(color: IqColors.fg),
                     ),
                   ),

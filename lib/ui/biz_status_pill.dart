@@ -5,7 +5,7 @@ import '../theme/theme.dart';
 enum IqBizStatusPillStatus {
   underReview('Under review'),
   winner('Winner'),
-  notSelected('Not selected'),
+  notSelected('Rejected'),
   draft('Draft');
 
   const IqBizStatusPillStatus(this.label);

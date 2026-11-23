@@ -409,7 +409,7 @@ class SubmissionCardFor extends StatelessWidget {
       ),
       SubmissionStatus.filteredOut => (
         IqSubmissionCardStatus.notSelected,
-        'Didn’t pass screening',
+        'Rejected',
         IqMetaKind.plain,
         sent,
       ),

@@ -50,7 +50,7 @@ class SubmissionItem {
 enum SubmissionsTab {
   underReview('Under review'),
   winners('Winners'),
-  notSelected('Not selected');
+  notSelected('Rejected');
 
   const SubmissionsTab(this.label);
   final String label;

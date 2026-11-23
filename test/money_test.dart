@@ -53,7 +53,7 @@ void main() {
     expect(SubmissionStatus.pending.label, 'Under review');
     expect(SubmissionStatus.scored.label, 'Under review');
     expect(SubmissionStatus.winner.label, 'Winner');
-    expect(SubmissionStatus.filteredOut.label, 'Not selected');
+    expect(SubmissionStatus.filteredOut.label, 'Rejected');
     expect(DemoData.savedBank.maskedNumber, '••6789');
   });
 }

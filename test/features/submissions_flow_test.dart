@@ -28,7 +28,7 @@ void main() {
     await pumpApp(tester, Routes.submissions);
     expect(find.text('Under review'), findsOneWidget);
     expect(find.text('Winners'), findsOneWidget);
-    expect(find.text('Not selected'), findsOneWidget);
+    expect(find.text('Rejected'), findsOneWidget);
     expect(find.text('20 days left'), findsOneWidget);
     expect(find.text('Sent 1 day ago'), findsOneWidget);
     expect(find.byType(IqDock), findsOneWidget);
@@ -68,17 +68,17 @@ void main() {
     expect(find.byType(WalletScreen), findsOneWidget);
   });
 
-  testWidgets('Not selected: the card opens its result, another brief its '
+  testWidgets('Rejected: the card opens its result, another brief its '
       'page', (tester) async {
     await pumpApp(tester, Routes.submissions);
-    await _tap(tester, find.text('Not selected'));
-    expect(find.text('Didn’t pass screening'), findsOneWidget);
+    await _tap(tester, find.text('Rejected'));
+    expect(find.text('Rejected'), findsWidgets);
     expect(find.text('Try another brief'), findsOneWidget);
     expect(find.text('Rename our youth current account'), findsOneWidget);
     expect(find.text('Packaging ideas for a cassava snack'), findsOneWidget);
 
     await _tap(tester, find.text('One counter for quick jobs'));
-    expect(find.text('Not selected this time'), findsOneWidget);
+    expect(find.text('Rejected'), findsWidgets);
     await _tap(tester, find.bySemanticsLabel('Back'));
 
     await _tap(tester, find.text('Rename our youth current account'));

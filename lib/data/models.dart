@@ -39,7 +39,7 @@ enum SubmissionStatus {
   String get label => switch (this) {
     pending || scored => 'Under review',
     winner => 'Winner',
-    filteredOut => 'Not selected',
+    filteredOut => 'Rejected',
   };
 }
 

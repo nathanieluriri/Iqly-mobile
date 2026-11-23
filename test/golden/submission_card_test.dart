@@ -47,7 +47,7 @@ void main() {
         width: 358,
         child: IqSubmissionCard(
           status: IqSubmissionCardStatus.notSelected,
-          statusLabel: 'Didn’t pass screening',
+          statusLabel: 'Rejected',
           sent: 'Sent 20 days ago',
         ),
       ),

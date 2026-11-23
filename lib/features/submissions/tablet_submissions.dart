@@ -322,7 +322,7 @@ class _WonCard extends StatelessWidget {
     ),
     SubmissionStatus.filteredOut => (
       IqBizStatusPillStatus.notSelected,
-      'Didn’t pass screening',
+      'Rejected',
     ),
   };
 }
@@ -559,7 +559,7 @@ class SubmissionPanel extends ConsumerWidget {
           const SizedBox(height: IqSpace.s5),
           if (item.status == SubmissionStatus.filteredOut) ...[
             Text(
-              'Not selected this time',
+              'Rejected',
               style: IqText.bodyStrong.copyWith(color: IqColors.fg),
             ),
             if (note != null)
