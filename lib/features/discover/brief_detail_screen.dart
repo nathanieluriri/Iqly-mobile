@@ -170,7 +170,7 @@ class _ActionBar extends ConsumerWidget {
       button = IqButton(
         label: access.state == 'unavailable'
             ? 'New challenges are currently unavailable'
-            : 'Continue check-in',
+            : "Take iQLY's pre-challenge test",
         width: double.infinity,
         onTap: () => context.open(Routes.assessment),
       );

@@ -52,7 +52,7 @@ import 'discover_widgets.dart';
     return (
       label: access.state == 'unavailable'
           ? 'New challenges are currently unavailable'
-          : 'Continue check-in',
+          : "Take iQLY's pre-challenge test",
       disabled: false,
       secondary: false,
       onTap: () => context.open(Routes.assessment),

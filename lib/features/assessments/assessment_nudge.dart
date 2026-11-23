@@ -29,6 +29,7 @@ class AssessmentNudge extends ConsumerWidget {
             IqListRow(
               label: copy?.label ?? '',
               description: copy?.description ?? '',
+              showDescription: copy?.description != null,
               icon: IqIcons.sparkles,
               divider: false,
               onTap: () => context.open(Routes.assessment),

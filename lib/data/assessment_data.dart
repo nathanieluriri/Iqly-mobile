@@ -23,22 +23,34 @@ class AssessmentAccess {
       );
 }
 
-typedef AssessmentNudgeCopy = ({String label, String description});
+typedef AssessmentNudgeCopy = ({String label, String? description});
+
+const _nudgeLabel = "Take iQLY's pre-challenge test";
 
 /// Discover row copy. Hidden after a pass or during a wait so nobody is
 /// invited to retake.
 AssessmentNudgeCopy? assessmentNudge(AssessmentAccess? access) {
   if (access == null) return null;
   if (access.canResume) {
-    return (
-      label: 'Continue check-in',
-      description: 'Pick up where you left off',
-    );
+    return (label: _nudgeLabel, description: 'Pick up where you left off');
   }
   if (access.canTake) {
-    return (label: 'A short check-in', description: 'Needed before new briefs');
+    return (label: _nudgeLabel, description: null);
   }
   return null;
+}
+
+/// Live briefs they have not started stay off Discover until they pass.
+List<String> unlockedDiscoverBriefs(
+  List<String> briefIds,
+  AssessmentAccess? access,
+  Set<String> startedIds,
+) {
+  if (access == null || access.canAccessChallenges) return briefIds;
+  return [
+    for (final id in briefIds)
+      if (startedIds.contains(id)) id,
+  ];
 }
 
 class AssessmentOption {

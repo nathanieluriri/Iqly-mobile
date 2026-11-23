@@ -18,17 +18,20 @@ AssessmentAccess access({
 void main() {
   test('a first check-in sits on Discover like finish setting up', () {
     expect(assessmentNudge(access(canTake: true)), (
-      label: 'A short check-in',
-      description: 'Needed before new briefs',
+      label: "Take iQLY's pre-challenge test",
+      description: null,
     ));
   });
 
-  test('an unfinished run asks them to continue', () {
+  test('an unfinished run keeps the same row', () {
     expect(
       assessmentNudge(
         access(canResume: true, state: 'in_progress', activeSessionId: 's1'),
       ),
-      (label: 'Continue check-in', description: 'Pick up where you left off'),
+      (
+        label: "Take iQLY's pre-challenge test",
+        description: 'Pick up where you left off',
+      ),
     );
   });
 
@@ -39,5 +42,38 @@ void main() {
     );
     expect(assessmentNudge(access(state: 'unavailable')), isNull);
     expect(assessmentNudge(null), isNull);
+  });
+
+  test('new live briefs stay off Discover until they pass', () {
+    expect(
+      unlockedDiscoverBriefs(
+        const ['new', 'draft', 'sent'],
+        access(canTake: true),
+        const {'draft', 'sent'},
+      ),
+      ['draft', 'sent'],
+    );
+  });
+
+  test('a pass puts every live brief back', () {
+    expect(
+      unlockedDiscoverBriefs(
+        const ['new', 'draft', 'sent'],
+        access(canAccessChallenges: true, state: 'passed'),
+        const {'draft', 'sent'},
+      ),
+      ['new', 'draft', 'sent'],
+    );
+  });
+
+  test('an unknown access does not hide the feed', () {
+    expect(
+      unlockedDiscoverBriefs(
+        const ['new', 'draft', 'sent'],
+        null,
+        const {'draft', 'sent'},
+      ),
+      ['new', 'draft', 'sent'],
+    );
   });
 }
