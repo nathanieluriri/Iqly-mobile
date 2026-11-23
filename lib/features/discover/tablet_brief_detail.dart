@@ -10,6 +10,7 @@ import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../data/device.dart';
 import '../../data/models.dart';
+import '../../data/assessment_service.dart';
 import '../../data/submit_service.dart' show briefAudienceProvider;
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -38,12 +39,23 @@ import 'discover_widgets.dart';
   final outside = brief.inAudience == false && ref.watch(briefAudienceProvider);
   final full = brief.spotsLeft == 0;
   final sent = ref.watch(briefSubmissionProvider(brief.id));
+  final access = ref.watch(assessmentAccessProvider).value;
   if (sent != null) {
     return (
       label: 'View your submission',
       disabled: false,
       secondary: true,
       onTap: () => context.open(submissionPath(sent)),
+    );
+  }
+  if (access != null && !access.canAccessChallenges) {
+    return (
+      label: access.state == 'unavailable'
+          ? 'New challenges are currently unavailable'
+          : 'Continue check-in',
+      disabled: false,
+      secondary: false,
+      onTap: () => context.open(Routes.assessment),
     );
   }
   return (

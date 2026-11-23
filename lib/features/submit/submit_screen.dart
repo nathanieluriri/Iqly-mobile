@@ -63,7 +63,7 @@ class SubmitScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final opening = ref.watch(submitOpeningProvider(briefId));
     final drafts = ref.watch(draftsProvider);
-    final access = ref.watch(assessmentAccessProvider).valueOrNull;
+    final access = ref.watch(assessmentAccessProvider).value;
     if (access != null &&
         !access.canAccessChallenges &&
         opening.value?.block != SubmitBlock.alreadySubmitted) {
