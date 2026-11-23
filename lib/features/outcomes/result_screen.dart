@@ -515,6 +515,13 @@ class NotSelectedView extends ConsumerWidget {
                       style: IqText.display.copyWith(color: IqColors.fg),
                     ),
                   ),
+                  if (data.item.status == SubmissionStatus.filteredOut)
+                    settle(
+                      Text(
+                        'You can’t send another response to this brief.',
+                        style: IqText.body.copyWith(color: IqColors.fg2),
+                      ),
+                    ),
                   settle(
                     RowCard(
                       child: IqListRow(

@@ -562,6 +562,10 @@ class SubmissionPanel extends ConsumerWidget {
               'Rejected',
               style: IqText.bodyStrong.copyWith(color: IqColors.fg),
             ),
+            Text(
+              'You can’t send another response to this brief.',
+              style: IqWebText.metaCaption.copyWith(color: IqColors.fg3),
+            ),
             if (note != null)
               Text(
                 note,
