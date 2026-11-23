@@ -7,12 +7,12 @@ void main() {
   Duration? left(Duration? d) => d == null ? null : timeLeft(now.add(d), now);
 
   test('the urgency chip words and tones', () {
-    expect(closesIn(left(const Duration(hours: 6))), 'Closes in 6h');
+    expect(closesIn(left(const Duration(hours: 6))), '6h left');
     expect(urgencyTone(left(const Duration(hours: 6))), IqUrgencyTone.hot);
     final day = left(const Duration(days: 1, seconds: -5));
-    expect(closesIn(day), 'Closes in 1 day');
+    expect(closesIn(day), '1 day left');
     expect(urgencyTone(day), IqUrgencyTone.warm);
-    expect(closesIn(left(const Duration(days: 25))), 'Closes in 25 days');
+    expect(closesIn(left(const Duration(days: 25))), '25 days left');
     expect(urgencyTone(left(const Duration(days: 25))), IqUrgencyTone.calm);
     expect(closesIn(null), 'No deadline');
     expect(urgencyTone(null), IqUrgencyTone.calm);
@@ -21,29 +21,17 @@ void main() {
   });
 
   test('time left never reads longer than it is', () {
-    expect(closesIn(left(const Duration(minutes: 5))), 'Closes in 5 min');
-    expect(closesIn(left(const Duration(seconds: 20))), 'Closes in 1 min');
-    expect(
-      closesIn(left(const Duration(hours: 5, minutes: 59))),
-      'Closes in 5h',
-    );
-    expect(
-      closesIn(left(const Duration(hours: 6, seconds: -20))),
-      'Closes in 6h',
-    );
-    expect(
-      closesIn(left(const Duration(hours: 23, minutes: 59))),
-      'Closes in 23h',
-    );
+    expect(closesIn(left(const Duration(minutes: 5))), '5 min left');
+    expect(closesIn(left(const Duration(seconds: 20))), '1 min left');
+    expect(closesIn(left(const Duration(hours: 5, minutes: 59))), '5h left');
+    expect(closesIn(left(const Duration(hours: 6, seconds: -20))), '6h left');
+    expect(closesIn(left(const Duration(hours: 23, minutes: 59))), '23h left');
     expect(
       urgencyTone(left(const Duration(hours: 23, minutes: 59))),
       IqUrgencyTone.hot,
     );
-    expect(closesIn(left(const Duration(hours: 37))), 'Closes in 1 day');
-    expect(
-      closesIn(left(const Duration(days: 2, hours: 12))),
-      'Closes in 2 days',
-    );
+    expect(closesIn(left(const Duration(hours: 37))), '1 day left');
+    expect(closesIn(left(const Duration(days: 2, hours: 12))), '2 days left');
     expect(closesInWords(left(const Duration(minutes: 25))), 'In 25 minutes');
     expect(closesInWords(left(const Duration(minutes: 1))), 'In 1 minute');
     expect(closesInWords(left(const Duration(hours: 37))), 'In 1 day');

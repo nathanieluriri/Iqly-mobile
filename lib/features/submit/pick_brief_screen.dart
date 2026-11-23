@@ -367,7 +367,7 @@ class _ActivationCard extends StatelessWidget {
         ),
         IqMeta(
           kind: IqMetaKind.urgent,
-          label: 'Closes in ${countdownText(activationLeft(activation, now))}',
+          label: '${countdownText(activationLeft(activation, now))} left',
         ),
       ],
       onTap: () => context.open('${Routes.activations}/${activation.id}'),

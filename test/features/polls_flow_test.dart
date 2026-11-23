@@ -294,7 +294,7 @@ void main() {
     await _tap(tester, find.text(_kiosk));
     expect(find.text('You’re done'), findsOneWidget);
     expect(find.text('176 votes'), findsOneWidget);
-    expect(find.text('Closes in 1 day'), findsOneWidget);
+    expect(find.text('1 day left'), findsOneWidget);
     await _tap(tester, find.text('6 am'));
     expect(find.text('176 votes'), findsOneWidget);
   });

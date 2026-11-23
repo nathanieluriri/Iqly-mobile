@@ -1,7 +1,7 @@
 /// Relative times as the product writes them: "1 day ago" and the short
 /// mono form "1d ago" for list rows. Whole days and hours are rounded so a
 /// timestamp taken a moment earlier still reads as the same day. Deadlines
-/// ("In 20 days", "Closes in 6h") live in deadline.dart.
+/// ("In 20 days", "6h left") live in deadline.dart.
 String timeAgo(DateTime at, DateTime now) {
   final (amount, unit) = _span(now.difference(at));
   if (amount == 0) return 'Just now';

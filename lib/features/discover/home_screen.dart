@@ -735,7 +735,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         ),
         IqMeta(
           kind: IqMetaKind.urgent,
-          label: 'Closes in ${countdownText(activationLeft(activation, now))}',
+          label: '${countdownText(activationLeft(activation, now))} left',
         ),
       ],
       onTap: () => context.open(activationPath(activation.id)),

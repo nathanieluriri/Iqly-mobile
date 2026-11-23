@@ -448,7 +448,7 @@ class _PollsState extends ConsumerState<_Polls> {
         votes: asked.total,
         timeLeft: closed
             ? ''
-            : 'Closes in ${pollTimeLeft(timeLeft(poll.closesAt, now)!)}',
+            : '${pollTimeLeft(timeLeft(poll.closesAt, now)!)} left',
         chosen: 0,
         selected: walking.questions[question].chosen,
         hint: 'Pick one',
@@ -475,7 +475,7 @@ class _PollsState extends ConsumerState<_Polls> {
       votes: asked.total,
       timeLeft: closed
           ? ''
-          : 'Closes in ${pollTimeLeft(timeLeft(poll.closesAt, now)!)}',
+          : '${pollTimeLeft(timeLeft(poll.closesAt, now)!)} left',
       chosen: asked.chosen ?? 0,
       selected: _picks[_key(poll, question)],
       hint: 'Pick one',

@@ -65,7 +65,7 @@ class IqNotification extends StatelessWidget {
         IqIcons.clock,
         IqColors.accentStrong,
         IqHighlightTone.orange,
-        'Closes in 6h',
+        '6h left',
         detail,
       ),
       IqNotificationKind.spots => (

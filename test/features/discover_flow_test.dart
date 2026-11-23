@@ -71,7 +71,7 @@ void main() {
     expect(find.text('Quick polls'), findsOneWidget);
     expect(find.text('Which flavour should we launch first?'), findsOneWidget);
     expect(find.text('Rate 3 recipes in the Orchid Foods app'), findsOneWidget);
-    expect(find.text('Closes in 5h 40m'), findsOneWidget);
+    expect(find.text('5h 40m left'), findsOneWidget);
     expect(find.text('Briefs'), findsOneWidget);
     await _scrollTo(tester, find.text('More briefs'));
     expect(_cards(tester).take(4), [
@@ -103,7 +103,7 @@ void main() {
 
     await _tap(tester, find.text('A tagline for a solar kiosk network'));
     expect(find.byType(BriefDetailScreen), findsOneWidget);
-    expect(find.text('Closes in 6h'), findsOneWidget);
+    expect(find.text('6h left'), findsOneWidget);
     expect(find.text('₦150k'), findsOneWidget);
     expect(find.text('2 min'), findsOneWidget);
 

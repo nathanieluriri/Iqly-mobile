@@ -20,7 +20,7 @@ void main() {
             results: [
               IqWebCommandResult(
                 title: 'A tagline for a solar kiosk network',
-                meta: 'Sunline · ₦150,000 · Closes in 6h',
+                meta: 'Sunline · ₦150,000 · 6h left',
                 logo: IqSampleLogo(IqSampleLogoBrand.sunline),
               ),
             ],

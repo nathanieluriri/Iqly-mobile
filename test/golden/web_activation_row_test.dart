@@ -33,7 +33,7 @@ void main() {
           reward: '₦1,500',
           spots: '188 spots left',
           closes: Text(
-            'Closes in 2 days',
+            '2 days left',
             style: IqWebText.bodySmall.copyWith(color: IqColors.fg),
           ),
         ),

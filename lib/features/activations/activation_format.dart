@@ -27,11 +27,11 @@ String _count(int n, String unit) => '$n ${n == 1 ? unit : '${unit}s'}';
 Duration activationLeft(Activation activation, DateTime now) =>
     timeLeft(activation.closesAt, now)!;
 
-/// "Closes in 2 days", or "Ended 2 days ago" once closed.
+/// "2 days left", or "Ended 2 days ago" once closed.
 String deadlineText(Activation activation, DateTime now) =>
     activation.closedAt(now)
     ? 'Ended ${timeAgo(activation.closesAt, now)}'
-    : 'Closes in ${countdownText(activationLeft(activation, now))}';
+    : '${countdownText(activationLeft(activation, now))} left';
 
 /// Closing within a day: the deadline sits on the Urgent pill.
 bool closingSoon(Activation activation, DateTime now) =>

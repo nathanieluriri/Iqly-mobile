@@ -20,7 +20,7 @@ void main() {
             business: 'Orchid Foods',
             question: 'Which flavour should we launch first?',
             detail: '1 poll · 3 questions · about 15 seconds',
-            closes: 'Closes in 2 days',
+            closes: '2 days left',
             cover: const IqSampleCover(IqSampleLogoBrand.orchidFoods),
             logo: const IqSampleLogo(IqSampleLogoBrand.orchidFoods),
             status: status,

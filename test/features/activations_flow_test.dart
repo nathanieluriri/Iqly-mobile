@@ -130,7 +130,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1300));
       await tester.pumpAndSettle();
       expect(find.text('Activations'), findsOneWidget);
-      expect(find.text('Closes in 5h 40m'), findsOneWidget);
+      expect(find.text('5h 40m left'), findsOneWidget);
 
       await tester.tap(find.text('Rate 3 recipes in the Orchid Foods app'));
       await tester.pumpAndSettle();
@@ -143,7 +143,7 @@ void main() {
       expect(find.byType(ActivationsScreen), findsOneWidget);
       expect(find.byType(ActivationsLoading), findsNothing);
       expect(find.text('Rate 3 recipes in the Orchid Foods app'), findsOne);
-      expect(find.text('Closes in 5h 40m'), findsOneWidget);
+      expect(find.text('5h 40m left'), findsOneWidget);
       expect(find.text('₦500'), findsOneWidget);
       expect(find.text('₦1.5k'), findsOneWidget);
       expect(find.text('₦800'), findsOneWidget);
@@ -159,7 +159,7 @@ void main() {
         ),
         findsNothing,
       );
-      expect(find.text('Closes in 2 days'), findsOneWidget);
+      expect(find.text('2 days left'), findsOneWidget);
       expect(find.text('Settings → Verification. About 2 min'), findsOne);
       const opened = [_light, _light];
       expect(haptics, opened);
@@ -167,7 +167,7 @@ void main() {
       await _tap(tester, find.text('Start activation'));
       expect(haptics, [...opened, _commit]);
       expect(find.text('Not started · 3 steps'), findsOneWidget);
-      expect(find.text('Closes in 2 days'), findsNothing);
+      expect(find.text('2 days left'), findsNothing);
       expect(find.text('Settings → Verification'), findsOneWidget);
       expect(
         find.text('Earn ₦1,500 when all 3 steps are confirmed'),

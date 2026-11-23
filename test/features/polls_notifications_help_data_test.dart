@@ -190,7 +190,7 @@ void main() {
         [
           (
             IqNotificationKind.deadline,
-            'Closes in 7h',
+            '7h left',
             'Sunline · A tagline for a solar kiosk network',
             '1h',
           ),

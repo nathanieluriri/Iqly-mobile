@@ -29,7 +29,7 @@ void main() {
     expect(find.text('Under review'), findsOneWidget);
     expect(find.text('Winners'), findsOneWidget);
     expect(find.text('Not selected'), findsOneWidget);
-    expect(find.text('Closes in 20 days'), findsOneWidget);
+    expect(find.text('20 days left'), findsOneWidget);
     expect(find.text('Sent 1 day ago'), findsOneWidget);
     expect(find.byType(IqDock), findsOneWidget);
 
