@@ -124,7 +124,8 @@ final routerProvider = Provider<GoRouter>(
 /// does not run them.
 bool hiddenRoute(Reader read, String path) {
   bool under(String root) => path == root || path.startsWith('$root/');
-  return (!read(pollsShownProvider) && under(Routes.polls)) ||
+  return (!read(pollsShownProvider) &&
+          (under(Routes.polls) || under('${Routes.home}/poll'))) ||
       (!read(activationsShownProvider) && under(Routes.activations)) ||
       (!read(leaderboardShownProvider) && under(Routes.pointsLeaderboard)) ||
       (!read(referralsShownProvider) && under(Routes.referrals)) ||

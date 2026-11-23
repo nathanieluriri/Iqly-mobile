@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/edge_haptics.dart';
+import '../../core/flags.dart';
 import '../../core/transitions.dart';
 import '../../data/models.dart';
 import '../../router.dart';
@@ -55,6 +56,7 @@ RouteBase appShellRoute(GlobalKey<NavigatorState> rootKey) =>
                     scrim: IqScrim.sheet,
                   ),
                 ),
+                if (Flags.polls) discoverPollRoute(rootKey),
               ],
             ),
           ],

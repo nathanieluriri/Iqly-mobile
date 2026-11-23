@@ -2317,6 +2317,7 @@ void main() {
       expect(on.read(pollsShownProvider), isTrue);
       expect(on.read(activationsShownProvider), isTrue);
       expect(hiddenRoute(on.read, Routes.polls), isFalse);
+      expect(hiddenRoute(on.read, discoverPollOf('org_sunline')), isFalse);
       expect(hiddenRoute(on.read, activationPath('a_1')), isFalse);
 
       final off = launch(_off, api: api);
@@ -2326,6 +2327,7 @@ void main() {
         isA<PausedActivationsService>(),
       );
       expect(hiddenRoute(off.read, Routes.polls), isTrue);
+      expect(hiddenRoute(off.read, discoverPollOf('org_sunline')), isTrue);
       expect(hiddenRoute(off.read, activationPath('a_1')), isTrue);
     });
 

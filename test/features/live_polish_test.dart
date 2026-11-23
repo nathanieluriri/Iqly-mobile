@@ -72,6 +72,7 @@ void main() {
       );
       addTearDown(live.dispose);
       expect(hiddenRoute(live.read, Routes.polls), isTrue);
+      expect(hiddenRoute(live.read, '${Routes.home}/poll/org'), isTrue);
       expect(hiddenRoute(live.read, '${Routes.activations}/a1/proof'), isTrue);
       expect(hiddenRoute(live.read, Routes.home), isFalse);
       expect(hiddenRoute(live.read, Routes.pickBrief), isFalse);

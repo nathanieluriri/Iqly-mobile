@@ -763,7 +763,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 for (final business in shownPolls)
                   QuickPollTile(
                     business: business,
-                    onTap: () => context.open(quickPollsFor(business.id)),
+                    onTap: () => context.open(discoverPollOf(business.id)),
                   ),
               ]),
             ),

@@ -157,13 +157,14 @@ void main() {
     await _tap(tester, _labelled('Close'));
   });
 
-  testWidgets('B2: a tile raises its business over the Quick polls page', (
+  testWidgets('B2: a Discover tile raises its business over Discover', (
     tester,
   ) async {
     await pumpApp(tester, Routes.home, overrides: pollsLane());
     await _tap(tester, find.text(_books));
-    expect(find.byType(PollsScreen), findsOneWidget);
+    expect(find.byType(PollsScreen), findsNothing);
     expect(find.byType(PollSheet), findsOneWidget);
+    expect(find.byType(HomeScreen), findsOneWidget);
     expect(
       find.text('Your answers are valuable. Please answer honestly.'),
       findsOneWidget,
@@ -171,8 +172,7 @@ void main() {
 
     await _tap(tester, _labelled('Close'));
     expect(find.byType(PollSheet), findsNothing);
-    expect(find.byType(PollsScreen), findsOneWidget);
-    await _tap(tester, _labelled('Back'));
+    expect(find.byType(PollsScreen), findsNothing);
     expect(find.byType(HomeScreen), findsOneWidget);
   });
 

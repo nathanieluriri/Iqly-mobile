@@ -7,6 +7,7 @@ import 'package:iqly_mobile/features/discover/discover_state.dart';
 import 'package:iqly_mobile/features/discover/filters_sheet.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
 import 'package:iqly_mobile/features/discover/saved_briefs_screen.dart';
+import 'package:iqly_mobile/features/polls/poll_sheet.dart';
 import 'package:iqly_mobile/features/polls/polls_screen.dart';
 import 'package:iqly_mobile/features/referrals/referrals_screen.dart';
 import 'package:iqly_mobile/features/submit/submit_screen.dart';
@@ -269,11 +270,17 @@ void main() {
     expect(find.byType(HomeScreen), findsOneWidget);
 
     await _tap(tester, find.text('Which flavour should we launch first?'));
-    expect(find.byType(PollsScreen), findsOneWidget);
+    expect(find.byType(PollsScreen), findsNothing);
+    expect(find.byType(PollSheet), findsOneWidget);
+    expect(find.byType(HomeScreen), findsOneWidget);
     expect(
       find.text('1 poll · 3 questions · about 15 seconds'),
       findsOneWidget,
     );
+    await _tap(tester, find.bySemanticsLabel(RegExp('Close')));
+    expect(find.byType(PollSheet), findsNothing);
+    expect(find.byType(PollsScreen), findsNothing);
+    expect(find.byType(HomeScreen), findsOneWidget);
   });
 
   testWidgets('Discover: the gift opens Referrals; back returns', (
