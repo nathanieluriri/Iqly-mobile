@@ -85,24 +85,39 @@ String offerReward(Activation activation) => activation.showsStepRewards
 String cardReward(Activation activation, String chip) =>
     activation.showsStepRewards ? offerReward(activation) : chip;
 
-/// What a per-step run has earned so far: "₦50 earned of up to ₦1,000".
-/// Once the activation has closed ([now]), "up to" is only what it can
-/// still be paid: the steps a hold or a waiting proof can still confirm.
+/// What a per-step run is holding: "₦50 waiting · finish to get paid".
+/// Paid runs say "₦50 paid". Nothing confirmed yet asks them to finish.
 String earnedLine(Activation activation, {DateTime? now}) {
-  final earned =
+  final paid =
       activation.progress?.stepPayouts.fold(0, (sum, p) => sum + p.kobo) ?? 0;
-  final most = now != null && activation.closedAt(now)
-      ? earned + activation.stillPayable
-      : activation.rewardKobo;
-  return '${rewardPool(earned)} earned of up to ${rewardPool(most)}';
+  if (activation.progress?.paidAt != null) {
+    return '${rewardPool(paid)} paid';
+  }
+  final held = heldStepKobo(activation);
+  if (held > 0) {
+    return '${rewardPool(held)} waiting · finish to get paid';
+  }
+  return 'Finish every step to get paid';
+}
+
+/// Confirmed per-step rewards that have not reached the wallet yet.
+int heldStepKobo(Activation activation) {
+  if (!activation.perStep || activation.progress?.paidAt != null) return 0;
+  final done = activation.confirmed;
+  var held = 0;
+  for (var i = 0; i < done && i < activation.steps.length; i++) {
+    if (activation.payoutOf(i) != null) continue;
+    held += activation.steps[i].rewardKobo ?? 0;
+  }
+  return held;
 }
 
 /// The offer's line on how a per-step activation pays, in the design
 /// profile's rules for step rewards (round 18), whoever confirms the steps.
 String perStepLine(Activation activation) {
   final by = DateFormat('d MMM').format(activation.closesAt);
-  return 'Rewards land in your iQLY wallet as each step is confirmed. '
-      'Finish every step by $by, when the activation ends.';
+  return 'Each step is held until you finish every step by $by. '
+      'Then it lands in your iQLY wallet.';
 }
 
 /// Whether step [i]'s row shows an amount: a paying step, once more than one
@@ -114,9 +129,11 @@ bool showsStepReward(Activation activation, int i) =>
 /// it was paid.
 String stepRewardText(Activation activation, int i) {
   final payout = activation.payoutOf(i);
-  return payout == null
-      ? rewardPool(activation.steps[i].rewardKobo ?? 0)
-      : 'Paid ${rewardPool(payout.kobo)}';
+  if (payout != null) return 'Paid ${rewardPool(payout.kobo)}';
+  if (i < activation.confirmed && activation.progress?.paidAt == null) {
+    return 'Held ${rewardPool(activation.steps[i].rewardKobo ?? 0)}';
+  }
+  return rewardPool(activation.steps[i].rewardKobo ?? 0);
 }
 
 /// "5 min".

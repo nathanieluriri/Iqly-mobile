@@ -916,16 +916,15 @@ void main() {
         run = byStep(
           progress: _json.runJson(
             confirmedAt: [_json.at(Duration.zero), _json.at(Duration.zero)],
-            stepPayouts: [_json.payoutJson(1, 50000, Duration.zero)],
           ),
         );
         await container.read(activationsProvider.notifier).refresh('a_1');
         await tester.pumpAndSettle();
-        expect(find.text('Paid ₦500'), findsOneWidget);
+        expect(find.text('Held ₦500'), findsOneWidget);
         expect(find.text('₦1,000'), findsOneWidget);
         expect(find.text('Step 2 of 3 confirmed'), findsOneWidget);
         await tester.scrollUntilVisible(find.text('Your progress:'), 100);
-        expect(find.text('₦500 earned of up to ₦1,500'), findsOneWidget);
+        expect(find.text('₦500 waiting · finish to get paid'), findsOneWidget);
       });
 
       const held = 'Waiting for Harbour Telecom to confirm.';
@@ -1159,15 +1158,14 @@ void main() {
         expect(find.byType(ProofScreen), findsOneWidget);
       });
 
-      testWidgets('closed while a paying step is held: that step still '
-          'waits on the business, with what it pays; the steps left have '
-          'ended and pay nothing', (tester) async {
+      testWidgets('closed while a paying step is held that cannot finish: '
+          'the run has ended, with no money promised', (tester) async {
         final closedHeld = _json.activationJson(
           status: 'closed',
           confirmationMode: 'postback',
           rewardMode: 'per_step',
           stepRewards: [20000, 30000, 100000],
-          phase: 'confirming',
+          phase: 'expired',
           progress: _json.runJson(
             started: const Duration(hours: 30),
             refCode: 'IQ-7K3P2',
@@ -1180,27 +1178,22 @@ void main() {
           }),
           'GET /activations/a_1': (_) => _ok(closedHeld),
         });
-        await pumpLiveLaunch(
+        final (container, _) = await pumpLiveLaunch(
           tester,
           activationPath('a_1'),
           api: api.client,
           mode: gated,
         );
         await tester.pumpAndSettle();
+        expect(_button('This activation has ended'), findsOneWidget);
         expect(
-          find.text('Waiting for Harbour Telecom to confirm.'),
-          findsOneWidget,
+          find.textContaining('Waiting for Harbour Telecom'),
+          findsNothing,
         );
-        expect(find.text('₦200'), findsOneWidget);
-        expect(find.text('₦300'), findsNothing);
-        expect(find.text('₦1,000'), findsNothing);
-        expect(find.text('Ended with the activation'), findsNWidgets(2));
-        await tester.scrollUntilVisible(find.text('Your progress:'), 100);
-        expect(find.text('₦0 earned of up to ₦200'), findsOneWidget);
-        expect(_button('This activation has ended'), findsNothing);
-        expect(_button('Open Harbour Telecom'), findsNothing);
-        expect(find.textContaining('IQ-7K3P2'), findsNothing);
-        expect(find.textContaining('Upload proof'), findsNothing);
+        expect(find.textContaining('earned of up to'), findsNothing);
+        final a = container.read(activationProvider('a_1'))!;
+        expect(a.phaseAt(DateTime.now()), ActivationPhase.expired);
+        expect(a.stillPayable, 0);
       });
 
       for (final (name, stepRewards, phase) in [
@@ -1250,9 +1243,9 @@ void main() {
         });
       }
 
-      for (final (name, stepRewards, ended) in [
-        ('a step that still pays', [20000, 30000, 100000], false),
-        ('a run it can no longer pay', null, true),
+      for (final (name, stepRewards, ended, confirmed, heldStep) in [
+        ('a last step that still pays', [20000, 30000, 100000], false, 2, 2),
+        ('a run it can no longer pay', null, true, 0, 0),
       ]) {
         testWidgets('Upload proof after the close of a held step ($name): '
             '${ended ? 'the activation has ended' : 'says why'}, with '
@@ -1264,13 +1257,16 @@ void main() {
             stepRewards: stepRewards,
             progress: _json.runJson(
               started: const Duration(hours: 26),
+              confirmedAt: [
+                for (var i = 0; i < confirmed; i++) _json.at(Duration.zero),
+              ],
               refCode: 'IQ-7K3P2',
               proof: _json.proofJson(
                 status: 'rejected',
                 reason: 'The recording ends too soon.',
-                step: 0,
+                step: heldStep,
               ),
-              heldSteps: [_json.heldJson(0, const Duration(hours: 20))],
+              heldSteps: [_json.heldJson(heldStep, const Duration(hours: 20))],
             ),
           );
           final api = _Api({

@@ -405,18 +405,17 @@ class Activation {
   }
 
   /// What a run kept open after the close can still be paid, as the API
-  /// counts it: on per_run the reward when the steps in [_reach] finish the
-  /// run, else nothing; on per_step their rewards not yet paid.
+  /// counts it: the unpaid reward when the steps in [_reach] finish the
+  /// run, else nothing. A mid-run that cannot finish pays nothing.
   int get stillPayable {
     final run = progress;
     if (run == null || credited) return 0;
     final done = run.confirmedAt.length;
     final reach = _reach;
-    if (!perStep) {
-      return reach > 0 && done + reach >= steps.length ? rewardKobo : 0;
-    }
+    if (reach == 0 || done + reach < steps.length) return 0;
+    if (!perStep) return rewardKobo;
     var kobo = 0;
-    for (var i = done; i < done + reach; i++) {
+    for (var i = 0; i < steps.length; i++) {
       if (payoutOf(i) == null) kobo += steps[i].rewardKobo ?? 0;
     }
     return kobo;
@@ -598,7 +597,7 @@ class DemoActivations {
     confirmationMode: ConfirmationMode.proof,
   );
 
-  /// Orchid Foods paying ₦100, ₦200 and ₦200 as each step is confirmed.
+  /// Orchid Foods holding ₦100, ₦200 and ₦200 until every step is done.
   late final orchidFoodsByStep = Activation(
     id: orchidFoods.id,
     business: orchidFoods.business,

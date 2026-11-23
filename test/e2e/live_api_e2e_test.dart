@@ -616,43 +616,50 @@ void main() {
 
       late Withdrawal refused;
 
-      test('a payout the bank reverses, and one that fails', () async {
-        final repo = repository();
-        final wallet = container.read(walletServiceProvider);
-        final reversed = await tools.post(
-          '/__local/withdrawals/${seed.withdrawalId}/settle',
-          {'event': 'transfer.reversed', 'reason': 'Account closed'},
-        );
-        expect(reversed['status'], 'reversed');
-        final back = (await repo.withdrawals()).singleWhere(
-          (w) => w.id == seed.withdrawalId,
-        );
-        expect(back.status, WithdrawalStatus.reversed);
-        expect(back.failed, isTrue);
-        expect(back.failureReason, isNull);
-        final returned = (await repo.ledger()).singleWhere((l) => l.reversal);
-        expect(returned.type, LedgerType.award);
-        expect(returned.amountKobo, 1000000);
-        expect(returned.earned, isFalse);
-        final totals = (await repo.walletTotals())!;
-        expect(totals.withdrawableKobo, 7500000);
-        expect(totals.totalEarnedKobo, 8000000);
+      test(
+        'a payout the bank reverses, and one that fails',
+        () async {
+          final repo = repository();
+          final wallet = container.read(walletServiceProvider);
+          final reversed = await tools.post(
+            '/__local/withdrawals/${seed.withdrawalId}/settle',
+            {'event': 'transfer.reversed', 'reason': 'Account closed'},
+          );
+          expect(reversed['status'], 'reversed');
+          final back = (await repo.withdrawals()).singleWhere(
+            (w) => w.id == seed.withdrawalId,
+          );
+          expect(back.status, WithdrawalStatus.reversed);
+          expect(back.failed, isTrue);
+          expect(back.failureReason, isNull);
+          final returned = (await repo.ledger()).singleWhere((l) => l.reversal);
+          expect(returned.type, LedgerType.award);
+          expect(returned.amountKobo, 1000000);
+          expect(returned.earned, isFalse);
+          final totals = (await repo.walletTotals())!;
+          expect(totals.withdrawableKobo, 7500000);
+          expect(totals.totalEarnedKobo, 8000000);
 
-        final asked = await wallet.withdraw(amountKobo: 100000, account: payTo);
-        expect(asked.ok, isTrue, reason: '${asked.failure}');
-        refused = asked.withdrawal!;
-        final last = wallet.watch(refused).last;
-        final failed = await tools.post(
-          '/__local/withdrawals/${refused.id}/settle',
-          {'event': 'transfer.failed', 'reason': 'Account dormant'},
-        );
-        expect(failed['status'], 'failed');
-        final ended = await last.timeout(const Duration(seconds: 30));
-        expect(ended.status, WithdrawalStatus.failed);
-        expect(ended.statusWord, 'failed');
-        expect(ended.failureReason, isNull);
-        expect((await repo.walletTotals())!.withdrawableKobo, 7500000);
-      }, timeout: const Timeout(Duration(minutes: 2)));
+          final asked = await wallet.withdraw(
+            amountKobo: 100000,
+            account: payTo,
+          );
+          expect(asked.ok, isTrue, reason: '${asked.failure}');
+          refused = asked.withdrawal!;
+          final last = wallet.watch(refused).last;
+          final failed = await tools.post(
+            '/__local/withdrawals/${refused.id}/settle',
+            {'event': 'transfer.failed', 'reason': 'Account dormant'},
+          );
+          expect(failed['status'], 'failed');
+          final ended = await last.timeout(const Duration(seconds: 30));
+          expect(ended.status, WithdrawalStatus.failed);
+          expect(ended.statusWord, 'failed');
+          expect(ended.failureReason, isNull);
+          expect((await repo.walletTotals())!.withdrawableKobo, 7500000);
+        },
+        timeout: const Timeout(Duration(minutes: 2)),
+      );
 
       test('notifications: worded from the feed, seen and read', () async {
         final service = container.read(notificationsServiceProvider);
@@ -1417,75 +1424,82 @@ void main() {
         },
       );
 
-      test('throttles offer Try again; early proof is not due', () async {
-        if (!eleven) return;
-        final service = container.read(activationsServiceProvider);
-        final video = recording('early.mp4', List<int>.filled(2048, 3));
-        // Votes and starts are limited to 30 a minute each: past it, a vote
-        // and a Start read as no answer, which Try again can send.
-        final polls = container.read(pollsProvider.notifier);
-        var vote = VoteOutcome.counted;
-        for (var i = 0; i < 40 && vote == VoteOutcome.counted; i++) {
-          vote = await polls.vote(seed.kioskPoll, 1);
-        }
-        expect(vote, VoteOutcome.offline);
-        ApiRefused? held;
-        for (var i = 0; i < 40 && held == null; i++) {
-          try {
-            await service.start(seed.recipes);
-          } on ApiRefused catch (refusal) {
-            held = refusal;
+      test(
+        'throttles offer Try again; early proof is not due',
+        () async {
+          if (!eleven) return;
+          final service = container.read(activationsServiceProvider);
+          final video = recording('early.mp4', List<int>.filled(2048, 3));
+          // Votes and starts are limited to 30 a minute each: past it, a vote
+          // and a Start read as no answer, which Try again can send.
+          final polls = container.read(pollsProvider.notifier);
+          var vote = VoteOutcome.counted;
+          for (var i = 0; i < 40 && vote == VoteOutcome.counted; i++) {
+            vote = await polls.vote(seed.kioskPoll, 1);
           }
-        }
-        expect(held?.code, 'RATE_LIMITED');
-        expect(unanswered(held!), isTrue);
-        ApiRefused? throttled;
-        for (var i = 0; i < 11 && throttled == null; i++) {
-          try {
-            await upload(seed.recipes, video);
-          } on ApiRefused catch (refusal) {
-            if (refusal.code != 'RATE_LIMITED') rethrow;
-            throttled = refusal;
+          expect(vote, VoteOutcome.offline);
+          ApiRefused? held;
+          for (var i = 0; i < 40 && held == null; i++) {
+            try {
+              await service.start(seed.recipes);
+            } on ApiRefused catch (refusal) {
+              held = refusal;
+            }
           }
-        }
-        expect(throttled?.status, 429);
-        expect(ProofRefusal.fromCode(throttled!.code), isNull);
-        final busy = await api.multipart(
-          '/activations/${seed.recipes}/proof/uploads',
-          fields: const {},
-          files: [
-            ApiFile(
-              field: 'file',
-              filename: 'early.mp4',
-              bytes: const [1],
-              contentType: 'video/mp4',
-            ),
-          ],
-        );
-        expect(busy.code, 'RATE_LIMITED');
-        await Future<void>.delayed(
-          (busy.retryAfter ?? const Duration(minutes: 1)) +
-              const Duration(seconds: 1),
-        );
+          expect(held?.code, 'RATE_LIMITED');
+          expect(unanswered(held!), isTrue);
+          ApiRefused? throttled;
+          for (var i = 0; i < 11 && throttled == null; i++) {
+            try {
+              await upload(seed.recipes, video);
+            } on ApiRefused catch (refusal) {
+              if (refusal.code != 'RATE_LIMITED') rethrow;
+              throttled = refusal;
+            }
+          }
+          expect(throttled?.status, 429);
+          expect(ProofRefusal.fromCode(throttled!.code), isNull);
+          final busy = await api.multipart(
+            '/activations/${seed.recipes}/proof/uploads',
+            fields: const {},
+            files: [
+              ApiFile(
+                field: 'file',
+                filename: 'early.mp4',
+                bytes: const [1],
+                contentType: 'video/mp4',
+              ),
+            ],
+          );
+          expect(busy.code, 'RATE_LIMITED');
+          await Future<void>.delayed(
+            (busy.retryAfter ?? const Duration(minutes: 1)) +
+                const Duration(seconds: 1),
+          );
 
-        final run = await runOf(seed.recipes);
-        await asOwner(
-          'POST',
-          '/activations/owner/${seed.recipes}/completions/$run/confirm-step',
-          {'step': 0},
-        );
-        final confirming = await service.refresh(seed.recipes);
-        expect(confirming.phaseAt(DateTime.now()), ActivationPhase.confirming);
-        await expectLater(
-          service.sendProof(
-            seed.recipes,
-            step: 1,
-            uploadId: await upload(seed.recipes, video),
-            video: video,
-          ),
-          refusedWith('ACTIVATION_PROOF_NOT_DUE'),
-        );
-      }, timeout: const Timeout(Duration(minutes: 3)));
+          final run = await runOf(seed.recipes);
+          await asOwner(
+            'POST',
+            '/activations/owner/${seed.recipes}/completions/$run/confirm-step',
+            {'step': 0},
+          );
+          final confirming = await service.refresh(seed.recipes);
+          expect(
+            confirming.phaseAt(DateTime.now()),
+            ActivationPhase.confirming,
+          );
+          await expectLater(
+            service.sendProof(
+              seed.recipes,
+              step: 1,
+              uploadId: await upload(seed.recipes, video),
+              video: video,
+            ),
+            refusedWith('ACTIVATION_PROOF_NOT_DUE'),
+          );
+        },
+        timeout: const Timeout(Duration(minutes: 3)),
+      );
 
       AccountLink linkOf(ApiClient other) {
         final kept = MemoryLocalStore();
@@ -1928,8 +1942,9 @@ void main() {
         expect(bobInvite.reward!.status, ReferralRewardStatus.paid);
         expect(bobInvite.reward!.amountKobo, 50000);
         expect(inviter.terms!.earnedKobo, 50000);
-        final chidiFeed = await LiveNotificationsService(linkOf(chidi))
-            .notifications();
+        final chidiFeed = await LiveNotificationsService(
+          linkOf(chidi),
+        ).notifications();
         final reward = chidiFeed.singleWhere(
           (n) => n.facts?.type == 'referral_reward',
         );
@@ -2419,8 +2434,9 @@ Future<ApiClient> _signedIn(
     appVersion: '0.5.0+5',
     platform: 'android',
   );
-  final result = await LiveAuthService(api: api)
-      .signIn(email: email, password: password);
+  final result = await LiveAuthService(
+    api: api,
+  ).signIn(email: email, password: password);
   expect(result.ok, isTrue, reason: '$email: ${result.failure}');
   return api;
 }
@@ -2651,8 +2667,9 @@ void _contract13(String? base) {
         final sync = container.read(briefMarksSyncProvider(BriefMark.saved))!;
         await sync.set('no-such-brief', true);
         await drain();
-        final failed = (await store.outbox(seed.contributorId))
-            .where((i) => i.status == OutboxStatus.failed);
+        final failed = (await store.outbox(
+          seed.contributorId,
+        )).where((i) => i.status == OutboxStatus.failed);
         expect(failed.single.lastErrorCode, 'CHALLENGE_NOT_FOUND');
         await outbox.discard(failed.single.id);
       });
@@ -2677,8 +2694,9 @@ void _contract13(String? base) {
 
         await reminders.setReminder(seed.closedBriefId, true);
         await drain();
-        final failed = (await store.outbox(seed.contributorId))
-            .where((i) => i.status == OutboxStatus.failed);
+        final failed = (await store.outbox(
+          seed.contributorId,
+        )).where((i) => i.status == OutboxStatus.failed);
         expect(failed.single.lastErrorCode, 'CLOSE_REMINDER_BRIEF_CLOSED');
         await Future<void>.delayed(const Duration(milliseconds: 200));
         expect(container.read(closeRemindersProvider).value, {
@@ -3427,8 +3445,9 @@ class _Walk {
       '/activations/owner/$id/payment/initiate',
       {'callbackUrl': 'http://localhost:3001/activations/paid'},
     );
-    await _LocalTools(base)
-        .post('/__local/payments/${checkout['reference']}/pay');
+    await _LocalTools(
+      base,
+    ).post('/__local/payments/${checkout['reference']}/pay');
     await asOwner('POST', '/activations/owner/$id/publish');
     return id;
   }
@@ -3687,16 +3706,15 @@ void _rules19OctOn(String? base) {
 
         final started = await service.start(id);
         expect(started.phaseAt(DateTime.now()), ActivationPhase.recording);
-        expect(earnedLine(started), '₦0 earned of up to ₦500');
+        expect(earnedLine(started), 'Finish every step to get paid');
         expect(progressLine(started), 'No steps confirmed yet');
 
         final one = await walk.prove(id, 0);
         expect(one.phaseAt(DateTime.now()), ActivationPhase.recording);
         expect(one.proofStep, 1);
-        final first = one.payoutOf(0)!;
-        expect(first.kobo, 20000);
-        expect(stepRewardText(one, 0), 'Paid ₦200');
-        expect(earnedLine(one), '₦200 earned of up to ₦500');
+        expect(one.payoutOf(0), isNull);
+        expect(stepRewardText(one, 0), 'Held ₦200');
+        expect(earnedLine(one), '₦200 waiting · finish to get paid');
         expect(progressLine(one), 'Step 1 of 2 confirmed');
 
         final paid = await walk.prove(id, 1);
@@ -3705,12 +3723,14 @@ void _rules19OctOn(String? base) {
           [for (final p in paid.progress!.stepPayouts) p.kobo],
           [20000, 30000],
         );
-        expect(earnedLine(paid), '₦500 earned of up to ₦500');
+        expect(earnedLine(paid), '₦500 paid');
         final ledger = await walk.repository.ledger();
+        expect(
+          ledger.where((l) => l.activationId == id).map((l) => l.amountKobo),
+          [50000],
+        );
         for (final payout in paid.progress!.stepPayouts) {
-          final row = ledger.singleWhere((l) => l.id == payout.ledgerId);
-          expect(row.amountKobo, payout.kobo);
-          expect(row.activationId, id);
+          expect(ledger.any((l) => l.id == payout.ledgerId), isTrue);
         }
         final told = [
           for (final n in await walk.feed())
@@ -3718,7 +3738,7 @@ void _rules19OctOn(String? base) {
                 n.facts?.activationId == id)
               n.facts!.amountKobo,
         ];
-        expect(told, unorderedEquals([20000, 30000]));
+        expect(told, [50000]);
       });
 
       test('proof mode, paid by step: step 1 confirmed, then a proof of '
@@ -3737,7 +3757,8 @@ void _rules19OctOn(String? base) {
           {'step': 0},
         );
         final one = await service.refresh(id);
-        expect(one.payoutOf(0)!.kobo, 20000);
+        expect(one.payoutOf(0), isNull);
+        expect(earnedLine(one), '₦200 waiting · finish to get paid');
         final video = walk.recording('closing.mp4');
         final checking = await service.sendProof(
           id,
@@ -3999,8 +4020,8 @@ void _rules19OctOn(String? base) {
         expect(gone.code, 'ACTIVATION_UPLOAD_NOT_FOUND');
       });
 
-      test('closed while a step is held: the step still waits on the '
-          'business and pays when its hold ends', () async {
+      test('closed while a step is held that cannot finish: the run has '
+          'ended and nothing is still payable', () async {
         final service = walk.activations;
         final id = await walk.publish(
           'Open the app, held a day, then closed',
@@ -4018,23 +4039,18 @@ void _rules19OctOn(String? base) {
         final raw = (await walk.api.get('/activations/$id')).data;
         expect(raw['status'], 'closed');
         expect((raw['progress'] as Map)['status'], 'started');
-        expect(raw['phase'], 'confirming');
+        expect(raw['phase'], 'expired');
         final closed = await service.refresh(id);
         final now = DateTime.now();
         expect(closed.closedAt(now), isTrue);
         expect(closed.progress!.heldSteps.single.step, 0);
-        expect(closed.phaseAt(now), ActivationPhase.confirming);
+        expect(closed.phaseAt(now), ActivationPhase.expired);
         expect(closed.canProveAt(now), isFalse);
-        expect(closed.paysFor(0), 20000);
-        expect(closed.stillPayable, 20000);
-        expect(earnedLine(closed, now: now), '₦0 earned of up to ₦200');
+        expect(closed.stillPayable, 0);
+        expect(earnedLine(closed, now: now), 'Finish every step to get paid');
         expect(
           [closed.stepEndedAt(0, now), closed.stepEndedAt(1, now)],
           [false, true],
-        );
-        expect(
-          proofHeldBack(closed, now),
-          'Waiting for Sunline Foods to confirm.',
         );
         final late = await walk.postback(code, 1);
         expect(late['status'], 'flagged');
