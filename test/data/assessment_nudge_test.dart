@@ -53,7 +53,13 @@ void main() {
       isNull,
     );
     expect(assessmentNudge(access(state: 'unavailable')), isNull);
-    expect(assessmentNudge(null), isNull);
+  });
+
+  test('Discover still offers the test when access has not loaded', () {
+    expect(assessmentNudge(null), (
+      label: 'Qualification test',
+      description: 'Twenty questions before new challenges',
+    ));
   });
 
   test('new live briefs stay off Discover until they pass', () {

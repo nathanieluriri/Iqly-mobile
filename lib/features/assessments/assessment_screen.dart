@@ -28,13 +28,33 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
   AssessmentSession? _session;
   String? _error;
   bool _busy = false;
+  AppLifecycleListener? _life;
 
   AssessmentService? get _svc => ref.read(assessmentServiceProvider);
 
   @override
   void initState() {
     super.initState();
+    _life = AppLifecycleListener(onHide: _leftApp);
     _load();
+  }
+
+  @override
+  void dispose() {
+    _life?.dispose();
+    super.dispose();
+  }
+
+  void _leftApp() {
+    final session = _session;
+    final svc = _svc;
+    if (svc == null || session?.question == null || _busy) return;
+    IqToast.show(
+      context,
+      'That question was submitted.',
+      kind: IqToastKind.hint,
+    );
+    _send(() => svc.skip(session!.id));
   }
 
   Future<T> _wait<T>(Future<T> work) => work.timeout(
@@ -189,6 +209,12 @@ class _Intro extends StatelessWidget {
             assessmentIntro.body,
             textAlign: TextAlign.center,
             style: IqText.body.copyWith(color: IqColors.fg2),
+          ),
+          const SizedBox(height: IqSpace.s3),
+          Text(
+            'If you leave the app, the question on screen is submitted.',
+            textAlign: TextAlign.center,
+            style: IqText.small.copyWith(color: IqColors.fg2),
           ),
           if (error != null)
             Padding(

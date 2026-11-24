@@ -43,7 +43,15 @@ const assessmentIntro = (
 /// Discover row copy. Hidden after a pass or during a wait so nobody is
 /// invited to retake.
 AssessmentNudgeCopy? assessmentNudge(AssessmentAccess? access) {
-  if (access == null) return null;
+  if (access == null) {
+    return (
+      label: assessmentIntro.title,
+      description: 'Twenty questions before new challenges',
+    );
+  }
+  if (access.canAccessChallenges || access.state == 'unavailable') {
+    return null;
+  }
   if (access.canResume) {
     return (
       label: assessmentIntro.title,
