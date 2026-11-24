@@ -209,23 +209,20 @@ class _Intro extends StatelessWidget {
         children: [
           const Spacer(),
           const IqFigure(IqFigures.writer, width: 188, arrive: true),
-          const SizedBox(height: IqSpace.s5),
+          const SizedBox(height: IqSpace.s6),
           Text(
             assessmentIntro.title,
             textAlign: TextAlign.center,
             style: IqText.display,
           ),
           const SizedBox(height: IqSpace.s3),
-          Text(
-            assessmentIntro.body,
-            textAlign: TextAlign.center,
-            style: IqText.body.copyWith(color: IqColors.fg2),
-          ),
-          const SizedBox(height: IqSpace.s3),
-          Text(
-            'Screenshots are blocked. If you leave the app, the question on screen is submitted.',
-            textAlign: TextAlign.center,
-            style: IqText.small.copyWith(color: IqColors.fg2),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
+            child: Text(
+              assessmentIntro.body,
+              textAlign: TextAlign.center,
+              style: IqText.body.copyWith(color: IqColors.fg2),
+            ),
           ),
           if (error != null)
             Padding(

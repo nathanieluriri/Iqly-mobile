@@ -49,10 +49,12 @@ class AssessmentNudge extends ConsumerWidget {
                       radius: IqRadius.xl,
                       cover: const ColoredBox(
                         color: IqColors.tintStrong,
-                        child: OverflowBox(
-                          maxWidth: 118,
-                          maxHeight: 125,
-                          child: IqFigure(IqFigures.writer, width: 118),
+                        child: Padding(
+                          padding: EdgeInsets.all(8),
+                          child: FittedBox(
+                            fit: BoxFit.contain,
+                            child: IqFigure(IqFigures.writer, width: 56),
+                          ),
                         ),
                       ),
                       logo: const IqBrandLogo(
