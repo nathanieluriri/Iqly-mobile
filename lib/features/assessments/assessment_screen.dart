@@ -10,15 +10,9 @@ import '../../data/assessment_service.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/button.dart';
+import '../../ui/illustration.dart';
 import '../../ui/progress_line.dart';
 import '../../ui/top_bar.dart';
-
-const _domains = {
-  'matrix': 'Matrix reasoning',
-  'verbal': 'Verbal reasoning',
-  'memory': 'Working memory',
-  'speed': 'Processing speed',
-};
 
 class AssessmentScreen extends ConsumerStatefulWidget {
   const AssessmentScreen({super.key});
@@ -113,7 +107,7 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
           children: [
             IqTopBar(
               variant: IqTopBarVariant.page,
-              title: 'Check-in',
+              title: assessmentIntro.title,
               onBack: () => context.pop(),
             ),
             Expanded(
@@ -158,42 +152,47 @@ class _Intro extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
+    return Padding(
       padding: const EdgeInsets.fromLTRB(
         IqSpace.s4,
+        IqSpace.s2,
         IqSpace.s4,
         IqSpace.s4,
-        40,
       ),
-      children: [
-        Text('A short check-in', style: IqText.display),
-        const SizedBox(height: IqSpace.s3),
-        Text(
-          'Twenty questions across four kinds of thinking. About ten minutes. This is an experimental check-in, not a clinical test.',
-          style: IqText.body.copyWith(color: IqColors.fg2),
-        ),
-        const SizedBox(height: IqSpace.s4),
-        for (final label in _domains.values)
-          Padding(
-            padding: const EdgeInsets.only(bottom: IqSpace.s2),
-            child: Text(label, style: IqText.body),
+      child: Column(
+        children: [
+          const Spacer(),
+          const IqFigure(IqFigures.writer, width: 188, arrive: true),
+          const SizedBox(height: IqSpace.s5),
+          Text(
+            assessmentIntro.title,
+            textAlign: TextAlign.center,
+            style: IqText.display,
           ),
-        if (error != null)
-          Padding(
-            padding: const EdgeInsets.only(top: IqSpace.s3),
-            child: Text(
-              error!,
-              style: IqText.small.copyWith(color: IqColors.err),
+          const SizedBox(height: IqSpace.s3),
+          Text(
+            assessmentIntro.body,
+            textAlign: TextAlign.center,
+            style: IqText.body.copyWith(color: IqColors.fg2),
+          ),
+          if (error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: IqSpace.s3),
+              child: Text(
+                error!,
+                textAlign: TextAlign.center,
+                style: IqText.small.copyWith(color: IqColors.err),
+              ),
             ),
+          const Spacer(),
+          IqButton(
+            label: 'Start',
+            width: double.infinity,
+            loading: busy,
+            onTap: busy ? null : onStart,
           ),
-        const SizedBox(height: IqSpace.s6),
-        IqButton(
-          label: 'Start',
-          width: double.infinity,
-          loading: busy,
-          onTap: busy ? null : onStart,
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -276,7 +275,6 @@ class _QuestionState extends State<_Question> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text('${q.index + 1} of ${q.total}', style: IqText.small),
-                  Text(_domains[q.domain] ?? q.domain, style: IqText.small),
                   Text('${seconds}s', style: IqText.small),
                 ],
               ),

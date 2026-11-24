@@ -10,6 +10,7 @@ import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../data/device.dart';
 import '../../data/models.dart';
+import '../../data/assessment_data.dart';
 import '../../data/assessment_service.dart';
 import '../../data/submit_service.dart' show briefAudienceProvider;
 import '../../router.dart';
@@ -52,7 +53,7 @@ import 'discover_widgets.dart';
     return (
       label: access.state == 'unavailable'
           ? 'New challenges are currently unavailable'
-          : "Take iQLY's pre-challenge test",
+          : assessmentIntro.title,
       disabled: false,
       secondary: false,
       onTap: () => context.open(Routes.assessment),

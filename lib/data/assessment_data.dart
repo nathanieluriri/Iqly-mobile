@@ -23,19 +23,29 @@ class AssessmentAccess {
       );
 }
 
-typedef AssessmentNudgeCopy = ({String label, String? description});
+typedef AssessmentNudgeCopy = ({String label, String description});
 
-const _nudgeLabel = "Take iQLY's pre-challenge test";
+const assessmentIntro = (
+  title: 'Qualification test',
+  body:
+      'Twenty questions in four parts. Get enough right and you can take on challenges.',
+);
 
 /// Discover row copy. Hidden after a pass or during a wait so nobody is
 /// invited to retake.
 AssessmentNudgeCopy? assessmentNudge(AssessmentAccess? access) {
   if (access == null) return null;
   if (access.canResume) {
-    return (label: _nudgeLabel, description: 'Pick up where you left off');
+    return (
+      label: assessmentIntro.title,
+      description: 'Pick up where you left off',
+    );
   }
   if (access.canTake) {
-    return (label: _nudgeLabel, description: null);
+    return (
+      label: assessmentIntro.title,
+      description: 'Twenty questions before new challenges',
+    );
   }
   return null;
 }

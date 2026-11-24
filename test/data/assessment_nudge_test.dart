@@ -18,8 +18,8 @@ AssessmentAccess access({
 void main() {
   test('a first check-in sits on Discover like finish setting up', () {
     expect(assessmentNudge(access(canTake: true)), (
-      label: "Take iQLY's pre-challenge test",
-      description: null,
+      label: 'Qualification test',
+      description: 'Twenty questions before new challenges',
     ));
   });
 
@@ -28,11 +28,16 @@ void main() {
       assessmentNudge(
         access(canResume: true, state: 'in_progress', activeSessionId: 's1'),
       ),
-      (
-        label: "Take iQLY's pre-challenge test",
-        description: 'Pick up where you left off',
-      ),
+      (label: 'Qualification test', description: 'Pick up where you left off'),
     );
+  });
+
+  test('the intro stays short', () {
+    expect(assessmentIntro, (
+      title: 'Qualification test',
+      body:
+          'Twenty questions in four parts. Get enough right and you can take on challenges.',
+    ));
   });
 
   test('passed and waiting people do not see a retake', () {
