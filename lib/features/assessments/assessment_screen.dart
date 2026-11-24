@@ -11,6 +11,7 @@ import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/button.dart';
 import '../../ui/illustration.dart';
+import '../../ui/option_row.dart';
 import '../../ui/progress_line.dart';
 import '../../ui/toast.dart';
 import '../../ui/top_bar.dart';
@@ -311,13 +312,13 @@ class _QuestionState extends State<_Question> {
               const SizedBox(height: IqSpace.s4),
               for (final option in q.options)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: IqSpace.s2),
-                  child: IqButton(
+                  padding: const EdgeInsets.only(bottom: IqSpace.s1),
+                  child: IqOptionRow(
                     label: option.text,
-                    kind: _picked == option.index
-                        ? IqButtonKind.primary
-                        : IqButtonKind.secondary,
-                    width: double.infinity,
+                    showNote: false,
+                    state: _picked == option.index
+                        ? IqOptionRowState.selected
+                        : IqOptionRowState.standard,
                     onTap: () => setState(() => _picked = option.index),
                   ),
                 ),
@@ -331,24 +332,13 @@ class _QuestionState extends State<_Question> {
             IqSpace.s4,
             IqSpace.s4,
           ),
-          child: Row(
-            children: [
-              IqButton(
-                label: 'Skip',
-                kind: IqButtonKind.ghost,
-                onTap: widget.busy ? null : widget.onSkip,
-              ),
-              const SizedBox(width: IqSpace.s2),
-              Expanded(
-                child: IqButton(
-                  label: 'Next',
-                  loading: widget.busy,
-                  onTap: _picked == null || widget.busy
-                      ? null
-                      : () => widget.onAnswer(_picked!),
-                ),
-              ),
-            ],
+          child: IqButton(
+            label: 'Next',
+            width: double.infinity,
+            loading: widget.busy,
+            onTap: _picked == null || widget.busy
+                ? null
+                : () => widget.onAnswer(_picked!),
           ),
         ),
       ],
