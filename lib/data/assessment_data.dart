@@ -25,6 +25,15 @@ class AssessmentAccess {
 
 typedef AssessmentNudgeCopy = ({String label, String description});
 
+const assessmentQuestionCapMs = 60000;
+
+int questionClockMs(Object? remainingMs) {
+  final n = remainingMs is num ? remainingMs.toDouble() : double.nan;
+  if (!n.isFinite || n <= 0) return 0;
+  final ms = n.floor();
+  return ms > assessmentQuestionCapMs ? assessmentQuestionCapMs : ms;
+}
+
 const assessmentIntro = (
   title: 'Qualification test',
   body:
@@ -106,7 +115,7 @@ class AssessmentQuestion {
                 text: item['text'] as String? ?? '',
               ),
         ],
-        remainingMs: json['remainingMs'] as int? ?? 0,
+        remainingMs: questionClockMs(json['remainingMs']),
         deadlineAt:
             DateTime.tryParse(json['deadlineAt'] as String? ?? '') ??
             DateTime.now(),

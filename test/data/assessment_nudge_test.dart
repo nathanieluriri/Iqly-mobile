@@ -32,6 +32,13 @@ void main() {
     );
   });
 
+  test('a broken clock is already up and nothing sits past 60 seconds', () {
+    expect(questionClockMs(double.nan), 0);
+    expect(questionClockMs(-12), 0);
+    expect(questionClockMs(90000), 60000);
+    expect(questionClockMs(25000), 25000);
+  });
+
   test('the intro stays short', () {
     expect(assessmentIntro, (
       title: 'Qualification test',

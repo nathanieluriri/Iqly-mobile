@@ -12,6 +12,7 @@ import '../../theme/theme.dart';
 import '../../ui/button.dart';
 import '../../ui/illustration.dart';
 import '../../ui/progress_line.dart';
+import '../../ui/toast.dart';
 import '../../ui/top_bar.dart';
 
 class AssessmentScreen extends ConsumerStatefulWidget {
@@ -35,14 +36,28 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
     _load();
   }
 
+  Future<T> _wait<T>(Future<T> work) => work.timeout(
+    const Duration(seconds: 60),
+    onTimeout: () => throw TimeoutException("That took too long. Try again."),
+  );
+
+  void _fail(String message) {
+    if (!mounted) return;
+    IqToast.show(context, message, kind: IqToastKind.error);
+    setState(() {
+      _error = message;
+      _busy = false;
+    });
+  }
+
   Future<void> _load() async {
     final svc = _svc;
     if (svc == null) return;
     try {
-      final access = await svc.access();
+      final access = await _wait(svc.access());
       AssessmentSession? session;
       if (access.activeSessionId != null) {
-        session = await svc.get(access.activeSessionId!);
+        session = await _wait(svc.get(access.activeSessionId!));
       }
       if (!mounted) return;
       setState(() {
@@ -50,8 +65,9 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
         _session = session;
       });
     } on ApiException catch (e) {
-      if (!mounted) return;
-      setState(() => _error = e.message);
+      _fail(e.message);
+    } on TimeoutException catch (e) {
+      _fail(e.message ?? "That took too long. Try again.");
     }
   }
 
@@ -60,25 +76,23 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
     if (svc == null) return;
     setState(() => _busy = true);
     try {
-      final session = await svc.start();
+      final session = await _wait(svc.start());
       if (!mounted) return;
       setState(() {
         _session = session;
         _busy = false;
       });
     } on ApiException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.message;
-        _busy = false;
-      });
+      _fail(e.message);
+    } on TimeoutException catch (e) {
+      _fail(e.message ?? "That took too long. Try again.");
     }
   }
 
   Future<void> _send(Future<AssessmentSession> Function() work) async {
     setState(() => _busy = true);
     try {
-      final session = await work();
+      final session = await _wait(work());
       if (!mounted) return;
       setState(() {
         _session = session;
@@ -88,11 +102,9 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
         ref.invalidate(assessmentAccessProvider);
       }
     } on ApiException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.message;
-        _busy = false;
-      });
+      _fail(e.message);
+    } on TimeoutException catch (e) {
+      _fail(e.message ?? "That took too long. Try again.");
     }
   }
 
@@ -112,7 +124,9 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
             ),
             Expanded(
               child: access == null
-                  ? const Center(child: CircularProgressIndicator())
+                  ? _error != null
+                        ? _Intro(error: _error, busy: _busy, onStart: _start)
+                        : const Center(child: CircularProgressIndicator())
                   : access.state == 'passed' || session?.status == 'passed'
                   ? _Done(
                       title: 'You’re in',
@@ -238,17 +252,25 @@ class _QuestionState extends State<_Question> {
 
   void _arm() {
     _timer?.cancel();
-    _left = q.remainingMs;
-    final end = DateTime.now().millisecondsSinceEpoch + q.remainingMs;
+    _left = questionClockMs(q.remainingMs);
+    if (_left <= 0) {
+      _timesUp();
+      return;
+    }
+    final end = DateTime.now().millisecondsSinceEpoch + _left;
     _timer = Timer.periodic(const Duration(milliseconds: 250), (_) {
       final left = end - DateTime.now().millisecondsSinceEpoch;
       if (!mounted) return;
       setState(() => _left = left < 0 ? 0 : left);
-      if (left <= 0) {
-        _timer?.cancel();
-        if (!widget.busy) widget.onSkip();
-      }
+      if (left <= 0) _timesUp();
     });
+  }
+
+  void _timesUp() {
+    _timer?.cancel();
+    if (widget.busy) return;
+    IqToast.show(context, "Time's up. Next question.", kind: IqToastKind.hint);
+    widget.onSkip();
   }
 
   @override
