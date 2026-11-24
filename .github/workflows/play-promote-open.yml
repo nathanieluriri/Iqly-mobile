@@ -1,0 +1,81 @@
+name: play-promote-open
+
+# Copies the latest completed closed-testing (alpha) release onto Play open
+# testing (beta). Does not touch production. Run from the Actions tab after
+# a build has landed on alpha, or when open testing should catch up.
+on:
+  workflow_dispatch:
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Promote closed testing to open testing
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          python3 -m pip install --quiet google-auth google-api-python-client
+          python3 <<'PY'
+          import json
+          import os
+          import sys
+
+          from google.oauth2 import service_account
+          from googleapiclient.discovery import build
+          from googleapiclient.errors import HttpError
+
+          raw = os.environ.get("PLAY_SERVICE_ACCOUNT_JSON", "")
+          if not raw:
+              print("Add the PLAY_SERVICE_ACCOUNT_JSON secret", file=sys.stderr)
+              sys.exit(1)
+
+          creds = service_account.Credentials.from_service_account_info(
+              json.loads(raw),
+              scopes=["https://www.googleapis.com/auth/androidpublisher"],
+          )
+          svc = build("androidpublisher", "v3", credentials=creds)
+          pkg = "net.iqly.app"
+          edit_id = svc.edits().insert(packageName=pkg, body={}).execute()["id"]
+          try:
+              alpha = (
+                  svc.edits()
+                  .tracks()
+                  .get(packageName=pkg, editId=edit_id, track="alpha")
+                  .execute()
+              )
+          except HttpError as err:
+              print(err, file=sys.stderr)
+              sys.exit(1)
+
+          releases = alpha.get("releases") or []
+          completed = [item for item in releases if item.get("status") == "completed"]
+          source = completed[0] if completed else (releases[0] if releases else None)
+          if source is None or not source.get("versionCodes"):
+              print("No closed-testing release to promote", file=sys.stderr)
+              sys.exit(1)
+
+          codes = [str(code) for code in source["versionCodes"]]
+          name = source.get("name") or ", ".join(codes)
+          print(f"Promoting {name} ({', '.join(codes)}) to open testing")
+          body = {
+              "track": "beta",
+              "releases": [
+                  {
+                      "name": name,
+                      "status": "completed",
+                      "versionCodes": codes,
+                  }
+              ],
+          }
+          notes = source.get("releaseNotes")
+          if notes:
+              body["releases"][0]["releaseNotes"] = notes
+          svc.edits().tracks().update(
+              packageName=pkg,
+              editId=edit_id,
+              track="beta",
+              body=body,
+          ).execute()
+          svc.edits().commit(packageName=pkg, editId=edit_id).execute()
+          print(f"Open testing is now {name}")
+          PY
