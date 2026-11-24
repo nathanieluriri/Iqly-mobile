@@ -50,10 +50,13 @@ class AssessmentNudge extends ConsumerWidget {
                       cover: const ColoredBox(
                         color: IqColors.tintStrong,
                         child: Padding(
-                          padding: EdgeInsets.all(8),
+                          padding: EdgeInsets.all(14),
                           child: FittedBox(
                             fit: BoxFit.contain,
-                            child: IqFigure(IqFigures.writer, width: 56),
+                            child: IqFigure(
+                              IqFigures.writer,
+                              width: IqFigure.designWidth,
+                            ),
                           ),
                         ),
                       ),
