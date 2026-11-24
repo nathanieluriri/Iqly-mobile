@@ -8,9 +8,11 @@ import io.flutter.embedding.engine.FlutterEngine
 // needs a FragmentActivity host.
 class MainActivity : FlutterFragmentActivity() {
     private var surfaces: SurfacesChannel? = null
+    private var secure: SecureChannel? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        secure = SecureChannel(this, flutterEngine.dartExecutor.binaryMessenger)
         surfaces = SurfacesChannel(
             applicationContext,
             flutterEngine.dartExecutor.binaryMessenger,

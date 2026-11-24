@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../data/assessment_data.dart';
 import '../../data/assessment_service.dart';
 import '../../router.dart';
+import 'screen_guard.dart';
 import '../../theme/theme.dart';
 import '../../ui/button.dart';
 import '../../ui/illustration.dart';
@@ -29,6 +30,7 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
   String? _error;
   bool _busy = false;
   AppLifecycleListener? _life;
+  final _guard = ScreenGuard();
 
   AssessmentService? get _svc => ref.read(assessmentServiceProvider);
 
@@ -36,13 +38,19 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
   void initState() {
     super.initState();
     _life = AppLifecycleListener(onHide: _leftApp);
+    _guard.onCaptured(_leftApp);
     _load();
   }
 
   @override
   void dispose() {
     _life?.dispose();
+    _guard.setSecure(false);
     super.dispose();
+  }
+
+  void _lockScreen(bool on) {
+    _guard.setSecure(on);
   }
 
   void _leftApp() {
@@ -85,6 +93,7 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
         _access = access;
         _session = session;
       });
+      _lockScreen(session?.question != null);
     } on ApiException catch (e) {
       _fail(e.message);
     } on TimeoutException catch (e) {
@@ -103,6 +112,7 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
         _session = session;
         _busy = false;
       });
+      _lockScreen(session.question != null);
     } on ApiException catch (e) {
       _fail(e.message);
     } on TimeoutException catch (e) {
@@ -119,6 +129,7 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
         _session = session;
         _busy = false;
       });
+      _lockScreen(session.question != null);
       if (session.status == 'passed' || session.status == 'failed') {
         ref.invalidate(assessmentAccessProvider);
       }
@@ -212,7 +223,7 @@ class _Intro extends StatelessWidget {
           ),
           const SizedBox(height: IqSpace.s3),
           Text(
-            'If you leave the app, the question on screen is submitted.',
+            'Screenshots are blocked. If you leave the app, the question on screen is submitted.',
             textAlign: TextAlign.center,
             style: IqText.small.copyWith(color: IqColors.fg2),
           ),
