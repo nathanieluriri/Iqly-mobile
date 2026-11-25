@@ -6,7 +6,6 @@ import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/outcomes/result_screen.dart';
 import 'package:iqly_mobile/features/submissions/submission_detail_screen.dart';
 import 'package:iqly_mobile/features/submissions/submissions_routes.dart';
-import 'package:iqly_mobile/router.dart';
 
 import '../golden/golden.dart';
 import '../golden/screens/app_harness.dart';
