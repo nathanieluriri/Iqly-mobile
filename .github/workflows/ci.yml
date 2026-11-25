@@ -17,7 +17,7 @@ jobs:
           java-version: '17'
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.47.0'
+          flutter-version: '3.50.0'
           cache: true
       - run: flutter pub get
       - run: dart run tool/gen_tokens.dart --check
