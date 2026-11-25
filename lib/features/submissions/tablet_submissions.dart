@@ -181,6 +181,7 @@ class _TabletSubmissionsState extends ConsumerState<TabletSubmissions>
       );
     } else if (data.items.isEmpty) {
       body = IqEmptyState(
+        figure: IqFigures.shrug,
         title: 'No submissions yet',
         body: 'Find a brief that fits you.',
         action: 'Browse briefs',

@@ -233,21 +233,41 @@ class _Lenses extends ConsumerWidget {
     );
   }
 
-  List<Widget> _underReview(BuildContext context, DateTime now) => [
-    for (final item in data.of(SubmissionsTab.underReview))
-      ArriveItem(
-        key: ValueKey(item.id),
-        child: SubmissionCardFor(
-          item: item,
-          now: now,
-          onTap: () => context.open(submissionPath(item.id)),
+  List<Widget> _underReview(BuildContext context, DateTime now) {
+    final items = data.of(SubmissionsTab.underReview);
+    if (items.isEmpty) {
+      return const [
+        IqEmptyState(
+          figure: IqFigures.shrug,
+          title: 'Nothing under review',
+          body: 'Submissions waiting for a result land here.',
         ),
-      ),
-  ];
+      ];
+    }
+    return [
+      for (final item in items)
+        ArriveItem(
+          key: ValueKey(item.id),
+          child: SubmissionCardFor(
+            item: item,
+            now: now,
+            onTap: () => context.open(submissionPath(item.id)),
+          ),
+        ),
+    ];
+  }
 
   List<Widget> _winners(BuildContext context, DateTime now) {
     final wins = data.of(SubmissionsTab.winners);
-    if (wins.isEmpty) return const [];
+    if (wins.isEmpty) {
+      return const [
+        IqEmptyState(
+          figure: IqFigures.shrug,
+          title: 'No wins yet',
+          body: 'Keep sending strong work. Wins land here.',
+        ),
+      ];
+    }
     final briefs = {for (final w in wins) w.submission.briefId}.length;
     return [
       ArriveItem(
@@ -279,8 +299,15 @@ class _Lenses extends ConsumerWidget {
 
   List<Widget> _notSelected(BuildContext context, WidgetRef ref, DateTime now) {
     final briefs = ref.watch(tryAnotherBriefsProvider).value ?? const [];
+    final rejected = data.of(SubmissionsTab.notSelected);
     return [
-      for (final item in data.of(SubmissionsTab.notSelected))
+      if (rejected.isEmpty)
+        const IqEmptyState(
+          figure: IqFigures.shrug,
+          title: 'Nothing rejected',
+          body: 'Rejected submissions land here.',
+        ),
+      for (final item in rejected)
         ArriveItem(
           key: ValueKey(item.id),
           child: SubmissionCardFor(
@@ -467,6 +494,7 @@ class _Empty extends StatelessWidget {
     return IqEmptyFill(
       bottom: AppShell.contentInset(context),
       child: IqEmptyState(
+        figure: IqFigures.shrug,
         title: 'No submissions yet',
         body: 'Find a brief that fits you.',
         action: 'Browse briefs',

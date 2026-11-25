@@ -11,7 +11,6 @@ import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/empty_state.dart';
 import '../../ui/skeleton.dart';
-import '../../ui/vector.dart';
 import 'app_shell.dart';
 import 'discover_state.dart';
 import 'tablet_discover.dart';
@@ -219,45 +218,11 @@ class _Empty extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return IqEmptyState(
-      art: const SizedBox(
-        height: 144,
-        child: Center(child: Arrive.illustration(child: _Bookmark())),
-      ),
+      figure: IqFigures.shrug,
       title: 'Nothing saved yet',
       body: 'Tap the bookmark on any brief.',
       action: 'Browse briefs',
       onAction: () => browseForYou(context, ref),
-    );
-  }
-}
-
-/// Exp/Icon/bookmark at 96 x 96 (250:13080), drawn from the node's own
-/// export: its vector keeps a 2 px stroke at this size, where the 24 pt
-/// icon scaled up would draw it four times as thick. Sized to the vector
-/// so it centres under the words.
-class _Bookmark extends StatelessWidget {
-  const _Bookmark();
-
-  @override
-  Widget build(BuildContext context) {
-    return const SizedBox(
-      width: 40,
-      height: 64,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned(
-            left: -1,
-            top: -1,
-            width: 42,
-            height: 66,
-            child: IqVector(
-              'assets/vectors/saved-briefs-bookmark.svg',
-              color: IqColors.fg,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

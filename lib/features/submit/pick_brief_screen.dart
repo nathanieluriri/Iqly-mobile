@@ -202,7 +202,7 @@ class _PickBriefScreenState extends ConsumerState<PickBriefScreen> {
   Widget _empty(DiscoverFilters filters, {required bool others}) {
     if (_lens == PickLens.saved) {
       return IqEmptyState(
-        figure: IqFigures.saver,
+        figure: IqFigures.shrug,
         title: 'Nothing saved yet',
         body: 'Tap the bookmark on any brief.',
         action: 'See all briefs',

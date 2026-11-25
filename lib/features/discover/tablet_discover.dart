@@ -385,7 +385,7 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
     }
     if (saved) {
       return IqEmptyState(
-        figure: IqFigures.saver,
+        figure: IqFigures.shrug,
         title: 'Nothing saved yet',
         body: 'Tap the bookmark on any brief.',
         action: 'Browse briefs',
