@@ -15,7 +15,6 @@ import 'package:iqly_mobile/features/discover/discover_state.dart';
 import 'package:iqly_mobile/features/entry/landing_screen.dart';
 import 'package:iqly_mobile/features/profile/profile_state.dart';
 import 'package:iqly_mobile/features/splash/splash_screen.dart';
-import 'package:iqly_mobile/router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../golden/screens/app_harness.dart';

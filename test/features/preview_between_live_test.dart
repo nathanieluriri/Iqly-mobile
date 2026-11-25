@@ -14,7 +14,6 @@ import 'package:iqly_mobile/data/api_client.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/local/local_providers.dart';
 import 'package:iqly_mobile/data/local/memory_local_store.dart';
-import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/data/token_store.dart';
 import 'package:iqly_mobile/features/discover/discover_state.dart';
