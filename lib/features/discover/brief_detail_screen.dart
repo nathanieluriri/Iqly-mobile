@@ -97,7 +97,7 @@ class _BriefDetailScreenState extends ConsumerState<BriefDetailScreen> {
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
         resizeToAvoidBottomInset: false,
-        backgroundColor: IqColors.bg,
+        backgroundColor: IqColors.card,
         body: SafeArea(
           maintainBottomViewPadding: true,
           child: CenteredContent(
@@ -323,30 +323,17 @@ class _Body extends ConsumerWidget {
               cover: businessCover(brief.cover),
               logo: businessLogo(brief.logo),
               showDots: false,
+              showLogo: false,
               height: 232,
             ),
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: IqSpace.s3),
           StaggerItem(
             index: 0,
             child: inset(
-              Padding(
-                padding: const EdgeInsets.only(left: 66),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Posted by',
-                      style: IqText.small.copyWith(color: IqColors.fg3),
-                    ),
-                    Text(
-                      businessLabel(brief),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: IqText.smallStrong.copyWith(color: IqColors.fg),
-                    ),
-                  ],
-                ),
+              Text(
+                '${brief.tier.label} · ${brief.category.label}',
+                style: IqText.smallStrong.copyWith(color: IqColors.fg2),
               ),
             ),
           ),
@@ -360,9 +347,43 @@ class _Body extends ConsumerWidget {
               ),
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: IqSpace.s6),
           StaggerItem(
             index: 1,
+            child: inset(
+              Row(
+                children: [
+                  SizedBox.square(
+                    dimension: 40,
+                    child: ClipOval(child: businessLogo(brief.logo, size: 40)),
+                  ),
+                  const SizedBox(width: IqSpace.s3),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Posted by',
+                          style: IqText.small.copyWith(color: IqColors.fg3),
+                        ),
+                        Text(
+                          businessLabel(brief),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: IqText.smallStrong.copyWith(
+                            color: IqColors.fg,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          StaggerItem(
+            index: 2,
             child: inset(
               Wrap(
                 spacing: IqSpace.s1p5,

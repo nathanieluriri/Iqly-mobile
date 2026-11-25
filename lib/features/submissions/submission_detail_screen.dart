@@ -59,7 +59,7 @@ class SubmissionDetailScreen extends ConsumerWidget {
         value: SystemUiOverlayStyle.dark,
         child: Scaffold(
           resizeToAvoidBottomInset: false,
-          backgroundColor: IqColors.bg,
+          backgroundColor: IqColors.card,
           body: SafeArea(
             maintainBottomViewPadding: true,
             child: CenteredContent(
@@ -216,6 +216,7 @@ class _Body extends ConsumerWidget {
             IqBriefHero(
               height: SubmissionDetailScreen.heroHeight,
               showDots: false,
+              showLogo: false,
               cover: briefCover(brief),
               logo: briefLogo(brief),
             ),
@@ -229,24 +230,13 @@ class _Body extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.only(left: 66),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Posted by',
-                          style: IqText.small.copyWith(color: IqColors.fg3),
-                        ),
-                        Text(
-                          brief?.businessName ?? 'Private business',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: IqText.smallStrong.copyWith(
-                            color: IqColors.fg,
-                          ),
-                        ),
-                      ],
+                  StaggerItem(
+                    index: 0,
+                    child: IqMeta(
+                      kind: _notSelected(item)
+                          ? IqMetaKind.plain
+                          : IqMetaKind.time,
+                      label: item.status.label,
                     ),
                   ),
                   gap(),
@@ -257,14 +247,38 @@ class _Body extends ConsumerWidget {
                       style: IqText.headline.copyWith(color: IqColors.fg),
                     ),
                   ),
-                  gap(),
+                  const SizedBox(height: IqSpace.s6),
                   StaggerItem(
                     index: 1,
-                    child: IqMeta(
-                      kind: _notSelected(item)
-                          ? IqMetaKind.plain
-                          : IqMetaKind.time,
-                      label: item.status.label,
+                    child: Row(
+                      children: [
+                        SizedBox.square(
+                          dimension: 40,
+                          child: ClipOval(child: briefLogo(brief, size: 40)),
+                        ),
+                        const SizedBox(width: IqSpace.s3),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Posted by',
+                                style: IqText.small.copyWith(
+                                  color: IqColors.fg3,
+                                ),
+                              ),
+                              Text(
+                                brief?.businessName ?? 'Private business',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: IqText.smallStrong.copyWith(
+                                  color: IqColors.fg,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   if (brief != null) ...[

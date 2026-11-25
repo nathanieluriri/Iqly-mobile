@@ -73,7 +73,7 @@ class _Section extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(title, style: IqText.title.copyWith(color: IqColors.fg)),
+          Text(title, style: IqText.bodyStrong.copyWith(color: IqColors.fg)),
           const SizedBox(height: IqSpace.s2),
           if (body case final body?)
             Text(body, style: IqText.body.copyWith(color: IqColors.fg))

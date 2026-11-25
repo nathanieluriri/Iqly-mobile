@@ -124,6 +124,7 @@ class SubmissionViewer extends StatelessWidget {
                     IqBriefHero(
                       height: 232,
                       showDots: false,
+                      showLogo: false,
                       cover: briefCover(brief),
                       logo: briefLogo(brief),
                     ),
@@ -132,24 +133,34 @@ class SubmissionViewer extends StatelessWidget {
                       brief.title,
                       style: IqText.headline.copyWith(color: IqColors.fg),
                     ),
-                    const SizedBox(height: IqSpace.s3),
-                    Padding(
-                      padding: const EdgeInsets.only(left: 66),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Posted by',
-                            style: IqText.small.copyWith(color: IqColors.fg3),
+                    const SizedBox(height: IqSpace.s6),
+                    Row(
+                      children: [
+                        SizedBox.square(
+                          dimension: 40,
+                          child: ClipOval(child: briefLogo(brief, size: 40)),
+                        ),
+                        const SizedBox(width: IqSpace.s3),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Posted by',
+                                style: IqText.small.copyWith(
+                                  color: IqColors.fg3,
+                                ),
+                              ),
+                              Text(
+                                brief.businessName ?? 'Private business',
+                                style: IqText.bodyStrong.copyWith(
+                                  color: IqColors.fg,
+                                ),
+                              ),
+                            ],
                           ),
-                          Text(
-                            brief.businessName ?? 'Private business',
-                            style: IqText.bodyStrong.copyWith(
-                              color: IqColors.fg,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: IqSpace.s5),
                     BriefSections(brief: brief),
