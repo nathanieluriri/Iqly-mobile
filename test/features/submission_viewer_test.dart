@@ -72,12 +72,43 @@ class _ViewerRepository extends DemoRepository {
   ];
 }
 
+class _WinnerViewerRepository extends _ViewerRepository {
+  @override
+  Future<List<Submission>> submissions() async => [
+    for (final submission in await super.submissions())
+      Submission(
+        id: submission.id,
+        briefId: submission.briefId,
+        title: submission.title,
+        body: submission.body,
+        status: SubmissionStatus.winner,
+        createdAt: submission.createdAt,
+        files: submission.files,
+      ),
+  ];
+
+  @override
+  Future<List<LedgerEntry>> ledger() async => [
+    LedgerEntry(
+      id: 'viewer-award',
+      type: LedgerType.award,
+      amountKobo: 50000000,
+      createdAt: figmaNow,
+      submissionId: 'viewer-submission',
+    ),
+  ];
+}
+
+Future<void> _tap(WidgetTester tester, String label) async {
+  final finder = find.text(label);
+  await tester.ensureVisible(finder);
+  await tester.pumpAndSettle();
+  await tester.tap(finder);
+  await tester.pumpAndSettle();
+}
+
 Future<void> _openViewer(WidgetTester tester) async {
-  final open = find.text('View your submission');
-  await tester.ensureVisible(open);
-  await tester.pumpAndSettle();
-  await tester.tap(open);
-  await tester.pumpAndSettle();
+  await _tap(tester, 'View your submission');
 }
 
 void main() {
@@ -112,6 +143,29 @@ void main() {
       expect(find.text(_answer), findsNothing);
     },
   );
+
+  testWidgets('Winner result opens the complete submission in place', (
+    tester,
+  ) async {
+    await pumpApp(
+      tester,
+      resultPath('viewer-submission'),
+      repository: _WinnerViewerRepository(),
+    );
+    expect(find.text('View wallet'), findsOneWidget);
+
+    await _tap(tester, 'View submission');
+
+    expect(find.byType(SubmissionDetailScreen), findsNothing);
+    expect(find.byType(ResultScreen), findsOneWidget);
+    expect(find.text(_briefContext), findsOneWidget);
+    expect(find.text(_answer), findsOneWidget);
+
+    await tester.tap(find.bySemanticsLabel('Close'));
+    await tester.pumpAndSettle();
+    expect(find.text('View submission'), findsOneWidget);
+    expect(find.text(_answer), findsNothing);
+  });
 
   testWidgets('Tablet result opens the complete submission in a dialog', (
     tester,
