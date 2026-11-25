@@ -2,18 +2,10 @@ name: shorebird-release
 
 # A release built through Shorebird, so later Dart-only changes can be
 # patched onto it. Run it from the Actions tab once the version in
-# pubspec.yaml is new: every release needs its own version. The app
-# bundle is uploaded to Play closed testing (alpha) and open testing
-# (beta), and kept as a GitHub artifact. An APK is kept too when the
-# build writes one, and that APK
-# is what the staging download link serves once the R2 secrets are set.
-# A pull request that changes the Shorebird setup gets a dry run instead.
+# pubspec.yaml is new: every release needs its own version. Releases are
+# dispatched manually from the Actions tab.
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - shorebird.yaml
-      - .github/workflows/shorebird-release.yml
 
 jobs:
   release:
