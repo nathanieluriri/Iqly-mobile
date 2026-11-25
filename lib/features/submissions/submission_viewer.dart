@@ -6,6 +6,7 @@ import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../theme/theme.dart';
 import '../../ui/brief_hero.dart';
+import '../../ui/brief_sections.dart';
 import '../shell/tablet_sheet.dart';
 import 'brief_art.dart';
 import 'deliverable_body.dart';
@@ -161,10 +162,8 @@ class SubmissionViewer extends StatelessWidget {
                         ),
                       ],
                     ),
-                    if (brief.body.trim().isNotEmpty) ...[
-                      const SizedBox(height: IqSpace.s5),
-                      _Section(title: 'The brief', child: Text(brief.body)),
-                    ],
+                    const SizedBox(height: IqSpace.s5),
+                    BriefSections(brief: brief),
                   ],
                   const SizedBox(height: IqSpace.s5),
                   _Section(

@@ -15,6 +15,7 @@ import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/brief_hero.dart';
+import '../../ui/brief_sections.dart';
 import '../../ui/button.dart';
 import '../../ui/meta.dart';
 import '../../ui/section_title.dart';
@@ -22,6 +23,7 @@ import '../../ui/skeleton.dart';
 import '../../ui/top_bar.dart';
 import '../outcomes/business_note.dart';
 import '../outcomes/outcomes_routes.dart' show leaderboardPath;
+import '../discover/discover_state.dart';
 import 'brief_art.dart';
 import 'submission_answer.dart';
 import 'submission_files.dart';
@@ -42,7 +44,7 @@ class SubmissionDetailScreen extends ConsumerWidget {
 
   final String id;
 
-  static const double heroHeight = 160;
+  static const double heroHeight = 232;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -190,7 +192,7 @@ class _Skeleton extends StatelessWidget {
   }
 }
 
-class _Body extends StatelessWidget {
+class _Body extends ConsumerWidget {
   const _Body({required this.item, required this.now, this.note});
 
   final SubmissionItem item;
@@ -200,8 +202,10 @@ class _Body extends StatelessWidget {
   final BusinessNote? note;
 
   @override
-  Widget build(BuildContext context) {
-    final brief = item.brief;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final brief =
+        ref.watch(briefDetailProvider(item.submission.briefId)).value ??
+        item.brief;
     Widget gap() => const SizedBox(height: IqSpace.s3);
     return Stagger(
       move: StaggerMove.settle,
@@ -227,24 +231,20 @@ class _Body extends StatelessWidget {
                 children: [
                   Padding(
                     padding: const EdgeInsets.only(left: 66),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Flexible(
-                          child: Text(
-                            brief?.businessName ?? 'Private business',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: IqText.smallStrong.copyWith(
-                              color: IqColors.fg,
-                            ),
-                          ),
+                        Text(
+                          'Posted by',
+                          style: IqText.small.copyWith(color: IqColors.fg3),
                         ),
-                        const SizedBox(width: IqSpace.s2p5),
-                        IqMeta(
-                          kind: _notSelected(item)
-                              ? IqMetaKind.plain
-                              : IqMetaKind.time,
-                          label: item.status.label,
+                        Text(
+                          brief?.businessName ?? 'Private business',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: IqText.smallStrong.copyWith(
+                            color: IqColors.fg,
+                          ),
                         ),
                       ],
                     ),
@@ -255,6 +255,16 @@ class _Body extends StatelessWidget {
                     child: Text(
                       item.submission.title,
                       style: IqText.headline.copyWith(color: IqColors.fg),
+                    ),
+                  ),
+                  gap(),
+                  StaggerItem(
+                    index: 1,
+                    child: IqMeta(
+                      kind: _notSelected(item)
+                          ? IqMetaKind.plain
+                          : IqMetaKind.time,
+                      label: item.status.label,
                     ),
                   ),
                   if (brief != null) ...[
@@ -281,9 +291,13 @@ class _Body extends StatelessWidget {
                       ),
                     ),
                   ],
+                  if (brief != null) ...[
+                    gap(),
+                    StaggerItem(index: 3, child: BriefSections(brief: brief)),
+                  ],
                   gap(),
                   StaggerItem(
-                    index: 3,
+                    index: 4,
                     child: SubmissionAnswerCard(body: item.submission.body),
                   ),
                   if (item.submission.files case final files

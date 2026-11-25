@@ -18,6 +18,7 @@ import '../../ui/banner.dart';
 import '../../ui/bookmark.dart';
 import '../../ui/brief_hero.dart';
 import '../../ui/button.dart';
+import '../../ui/brief_sections.dart';
 import '../../ui/setting_row.dart';
 import '../../ui/skeleton.dart';
 import '../../ui/switch.dart';
@@ -331,11 +332,20 @@ class _Body extends ConsumerWidget {
             child: inset(
               Padding(
                 padding: const EdgeInsets.only(left: 66),
-                child: Text(
-                  businessLabel(brief),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: IqText.smallStrong.copyWith(color: IqColors.fg),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Posted by',
+                      style: IqText.small.copyWith(color: IqColors.fg3),
+                    ),
+                    Text(
+                      businessLabel(brief),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: IqText.smallStrong.copyWith(color: IqColors.fg),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -363,12 +373,7 @@ class _Body extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 14),
-          StaggerItem(
-            index: 2,
-            child: inset(
-              Text(brief.body, style: IqText.body.copyWith(color: IqColors.fg)),
-            ),
-          ),
+          StaggerItem(index: 2, child: inset(BriefSections(brief: brief))),
           if (canRemind) ...[
             const SizedBox(height: 14),
             StaggerItem(

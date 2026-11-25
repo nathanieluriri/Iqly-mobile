@@ -17,6 +17,7 @@ import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/bookmark.dart';
 import '../../ui/button.dart';
+import '../../ui/brief_sections.dart';
 import '../../ui/switch.dart';
 import '../../ui/tablet_action_bar.dart';
 import '../../ui/urgency.dart';
@@ -82,9 +83,9 @@ import 'discover_widgets.dart';
 /// primary.
 ///
 /// Figma over the data: the frames split the brief into Overview, The
-/// problem, What to send, How it's judged and Timeline; the brief carries
-/// one body, so it reads as one block, and Accepts (not in the brief) is
-/// left out of the facts.
+/// problem, Deliverables, What to send, How it's judged and Timeline. The
+/// reading column shares BriefSections with phone and submission detail;
+/// Accepts (not in the brief) is left out of the facts.
 class TabletBriefDetail extends ConsumerWidget {
   const TabletBriefDetail({super.key, required this.brief});
 
@@ -151,7 +152,7 @@ class TabletBriefDetail extends ConsumerWidget {
       ),
       if (!expanded)
         _Panel(brief: brief, now: now, left: left, wide: true, saved: saved),
-      Text(brief.body, style: IqLandText.body.copyWith(color: IqColors.fg)),
+      BriefSections(brief: brief),
       _Business(brief: brief),
     ];
     final crumbs = [

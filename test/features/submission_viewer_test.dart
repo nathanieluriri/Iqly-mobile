@@ -132,7 +132,7 @@ void main() {
       expect(find.text('Posted by'), findsOneWidget);
       expect(find.text('Kudi Box'), findsOneWidget);
       expect(find.text('One counter for quick jobs'), findsOneWidget);
-      expect(find.text('The brief'), findsOneWidget);
+      expect(find.text('Overview'), findsOneWidget);
       expect(find.text(_briefContext), findsOneWidget);
       expect(find.text('A faster counter plan'), findsOneWidget);
       expect(
