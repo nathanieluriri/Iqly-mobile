@@ -4,6 +4,7 @@ import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/outcomes/result_screen.dart';
+import 'package:iqly_mobile/features/shell/tablet_sheet.dart';
 import 'package:iqly_mobile/features/submissions/submission_detail_screen.dart';
 import 'package:iqly_mobile/features/submissions/submissions_routes.dart';
 
@@ -139,7 +140,7 @@ void main() {
         findsOneWidget,
       );
 
-      await tester.tap(find.bySemanticsLabel('Close'));
+      await tester.tap(find.byType(TabletClose));
       await tester.pumpAndSettle();
       expect(find.text('View your submission'), findsOneWidget);
       expect(
@@ -169,7 +170,7 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.tap(find.bySemanticsLabel('Close'));
+    await tester.tap(find.byType(TabletClose));
     await tester.pumpAndSettle();
     expect(find.text('View submission'), findsOneWidget);
     expect(find.textContaining('The complete answer ends here.'), findsNothing);
@@ -197,7 +198,7 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.tap(find.bySemanticsLabel('Close'));
+    await tester.tap(find.byType(TabletClose));
     await tester.pumpAndSettle();
     expect(find.text('View your submission'), findsOneWidget);
     expect(find.textContaining('The complete answer ends here.'), findsNothing);
