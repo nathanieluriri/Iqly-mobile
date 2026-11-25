@@ -47,6 +47,9 @@ class _ViewerRepository extends DemoRepository {
       id: 'viewer-brief',
       title: 'One counter for quick jobs',
       body: _briefContext,
+      overview: _briefContext,
+      problemStatement: 'Reduce the queue without losing trust.',
+      deliverables: ['A triage plan', 'A one-week test'],
       tier: Tier.standard,
       category: Category.customerExperience,
       rewardPoolKobo: 10000000,
@@ -133,6 +136,10 @@ void main() {
       expect(find.text('Kudi Box'), findsOneWidget);
       expect(find.text('One counter for quick jobs'), findsOneWidget);
       expect(find.text('Overview'), findsOneWidget);
+      expect(find.text('The problem'), findsOneWidget);
+      expect(find.text('Deliverables'), findsOneWidget);
+      expect(find.text('A triage plan'), findsOneWidget);
+      expect(find.text('A one-week test'), findsOneWidget);
       expect(find.text(_briefContext), findsOneWidget);
       expect(find.text('A faster counter plan'), findsOneWidget);
       expect(
