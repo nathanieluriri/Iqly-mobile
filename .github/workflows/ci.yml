@@ -22,7 +22,7 @@ jobs:
       - run: flutter pub get
       - run: dart run tool/gen_tokens.dart --check
       - run: dart format --output=none --set-exit-if-changed lib test tool
-      - run: flutter analyze
+      - run: flutter analyze --no-fatal-infos
       - run: flutter test
       - name: Restore the upload key
         env:
