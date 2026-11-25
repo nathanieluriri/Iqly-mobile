@@ -19,7 +19,7 @@ jobs:
         with:
           flutter-version: '3.50.0'
           cache: true
-      - run: flutter pub get
+      - run: flutter pub get --enforce-lockfile
       - run: dart run tool/gen_tokens.dart --check
       - run: dart format --output=none --set-exit-if-changed lib test tool
       - run: flutter analyze --no-fatal-infos

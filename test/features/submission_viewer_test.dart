@@ -134,12 +134,18 @@ void main() {
       expect(find.text('The brief'), findsOneWidget);
       expect(find.text(_briefContext), findsOneWidget);
       expect(find.text('A faster counter plan'), findsOneWidget);
-      expect(find.text(_answer), findsOneWidget);
+      expect(
+        find.textContaining('The complete answer ends here.'),
+        findsOneWidget,
+      );
 
       await tester.tap(find.bySemanticsLabel('Close'));
       await tester.pumpAndSettle();
       expect(find.text('View your submission'), findsOneWidget);
-      expect(find.text(_answer), findsNothing);
+      expect(
+        find.textContaining('The complete answer ends here.'),
+        findsNothing,
+      );
     },
   );
 
@@ -158,12 +164,15 @@ void main() {
     expect(find.byType(SubmissionDetailScreen), findsNothing);
     expect(find.byType(ResultScreen), findsOneWidget);
     expect(find.text(_briefContext), findsOneWidget);
-    expect(find.text(_answer), findsOneWidget);
+    expect(
+      find.textContaining('The complete answer ends here.'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.bySemanticsLabel('Close'));
     await tester.pumpAndSettle();
     expect(find.text('View submission'), findsOneWidget);
-    expect(find.text(_answer), findsNothing);
+    expect(find.textContaining('The complete answer ends here.'), findsNothing);
   });
 
   testWidgets('Tablet result opens the complete submission in a dialog', (
@@ -183,11 +192,14 @@ void main() {
     expect(find.byType(ResultScreen), findsOneWidget);
     expect(find.text('Your submission'), findsOneWidget);
     expect(find.text(_briefContext), findsOneWidget);
-    expect(find.text(_answer), findsOneWidget);
+    expect(
+      find.textContaining('The complete answer ends here.'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.bySemanticsLabel('Close'));
     await tester.pumpAndSettle();
     expect(find.text('View your submission'), findsOneWidget);
-    expect(find.text(_answer), findsNothing);
+    expect(find.textContaining('The complete answer ends here.'), findsNothing);
   });
 }

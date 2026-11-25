@@ -137,7 +137,7 @@ class SubmissionViewer extends StatelessWidget {
                   ],
                   const SizedBox(height: IqSpace.s5),
                   _Section(
-                    title: 'Your submission',
+                    title: 'Your answer',
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
