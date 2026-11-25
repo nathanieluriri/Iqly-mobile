@@ -6,7 +6,6 @@ import '../../core/responsive.dart';
 import '../../core/transitions.dart';
 import '../../theme/theme.dart';
 import '../../ui/brief_hero.dart';
-import '../../ui/top_bar.dart';
 import '../shell/tablet_sheet.dart';
 import 'brief_art.dart';
 import 'deliverable_body.dart';
@@ -70,12 +69,44 @@ class SubmissionViewer extends StatelessWidget {
               ),
             )
           else
-            IqTopBar(
-              variant: IqTopBarVariant.sheet,
-              title: 'Your submission',
-              onClose: () {
-                Navigator.of(context).maybePop();
-              },
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                IqSpace.s4,
+                IqSpace.s2,
+                IqSpace.s3,
+                IqSpace.s1,
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: IqColors.line2,
+                      borderRadius: BorderRadius.circular(IqRadius.full),
+                    ),
+                  ),
+                  const Spacer(),
+                  TabletClose(
+                    onTap: () {
+                      Navigator.of(context).maybePop();
+                    },
+                  ),
+                ],
+              ),
+            ),
+          if (!tablet)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                IqSpace.s5,
+                0,
+                IqSpace.s5,
+                IqSpace.s2,
+              ),
+              child: Text(
+                'Your submission',
+                style: IqText.title.copyWith(color: IqColors.fg),
+              ),
             ),
           Flexible(
             child: SingleChildScrollView(
