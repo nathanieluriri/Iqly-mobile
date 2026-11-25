@@ -48,6 +48,8 @@ void main() {
       );
 
       expect(find.text('Overview'), findsOneWidget);
+      final heading = tester.widget<Text>(find.text('Overview'));
+      expect(heading.style?.fontWeight, FontWeight.w600);
       expect(find.text('Overview copy.'), findsOneWidget);
       expect(find.text('The problem'), findsOneWidget);
       expect(find.text('Problem copy.'), findsOneWidget);
