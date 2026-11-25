@@ -358,9 +358,8 @@ void main() {
   });
 
   testWidgets('B8: an activation that has ended cannot start', (tester) async {
-    final ended = DemoActivations(
-      thursday,
-    ).kudiBox.closesAt.add(const Duration(days: 2));
+    final ended = DemoActivations(thursday).kudiBox.closesAt
+        .add(const Duration(days: 2));
     await pumpActivations(
       tester,
       activationPath('a2'),

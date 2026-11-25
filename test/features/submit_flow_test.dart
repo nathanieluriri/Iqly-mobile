@@ -162,9 +162,8 @@ void main() {
               as IqSheetRoute;
       expect(route.transitionDuration, IqDurations.sheetRise);
       expect(route.reverseTransitionDuration, IqDurations.sheetDrop);
-      final brief = DemoData(
-        now: figmaNow,
-      ).briefs.firstWhere((b) => b.id == 'c5');
+      final brief = DemoData(now: figmaNow).briefs
+          .firstWhere((b) => b.id == 'c5');
       expect(
         find.descendant(
           of: find.byType(BriefSheet),

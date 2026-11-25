@@ -120,9 +120,8 @@ class TabletSettings extends ConsumerWidget {
                   Expanded(
                     child: LayoutBuilder(
                       builder: (context, box) => MediaQuery(
-                        data: MediaQuery.of(
-                          context,
-                        ).copyWith(size: box.biggest),
+                        data: MediaQuery.of(context)
+                            .copyWith(size: box.biggest),
                         child: ClipRect(child: child),
                       ),
                     ),

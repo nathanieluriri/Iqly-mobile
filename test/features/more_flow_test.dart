@@ -303,9 +303,8 @@ void main() {
       'Referrals', (tester) async {
     await pumpMore(tester, Routes.referrals);
     expect(find.text('Enter an invite code'), findsNothing);
-    GoRouter.of(
-      tester.element(find.byType(Navigator).first),
-    ).push(Routes.inviteCode);
+    GoRouter.of(tester.element(find.byType(Navigator).first))
+        .push(Routes.inviteCode);
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(EditableText), 'nope');
     await tester.pumpAndSettle();
@@ -380,9 +379,8 @@ void main() {
     await _tap(tester, find.text('Report an issue'));
     tester.view.viewInsets = const FakeViewPadding(bottom: 336);
     await tester.pump();
-    GoRouter.of(
-      tester.element(find.byType(Navigator).first),
-    ).pushReplacement(Routes.reportSent, extra: 'IQ-HELP-2041');
+    GoRouter.of(tester.element(find.byType(Navigator).first))
+        .pushReplacement(Routes.reportSent, extra: 'IQ-HELP-2041');
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(find.text('Report sent'), findsOneWidget);

@@ -42,8 +42,7 @@ void main() {
   test('the intro stays short', () {
     expect(assessmentIntro, (
       title: 'Qualification test',
-      body:
-          'Twenty questions in four parts. Get enough right and you can take on challenges.',
+      body: 'Twenty questions in four parts. Get enough right and you can take on challenges.',
     ));
   });
 

@@ -36,8 +36,7 @@ int questionClockMs(Object? remainingMs) {
 
 const assessmentIntro = (
   title: 'Qualification test',
-  body:
-      'Twenty questions in four parts. Get enough right and you can take on challenges.',
+  body: 'Twenty questions in four parts. Get enough right and you can take on challenges.',
 );
 
 /// Discover row copy. Hidden after a pass or during a wait so nobody is

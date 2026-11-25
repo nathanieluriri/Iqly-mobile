@@ -145,9 +145,8 @@ class LivePollsService implements PollsService {
 
   @override
   Future<PollHistoryPage> history({String? cursor}) async {
-    final query = Uri(
-      queryParameters: {'limit': '50', 'cursor': ?cursor},
-    ).query;
+    final query = Uri(queryParameters: {'limit': '50', 'cursor': ?cursor})
+        .query;
     final res = await link.scope.guard(link.api.get('/polls/history?$query'));
     if (!res.ok) throw ApiRefused.of(res);
     return PollHistoryPage(

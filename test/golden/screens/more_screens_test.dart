@@ -346,9 +346,8 @@ void main() {
 
     testWidgets('484:23398 Restore your account?', (tester) async {
       await pumpMore(tester, Routes.accountClosing);
-      GoRouter.of(
-        tester.element(find.byType(Scaffold).first),
-      ).go(Routes.restoreAccount, extra: DateTime(2026, 11, 4));
+      GoRouter.of(tester.element(find.byType(Scaffold).first))
+          .go(Routes.restoreAccount, extra: DateTime(2026, 11, 4));
       await tester.pumpAndSettle();
       await moreGolden(tester, 'restore_account');
     });

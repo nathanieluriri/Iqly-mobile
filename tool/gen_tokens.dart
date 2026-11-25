@@ -104,9 +104,8 @@ String _argb(String hex) {
   return h.length == 8 ? '${h.substring(6)}${h.substring(0, 6)}' : 'FF$h';
 }
 
-String _snake(String name) => _ident(
-  name,
-).replaceAllMapped(RegExp('[A-Z0-9]+'), (m) => '_${m[0]!.toLowerCase()}');
+String _snake(String name) => _ident(name)
+    .replaceAllMapped(RegExp('[A-Z0-9]+'), (m) => '_${m[0]!.toLowerCase()}');
 
 /// Runs the generated source through dart format so the committed file is
 /// stable under the repo's format check.
@@ -427,9 +426,9 @@ String _round(double v) {
 /// layers with opacity, a clip or a layer blur as groups. Person parts use
 /// the slots the avatar record controls; buddies keep their variable names.
 String _generateAvatarArt() {
-  final bindings =
-      jsonDecode(File('$_avatarSource/bindings.json').readAsStringSync())
-          as Map<String, dynamic>;
+  final bindings = jsonDecode(
+    File('$_avatarSource/bindings.json').readAsStringSync(),
+  ) as Map<String, dynamic>;
   const parts = {
     'hair-back': 'hairBack',
     'hair-front': 'hairFront',
@@ -485,9 +484,8 @@ String _generateAvatarArt() {
         ),
     };
     final root = svg.children.firstWhere((e) => e.name == 'g');
-    final variant = RegExp(
-      r'^(?:Style|Expression|Kind)=(.+)$',
-    ).firstMatch(root.attrs['id']!)?[1];
+    final variant = RegExp(r'^(?:Style|Expression|Kind)=(.+)$')
+        .firstMatch(root.attrs['id']!)?[1];
     final nodes = _avatarNodes([root], null, fills, slot, clips, blurs);
     art.putIfAbsent(part, () => {})[variant ?? ''] =
         '<AvatarNode>[${nodes.join(', ')}]';
