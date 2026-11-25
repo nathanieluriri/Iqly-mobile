@@ -19,10 +19,12 @@ jobs:
         with:
           flutter-version: '3.50.0'
           cache: true
-      - run: flutter pub get --enforce-lockfile
+      - run: flutter pub get
       - run: dart run tool/gen_tokens.dart --check
       - run: dart format --output=none --set-exit-if-changed lib test tool
       - run: flutter analyze --no-fatal-infos
+      - name: Focused submission regressions
+        run: flutter test test/features/submission_viewer_test.dart test/features/illustrated_empty_states_test.dart
       - run: flutter test
       - name: Restore the upload key
         env:
