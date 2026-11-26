@@ -121,7 +121,8 @@ class ShorebirdReleaseWorkflowTest(unittest.TestCase):
             if step.get("name") == "Download existing AAB from Shorebird"
         )
         self.assertEqual(download["if"], "inputs.reuse_release")
-        self.assertIn("shorebird releases info", download["run"])
+        self.assertIn('/releases"', download["run"])
+        self.assertIn('select(.version == $version)', download["run"])
         self.assertIn("/releases/$release_id/artifacts", download["run"])
         self.assertIn('iqly-$version.aab', download["run"])
 
