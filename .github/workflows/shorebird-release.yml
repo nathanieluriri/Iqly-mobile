@@ -89,7 +89,7 @@ jobs:
           releaseFiles: iqly-*.aab
           tracks: ${{ inputs.track }}
           status: ${{ inputs.track == 'production' && 'draft' || 'completed' }}
-          changesNotSentForReview: true
+          changesNotSentForReview: ${{ inputs.track != 'production' && true || false }}
       - uses: actions/upload-artifact@v4
         with:
           name: iqly-release

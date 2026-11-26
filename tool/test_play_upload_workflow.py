@@ -122,7 +122,10 @@ class ShorebirdReleaseWorkflowTest(unittest.TestCase):
             upload["with"]["status"],
             "${{ inputs.track == 'production' && 'draft' || 'completed' }}",
         )
-        self.assertEqual(upload["with"]["changesNotSentForReview"], "true")
+        self.assertEqual(
+            upload["with"]["changesNotSentForReview"],
+            "${{ inputs.track != 'production' && true || false }}",
+        )
 
 
 if __name__ == "__main__":
