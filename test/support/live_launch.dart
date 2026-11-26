@@ -75,6 +75,7 @@ Future<(ProviderContainer, GoRouter)> pumpLiveLaunch(
   LocalStore? store,
   Map<String, Object>? prefs,
   Backend? mode,
+  KycService? kyc,
   List<Override> overrides = const [],
 }) async {
   tester.view.physicalSize = const Size(390, 844);
@@ -98,10 +99,7 @@ Future<(ProviderContainer, GoRouter)> pumpLiveLaunch(
       clockProvider.overrideWithValue(() => launchNow),
       routerProvider.overrideWithValue(router),
       apiClientProvider.overrideWithValue(api),
-      if (!overrides.any(
-        (override) => override.toString().startsWith('$kycServiceProvider.'),
-      ))
-        kycServiceProvider.overrideWithValue(_VerifiedKyc()),
+      kycServiceProvider.overrideWithValue(kyc ?? _VerifiedKyc()),
       localStoreProvider.overrideWithValue(
         store ?? MemoryLocalStore(clock: () => launchNow),
       ),

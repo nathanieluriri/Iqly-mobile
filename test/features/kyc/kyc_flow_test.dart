@@ -72,7 +72,7 @@ void main() {
         tester,
         Routes.home,
         api: FakeApi().api(),
-        overrides: [kycServiceProvider.overrideWithValue(kyc)],
+        kyc: kyc,
       );
       await tester.pumpAndSettle();
       expect(find.byType(KycNudge), findsOneWidget);
@@ -92,7 +92,7 @@ void main() {
       tester,
       Routes.more,
       api: FakeApi().api(),
-      overrides: [kycServiceProvider.overrideWithValue(kyc)],
+      kyc: kyc,
     );
     tester.view.physicalSize = const Size(1024, 844);
     await tester.pumpAndSettle();
@@ -111,7 +111,7 @@ void main() {
       tester,
       Routes.more,
       api: FakeApi().api(),
-      overrides: [kycServiceProvider.overrideWithValue(kyc)],
+      kyc: kyc,
     );
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Verification'));
@@ -127,7 +127,7 @@ void main() {
       tester,
       Routes.withdraw,
       api: FakeApi().api(),
-      overrides: [kycServiceProvider.overrideWithValue(kyc)],
+      kyc: kyc,
     );
     await tester.pumpAndSettle();
     expect(find.byType(withdraw.WithdrawEntry), findsOneWidget);
@@ -143,7 +143,7 @@ void main() {
       tester,
       Routes.withdraw,
       api: FakeApi().api(),
-      overrides: [kycServiceProvider.overrideWithValue(kyc)],
+      kyc: kyc,
     );
     await tester.pumpAndSettle();
     expect(
@@ -151,7 +151,13 @@ void main() {
       findsOneWidget,
     );
     expect(find.byType(WithdrawSheet), findsNothing);
-    expect(find.text('Try again'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(KycSheet),
+        matching: find.text('Try again'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('missing API service fails closed', (tester) async {
@@ -159,9 +165,7 @@ void main() {
       tester,
       Routes.withdraw,
       api: FakeApi().api(),
-      overrides: [
-        kycServiceProvider.overrideWithValue(UnavailableKycService()),
-      ],
+      kyc: UnavailableKycService(),
     );
     await tester.pumpAndSettle();
     expect(
@@ -186,7 +190,7 @@ void main() {
       tester,
       Routes.withdraw,
       api: FakeApi().api(),
-      overrides: [kycServiceProvider.overrideWithValue(kyc)],
+      kyc: kyc,
     );
     await tester.pumpAndSettle();
     expect(find.byType(KycSheet), findsOneWidget);
@@ -222,7 +226,7 @@ void main() {
       tester,
       Routes.withdraw,
       api: FakeApi().api(),
-      overrides: [kycServiceProvider.overrideWithValue(kyc)],
+      kyc: kyc,
     );
     await tester.pumpAndSettle();
     kyc.current = unverified;
@@ -247,7 +251,7 @@ void main() {
       tester,
       Routes.withdraw,
       api: FakeApi().api(),
-      overrides: [kycServiceProvider.overrideWithValue(kyc)],
+      kyc: kyc,
     );
     await tester.pumpAndSettle();
     kyc.failure = const KycRefused(KycProblem.unavailable);
@@ -267,12 +271,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [kycServiceProvider.overrideWithValue(kyc)],
-        child: const MaterialApp(
-          home: Scaffold(body: KycSheet(initialStatus: unverified)),
-        ),
+        child: const MaterialApp(home: Scaffold(body: KycSheet())),
       ),
     );
-    await tester.tap(find.text('Try again'));
     await tester.pumpAndSettle();
     expect(
       find.text('The identity check did not complete. Try again.'),
@@ -331,12 +332,13 @@ void main() {
     final first = Completer<KycStatus>();
     final second = Completer<KycStatus>();
     final third = Completer<KycStatus>();
-    final kyc = _QueuedKyc(unverified, [first, second, third]);
+    final kyc = _QueuedKyc(unverified, []);
     final container = ProviderContainer(
       overrides: [kycServiceProvider.overrideWithValue(kyc)],
     );
     container.listen(kycControllerProvider, (_, _) {});
     await Future<void>.delayed(Duration.zero);
+    kyc.responses.addAll([first, second, third]);
     final old = container.read(kycControllerProvider.notifier).refresh();
     final latest = container.read(kycControllerProvider.notifier).refresh();
     const ready = KycStatus(

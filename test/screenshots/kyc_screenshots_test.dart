@@ -51,32 +51,34 @@ Future<void> capture(WidgetTester tester, String name) async {
 }
 
 void main() {
-  testWidgets('writes deterministic 390x844 contributor KYC screenshots', (
-    tester,
-  ) async {
+  testWidgets('writes the Discover KYC screenshot', (tester) async {
     await pumpLiveLaunch(
       tester,
       Routes.home,
       api: FakeApi().api(),
-      overrides: [kycServiceProvider.overrideWithValue(ScreenshotKyc())],
+      kyc: ScreenshotKyc(),
     );
     await capture(tester, 'discover-kyc');
+  });
 
+  testWidgets('writes the More KYC screenshot', (tester) async {
     await pumpLiveLaunch(
       tester,
       Routes.more,
       api: FakeApi().api(),
-      overrides: [kycServiceProvider.overrideWithValue(ScreenshotKyc())],
+      kyc: ScreenshotKyc(),
     );
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Verification'));
     await capture(tester, 'more-kyc');
+  });
 
+  testWidgets('writes the withdrawal KYC screenshot', (tester) async {
     await pumpLiveLaunch(
       tester,
       Routes.withdraw,
       api: FakeApi().api(),
-      overrides: [kycServiceProvider.overrideWithValue(ScreenshotKyc())],
+      kyc: ScreenshotKyc(),
     );
     await capture(tester, 'withdrawal-kyc');
     expect(find.byType(KycSheet), findsOneWidget);

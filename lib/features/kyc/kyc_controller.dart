@@ -29,7 +29,7 @@ class KycController extends Notifier<KycState> {
     try {
       final status = await (service ?? this.service).status();
       if (!_current(request)) return null;
-      state = KycState(status: status);
+      state = KycState(status: status, loading: false);
       return status;
     } on KycRefused catch (error) {
       if (_current(request)) {
@@ -62,7 +62,7 @@ class KycController extends Notifier<KycState> {
     try {
       final status = await send(target);
       if (!_current(request)) return null;
-      state = KycState(status: status);
+      state = KycState(status: status, loading: false);
       return status;
     } on KycRefused catch (error) {
       if (_current(request)) {
