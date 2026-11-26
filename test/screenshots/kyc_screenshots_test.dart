@@ -38,16 +38,19 @@ Future<void> capture(WidgetTester tester, String name) async {
   final boundary = tester.renderObject<RenderRepaintBoundary>(
     find.byKey(const ValueKey('app-surface')),
   );
-  final image = await boundary.toImage(pixelRatio: 1);
-  expect(image.width, 390);
-  expect(image.height, 844);
-  final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-  image.dispose();
-  final directory = Directory('build/kyc-screenshots');
-  await directory.create(recursive: true);
-  final file = File('${directory.path}/$name.png');
-  await file.writeAsBytes(bytes!.buffer.asUint8List());
-  expect(await file.exists(), isTrue);
+  final saved = await tester.runAsync(() async {
+    final image = await boundary.toImage(pixelRatio: 1);
+    expect(image.width, 390);
+    expect(image.height, 844);
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    final directory = Directory('build/kyc-screenshots');
+    await directory.create(recursive: true);
+    final file = File('${directory.path}/$name.png');
+    await file.writeAsBytes(bytes!.buffer.asUint8List());
+    return file.exists();
+  });
+  expect(saved, isTrue);
 }
 
 void main() {

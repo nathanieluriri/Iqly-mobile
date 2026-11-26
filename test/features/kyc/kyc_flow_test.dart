@@ -107,12 +107,7 @@ void main() {
     tester,
   ) async {
     final kyc = FakeKyc(unverified);
-    await pumpLiveLaunch(
-      tester,
-      Routes.more,
-      api: FakeApi().api(),
-      kyc: kyc,
-    );
+    await pumpLiveLaunch(tester, Routes.more, api: FakeApi().api(), kyc: kyc);
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Verification'));
     await tester.pumpAndSettle();

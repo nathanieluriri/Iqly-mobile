@@ -20,24 +20,15 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - name: Format KYC files with the CI SDK
-        run: dart format lib/features/kyc/kyc_controller.dart lib/features/kyc/kyc_nudge.dart lib/features/more/more_screen.dart test/features/kyc/kyc_flow_test.dart test/screenshots/kyc_screenshots_test.dart test/support/live_launch.dart
-      - name: Upload CI-formatted KYC files
-        uses: actions/upload-artifact@v4
-        with:
-          name: ci-formatted-kyc
-          path: |
-            lib/features/kyc/kyc_controller.dart
-            lib/features/kyc/kyc_nudge.dart
-            lib/features/more/more_screen.dart
-            test/features/kyc/kyc_flow_test.dart
-            test/screenshots/kyc_screenshots_test.dart
-            test/support/live_launch.dart
       - run: dart run tool/gen_tokens.dart --check
       - run: dart format --output=none --set-exit-if-changed lib test tool
       - run: flutter analyze --no-fatal-infos
-      - name: Verify KYC and withdrawal flows
-        run: flutter test test/features/kyc/kyc_flow_test.dart test/screenshots/kyc_screenshots_test.dart test/features/wallet_flow_test.dart
+      - name: Verify KYC flow
+        run: flutter test test/features/kyc/kyc_flow_test.dart
+      - name: Verify withdrawal flow
+        run: flutter test test/features/wallet_flow_test.dart
+      - name: Generate KYC screenshots
+        run: flutter test test/screenshots/kyc_screenshots_test.dart
       - name: Upload KYC screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -46,13 +37,6 @@ jobs:
           path: build/kyc-screenshots/*.png
           if-no-files-found: error
       - run: flutter test
-      - name: Upload KYC screenshots
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: kyc-screenshots
-          path: build/kyc-screenshots/*.png
-          if-no-files-found: error
       - name: Restore the upload key
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
