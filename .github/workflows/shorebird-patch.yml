@@ -28,9 +28,24 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
       - uses: shorebirdtech/setup-shorebird@v1
         with:
           cache: true
+      - run: flutter pub get
+      - name: Check Shorebird token
+        run: |
+          if [ -z "$SHOREBIRD_TOKEN" ]; then
+            echo "SHOREBIRD_TOKEN is required" >&2
+            exit 1
+          fi
+      - run: dart run tool/gen_tokens.dart --check
+      - run: dart format --output=none --set-exit-if-changed lib test tool
+      - run: flutter analyze
+      - run: flutter test
       - name: Restore the upload key
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}

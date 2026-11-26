@@ -74,6 +74,70 @@ IqPollOptionState _option(WidgetTester tester, String label) => tester
 List<Draft> _drafts(DemoRepository repository) => repository.data.drafts;
 
 void main() {
+  testWidgets('B3: each deliverable has a page, review and one final send', (
+    tester,
+  ) async {
+    late DemoSubmitService service;
+    await pumpApp(
+      tester,
+      Routes.submitTo('c10'),
+      repository: draftsRepository(),
+      overrides: instantSubmit(created: (s) => service = s),
+    );
+    expect(find.text('Deliverable 1 of 2'), findsOneWidget);
+    expect(find.text('Next deliverable'), findsOneWidget);
+    expect(find.text('Submit response'), findsNothing);
+
+    await _tap(tester, find.text('Next deliverable'));
+    expect(find.text('20 more characters'), findsOneWidget);
+    await _type(
+      tester,
+      _field('Describe your print & colour'),
+      'A phone stand for my desk, printed in matte black PLA.',
+    );
+    await _tap(tester, find.text('Next deliverable'));
+    expect(find.text('Deliverable 2 of 2'), findsOneWidget);
+    await _type(
+      tester,
+      _field('What would make you buy again?'),
+      'A smooth matte finish and consistent colour between batches.',
+    );
+    await _tap(tester, find.text('Review answers'));
+    expect(find.text('2 of 2 answered'), findsOneWidget);
+    expect(find.text('Edit answer'), findsNWidgets(2));
+    expect(
+      find.text('A phone stand for my desk, printed in matte black PLA.'),
+      findsOneWidget,
+    );
+
+    await _tap(tester, find.text('Edit answer').first);
+    expect(find.text('Deliverable 1 of 2'), findsOneWidget);
+    await _type(
+      tester,
+      _field('Describe your print & colour'),
+      'A desk organiser printed in matte black PLA for my studio.',
+    );
+    await _tap(tester, find.text('Next deliverable'));
+    await _tap(tester, find.text('Review answers'));
+    expect(
+      find.text('A desk organiser printed in matte black PLA for my studio.'),
+      findsOneWidget,
+    );
+
+    await _tap(tester, find.text('Submit response'));
+    expect(find.text('Submitted. Good luck!'), findsOneWidget);
+    expect(service.requests, hasLength(1));
+    final request = service.requests.single;
+    expect(request.answers['deliverable_1'], [
+      'A desk organiser printed in matte black PLA for my studio.',
+    ]);
+    expect(request.answers['deliverable_2'], [
+      'A smooth matte finish and consistent colour between batches.',
+    ]);
+    expect(request.answer, contains('Describe your print & colour'));
+    expect(request.answer, contains('What would make you buy again?'));
+  });
+
   testWidgets(
     'B3: More holds View the brief, which opens the brief sheet; Back to '
     'writing and the scrim return to the draft as it was',

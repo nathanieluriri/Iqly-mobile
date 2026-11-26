@@ -22,6 +22,36 @@ import 'submit_state.dart';
 /// to send" (490:24270). A brief without questions is "One step"
 /// (1589:134761).
 SubmitGuide guideOf(SubmitFlow flow, SubmitForm form) {
+  if (flow.step == SubmitStep.deliverables) {
+    final index = flow.deliverableIndex;
+    final missing =
+        SubmitLimits.answerMin - deliverableAnswerLength(flow.draft, index);
+    return SubmitGuide(
+      words: deliverableAnswerReady(flow.draft, index)
+          ? 'Ready for the next step'
+          : flow.answerTries > 0
+          ? moreCharacters(missing)
+          : moreCharactersToGo(missing),
+      step: 'Deliverable ${index + 1} of ${form.deliverables.length}',
+      state: deliverableAnswerReady(flow.draft, index)
+          ? SubmitGuideState.ready
+          : flow.answerTries > 0
+          ? SubmitGuideState.error
+          : SubmitGuideState.progress,
+    );
+  }
+  if (flow.step == SubmitStep.review) {
+    final answered = form.deliverables.indexed
+        .where((entry) => deliverableAnswerReady(flow.draft, entry.$1))
+        .length;
+    return SubmitGuide(
+      words: '$answered of ${form.deliverables.length} answered',
+      step: 'Review and submit',
+      state: answered == form.deliverables.length
+          ? SubmitGuideState.ready
+          : SubmitGuideState.progress,
+    );
+  }
   final steps = form.hasQuestions ? 2 : 1;
   if (flow.step == SubmitStep.questions) {
     final missing = firstUnanswered(form, flow.draft);

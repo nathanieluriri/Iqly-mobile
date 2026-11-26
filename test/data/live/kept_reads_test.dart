@@ -150,9 +150,9 @@ void main() {
         '3 s, not the 20 s timeout', () {
       fakeAsync((async) {
         List<Object?>? got;
-        repository(
-          _api((_) => null),
-        ).briefs(load: BriefsLoad.feed).then((v) => got = v);
+        repository(_api((_) => null))
+            .briefs(load: BriefsLoad.feed)
+            .then((v) => got = v);
         async.elapse(const Duration(milliseconds: 2900));
         expect(got, isNull);
         async.elapse(const Duration(milliseconds: 100));
@@ -188,9 +188,9 @@ void main() {
     test('an answer that lands after the wait is kept for next time', () {
       fakeAsync((async) {
         final late = Completer<http.Response>();
-        repository(
-          _api((_) => late.future),
-        ).briefs(load: BriefsLoad.feed).ignore();
+        repository(_api((_) => late.future))
+            .briefs(load: BriefsLoad.feed)
+            .ignore();
         async.elapse(const Duration(seconds: 3));
         late.complete(
           _json(200, {
@@ -256,7 +256,10 @@ void main() {
         link
             .fetch('/polls', AccountKeys.polls, allowCache: false)
             .then((v) => polls = v)
-            .catchError((Object e) => pollsError = e);
+            .catchError((Object e) {
+              pollsError = e;
+              return <String, dynamic>{};
+            });
         link
             .fetchDated(
               '/activations',
@@ -264,7 +267,10 @@ void main() {
               allowCache: false,
             )
             .then((v) => activations = v.json)
-            .catchError((Object e) => activationsError = e);
+            .catchError((Object e) {
+              activationsError = e;
+              return <String, dynamic>{};
+            });
         async.elapse(const Duration(seconds: 3));
         expect(polls, isNull);
         expect(activations, isNull);

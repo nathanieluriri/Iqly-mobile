@@ -377,6 +377,7 @@ SubmitForm submitFormFromJson(Object? json) {
   final j = _map(json);
   final formats = _map(j?['acceptedFormats']);
   return SubmitForm(
+    deliverables: rowsOf(j?['deliverables'], _text),
     questions: rowsOf(
       _map(j?['audienceSurvey'])?['questions'],
       surveyQuestionFromJson,

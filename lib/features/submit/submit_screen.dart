@@ -31,6 +31,7 @@ import 'submit_sent.dart';
 import 'submit_state.dart';
 import 'tablet_submit.dart';
 import '../shell/tablet_page.dart';
+import 'deliverable_steps.dart';
 import 'submit_steps.dart';
 import 'submit_widgets.dart';
 
@@ -175,7 +176,10 @@ class _FlowState extends ConsumerState<_Flow> {
     switch (flow.step) {
       case SubmitStep.sent:
         leaveSubmit(context, _id);
-      case SubmitStep.questions:
+      case SubmitStep.deliverables when flow.deliverableIndex == 0:
+        FocusScope.of(context).unfocus();
+        leaveSubmit(context, _id);
+      case SubmitStep.deliverables || SubmitStep.questions || SubmitStep.review:
         FocusScope.of(context).unfocus();
         ref.read(submitFlowProvider(_id).notifier).back();
       case SubmitStep.answer:
@@ -185,7 +189,23 @@ class _FlowState extends ConsumerState<_Flow> {
   }
 
   void _continue() {
-    if (!_form.hasQuestions) {
+    final flow = ref.read(submitFlowProvider(_id));
+    if (_form.hasDeliverables && flow.step == SubmitStep.deliverables) {
+      if (ref.read(submitFlowProvider(_id).notifier).nextDeliverable()) {
+        FocusScope.of(context).unfocus();
+      } else {
+        IqHaptics.error.play();
+      }
+      return;
+    }
+    if (_form.hasDeliverables &&
+        flow.step == SubmitStep.review &&
+        _form.hasQuestions) {
+      ref.read(submitFlowProvider(_id).notifier).continueToQuestions();
+      FocusScope.of(context).unfocus();
+      return;
+    }
+    if (!_form.hasQuestions || flow.step == SubmitStep.review) {
       _send();
       return;
     }
@@ -310,7 +330,11 @@ class _FlowState extends ConsumerState<_Flow> {
       );
     }
     return PopScope(
-      canPop: flow.step != SubmitStep.questions || block != null,
+      canPop:
+          !flow.step.goesBack ||
+          (flow.step == SubmitStep.deliverables &&
+              flow.deliverableIndex == 0) ||
+          block != null,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _back();
       },
@@ -400,9 +424,65 @@ class _FormState extends State<_Form> {
     final flow = widget.flow;
     final form = widget.form;
     final answering = flow.step == SubmitStep.answer;
-    final sends = !answering || !form.hasQuestions;
-    final label = sends ? 'Submit' : 'Continue';
+    final delivering =
+        flow.step == SubmitStep.deliverables || flow.step == SubmitStep.review;
+    final sends =
+        (!answering || !form.hasQuestions) &&
+        flow.step != SubmitStep.deliverables &&
+        flow.step != SubmitStep.review;
+    final label = flow.step == SubmitStep.review
+        ? (form.hasQuestions ? 'Continue' : 'Submit response')
+        : flow.step == SubmitStep.deliverables
+        ? (flow.deliverableIndex == form.deliverables.length - 1
+              ? 'Review answers'
+              : 'Next deliverable')
+        : sends
+        ? 'Submit'
+        : 'Continue';
     final guide = SubmitGuide.extentOf(context);
+    if (delivering) {
+      final content = flow.step == SubmitStep.deliverables
+          ? DeliverableStep(
+              key: ValueKey(flow.deliverableIndex),
+              briefId: widget.brief.id,
+              index: flow.deliverableIndex,
+              prompt: form.deliverables[flow.deliverableIndex],
+              flow: flow,
+            )
+          : DeliverableReview(
+              key: const ValueKey('review'),
+              briefId: widget.brief.id,
+              deliverables: form.deliverables,
+              flow: flow,
+            );
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DeliverableHeader(
+            brief: widget.brief,
+            form: form,
+            flow: flow,
+            onBack: widget.onBack,
+            onMore: widget.onMore,
+          ),
+          Expanded(
+            child: StepSwitcher(back: flow.back, child: content),
+          ),
+          SubmitActionBar(
+            children: [
+              IqButton(
+                key: ValueKey(label),
+                label: label,
+                showIcon: true,
+                width: double.infinity,
+                loading: flow.sending,
+                onTap: widget.onContinue,
+              ),
+            ],
+          ),
+        ],
+      );
+    }
     if (Layout.isTablet(context)) {
       return TabletSubmitLayout(
         brief: widget.brief,

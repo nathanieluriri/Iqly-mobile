@@ -24,6 +24,9 @@ import '../../ui/pressable.dart';
 import '../../ui/ticket_card.dart';
 import '../../ui/web_filter_option.dart';
 import '../../ui/web_range_field.dart';
+import '../drafts/drafts_state.dart';
+import '../kyc/kyc_controller.dart';
+import '../kyc/kyc_nudge.dart';
 import '../shell/tablet_page.dart';
 import '../shell/tablet_popover.dart';
 import 'business_art.dart';
@@ -84,8 +87,10 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
     final feed = ref.watch(discoverFeedProvider);
     final now = ref.watch(clockProvider)();
     final saved = widget.savedRoute || ref.watch(tabletSavedLensProvider);
+    final lens = ref.watch(discoverFiltersProvider.select((f) => f.lens));
     final sort = ref.watch(discoverFiltersProvider.select((f) => f.sort));
-    final forYou = !saved && sort == FeedSort.myInterests;
+    final pickUp = !saved && lens == FeedLens.pickUp;
+    final forYou = !saved && lens == FeedLens.forYou;
     final filters = ref.watch(tabletFiltersProvider);
     final savedBriefs = ref.watch(savedBriefsProvider).value ?? const [];
     final briefs = feed.value?.briefs;
@@ -93,7 +98,27 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
       for (final b in briefs ?? const <Brief>[])
         if (b.isLive) b,
     ];
-    final source = saved ? savedBriefs : live;
+    final drafts = ref.watch(draftsProvider).value ?? const [];
+    final kyc = ref.watch(kycControllerProvider).status;
+    final showPickUp = hasPickUpDrafts(drafts);
+    ref.listen(draftsProvider, (previous, next) {
+      if (!hasPickUpDrafts(next.value ?? const []) &&
+          ref.read(discoverFiltersProvider).pickUp) {
+        ref.read(discoverFiltersProvider.notifier).showForYou();
+      }
+    });
+    final draftIds = {
+      for (final d in drafts)
+        if (!d.isEmpty) d.briefId,
+    };
+    final source = saved
+        ? savedBriefs
+        : pickUp
+        ? [
+            for (final b in live)
+              if (draftIds.contains(b.id)) b,
+          ]
+        : live;
     final matching = [
       for (final b in source)
         if (filters.matches(b, now)) b,
@@ -102,12 +127,16 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
 
     final subtitle = saved
         ? '${savedBriefs.length} saved ${savedBriefs.length == 1 ? 'brief' : 'briefs'}.'
+        : pickUp
+        ? '${matching.length} to pick up.'
         : forYou
         ? '${live.length} live briefs, your interests first.'
         : '${live.length} live briefs.';
 
     final toolbar = _toolbar(
       saved: saved,
+      showPickUp: showPickUp,
+      pickUp: pickUp,
       forYou: forYou,
       sort: sort,
       count: briefs == null ? null : matching.length,
@@ -118,6 +147,13 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
     final chips = filters.chips();
 
     final children = <Widget>[
+      if (kyc != null)
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: KycNudge(status: kyc),
+          ),
+        ),
       toolbar,
       if (chips.isNotEmpty)
         Wrap(
@@ -142,7 +178,12 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
       else if (briefs == null)
         ..._loading(forYou: forYou, expanded: expanded)
       else if (matching.isEmpty)
-        _empty(saved: saved, narrowed: filters.narrowed, forYou: forYou)
+        _empty(
+          saved: saved,
+          narrowed: filters.narrowed,
+          forYou: forYou,
+          pickUp: pickUp,
+        )
       else
         ..._results(
           matching,
@@ -167,6 +208,8 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
 
   Widget _toolbar({
     required bool saved,
+    required bool showPickUp,
+    required bool pickUp,
     required bool forYou,
     required FeedSort sort,
     required int? count,
@@ -193,6 +236,15 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
       children: [
         IqBizSegment.track(
           children: [
+            if (showPickUp)
+              IqBizSegment(
+                label: 'Pick up',
+                state: state(pickUp),
+                onTap: () {
+                  leaveSaved();
+                  lens.showPickUp();
+                },
+              ),
             IqBizSegment(
               label: 'For you',
               state: state(forYou),
@@ -203,7 +255,7 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
             ),
             IqBizSegment(
               label: 'All',
-              state: state(!saved && !forYou),
+              state: state(!saved && !forYou && !pickUp),
               onTap: () {
                 leaveSaved();
                 lens.showAll();
@@ -217,16 +269,16 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
               ),
           ],
         ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
+        Wrap(
+          spacing: IqSpace.s3,
+          runSpacing: IqSpace.s2,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            if (count != null) ...[
+            if (count != null)
               Text(
                 '$count ${count == 1 ? 'brief' : 'briefs'}',
                 style: IqWebText.bodySmall.copyWith(color: IqColors.fg3),
               ),
-              const SizedBox(width: IqSpace.s3),
-            ],
             TabletPopover(
               open: _open != _Open.none,
               onClose: _close,
@@ -311,7 +363,17 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
     required bool saved,
     required bool narrowed,
     required bool forYou,
+    required bool pickUp,
   }) {
+    if (pickUp) {
+      return IqEmptyState(
+        figure: IqFigures.shrug,
+        title: 'Nothing to pick up',
+        body: 'Briefs you start land here.',
+        action: 'See For you',
+        onAction: () => ref.read(discoverFiltersProvider.notifier).showForYou(),
+      );
+    }
     if (narrowed) {
       return IqEmptyState(
         figure: IqFigures.shrug,
@@ -356,7 +418,10 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
     final interests = ref.watch(feedInterestsProvider);
     final view = buildFeed(
       briefs: matching,
-      filters: DiscoverFilters(sort: forYou ? FeedSort.myInterests : sort),
+      filters: DiscoverFilters(
+        lens: forYou ? FeedLens.forYou : FeedLens.all,
+        sort: forYou ? FeedSort.myInterests : sort,
+      ),
       interests: interests,
       now: now,
       window: matching.length,

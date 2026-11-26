@@ -8,6 +8,7 @@ import 'package:iqly_mobile/core/deadline.dart';
 import 'package:iqly_mobile/core/motion.dart';
 import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/core/transitions.dart';
+import 'package:iqly_mobile/data/kyc_service.dart';
 import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/submissions/submission_widgets.dart'
@@ -55,6 +56,7 @@ Future<GoRouter> _pumpApp(
       sharedPreferencesProvider.overrideWithValue(prefs),
       repositoryProvider.overrideWithValue(repository ?? WalletRepository()),
       clockProvider.overrideWithValue(() => figmaNow),
+      kycServiceProvider.overrideWithValue(DemoKycService()),
       activationsServiceProvider.overrideWithValue(
         DemoActivationsService(
           clock: () => figmaNow,
