@@ -127,9 +127,25 @@ void main() {
         KycStatus(
           required: true,
           verified: true,
+          tier: 1,
+          requiredTier: 2,
+          nextCheck: KycCheckKind.none,
+        ),
+        'kyc-illustration-evidence',
+      ),
+      (
+        KycStatus(
+          required: true,
+          verified: true,
           tier: 2,
           requiredTier: 2,
           nextCheck: KycCheckKind.none,
+          checks: {
+            KycCheckKind.identity: KycCheckState.passed,
+            KycCheckKind.bankMatch: KycCheckState.passed,
+            KycCheckKind.amlIndividual: KycCheckState.passed,
+            KycCheckKind.document: KycCheckState.passed,
+          },
         ),
         'kyc-illustration-success',
       ),
@@ -140,7 +156,9 @@ void main() {
           child: MaterialApp(
             home: Scaffold(
               body: KycSheet(
-                key: ValueKey(status.nextCheck),
+                key: ValueKey(
+                  '${status.nextCheck}-${status.tier}-${status.requiredTier}',
+                ),
                 initialStatus: status,
               ),
             ),
