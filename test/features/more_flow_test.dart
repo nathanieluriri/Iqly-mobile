@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:iqly_mobile/data/app_version.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
+import 'package:iqly_mobile/data/device.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/entry/landing_screen.dart';
 import 'package:iqly_mobile/features/more/more_screen.dart';
@@ -54,6 +56,7 @@ void main() {
       'dock and Back returns to it', (tester) async {
     await pumpMore(tester, Routes.more);
     expect(find.byType(MoreScreen), findsOneWidget);
+    expect(find.text('Check for updates'), findsOneWidget);
     expect(
       tester.widget<IqDock>(find.byType(IqDock)).active,
       IqDockActive.more,
@@ -126,21 +129,21 @@ void main() {
     await tester.pump(const Duration(minutes: 1));
   });
 
-  testWidgets('the summary card foots to the account: 1,240 iQL points, '
+  testWidgets('the summary card foots to the account: 1,240 iQ points, '
       '#7 this month on the points board and the invite code', (tester) async {
     final container = await pumpMore(tester, Routes.more);
     final board = await container.read(repositoryProvider).pointsLeaderboard();
     expect(board.you?.rank, 7);
     expect(board.you?.points, 1240);
     expect(find.text('1,240'), findsOneWidget);
-    expect(find.text('iQL points'), findsOneWidget);
+    expect(find.text('iQ points'), findsOneWidget);
     expect(find.text('#7'), findsOneWidget);
     expect(find.text('this month'), findsOneWidget);
     expect(find.text('ADAEZE24'), findsOneWidget);
     expect(find.text('Invite friends, earn ₦500'), findsOneWidget);
   });
 
-  testWidgets('the pass reads iQL points through the repository', (
+  testWidgets('the pass reads iQ points through the repository', (
     tester,
   ) async {
     await pumpMore(tester, Routes.more, repository: _PointsRepository(98765));
@@ -395,6 +398,48 @@ void main() {
     expect(find.textContaining('Ticket IQ-HELP-2041.'), findsOneWidget);
     await _tap(tester, find.text('Back to Help'));
     expect(_path(tester), Routes.helpCentre);
+  });
+
+  testWidgets('Check for updates says so when this build is current', (
+    tester,
+  ) async {
+    await pumpMore(tester, Routes.more);
+    await tester.ensureVisible(find.text('Check for updates'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Check for updates'));
+    await tester.pumpAndSettle();
+    expect(find.text("You're up to date"), findsOneWidget);
+  });
+
+  testWidgets('Check for updates offers a store build when one is waiting', (
+    tester,
+  ) async {
+    final device = DemoDeviceService(delay: Duration.zero);
+    const url = 'https://play.google.com/store/apps/details?id=net.iqly.app';
+    await pumpMore(
+      tester,
+      Routes.more,
+      device: device,
+      overrides: [
+        appVersionServiceProvider.overrideWithValue(
+          DemoAppVersionService(
+            AppRelease(
+              installed: '0.6.2+9',
+              status: UpdateStatus.available,
+              latest: '0.6.3+10',
+              updateUrl: Uri.parse(url),
+            ),
+          ),
+        ),
+      ],
+    );
+    await tester.ensureVisible(find.text('Check for updates'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Check for updates'));
+    await tester.pumpAndSettle();
+    expect(find.text('A new version is available'), findsOneWidget);
+    await _tap(tester, find.text('Update iQLY'));
+    expect(device.opened.single.toString(), url);
   });
 }
 

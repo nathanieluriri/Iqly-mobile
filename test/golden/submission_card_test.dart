@@ -29,7 +29,7 @@ void main() {
         width: 358,
         child: IqSubmissionCard(
           statusKind: IqMetaKind.deadline,
-          statusLabel: 'Closes in 20 days',
+          statusLabel: '20 days left',
           sent: 'Sent 1 day ago',
         ),
       ),
@@ -47,7 +47,7 @@ void main() {
         width: 358,
         child: IqSubmissionCard(
           status: IqSubmissionCardStatus.notSelected,
-          statusLabel: 'Didn’t pass screening',
+          statusLabel: 'Rejected',
           sent: 'Sent 20 days ago',
         ),
       ),

@@ -65,7 +65,7 @@ class _MyActivationsScreenState extends ConsumerState<MyActivationsScreen> {
     final active = [
       for (final a in all)
         if (a.started && !ended(a)) a,
-    ]..sort((a, b) => a.closesAt.compareTo(b.closesAt));
+    ]..sort((a, b) => compareActivationCloses(a, b, latest: false));
     final done = [
       for (final a in all)
         if (a.started && ended(a)) a,
@@ -136,7 +136,10 @@ class _MyActivationsScreenState extends ConsumerState<MyActivationsScreen> {
     );
   }
 
-  static DateTime _doneAt(Activation a) => a.progress?.paidAt ?? a.closesAt;
+  static DateTime _doneAt(Activation a) =>
+      a.progress?.paidAt ??
+      a.closesAt ??
+      DateTime.fromMillisecondsSinceEpoch(0);
 }
 
 class _Cards extends StatelessWidget {

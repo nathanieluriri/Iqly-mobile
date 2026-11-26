@@ -703,7 +703,11 @@ void main() {
         _link(api, store, outbox),
         wait: const Duration(seconds: 5),
       );
-      final service = LiveSubmitService(api.api(), queue: queue);
+      final service = LiveSubmitService(
+        api.api(),
+        queue: queue,
+        clock: () => _now,
+      );
       await service.open('c_1');
       api.offline = true;
 

@@ -16,7 +16,7 @@ enum IqSubmissionCardStatus { underReview, winner, notSelected }
 /// Not selected dims the photo to .6.
 ///
 /// [statusLabel] overrides the chip text ("Won ₦50,000") and [statusKind]
-/// its Exp/Meta kind, as the B4 frames do (Deadline "Closes in 20 days").
+/// its Exp/Meta kind, as the B4 frames do (Deadline "20 days left").
 /// The chip and the sent line wrap (gap 8, rows 6 apart).
 class IqSubmissionCard extends StatelessWidget {
   const IqSubmissionCard({

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -707,30 +708,13 @@ class ActivationProofSide extends StatelessWidget {
                 divider: false,
               ),
               const SizedBox(height: IqSpace.s2),
-              if (a.perStep)
-                Text(
-                  perStepLine(a),
-                  style: IqText.small.copyWith(color: IqColors.fg2),
-                )
-              else
-                Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: 'Earn ${reward(a)}',
-                        style: IqText.bodyStrong.copyWith(
-                          color: IqColors.brand,
-                        ),
-                      ),
-                      TextSpan(
-                        text:
-                            '  when all ${a.steps.length} steps are '
-                            'confirmed',
-                        style: IqText.small.copyWith(color: IqColors.fg2),
-                      ),
-                    ],
-                  ),
-                ),
+              Text(
+                a.perStep
+                    ? perStepLine(a)
+                    : 'Earn ${reward(a)} when all ${a.steps.length} '
+                          'steps are confirmed',
+                style: IqText.body.copyWith(color: IqColors.fg),
+              ),
             ],
           ),
         ),
@@ -770,13 +754,11 @@ class _RewardPanel extends StatelessWidget {
           const SizedBox(height: IqSpace.s2),
           Text(reward(a), style: IqText.figure.copyWith(color: IqColors.brand)),
           const SizedBox(height: IqSpace.s2),
-          Text(
-            a.perStep
-                ? perStepLine(a)
-                : 'Paid to your iQLY wallet once ${a.business} '
-                      'confirms, usually within 24 hours.',
-            style: IqText.small.copyWith(color: IqColors.fg2),
-          ),
+          if (a.perStep)
+            Text(
+              perStepLine(a),
+              style: IqText.small.copyWith(color: IqColors.fg2),
+            ),
           if (a.spotsTotal > 0) ...[
             const SizedBox(height: IqSpace.s3),
             Text(
@@ -806,8 +788,8 @@ class _RewardPanel extends StatelessWidget {
   }
 }
 
-/// The business beside its name and "Activation". A name from the API can
-/// run long, so it gives way with an ellipsis.
+/// The business beside its name. A name from the API can run long, so it
+/// gives way with an ellipsis.
 class _BrandRow extends StatelessWidget {
   const _BrandRow({required this.activation, this.logo = true});
 
@@ -831,8 +813,6 @@ class _BrandRow extends StatelessWidget {
               style: IqText.smallStrong.copyWith(color: IqColors.fg),
             ),
           ),
-          const SizedBox(width: 10),
-          Text('Activation', style: IqText.small.copyWith(color: IqColors.fg3)),
         ],
       ),
     );
@@ -875,6 +855,7 @@ class _OfferPage extends StatelessWidget {
     final a = activation;
     final ended = a.closedAt(now) || unstartable == _Unstartable.ended;
     final paused = !ended && (a.paused || unstartable == _Unstartable.paused);
+    final full = !ended && a.full;
     return _Page(
       activation: activation,
       title: 'Activation',
@@ -918,8 +899,10 @@ class _OfferPage extends StatelessWidget {
                   style: IqText.headline.copyWith(color: IqColors.fg),
                 ),
                 Wrap(
-                  spacing: IqSpace.s1p5,
-                  runSpacing: IqSpace.s1p5,
+                  spacing: MediaQuery.sizeOf(context).width >= 420
+                      ? IqSpace.s5
+                      : IqSpace.s3,
+                  runSpacing: IqSpace.s2,
                   children: [
                     IqMeta(kind: IqMetaKind.reward, label: offerReward(a)),
                     IqMeta(kind: IqMetaKind.time, label: minutesText(a)),
@@ -931,13 +914,21 @@ class _OfferPage extends StatelessWidget {
                     ),
                   ],
                 ),
-                Text(
-                  a.perStep
-                      ? perStepLine(a)
-                      : 'Paid to your iQLY wallet once ${a.business} '
-                            'confirms, usually within 24 hours.',
-                  style: IqText.body.copyWith(color: IqColors.fg),
-                ),
+                if (a.perStep)
+                  Text(
+                    perStepLine(a),
+                    style: IqText.body.copyWith(color: IqColors.fg),
+                  ),
+                if (full) ...[
+                  Text(
+                    'Full',
+                    style: IqText.bodyStrong.copyWith(color: IqColors.fg),
+                  ),
+                  Text(
+                    'No spots left',
+                    style: IqText.body.copyWith(color: IqColors.fg2),
+                  ),
+                ],
                 const IqSectionTitle(title: 'What to do', showLink: false),
                 for (final (i, step) in a.steps.indexed)
                   IqStepRow(
@@ -959,6 +950,8 @@ class _OfferPage extends StatelessWidget {
               ? 'This activation has ended'
               : paused
               ? 'This activation is paused'
+              : full
+              ? 'Full'
               : 'Start activation',
           showIcon: false,
           width: double.infinity,
@@ -1035,6 +1028,347 @@ class _Header extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A finished run: cover and logo, then the name and title, no
+/// "Activation" label and no "Completed N of N steps". A long page pins
+/// the top bar and lets the cover scroll away.
+class _CompletedHistory extends StatelessWidget {
+  const _CompletedHistory({
+    required this.activation,
+    required this.onBack,
+    required this.steps,
+  });
+
+  final Activation activation;
+  final VoidCallback onBack;
+  final List<Widget> steps;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = activation;
+    final paid = a.perStep
+        ? a.progress!.stepPayouts.fold<int>(
+            0,
+            (sum, payout) => sum + payout.kobo,
+          )
+        : a.rewardKobo;
+    final heading = [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(
+          IqSpace.s4,
+          IqSpace.s3,
+          IqSpace.s4,
+          0,
+        ),
+        child: _BrandRow(activation: a, logo: false),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(
+          IqSpace.s4,
+          IqSpace.s2,
+          IqSpace.s4,
+          0,
+        ),
+        child: Text(a.title, style: IqText.title.copyWith(color: IqColors.fg)),
+      ),
+    ];
+    final details = [
+      const Padding(
+        padding: EdgeInsets.fromLTRB(IqSpace.s4, IqSpace.s4, IqSpace.s4, 0),
+        child: IqSectionTitle(title: 'Completed steps', showLink: false),
+      ),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
+        child: Column(children: steps),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(
+          IqSpace.s4,
+          IqSpace.s4,
+          IqSpace.s4,
+          IqSpace.s2,
+        ),
+        child: Text(
+          '${rewardPool(paid)} paid to your wallet',
+          style: IqText.bodyStrong.copyWith(color: IqColors.brand),
+        ),
+      ),
+      if (a.completedCount case final int count?)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            IqSpace.s4,
+            0,
+            IqSpace.s4,
+            IqSpace.s6,
+          ),
+          child: Text(
+            '$count ${count == 1 ? 'person' : 'people'} completed this activation.',
+            style: IqText.small.copyWith(color: IqColors.fg2),
+          ),
+        )
+      else
+        const SizedBox(height: IqSpace.s6),
+    ];
+    if (Layout.isTablet(context)) {
+      return _Page(
+        title: a.business,
+        onBack: onBack,
+        body: _Body(
+          padding: EdgeInsets.zero,
+          children: [
+            _Hero(
+              child: IqBriefHero(
+                cover: activationCoverArt(a),
+                logo: activationLogoArt(a),
+                showDots: false,
+              ),
+            ),
+            ...heading,
+            ...details,
+          ],
+        ),
+      );
+    }
+    return CustomScrollView(
+      slivers: [
+        SliverPersistentHeader(
+          pinned: true,
+          delegate: _CompletedHeaderDelegate(
+            activation: a,
+            metrics: _CompletedMetrics.of(context, a),
+            onBack: onBack,
+          ),
+        ),
+        SliverList.list(children: details),
+      ],
+    );
+  }
+}
+
+/// Cover, hanging logo, name and title inside the pinned header so the
+/// list cannot paint them onto the photo. The photo shortens and clips,
+/// the words ride up, and the logo walks into the bar.
+class _CompletedMetrics {
+  const _CompletedMetrics._({required this.business, required this.title});
+
+  factory _CompletedMetrics.of(BuildContext context, Activation activation) {
+    double measure(String text, TextStyle style, int lines) {
+      final width = MediaQuery.sizeOf(context).width;
+      final painter = TextPainter(
+        text: TextSpan(text: text, style: style),
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+        maxLines: lines,
+        ellipsis: '…',
+      )..layout(maxWidth: math.max(0, width - 2 * IqSpace.s4));
+      final height = painter.height;
+      painter.dispose();
+      return height;
+    }
+
+    return _CompletedMetrics._(
+      business: measure(activation.business, IqText.smallStrong, 1),
+      title: measure(activation.title, IqText.title, titleLines),
+    );
+  }
+
+  static const double photo = _Hero.height;
+  static const double logo = 56;
+  static const double hang = 28;
+  static const double bar = 56;
+  static const double collapsedLogo = 28;
+  static const int titleLines = 3;
+
+  final double business;
+  final double title;
+
+  double get businessTop => bar + photo + IqSpace.s3;
+
+  double get titleTop => businessTop + business + IqSpace.s2;
+
+  double get expanded => titleTop + title + IqSpace.s4;
+
+  double get range => expanded - bar;
+}
+
+class _CompletedHeaderDelegate extends SliverPersistentHeaderDelegate {
+  _CompletedHeaderDelegate({
+    required this.activation,
+    required this.metrics,
+    required this.onBack,
+  });
+
+  final Activation activation;
+  final _CompletedMetrics metrics;
+  final VoidCallback onBack;
+
+  @override
+  double get minExtent => _CompletedMetrics.bar;
+
+  @override
+  double get maxExtent => metrics.expanded;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    const photo = _CompletedMetrics.photo;
+    const bar = _CompletedMetrics.bar;
+    const hang = _CompletedMetrics.hang;
+    const expandedLogo = _CompletedMetrics.logo;
+    const collapsedLogo = _CompletedMetrics.collapsedLogo;
+    const expandedLeft = IqSpace.s4;
+    const collapsedLeft = IqSpace.s3 + 44 + IqSpace.s2;
+    final m = metrics;
+    final s = math.min(shrinkOffset, m.range);
+    final t = m.range <= 0 ? 1.0 : s / m.range;
+    double span(double from, double to) =>
+        IqCurves.easeOut.transform(((s - from) / (to - from)).clamp(0.0, 1.0));
+    final shown = math.max(0.0, photo - s);
+    final barTitle = span(m.range * .75, m.range);
+    final coverGone = span(photo - 80, photo + 40);
+    final logoSize = expandedLogo + (collapsedLogo - expandedLogo) * coverGone;
+    final logoLeft = expandedLeft + (collapsedLeft - expandedLeft) * coverGone;
+    final pinTop = bar + shown - hang;
+    final collapsedTop = (bar - collapsedLogo) / 2;
+    final logoTop = pinTop + (collapsedTop - pinTop) * coverGone;
+    return SizedBox.expand(
+      child: ColoredBox(
+        color: IqColors.bg,
+        child: ClipRect(
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              if (shown > 0.5)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: bar,
+                  height: shown,
+                  child: IgnorePointer(
+                    child: ClipRect(
+                      child: Opacity(
+                        opacity: 1 - span(0, photo),
+                        child: IqBriefHero(
+                          height: shown,
+                          cover: activationCoverArt(activation),
+                          showDots: false,
+                          showLogo: false,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              Positioned(
+                left: IqSpace.s4,
+                right: IqSpace.s4,
+                top: m.businessTop - s,
+                child: Opacity(
+                  opacity: 1 - span(m.range * .45, m.range * .85),
+                  child: ExcludeSemantics(
+                    excluding: t >= 1,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(left: 66),
+                          child: Text(
+                            activation.business,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: IqText.smallStrong.copyWith(
+                              color: IqColors.fg,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: IqSpace.s2),
+                        Text(
+                          activation.title,
+                          maxLines: _CompletedMetrics.titleLines,
+                          overflow: TextOverflow.ellipsis,
+                          style: IqText.title.copyWith(color: IqColors.fg),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                height: bar,
+                child: ColoredBox(color: IqColors.bg),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                height: bar,
+                child: IqTopBar(
+                  variant: IqTopBarVariant.page,
+                  title: '',
+                  onBack: onBack,
+                ),
+              ),
+              if (barTitle > 0.05)
+                Positioned(
+                  left: collapsedLeft + collapsedLogo + IqSpace.s2,
+                  right: 56,
+                  top: 0,
+                  height: bar,
+                  child: IgnorePointer(
+                    child: Opacity(
+                      opacity: barTitle,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Activation',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: IqText.cardTitle.copyWith(
+                            color: IqColors.brand,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              Positioned(
+                left: logoLeft,
+                top: logoTop,
+                width: logoSize,
+                height: logoSize,
+                child: DecoratedBox(
+                  decoration: const BoxDecoration(
+                    color: IqColors.card,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.all(
+                      logoSize * (IqSpace.s1 / expandedLogo),
+                    ),
+                    child: ClipOval(
+                      child: activationLogoArt(activation, size: logoSize),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(_CompletedHeaderDelegate oldDelegate) =>
+      activation != oldDelegate.activation ||
+      metrics.expanded != oldDelegate.metrics.expanded ||
+      onBack != oldDelegate.onBack;
 }
 
 /// Just started (179:8001), in progress (141:5090) and step not confirmed
@@ -1153,6 +1487,13 @@ class _StepsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (history) {
+      return _CompletedHistory(
+        activation: activation,
+        onBack: onBack,
+        steps: [for (var i = 0; i < activation.steps.length; i++) _step(i)],
+      );
+    }
     final a = activation;
     final waiting = a.waitingStep;
     final proof = a.proofStep;
@@ -1184,11 +1525,7 @@ class _StepsPage extends StatelessWidget {
               : _stuck && waiting != null
               ? 'Step ${waiting + 1} not confirmed yet'
               : progressLine(a),
-          count: history
-              ? '${a.confirmed} of ${a.steps.length} steps'
-              : _stuck && waiting != null
-              ? waitingCount(a, now)
-              : deadlineText(a, now),
+          count: '',
         ),
       ),
       body: _Body(
@@ -1232,17 +1569,11 @@ class _StepsPage extends StatelessWidget {
                         ),
                       ]
                     : [
-                        Text(
-                          'Earn ${reward(a)}',
-                          style: IqText.bodyStrong.copyWith(
-                            color: IqColors.brand,
-                          ),
-                        ),
-                        const SizedBox(width: IqSpace.s2),
                         Flexible(
                           child: Text(
-                            'when all ${a.steps.length} steps are confirmed',
-                            style: IqText.small.copyWith(color: IqColors.fg2),
+                            'Earn ${reward(a)} when all ${a.steps.length} '
+                            'steps are confirmed',
+                            style: IqText.body.copyWith(color: IqColors.fg),
                           ),
                         ),
                       ],

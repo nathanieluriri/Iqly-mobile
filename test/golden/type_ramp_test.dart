@@ -36,7 +36,7 @@ void main() {
               ),
               const Text('Verified: ADAEZE OKAFOR', style: IqText.bodyStrong),
               const Text('At least 8 characters', style: IqText.small),
-              const Text('Closes in 6h', style: IqText.smallStrong),
+              const Text('6h left', style: IqText.smallStrong),
               const Text('Discover', style: IqText.label),
               Text('Reward pool'.toUpperCase(), style: IqText.mono),
               const Text('Continue with email', style: IqText.button),

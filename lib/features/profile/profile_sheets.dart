@@ -67,8 +67,7 @@ class _DateOfBirthSheetState extends State<DateOfBirthSheet> {
       day <= DateUtils.getDaysInMonth(_year, _month) &&
       !DateTime(_year, _month, day).isAfter(_latestAdult);
 
-  bool _monthValid(int month) =>
-      !DateTime(_year, month).isAfter(_latestAdult);
+  bool _monthValid(int month) => !DateTime(_year, month).isAfter(_latestAdult);
 
   @override
   void dispose() {

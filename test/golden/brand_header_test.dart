@@ -30,8 +30,7 @@ void main() {
   });
 
   group('the done line shows whole (480:22679)', () {
-    const done =
-        '2 answers sent. Orchid Foods shares the results in about a week.';
+    const done = '45% chose the same as you.';
 
     for (final (layout, width) in [
       (IqBrandHeaderLayout.leading, 390.0),

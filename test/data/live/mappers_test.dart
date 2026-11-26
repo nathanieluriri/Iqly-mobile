@@ -20,6 +20,15 @@ void main() {
         '• One campaign idea\n'
         '• A line for the poster',
       );
+      expect(brief.overview, '<p>Most of our customers top up on Sundays.</p>');
+      expect(
+        brief.problemStatement,
+        '<p>What would make Sunday the day they buy data?</p>',
+      );
+      expect(brief.deliverables, [
+        'One campaign idea',
+        'A line for the poster',
+      ]);
       expect(brief.tier, Tier.advanced);
       expect(brief.category, Category.customerExperience);
       expect(brief.rewardPoolKobo, 15000000);

@@ -24,7 +24,11 @@ import '../../ui/pressable.dart';
 import '../../ui/ticket_card.dart';
 import '../../ui/web_filter_option.dart';
 import '../../ui/web_range_field.dart';
+import '../../data/assessment_service.dart';
+import '../assessments/assessment_nudge.dart';
 import '../drafts/drafts_state.dart';
+import '../kyc/kyc_controller.dart';
+import '../kyc/kyc_nudge.dart';
 import '../shell/tablet_page.dart';
 import '../shell/tablet_popover.dart';
 import 'business_art.dart';
@@ -92,11 +96,8 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
     final filters = ref.watch(tabletFiltersProvider);
     final savedBriefs = ref.watch(savedBriefsProvider).value ?? const [];
     final briefs = feed.value?.briefs;
-    final live = [
-      for (final b in briefs ?? const <Brief>[])
-        if (b.isLive) b,
-    ];
     final drafts = ref.watch(draftsProvider).value ?? const [];
+    final kyc = ref.watch(kycControllerProvider).status;
     final showPickUp = hasPickUpDrafts(drafts);
     ref.listen(draftsProvider, (previous, next) {
       if (!hasPickUpDrafts(next.value ?? const []) &&
@@ -108,8 +109,19 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
       for (final d in drafts)
         if (!d.isEmpty) d.briefId,
     };
+    final access = ref.watch(assessmentAccessProvider).value;
+    final started = {...draftIds, ...submittedBriefIds(ref)};
+    final locked = access != null && !access.canAccessChallenges;
+    bool open(String id) => !locked || started.contains(id);
+    final live = [
+      for (final b in briefs ?? const <Brief>[])
+        if (b.isLive && open(b.id)) b,
+    ];
     final source = saved
-        ? savedBriefs
+        ? [
+            for (final b in savedBriefs)
+              if (open(b.id)) b,
+          ]
         : pickUp
         ? [
             for (final b in live)
@@ -144,7 +156,15 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
     final chips = filters.chips();
 
     final children = <Widget>[
+      if (kyc != null)
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: KycNudge(status: kyc),
+          ),
+        ),
       toolbar,
+      const AssessmentNudge(),
       if (chips.isNotEmpty)
         Wrap(
           spacing: IqSpace.s2,
@@ -259,16 +279,16 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
               ),
           ],
         ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
+        Wrap(
+          spacing: IqSpace.s3,
+          runSpacing: IqSpace.s2,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            if (count != null) ...[
+            if (count != null)
               Text(
                 '$count ${count == 1 ? 'brief' : 'briefs'}',
                 style: IqWebText.bodySmall.copyWith(color: IqColors.fg3),
               ),
-              const SizedBox(width: IqSpace.s3),
-            ],
             TabletPopover(
               open: _open != _Open.none,
               onClose: _close,
@@ -375,7 +395,7 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
     }
     if (saved) {
       return IqEmptyState(
-        figure: IqFigures.saver,
+        figure: IqFigures.shrug,
         title: 'Nothing saved yet',
         body: 'Tap the bookmark on any brief.',
         action: 'Browse briefs',
@@ -630,6 +650,12 @@ class _GridCard extends ConsumerWidget {
             ),
         ],
         closingSoon: isClosingSoon(brief, now),
+        progress: briefCardProgress(
+          draft: (ref.watch(draftsProvider).value ?? const [])
+              .where((d) => d.briefId == brief.id && !d.isEmpty)
+              .firstOrNull,
+          submitted: submittedBriefIds(ref).contains(brief.id),
+        ),
         showBookmark: Flags.savedBriefs,
         bookmark: saved ? IqBookmarkState.on : IqBookmarkState.off,
         onBookmarkChanged: (state) => ref

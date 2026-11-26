@@ -26,14 +26,6 @@ import 'activations_state.dart';
 
 enum _Lens { available, completed }
 
-enum _Sort {
-  closing('Closing soonest'),
-  reward('Biggest reward');
-
-  const _Sort(this.label);
-  final String label;
-}
-
 /// T10 · Activations (Mobile App · tablet, 1843:48473): My activations
 /// over the lens tabs and the table. Portrait keeps Activation, Reward and
 /// Closes; landscape adds Spots, as at 1024. A row opens the activation.
@@ -46,7 +38,7 @@ class TabletActivations extends ConsumerStatefulWidget {
 
 class _TabletActivationsState extends ConsumerState<TabletActivations> {
   _Lens _lens = _Lens.available;
-  _Sort _sort = _Sort.closing;
+  ActivationListSort _sort = ActivationListSort.closing;
   bool _sorting = false;
 
   @override
@@ -67,25 +59,22 @@ class _TabletActivationsState extends ConsumerState<TabletActivations> {
           ? const <Activation>[]
           : state.value ?? const <Activation>[],
     );
-    final open = [
+    final open = sortActivationTiles([
       for (final a in all)
-        if (!a.credited && !a.closedAt(now)) a,
-    ];
-    final done = [
-      for (final a in all)
-        if (a.credited) a,
-    ];
-    final shown =
-        switch (_lens) {
-          _Lens.available => open,
-          _Lens.completed => done,
-        }..sort(
-          (a, b) => _sort == _Sort.closing
-              ? _lens == _Lens.completed
-                    ? b.progress!.paidAt!.compareTo(a.progress!.paidAt!)
-                    : a.closesAt.compareTo(b.closesAt)
-              : b.rewardKobo.compareTo(a.rewardKobo),
-        );
+        if (a.availableAt(now)) a,
+    ], _sort);
+    final done = sortActivationTiles(
+      [
+        for (final a in all)
+          if (a.credited) a,
+      ],
+      _sort,
+      completed: true,
+    );
+    final shown = switch (_lens) {
+      _Lens.available => open,
+      _Lens.completed => done,
+    };
     final lead = leadActivation(all);
 
     final columns = [
@@ -120,15 +109,19 @@ class _TabletActivationsState extends ConsumerState<TabletActivations> {
           open: _sorting,
           onClose: () => setState(() => _sorting = false),
           anchor: IqBizFilterChip(
-            label: _lens == _Lens.completed && _sort == _Sort.closing
+            label:
+                _lens == _Lens.completed && _sort == ActivationListSort.closing
                 ? 'Sort: Most recent'
                 : 'Sort: ${_sort.label}',
             onTap: () => setState(() => _sorting = !_sorting),
           ),
-          popover: TabletMenu<_Sort>(
-            options: _Sort.values,
-            label: (s) => _lens == _Lens.completed && s == _Sort.closing
+          popover: TabletMenu<ActivationListSort>(
+            options: ActivationListSort.values,
+            label: (s) =>
+                _lens == _Lens.completed && s == ActivationListSort.closing
                 ? 'Most recent'
+                : _lens == _Lens.completed && s == ActivationListSort.latest
+                ? 'Oldest'
                 : s.label,
             selected: _sort,
             onPick: (s) => setState(() {
@@ -323,7 +316,7 @@ class _Mine extends StatelessWidget {
                 ),
                 if (waiting)
                   Text(
-                    'Step $next not confirmed yet · ${waitingCount(lead, now)}',
+                    'Step $next not confirmed yet',
                     style: IqWebText.metaCaption.copyWith(
                       color: IqColors.accentStrong,
                     ),

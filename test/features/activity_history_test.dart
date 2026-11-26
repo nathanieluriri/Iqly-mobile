@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iqly_mobile/core/session.dart';
@@ -11,6 +12,7 @@ import 'package:iqly_mobile/features/activations/activation_screen.dart';
 import 'package:iqly_mobile/features/activations/activations_state.dart';
 import 'package:iqly_mobile/features/polls/polls_state.dart';
 import 'package:iqly_mobile/router.dart';
+import 'package:iqly_mobile/ui/brief_hero.dart';
 import 'package:iqly_mobile/ui/poll_card.dart';
 import 'package:iqly_mobile/ui/poll_option.dart';
 import 'package:iqly_mobile/ui/pressable.dart';
@@ -309,7 +311,7 @@ void main() {
     expect(find.text('A poll to answer'), findsNothing);
     expect(find.text('A poll I answered'), findsOneWidget);
     await _tap(tester, find.text('A poll I answered'));
-    expect(find.text('You voted · 5 votes'), findsOneWidget);
+    expect(find.text('5 votes'), findsOneWidget);
     expect(find.text('Closed'), findsOneWidget);
     final card = tester.widget<IqPollCard>(find.byType(IqPollCard));
     expect(card.onVote, isNull);
@@ -330,7 +332,7 @@ void main() {
     expect(service.pages, [null, 'next']);
     expect(find.text('An older poll'), findsOneWidget);
     await _tap(tester, find.text('An older poll'));
-    expect(find.text('You voted · 5 votes'), findsOneWidget);
+    expect(find.text('5 votes'), findsOneWidget);
     expect(service.sends, 0);
   });
 
@@ -429,10 +431,67 @@ void main() {
     expect(find.text('42 people completed this activation.'), findsOneWidget);
     expect(find.text('Start activation'), findsNothing);
     expect(find.text('Open Kudi Box'), findsNothing);
+    expect(find.text('Activation'), findsNothing);
+    expect(find.text('Completed 4 of 4 steps'), findsNothing);
+    expect(
+      find.textContaining('of ${finished.steps.length} steps'),
+      findsNothing,
+    );
+    expect(find.bySemanticsLabel('Back'), findsOneWidget);
+    expect(find.text(finished.business), findsWidgets);
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -400));
+    await tester.pumpAndSettle();
+    expect(find.bySemanticsLabel('Back'), findsOneWidget);
+    expect(find.text('Activation'), findsOneWidget);
     final rows = tester.widgetList<IqStepRow>(find.byType(IqStepRow));
     expect(rows.length, finished.steps.length);
     expect(rows.every((row) => row.state == IqStepRowState.done), isTrue);
   });
+
+  testWidgets(
+    'completed history keeps the name and title off the collapsing cover',
+    (tester) async {
+      final finished = _finishedActivation(figmaNow);
+      await pumpApp(
+        tester,
+        Routes.activations,
+        overrides: [
+          activationsServiceProvider.overrideWithValue(
+            DemoActivationsService(
+              seed: [DemoActivations(figmaNow).orchidFoods, finished],
+              clock: () => figmaNow,
+              load: Duration.zero,
+              delay: Duration.zero,
+              step: null,
+            ),
+          ),
+        ],
+      );
+      await _tap(tester, find.text('Completed'));
+      await _tap(tester, find.text(finished.title));
+
+      void expectTitleOffCover() {
+        final covers = find.byType(IqBriefHero);
+        if (covers.evaluate().isEmpty) return;
+        final cover = tester.getRect(covers.first);
+        if (cover.height < 1) return;
+        expect(
+          tester.getRect(find.text(finished.title)).overlaps(cover),
+          isFalse,
+        );
+        expect(
+          tester.getRect(find.text(finished.business).first).overlaps(cover),
+          isFalse,
+        );
+      }
+
+      expectTitleOffCover();
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -160));
+      await tester.pumpAndSettle();
+      expectTitleOffCover();
+      expect(find.bySemanticsLabel('Back'), findsOneWidget);
+    },
+  );
 
   testWidgets('older completed activations load and open from history', (
     tester,
@@ -546,7 +605,7 @@ void main() {
     expect(find.text('A poll to answer'), findsOneWidget);
     await _tap(tester, find.text('Completed'));
     await _tap(tester, find.text('A poll I answered'));
-    expect(find.text('You voted · 5 votes'), findsOneWidget);
+    expect(find.text('5 votes'), findsOneWidget);
     expect(tester.widget<IqPollCard>(find.byType(IqPollCard)).onVote, isNull);
   });
 

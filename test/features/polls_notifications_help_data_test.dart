@@ -31,6 +31,57 @@ Poll _poll(List<int> votes, {int? chosen}) => Poll(
 
 void main() {
   group('B2 polls', () {
+    test('sorts tiles by soonest close, latest close, then most votes', () {
+      PollBusiness tile(
+        String id, {
+        required DateTime closesAt,
+        required List<int> votes,
+      }) => PollBusiness(
+        id: id,
+        name: id,
+        polls: [
+          Poll(
+            id: id,
+            question: id,
+            choices: const ['a', 'b'],
+            votes: votes,
+            closesAt: closesAt,
+          ),
+        ],
+      );
+      final soon = tile(
+        'soon',
+        closesAt: figmaNow.add(const Duration(hours: 2)),
+        votes: const [1, 0],
+      );
+      final far = tile(
+        'far',
+        closesAt: figmaNow.add(const Duration(days: 4)),
+        votes: const [1, 1],
+      );
+      final busy = tile(
+        'busy',
+        closesAt: figmaNow.add(const Duration(days: 1)),
+        votes: const [9, 1],
+      );
+      final mixed = [far, busy, soon];
+      expect(sortPollTiles(mixed, PollListSort.closing).map((b) => b.id), [
+        'soon',
+        'busy',
+        'far',
+      ]);
+      expect(sortPollTiles(mixed, PollListSort.latest).map((b) => b.id), [
+        'far',
+        'busy',
+        'soon',
+      ]);
+      expect(sortPollTiles(mixed, PollListSort.votes).map((b) => b.id), [
+        'busy',
+        'far',
+        'soon',
+      ]);
+    });
+
     test('shares are whole percentages that add up to 100', () {
       expect(_poll([96, 71, 47]).shares, [45, 33, 22]);
       expect(_poll([95, 71, 48]).shares, [44, 33, 23]);
@@ -67,10 +118,7 @@ void main() {
       expect(ginger.questions[1].shares, [26, 48, 26]);
       final done = orchid.withPoll(ginger.withVote(2, question: 2));
       expect(done.allAnswered, isTrue);
-      expect(
-        pollDoneDetail(done),
-        '3 answers sent. Orchid Foods shares the results in about a week.',
-      );
+      expect(pollDoneDetail(done), '45% chose the same as you.');
       final tiger = poll.withVote(1);
       expect(tiger.skips(1), isTrue);
       expect(tiger.withVote(0, question: 2).voted, isTrue);
@@ -142,7 +190,7 @@ void main() {
         [
           (
             IqNotificationKind.deadline,
-            'Closes in 7h',
+            '7h left',
             'Sunline · A tagline for a solar kiosk network',
             '1h',
           ),

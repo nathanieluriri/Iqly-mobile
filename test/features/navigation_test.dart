@@ -72,7 +72,7 @@ void main() {
   testWidgets('a result, its submission and the brief: the loop closes back '
       'to the page already open, however deep', (tester) async {
     await pumpApp(tester, Routes.submissions);
-    await _tap(tester, find.text('Not selected'));
+    await _tap(tester, find.text('Rejected'));
     await _tap(tester, find.text('One counter for quick jobs'));
     expect(find.byType(ResultScreen), findsOneWidget);
     await _tap(tester, find.text('View your submission'));
@@ -100,10 +100,22 @@ void main() {
     expect(_stack(tester), [submissionPath('s1'), Routes.brief('c1')]);
   });
 
+  testWidgets(
+    'Android back from a cold-opened submission goes to My submissions',
+    (tester) async {
+      await pumpApp(tester, submissionPath('s1'));
+      expect(find.byType(SubmissionDetailScreen), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.byType(SubmissionDetailScreen), findsNothing);
+      expect(find.byType(MySubmissionsScreen), findsOneWidget);
+    },
+  );
+
   testWidgets('closing back to an open page plays Back: the top page leaves '
       'over it, and pages between go without a move', (tester) async {
     await pumpApp(tester, Routes.submissions, reducedMotion: false);
-    await _tap(tester, find.text('Not selected'));
+    await _tap(tester, find.text('Rejected'));
     await _tap(tester, find.text('One counter for quick jobs'));
     await _tap(tester, find.text('View your submission'));
     await _tap(tester, find.text('See what won'));

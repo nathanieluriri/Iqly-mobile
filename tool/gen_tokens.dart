@@ -257,6 +257,10 @@ const _families = {
   'Geist Mono': 'IqFonts.geistMono',
 };
 
+/// Optical sizes we actually ship. A Mob size without a cut uses the
+/// nearest of these, so 20 pt still reads with the 22 pt instance.
+const _shippedBricolage = {'17', '22', '28', '30', '32'};
+
 String _family(Map<String, dynamic> style, Set<String> cut) {
   if (style['fontFamily'] != 'Bricolage Grotesque') {
     return _families[style['fontFamily']]!;
@@ -278,11 +282,7 @@ void _writeText(StringBuffer b, List<Map<String, dynamic>> allStyles) {
   final styles = allStyles
       .where((s) => (s['name'] as String).startsWith('Mob/'))
       .toList();
-  final opticalSizes = {
-    for (final s in styles)
-      if (s['fontFamily'] == 'Bricolage Grotesque')
-        _num((s['fontSize'] as num).toDouble()),
-  };
+  final opticalSizes = _shippedBricolage;
   b.writeln('abstract final class IqFonts {');
   b.writeln(
     '  /// Figma sets Bricolage at an automatic optical size, so each Mob size',

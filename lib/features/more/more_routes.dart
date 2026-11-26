@@ -6,7 +6,6 @@ import '../../router.dart';
 import '../wallet/withdrawal_pin_screen.dart';
 import 'more_screen.dart';
 import 'saved_briefs_page.dart';
-import 'try_notifications_screen.dart';
 
 /// More, the fourth dock tab, a branch of the app shell.
 final moreTab = GoRoute(
@@ -29,10 +28,5 @@ final moreRoutes = <RouteBase>[
       state,
       WithdrawalPinScreen(reset: state.uri.queryParameters['reset'] == '1'),
     ),
-  ),
-  GoRoute(
-    path: Routes.tryNotifications,
-    pageBuilder: (context, state) =>
-        pushPage(state, const TryNotificationsScreen()),
   ),
 ];

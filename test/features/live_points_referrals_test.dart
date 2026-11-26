@@ -40,7 +40,7 @@ void main() {
         await pumpLiveLaunch(tester, Routes.more, api: _api(), mode: mode);
         await tester.pumpAndSettle();
         expect(find.text('Ada Obi'), findsOneWidget);
-        for (final sample in ['1,240', 'iQL points', '#7', 'this month']) {
+        for (final sample in ['1,240', 'iQ points', '#7', 'this month']) {
           expect(find.text(sample), findsNothing, reason: sample);
         }
         expect(find.textContaining('ADAEZE24'), findsNothing);

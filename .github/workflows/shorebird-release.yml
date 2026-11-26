@@ -2,17 +2,10 @@ name: shorebird-release
 
 # A release built through Shorebird, so later Dart-only changes can be
 # patched onto it. Run it from the Actions tab once the version in
-# pubspec.yaml is new: every release needs its own version. The app
-# bundle (for Google Play) is the artifact Shorebird tracks. An APK is
-# kept too when the build writes one, and that APK is what the staging
-# download link serves once the R2 secrets are set.
-# A pull request that changes the Shorebird setup gets a dry run instead.
+# pubspec.yaml is new: every release needs its own version. Releases are
+# dispatched manually from the Actions tab.
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - shorebird.yaml
-      - .github/workflows/shorebird-release.yml
 
 jobs:
   release:
@@ -35,7 +28,7 @@ jobs:
         run: |
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/iqly-upload.jks"
           echo "IQLY_KEYSTORE_PATH=$RUNNER_TEMP/iqly-upload.jks" >> "$GITHUB_ENV"
-      - run: shorebird release android $DRY_RUN
+      - run: shorebird release android --flutter-version=3.50.1 $DRY_RUN
         env:
           DRY_RUN: ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
           IQLY_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -64,6 +57,15 @@ jobs:
             --endpoint-url "$R2_ENDPOINT" \
             --content-type application/vnd.android.package-archive \
             --metadata "version=$version"
+      - name: Upload the bundle to Play closed and open testing
+        if: github.event_name != 'pull_request'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: net.iqly.app
+          releaseFiles: iqly-*.aab
+          tracks: alpha,beta
+          status: completed
       - uses: actions/upload-artifact@v4
         if: github.event_name != 'pull_request'
         with:

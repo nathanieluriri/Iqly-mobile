@@ -34,7 +34,7 @@ enum IqUrgencyTone {
 class IqUrgency extends StatelessWidget {
   const IqUrgency({
     super.key,
-    this.text = 'Closes in 6h',
+    this.text = '6h left',
     this.tone = IqUrgencyTone.hot,
   });
 

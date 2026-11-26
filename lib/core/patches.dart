@@ -18,6 +18,7 @@ class PatchesNotifier extends Notifier<PatchPhase> {
   static const giveUpAfter = Duration(seconds: 30);
   static const pollEvery = Duration(seconds: 1);
   static const resumeEvery = Duration(hours: 1);
+  static const backgroundEvery = Duration(minutes: 15);
 
   Future<void>? _running;
   DateTime? _checkedAt;
@@ -26,8 +27,16 @@ class PatchesNotifier extends Notifier<PatchPhase> {
   @override
   PatchPhase build() => PatchPhase.idle;
 
-  Future<void> check() =>
-      _running ??= _check().whenComplete(() => _running = null);
+  Future<void> check({bool force = false}) {
+    if (force) {
+      _gaveUp = false;
+      _checkedAt = null;
+      if (state == PatchPhase.failed || state == PatchPhase.ready) {
+        state = PatchPhase.idle;
+      }
+    }
+    return _running ??= _check().whenComplete(() => _running = null);
+  }
 
   Future<void> _check() async {
     if (_gaveUp || state != PatchPhase.idle) return;
@@ -61,10 +70,14 @@ class PatchesNotifier extends Notifier<PatchPhase> {
     return PatchCheck.available;
   }
 
-  void resumed() {
+  void resumed() => _askIfDue(resumeEvery);
+
+  void scheduled() => _askIfDue(backgroundEvery);
+
+  void _askIfDue(Duration every) {
     final last = _checkedAt;
     final now = ref.read(clockProvider)();
-    if (last != null && now.difference(last) < resumeEvery) return;
+    if (last != null && now.difference(last) < every) return;
     unawaited(check());
   }
 

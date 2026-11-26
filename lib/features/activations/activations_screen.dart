@@ -16,6 +16,7 @@ import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/empty_state.dart';
 import '../../ui/banner.dart';
+import '../../ui/biz_filter_chip.dart';
 import '../../ui/button.dart';
 import '../../ui/chip.dart';
 import '../../ui/illustration.dart';
@@ -49,6 +50,7 @@ class _ActivationsScreenState extends ConsumerState<ActivationsScreen> {
   bool _minimumMet = true;
   bool _retrying = false;
   bool _completed = false;
+  ActivationListSort _sort = ActivationListSort.closing;
   Timer? _delay;
   Timer? _minimum;
 
@@ -62,6 +64,32 @@ class _ActivationsScreenState extends ConsumerState<ActivationsScreen> {
     super.initState();
     if (_loading(ref.read(activationsProvider))) _armGate();
     ref.read(activationsProvider.notifier).refreshQuietly().ignore();
+  }
+
+  Future<void> _pickSort(BuildContext context) async {
+    final next = await showModalBottomSheet<ActivationListSort>(
+      context: context,
+      backgroundColor: IqColors.card,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final sort in ActivationListSort.values)
+              ListTile(
+                title: Text(
+                  _completed && sort == ActivationListSort.closing
+                      ? 'Most recent'
+                      : _completed && sort == ActivationListSort.latest
+                      ? 'Oldest'
+                      : sort.label,
+                ),
+                onTap: () => Navigator.pop(context, sort),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (next != null && mounted) setState(() => _sort = next);
   }
 
   void _armGate() {
@@ -117,14 +145,18 @@ class _ActivationsScreenState extends ConsumerState<ActivationsScreen> {
       historyPage?.activations ?? const [],
       state.isReloading || state.hasError ? const [] : state.value ?? const [],
     );
-    final open = [
+    final open = sortActivationTiles([
       for (final a in all)
-        if (!a.credited && !a.closedAt(now)) a,
-    ]..sort((a, b) => a.closesAt.compareTo(b.closesAt));
-    final completed = [
-      for (final a in all)
-        if (a.credited) a,
-    ]..sort((a, b) => b.progress!.paidAt!.compareTo(a.progress!.paidAt!));
+        if (a.availableAt(now)) a,
+    ], _sort);
+    final completed = sortActivationTiles(
+      [
+        for (final a in all)
+          if (a.credited) a,
+      ],
+      _sort,
+      completed: true,
+    );
     final shown = _completed ? completed : open;
     final Widget body;
     if (!_completed && (_loading(state) || held)) {
@@ -174,8 +206,16 @@ class _ActivationsScreenState extends ConsumerState<ActivationsScreen> {
                   onBack: () => leave(context),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: IqSpace.s4),
-                  child: Row(
+                  padding: const EdgeInsets.fromLTRB(
+                    IqSpace.s4,
+                    0,
+                    IqSpace.s4,
+                    IqSpace.s3,
+                  ),
+                  child: Wrap(
+                    spacing: IqSpace.s2,
+                    runSpacing: IqSpace.s2,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       IqChip(
                         label: 'Available',
@@ -184,13 +224,18 @@ class _ActivationsScreenState extends ConsumerState<ActivationsScreen> {
                             : IqChipState.standard,
                         onChanged: (_) => setState(() => _completed = false),
                       ),
-                      const SizedBox(width: IqSpace.s2),
                       IqChip(
                         label: 'Completed',
                         state: _completed
                             ? IqChipState.selected
                             : IqChipState.standard,
                         onChanged: (_) => setState(() => _completed = true),
+                      ),
+                      IqBizFilterChip(
+                        label: _completed && _sort == ActivationListSort.closing
+                            ? 'Sort: Most recent'
+                            : 'Sort: ${_sort.label}',
+                        onTap: () => _pickSort(context),
                       ),
                     ],
                   ),

@@ -39,7 +39,7 @@ enum SubmissionStatus {
   String get label => switch (this) {
     pending || scored => 'Under review',
     winner => 'Winner',
-    filteredOut => 'Not selected',
+    filteredOut => 'Rejected',
   };
 }
 
@@ -72,6 +72,9 @@ class Brief {
     this.logo,
     this.cover,
     this.inAudience,
+    this.overview,
+    this.problemStatement,
+    this.deliverables = const [],
   });
 
   final String id;
@@ -108,6 +111,12 @@ class Brief {
   /// detail says; null when it does not.
   final bool? inAudience;
 
+  /// The brief's reading sections, when the API provides them. [body] stays
+  /// as the combined fallback for older saved briefs.
+  final String? overview;
+  final String? problemStatement;
+  final List<String> deliverables;
+
   bool get isLive => status == BriefStatus.live;
 
   Map<String, Object?> toJson() => {
@@ -129,6 +138,9 @@ class Brief {
     'logo': logo,
     'cover': cover,
     'inAudience': inAudience,
+    'overview': overview,
+    'problemStatement': problemStatement,
+    'deliverables': deliverables,
   };
 
   factory Brief.fromJson(Map<String, Object?> json) {
@@ -152,6 +164,11 @@ class Brief {
       logo: json['logo'] as String?,
       cover: json['cover'] as String?,
       inAudience: json['inAudience'] as bool?,
+      overview: json['overview'] as String?,
+      problemStatement: json['problemStatement'] as String?,
+      deliverables:
+          (json['deliverables'] as List?)?.whereType<String>().toList() ??
+          const [],
     );
   }
 }

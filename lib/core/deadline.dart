@@ -34,17 +34,16 @@ Duration? timeLeft(DateTime? deadline, DateTime now) {
   return Duration(minutes: (deadline.difference(now).inSeconds / 60).ceil());
 }
 
-/// The Exp/Urgency wording: "Closes in 6h", "Closes in 1 day",
-/// "Closes in 25 days", "No deadline", "Closed". Hours and days round down
-/// so the chip never promises more time than is left; the last hour counts
-/// minutes.
+/// The Exp/Urgency wording: "6h left", "1 day left", "25 days left",
+/// "No deadline", "Closed". Hours and days round down so the chip never
+/// promises more time than is left; the last hour counts minutes.
 String closesIn(Duration? left, {bool closed = false}) {
   if (closed || (left != null && left <= Duration.zero)) return 'Closed';
   if (left == null) return 'No deadline';
-  if (left.inHours < 1) return 'Closes in ${left.inMinutes} min';
-  if (left.inHours < 24) return 'Closes in ${left.inHours}h';
+  if (left.inHours < 1) return '${left.inMinutes} min left';
+  if (left.inHours < 24) return '${left.inHours}h left';
   final days = left.inDays;
-  return 'Closes in $days ${days == 1 ? 'day' : 'days'}';
+  return '$days ${days == 1 ? 'day' : 'days'} left';
 }
 
 /// Hot under 24 h, Warm under 7 days, Calm otherwise, Closed once closed.

@@ -298,12 +298,12 @@ void main() {
     });
 
     testWidgets('new words roll their changed characters', (tester) async {
-      await _pump(tester, const IqUrgency(text: 'Closes in 7h'));
-      await _pump(tester, const IqUrgency(text: 'Closes in 6h'));
+      await _pump(tester, const IqUrgency(text: '7h left'));
+      await _pump(tester, const IqUrgency(text: '6h left'));
       await tester.pump(_ms * 80);
       expect(tester.hasRunningAnimations, isTrue);
       await tester.pumpAndSettle();
-      expect(find.text('Closes in 6h'), findsOneWidget);
+      expect(find.text('6h left'), findsOneWidget);
     });
   });
 

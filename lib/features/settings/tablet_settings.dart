@@ -55,7 +55,7 @@ class TabletSettings extends ConsumerWidget {
       if (ref.watch(referralsShownProvider))
         const _Section('Referrals', IqIcons.gift, Routes.referrals),
       if (ref.watch(leaderboardShownProvider))
-        const _Section('iQL points', IqIcons.medal, Routes.pointsLeaderboard),
+        const _Section('iQ points', IqIcons.medal, Routes.pointsLeaderboard),
     ];
     final second = [
       if (Flags.notificationPreferences)

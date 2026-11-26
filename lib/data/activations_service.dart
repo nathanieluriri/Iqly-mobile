@@ -214,12 +214,12 @@ class DemoActivationsService implements ActivationsService {
     DateTime at,
   ) => [
     ...run.stepPayouts,
-    if (activation.perStep)
-      for (final i in steps)
-        if (activation.paysFor(i) > 0)
+    if (activation.perStep && steps.contains(activation.steps.length - 1))
+      for (final (i, step) in activation.steps.indexed)
+        if ((step.rewardKobo ?? 0) > 0 && activation.payoutOf(i) == null)
           ActivationStepPayout(
             step: i,
-            kobo: activation.paysFor(i),
+            kobo: step.rewardKobo!,
             paidAt: at,
             ledgerId: '${activation.creditId}-step-$i',
           ),
@@ -667,8 +667,7 @@ String videoMediaType(String name) {
   };
 }
 
-/// A contract 11.2 activation, or null without an id, a business, a title
-/// or a close. The app works its phase out from the run as the API does;
+/// A contract 11.2 activation, or null without an id, a business or a title. The app works its phase out from the run as the API does;
 /// an activation the business closed early, or a run that ended, counts as
 /// closed from then ([now] when the API does not say when). Its modes, step
 /// amounts, run code, step payouts, held steps and the phase the API worked
@@ -684,7 +683,7 @@ Activation? activationFromJson(
   final business = apiText(json['businessName']);
   final title = apiText(json['title']);
   var closesAt = apiTime(json['closesAt']);
-  if (id == null || business == null || title == null || closesAt == null) {
+  if (id == null || business == null || title == null) {
     return null;
   }
   final run = json['progress'];
@@ -698,7 +697,8 @@ Activation? activationFromJson(
         }
       : null;
   final ended = run is Map && run['status'] == 'expired';
-  if ((json['status'] == 'closed' || ended) && closesAt.isAfter(now)) {
+  if ((json['status'] == 'closed' || ended) &&
+      (closesAt == null || closesAt.isAfter(now))) {
     final at = run is Map ? apiTime(run['expiredAt']) : null;
     closesAt = at != null && at.isBefore(now) ? at : now;
   }

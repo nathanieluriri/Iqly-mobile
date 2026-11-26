@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
 import 'package:iqly_mobile/features/polls/poll_sheet.dart';
-import 'package:iqly_mobile/features/polls/polls_screen.dart';
 import 'package:iqly_mobile/ui/poll_tile.dart';
 
 import '../harness.dart';
@@ -23,11 +22,10 @@ void main() {
     await onDiscover(d, hold: 1.5);
 
     await d.tap(_tile(_flavour), label: 'flavour-poll');
-    await d.waitFor(find.byType(PollsScreen));
     await d.arrive(find.byType(PollSheet), hold: 1.2);
 
     await d.tap(find.text('Zobo and ginger'));
-    await d.waitFor(find.text('You voted · 214 votes'));
+    await d.waitFor(find.text('214 votes'));
     await d.hold(1.4);
 
     await d.scroll(
@@ -43,9 +41,6 @@ void main() {
     await d.tap(litre);
     await d.waitFor(find.textContaining('2 answers sent'));
     await d.hold(2.5);
-    await d.back();
-
-    await d.arrive(find.byType(PollsScreen), hold: 1.5);
     await d.back();
 
     await d.arrive(find.byType(HomeScreen), hold: 2);

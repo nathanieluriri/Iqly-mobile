@@ -13,15 +13,12 @@ import 'package:iqly_mobile/data/app_version.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/discover/discover_state.dart';
 import 'package:iqly_mobile/features/entry/landing_screen.dart';
-import 'package:iqly_mobile/features/more/try_notifications_screen.dart';
 import 'package:iqly_mobile/features/profile/profile_state.dart';
 import 'package:iqly_mobile/features/splash/splash_screen.dart';
-import 'package:iqly_mobile/router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../golden/screens/app_harness.dart';
 import '../golden/screens/discover_harness.dart';
-import '../golden/screens/more_harness.dart';
 
 const _ms = Duration(milliseconds: 1);
 
@@ -52,20 +49,6 @@ const _ready = HealthReport(
   contract: 1,
   features: {...LiveFeature.values},
 );
-
-/// The mode Try notifications shows, as set.
-class _Fixed extends BackendNotifier {
-  _Fixed(this.mode, this.at);
-
-  final Backend mode;
-  final DateTime? at;
-
-  @override
-  Backend build() => mode;
-
-  @override
-  DateTime? get checkedAt => at;
-}
 
 /// Launches the real app on the splash of a build on the API, signed out,
 /// with a saved brief left by a preview launch.
@@ -187,55 +170,6 @@ void main() {
       await _toLanding(tester);
       expect(find.byType(LandingScreen), findsOneWidget);
       expect(container.read(backendProvider), Backend(_ready.features));
-    });
-  });
-
-  group('Try notifications', () {
-    Future<void> showRow(
-      WidgetTester tester,
-      Backend mode,
-      DateTime? at,
-    ) async {
-      await pumpMore(
-        tester,
-        Routes.tryNotifications,
-        overrides: [backendProvider.overrideWith(() => _Fixed(mode, at))],
-      );
-      await tester.scrollUntilVisible(
-        find.text(mode.isPreview ? 'Preview' : 'Live'),
-        200,
-      );
-    }
-
-    testWidgets('names a live launch and when health last answered', (
-      tester,
-    ) async {
-      await showRow(
-        tester,
-        const Backend({LiveFeature.notifications, LiveFeature.profile}),
-        DateTime(2026, 10, 17, 9, 41),
-      );
-      expect(find.text('Live'), findsOneWidget);
-      expect(
-        find.text('profile, notifications. Health checked 17 Oct, 09:41.'),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('says preview, and when health never answered', (tester) async {
-      await showRow(tester, Backend.preview, null);
-      expect(find.text('Preview'), findsOneWidget);
-      expect(find.text('Health not checked yet.'), findsOneWidget);
-    });
-
-    test('the line reads the same for any order of features', () {
-      expect(
-        TryNotificationsScreen.backendLine(
-          const Backend({LiveFeature.wallet, LiveFeature.briefs}),
-          DateTime(2026, 1, 2, 3, 4),
-        ),
-        'briefs, wallet. Health checked 2 Jan, 03:04.',
-      );
     });
   });
 }

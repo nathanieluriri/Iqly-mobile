@@ -88,6 +88,27 @@ void main() {
     expect(service.calls, 2);
   });
 
+  test('a scheduled tick checks again after 15 minutes', () async {
+    final c = await container();
+    final updates = c.read(updatesProvider.notifier);
+    await updates.check();
+    now = now.add(const Duration(minutes: 14));
+    updates.scheduled();
+    expect(service.calls, 1);
+    now = now.add(const Duration(minutes: 1));
+    updates.scheduled();
+    expect(service.calls, 2);
+  });
+
+  test('a forced check ignores the hourly throttle', () async {
+    final c = await container();
+    final updates = c.read(updatesProvider.notifier);
+    await updates.check();
+    now = now.add(const Duration(minutes: 1));
+    await updates.check(force: true);
+    expect(service.calls, 2);
+  });
+
   test('offers a newer build at once, then daily until installed', () async {
     final c = await container();
     final updates = c.read(updatesProvider.notifier);

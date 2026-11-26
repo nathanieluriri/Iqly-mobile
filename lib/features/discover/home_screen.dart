@@ -38,11 +38,16 @@ import '../activations/activations_routes.dart';
 import '../activations/activations_state.dart';
 import '../entry/first_tip.dart';
 import '../entry/notifications_ask_screen.dart';
+import '../kyc/kyc_controller.dart';
+import '../kyc/kyc_nudge.dart';
 import '../notifications/notifications_state.dart';
 import '../polls/polls_routes.dart';
 import '../polls/polls_state.dart';
 import '../polls/quick_poll_tile.dart';
 import '../drafts/drafts_state.dart';
+import '../../data/assessment_data.dart';
+import '../../data/assessment_service.dart';
+import '../assessments/assessment_nudge.dart';
 import '../onboarding/setup_nudge.dart';
 import '../withdrawals/payout_arrival.dart';
 import 'app_shell.dart';
@@ -321,13 +326,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       for (final d in drafts)
         if (!d.isEmpty) d.briefId,
     };
+    final access = ref.read(assessmentAccessProvider).value;
+    final started = {...draftIds, ...submittedBriefIds(ref)};
+    final allowed = unlockedDiscoverBriefs(
+      [for (final brief in data.briefs) brief.id],
+      access,
+      started,
+    ).toSet();
     return buildFeed(
-      briefs: filters.pickUp
-          ? [
-              for (final b in data.briefs)
-                if (draftIds.contains(b.id)) b,
-            ]
-          : data.briefs,
+      briefs: [
+        for (final brief in data.briefs)
+          if (allowed.contains(brief.id) &&
+              (!filters.pickUp || draftIds.contains(brief.id)))
+            brief,
+      ],
       filters: filters,
       interests: ref.read(feedInterestsProvider),
       now: ref.read(clockProvider)(),
@@ -402,6 +414,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final filters = ref.watch(discoverFiltersProvider);
     ref.watch(feedInterestsProvider);
     ref.watch(draftsProvider);
+    submittedBriefIds(ref);
     final data = feed.value;
     final failed = feed.hasError && !feed.isLoading;
     final proposalsPending =
@@ -412,7 +425,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       sessionProvider.select((s) => s.onboardingDone),
     );
     final nudge = _nudge ??= !onboardingDone;
+    final needCheckIn =
+        assessmentNudge(ref.watch(assessmentAccessProvider).value) != null;
     final payout = ref.watch(recentPayoutProvider);
+    final kyc = ref.watch(kycControllerProvider).status;
     _proposalsPending = proposalsPending;
     final loading = (data == null && !failed) || proposalsPending;
     if (!_built) {
@@ -474,6 +490,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                               ),
                             ),
                           ),
+                          if (kyc != null)
+                            SliverToBoxAdapter(child: KycNudge(status: kyc)),
                           if (payout != null)
                             SliverToBoxAdapter(
                               key: const ValueKey('payout'),
@@ -494,8 +512,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                               _arrivals.play(after: after);
                               _land(after);
                             },
-                            builder: (context, phase, skeletonOpacity) =>
-                                _body(phase, skeletonOpacity, data, nudge),
+                            builder: (context, phase, skeletonOpacity) => _body(
+                              phase,
+                              skeletonOpacity,
+                              data,
+                              nudge,
+                              needCheckIn,
+                            ),
                           ),
                           SliverToBoxAdapter(
                             key: const ValueKey('inset'),
@@ -566,6 +589,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     Animation<double> skeletonOpacity,
     FeedData? data,
     bool nudge,
+    bool needCheckIn,
   ) {
     if (phase == GatePhase.waiting) _standing = null;
     if (phase == GatePhase.skeleton) {
@@ -587,7 +611,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             child: Column(children: _loading(nudge: nudge, handover: true)),
           ),
         ),
-      if (content && nudge)
+      if (content && (nudge || needCheckIn))
         SliverToBoxAdapter(
           key: const ValueKey('nudge'),
           child: standing
@@ -596,11 +620,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         ),
       if (content) ...[
         if (data == null)
-          IqSliverEmptyFill(
-            key: const ValueKey('feed'),
-            bottom: AppShell.contentInset(context),
-            child: _failed(),
-          )
+          ..._emptySlivers(_failed(), standing: standing)
         else if (_emptyFeed(data) case final empty?)
           ..._emptySlivers(empty, standing: standing)
         else
@@ -623,7 +643,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final cards = gapped([
       _inset(const _SkeletonCard()),
       _inset(const _SkeletonCard()),
-    ]);
+    ], gap: _cardGap);
     if (!(_standing ?? false)) return cards;
     final proposals = _proposals();
     final lead = Column(
@@ -636,7 +656,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         ],
         _sectionGap,
         _briefsTitle(),
-        const SizedBox(height: IqSpace.s3),
+        const SizedBox(height: _cardGap),
       ],
     );
     return [
@@ -651,7 +671,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   /// Each item arrives on its own, the first right under the chips, the
-  /// rest 12 apart; with [standing], what the skeleton drew (everything down
+  /// rest 24 apart; with [standing], what the skeleton drew (everything down
   /// to the Briefs heading) stands in place.
   List<Widget> _spaced(List<_Item> items, {bool standing = false}) {
     final cut = items.indexWhere((item) => item.key == 'briefs-title');
@@ -688,6 +708,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   static bool _pending(AsyncValue<Object?> value) =>
       !value.hasValue && !value.hasError;
 
+  static const double _cardGap = IqSpace.s6;
   static const double _section = IqSpace.s6 + IqSpace.s3;
   static const Widget _sectionGap = SizedBox(height: _section);
 
@@ -717,12 +738,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ];
     final open = [
       for (final a in activations)
-        if (!a.closedAt(now) && !a.credited && (!pickUp || a.started)) a,
-    ]..sort((a, b) => a.closesAt.compareTo(b.closesAt));
-    final shownActivations = pickUp ? open : open.take(1).toList();
-    void openActivations() => context.open(
-      open.length == 1 ? activationPath(open.single.id) : Routes.activations,
-    );
+        if (!a.closedAt(now) &&
+            !a.credited &&
+            (!pickUp || a.started) &&
+            (a.closesAt != null || a.started || !a.full))
+          a,
+    ]..sort((a, b) => compareActivationCloses(a, b, latest: false));
+    final shownActivations = pickUp ? open : open.take(5).toList();
     Widget activationCard(Activation activation) => IqBriefCard(
       kind: IqBriefCardKind.row,
       brand: activation.business,
@@ -736,13 +758,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           label: cardReward(activation, rewardShort(activation.rewardKobo)),
         ),
         IqMeta(
-          kind: IqMetaKind.urgent,
-          label: 'Closes in ${countdownText(activationLeft(activation, now))}',
+          kind: closingSoon(activation, now)
+              ? IqMetaKind.urgent
+              : IqMetaKind.deadline,
+          label: deadlineText(activation, now),
         ),
       ],
-      onTap: pickUp
-          ? () => context.open(activationPath(activation.id))
-          : openActivations,
+      onTap: () => context.open(activationPath(activation.id)),
     );
     return [
       if (shownPolls.isNotEmpty) ...[
@@ -767,7 +789,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 for (final business in shownPolls)
                   QuickPollTile(
                     business: business,
-                    onTap: () => context.open(quickPollsFor(business.id)),
+                    onTap: () => context.open(discoverPollOf(business.id)),
                   ),
               ]),
             ),
@@ -793,7 +815,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               children: gapped([
                 for (final activation in shownActivations)
                   activationCard(activation),
-              ]),
+              ], gap: _cardGap),
             ),
           ),
         ),
@@ -826,6 +848,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   Widget? _emptyFeed(FeedData data) {
     if (!_view(data).isEmpty) return null;
     final filters = ref.read(discoverFiltersProvider);
+    final access = ref.read(assessmentAccessProvider).value;
+    if (access != null && !access.canAccessChallenges) {
+      return const SizedBox.shrink();
+    }
     if (filters.pickUp) {
       if (_proposals().isNotEmpty) return null;
       return IqEmptyState(
@@ -874,18 +900,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         for (final brief in view.briefs.briefs)
           _Item('briefs:${brief.id}', _inset(BriefFeatureCard(brief: brief))),
         if (view.more.briefs.isNotEmpty) ...[
-          _Item(
-            'more',
-            _inset(
-              IqSectionTitle(
-                title: view.more.title,
-                showCount: false,
-                link: 'Filter',
-                onSeeAll: () => context.go(Routes.filters),
+          if (view.briefs.briefs.isNotEmpty)
+            _Item(
+              'more',
+              _inset(
+                IqSectionTitle(
+                  title: view.more.title,
+                  showCount: false,
+                  link: 'Filter',
+                  onSeeAll: () => context.go(Routes.filters),
+                ),
               ),
+              gap: _section,
             ),
-            gap: _section,
-          ),
           for (final brief in view.more.briefs)
             _Item('more:${brief.id}', _inset(BriefFeatureCard(brief: brief))),
         ],
@@ -916,7 +943,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 }
 
 class _Item {
-  const _Item(this.key, this.child, {this.gap = IqSpace.s3});
+  const _Item(this.key, this.child, {this.gap = IqSpace.s6});
 
   final String key;
   final Widget child;
@@ -939,13 +966,20 @@ List<Widget> gappedRow(Iterable<Widget> items) {
   return out;
 }
 
-/// The setup nudge with the gap under it, so both fold away together.
+/// Setup and check-in rows with the gap under each, so they fold away
+/// together.
 class _SetupNudgeSlot extends StatelessWidget {
   const _SetupNudgeSlot();
 
   @override
-  Widget build(BuildContext context) =>
-      _inset(const SetupNudge(gap: IqSpace.s3));
+  Widget build(BuildContext context) => _inset(
+    const Column(
+      children: [
+        SetupNudge(gap: IqSpace.s3),
+        AssessmentNudge(gap: IqSpace.s3),
+      ],
+    ),
+  );
 }
 
 /// The end of the list: the next page's skeleton with "LOADING MORE"

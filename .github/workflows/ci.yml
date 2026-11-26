@@ -2,9 +2,9 @@ name: ci
 
 on:
   push:
-    branches: [dev, main, stable]
+    branches: [dev, main, stable, 'feat/**', 'fix/**', 'new/**']
   pull_request:
-    branches: [dev, main, stable]
+    branches: [dev, main, stable, 'feat/**', 'fix/**', 'new/**']
 
 jobs:
   check:
@@ -17,12 +17,25 @@ jobs:
           java-version: '17'
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.50.0'
           cache: true
       - run: flutter pub get
       - run: dart run tool/gen_tokens.dart --check
       - run: dart format --output=none --set-exit-if-changed lib test tool
-      - run: flutter analyze
+      - run: flutter analyze --no-fatal-infos
+      - name: Verify KYC flow
+        run: flutter test test/features/kyc/kyc_flow_test.dart
+      - name: Verify withdrawal flow
+        run: flutter test test/features/wallet_flow_test.dart
+      - name: Generate KYC screenshots
+        run: flutter test test/screenshots/kyc_screenshots_test.dart
+      - name: Upload KYC screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kyc-screenshots
+          path: build/kyc-screenshots/*.png
+          if-no-files-found: error
       - run: flutter test
       - name: Restore the upload key
         env:

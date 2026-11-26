@@ -69,6 +69,9 @@ Brief? briefFromJson(Object? json) {
     logo: _text(j['brandLogoUrl']),
     cover: _text(j['coverUrl']),
     inAudience: j['inAudience'] is bool ? j['inAudience']! as bool : null,
+    overview: _text(j['overview']),
+    problemStatement: _text(j['problemStatement']),
+    deliverables: rowsOf(j['deliverables'], _text),
   );
 }
 

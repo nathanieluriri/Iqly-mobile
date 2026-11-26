@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/edge_haptics.dart';
+import '../../core/flags.dart';
 import '../../core/transitions.dart';
 import '../../data/models.dart';
 import '../../router.dart';
@@ -11,6 +12,7 @@ import '../notifications/notifications_routes.dart';
 import '../polls/polls_routes.dart';
 import '../more/more_routes.dart';
 import '../submissions/my_submissions_screen.dart';
+import '../assessments/assessment_screen.dart';
 import '../submit/submit_routes.dart';
 import '../wallet/wallet_routes.dart';
 import 'app_shell.dart';
@@ -55,6 +57,7 @@ RouteBase appShellRoute(GlobalKey<NavigatorState> rootKey) =>
                     scrim: IqScrim.sheet,
                   ),
                 ),
+                if (Flags.polls) discoverPollRoute(rootKey),
               ],
             ),
           ],
@@ -83,6 +86,10 @@ final discoverRoutes = <RouteBase>[
       ),
     ),
     routes: [...submitRoutes],
+  ),
+  GoRoute(
+    path: Routes.assessment,
+    pageBuilder: (context, state) => pushPage(state, const AssessmentScreen()),
   ),
   ...notificationsRoutes,
   ...pollsRoutes,

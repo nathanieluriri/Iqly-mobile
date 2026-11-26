@@ -125,19 +125,25 @@ void main() {
         service: _live(thursday),
       );
       expect(find.byType(HomeScreen), findsOneWidget);
-      // Discover waits for its Activations block, then opens the list with
-      // what it loaded.
+      // Discover waits for its Activations block, then opens that
+      // activation, not the list.
       await tester.pump(const Duration(milliseconds: 1300));
       await tester.pumpAndSettle();
       expect(find.text('Activations'), findsOneWidget);
-      expect(find.text('Closes in 5h 40m'), findsOneWidget);
+      expect(find.text('5h 40m left'), findsOneWidget);
 
       await tester.tap(find.text('Rate 3 recipes in the Orchid Foods app'));
       await tester.pumpAndSettle();
+      expect(find.byType(ActivationScreen), findsOneWidget);
+      expect(find.byType(ActivationsScreen), findsNothing);
+      await _tap(tester, find.bySemanticsLabel(RegExp('Back')));
+      expect(find.byType(HomeScreen), findsOneWidget);
+
+      await _tap(tester, _activationsSeeAll());
       expect(find.byType(ActivationsScreen), findsOneWidget);
       expect(find.byType(ActivationsLoading), findsNothing);
       expect(find.text('Rate 3 recipes in the Orchid Foods app'), findsOne);
-      expect(find.text('Closes in 5h 40m'), findsOneWidget);
+      expect(find.text('5h 40m left'), findsOneWidget);
       expect(find.text('₦500'), findsOneWidget);
       expect(find.text('₦1.5k'), findsOneWidget);
       expect(find.text('₦800'), findsOneWidget);
@@ -145,15 +151,15 @@ void main() {
 
       await _tap(tester, find.text(_kudiBox));
       expect(find.byType(ActivationScreen), findsOneWidget);
-      expect(find.text('Activation'), findsNWidgets(2));
+      expect(find.text('Activation'), findsOneWidget);
       expect(
         find.text(
           'Paid to your iQLY wallet once Kudi Box confirms, usually within '
           '24 hours.',
         ),
-        findsOneWidget,
+        findsNothing,
       );
-      expect(find.text('Closes in 2 days'), findsOneWidget);
+      expect(find.text('2 days left'), findsOneWidget);
       expect(find.text('Settings → Verification. About 2 min'), findsOne);
       const opened = [_light, _light];
       expect(haptics, opened);
@@ -161,9 +167,12 @@ void main() {
       await _tap(tester, find.text('Start activation'));
       expect(haptics, [...opened, _commit]);
       expect(find.text('Not started · 3 steps'), findsOneWidget);
+      expect(find.text('2 days left'), findsNothing);
       expect(find.text('Settings → Verification'), findsOneWidget);
-      expect(find.text('Earn ₦1,500'), findsOneWidget);
-      expect(find.text('when all 3 steps are confirmed'), findsOneWidget);
+      expect(
+        find.text('Earn ₦1,500 when all 3 steps are confirmed'),
+        findsOneWidget,
+      );
       expect(find.text('Open Kudi Box'), findsOneWidget);
 
       await tester.pump(const Duration(seconds: 4));
@@ -349,7 +358,7 @@ void main() {
   });
 
   testWidgets('B8: an activation that has ended cannot start', (tester) async {
-    final ended = DemoActivations(thursday).kudiBox.closesAt
+    final ended = DemoActivations(thursday).kudiBox.closesAt!
         .add(const Duration(days: 2));
     await pumpActivations(
       tester,
@@ -448,7 +457,7 @@ void main() {
     await tester.pump(const Duration(minutes: 1));
     await tester.pumpAndSettle();
     expect(find.text('Step 2 not confirmed yet'), findsOneWidget);
-    expect(find.text('1 day waiting'), findsOneWidget);
+    expect(find.text('1 day waiting'), findsNothing);
     expect(find.text('Not confirmed after a day'), findsOneWidget);
     expect(find.text('Upload proof of step 2'), findsOneWidget);
   });
@@ -701,7 +710,7 @@ void main() {
     expect(_awards(container), {'activation-a1': 50000});
   });
 
-  testWidgets('paid by step: each accepted proof puts its step on the wallet', (
+  testWidgets('paid by step: the full reward pays only after the last proof', (
     tester,
   ) async {
     final container = await pumpActivations(
@@ -715,18 +724,28 @@ void main() {
       ),
     );
     await _tap(tester, find.text('Start activation'));
-    await _tap(tester, find.text('Upload proof of step 1'));
-    expect(
-      find.text('Record step 1. Orchid Foods confirms it, then we pay ₦100.'),
-      findsOneWidget,
-    );
-    await _tap(tester, find.byType(IqProofTile));
-    await _tap(tester, find.text('Send proof'));
-    expect(find.text('₦100.00 after confirmation'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 4));
-    await tester.pumpAndSettle();
-    expect(find.text('Paid ₦100'), findsOneWidget);
-    expect(_awards(container), {'activation-a1-step-0': 10000});
+    for (var step = 1; step <= 3; step++) {
+      await _tap(tester, find.text('Upload proof of step $step'));
+      if (step == 1) {
+        expect(
+          find.text('Record step 1. Orchid Foods confirms it.'),
+          findsOneWidget,
+        );
+      }
+      await _tap(tester, find.byType(IqProofTile));
+      await _tap(tester, find.text('Send proof'));
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      if (step < 3) {
+        expect(container.read(activationProvider('a1'))!.credited, isFalse);
+        expect(
+          container.read(activationProvider('a1'))!.progress!.stepPayouts,
+          isEmpty,
+        );
+      }
+    }
+    expect(find.text('₦500.00 is yours'), findsOneWidget);
+    expect(_awards(container), {'activation-a1-step-2': 50000});
   });
 
   testWidgets('a run under way asks for help about itself', (tester) async {

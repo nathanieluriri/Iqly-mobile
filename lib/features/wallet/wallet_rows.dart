@@ -3,11 +3,12 @@ import 'package:flutter/widgets.dart';
 import '../../core/money.dart';
 import '../../core/navigation.dart';
 import '../../core/relative_time.dart';
+import '../../data/activations_data.dart';
 import '../../data/models.dart';
 import '../../theme/theme.dart';
 import '../../ui/brand_logo.dart';
-import '../../ui/sample_logo.dart';
 import '../../ui/wallet_row.dart';
+import '../discover/business_art.dart';
 import 'wallet_routes.dart';
 import 'wallet_state.dart';
 
@@ -18,6 +19,11 @@ const hiddenAmount = '₦ • • • •';
 
 /// "−₦10,000.00": Figma sets the true minus sign.
 String debit(int kobo) => '−${naira(kobo.abs())}';
+
+/// Logos for reward rows, keyed by activation id.
+Map<String, String?> activationLogosOf(Iterable<Activation> activations) => {
+  for (final a in activations) a.id: activationLogo(a),
+};
 
 IqWalletRowStatus rowStatus(Withdrawal w) => switch (w.status) {
   WithdrawalStatus.pending ||
@@ -34,6 +40,7 @@ class WalletActivityRow extends StatelessWidget {
     super.key,
     required this.item,
     required this.briefs,
+    this.activationLogos = const {},
     required this.now,
     required this.hidden,
     required this.divider,
@@ -43,6 +50,9 @@ class WalletActivityRow extends StatelessWidget {
 
   /// From [rewardBriefsProvider]: the brief behind each submission reward.
   final Map<String, Brief> briefs;
+
+  /// Activation id to its logo URL, when the wallet has loaded activations.
+  final Map<String, String?> activationLogos;
   final DateTime now;
   final bool hidden;
   final bool divider;
@@ -90,15 +100,17 @@ class WalletActivityRow extends StatelessWidget {
         return (
           business ?? 'Private business',
           brief?.title ?? '',
-          _logo(business),
+          businessMark(logo: brief?.logo, name: business),
         );
       case RewardSource.activation:
+        final id = award.activationId;
         return (
           award.business ?? 'Activation',
           award.note ?? 'activation',
-          award.activationId == null
-              ? _logo(award.business)
-              : const IqSampleLogo(IqSampleLogoBrand.private, size: 40),
+          businessMark(
+            logo: id == null ? null : activationLogos[id],
+            name: award.business,
+          ),
         );
       case RewardSource.referral:
         return (
@@ -112,16 +124,6 @@ class WalletActivityRow extends StatelessWidget {
           ),
         );
     }
-  }
-
-  static Widget _logo(String? business) {
-    final brand = business == null
-        ? IqSampleLogoBrand.private
-        : IqSampleLogoBrand.values
-                  .where((b) => business.startsWith(b.label))
-                  .firstOrNull ??
-              IqSampleLogoBrand.private;
-    return IqSampleLogo(brand, size: 40);
   }
 }
 

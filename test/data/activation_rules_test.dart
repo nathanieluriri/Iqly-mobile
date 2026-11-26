@@ -26,6 +26,27 @@ ActivationProgress _run({
   ],
 );
 
+Activation _offer({
+  DateTime? closesAt,
+  int spotsLeft = 10,
+  ActivationProgress? progress,
+}) => Activation(
+  id: 'offer',
+  business: 'Kudi Box',
+  title: 'Open an account',
+  minutes: 10,
+  rewardKobo: 150000,
+  closesAt: closesAt,
+  spotsLeft: spotsLeft,
+  spotsTotal: 50,
+  steps: const [
+    ActivationStep(title: 'Open', hint: 'Open the app'),
+    ActivationStep(title: 'Save', hint: 'Save a naira'),
+  ],
+  link: Uri.parse('https://example.com/join'),
+  progress: progress,
+);
+
 ActivationProof _proof(int step, {String? refused, bool checked = false}) =>
     ActivationProof(
       step: step,
@@ -177,7 +198,7 @@ void main() {
     test('closed before step 1 was recorded: ended', () {
       final a = _kudiBox(ConfirmationMode.proof, _run());
       expect(
-        a.phaseAt(a.closesAt.add(const Duration(minutes: 1))),
+        a.phaseAt(a.closesAt!.add(const Duration(minutes: 1))),
         ActivationPhase.expired,
       );
     });
@@ -405,28 +426,30 @@ void main() {
         expect(run.stepEndedAt(2, _now), isFalse);
       });
 
-      test('per_step with a paying step held: it waits, counting only what '
-          'can still be paid, and the steps left have ended', () {
-        final run = closed(
-          _run(started: const Duration(hours: 30), held: [0]),
-          rewards: [20000, 30000, 0],
-          rewardKobo: 50000,
-        );
-        expect(run.stillPayable, 20000);
-        expect(run.phaseAt(_now), ActivationPhase.confirming);
-        expect(
-          perStepLine(run),
-          'Rewards land in your iQLY wallet as each step is confirmed. Finish '
-          'every step by 2 Oct, when the activation ends.',
-          reason: 'the design profile\'s rules, whoever confirms the steps',
-        );
-        expect(earnedLine(run, now: _now), '₦0 earned of up to ₦200');
-        expect(earnedLine(run), '₦0 earned of up to ₦500');
-        expect(
-          [for (var i = 0; i < 3; i++) run.stepEndedAt(i, _now)],
-          [false, true, true],
-        );
-      });
+      test(
+        'per_step with a paying step held that cannot finish: it has ended',
+        () {
+          final run = closed(
+            _run(started: const Duration(hours: 30), held: [0]),
+            rewards: [20000, 30000, 0],
+            rewardKobo: 50000,
+          );
+          expect(run.stillPayable, 0);
+          expect(run.phaseAt(_now), ActivationPhase.expired);
+          expect(
+            perStepLine(run),
+            'Each step is held until you finish every step by 2 Oct. '
+            'Then it lands in your iQLY wallet.',
+            reason: 'the design profile\'s rules, whoever confirms the steps',
+          );
+          expect(earnedLine(run, now: _now), 'Finish every step to get paid');
+          expect(earnedLine(run), 'Finish every step to get paid');
+          expect(
+            [for (var i = 0; i < 3; i++) run.stepEndedAt(i, _now)],
+            [false, true, true],
+          );
+        },
+      );
 
       test('per_step whose held step pays nothing: it has ended', () {
         final run = closed(
@@ -460,12 +483,9 @@ void main() {
   group('paid step by step (Round 18)', () {
     final byStep = _demo.orchidFoodsByStep;
 
-    test('each step pays its own amount; a per-run one pays the reward on '
-        'its last step (D1), or on any without a mode, as before', () {
-      expect(
-        [for (var i = 0; i < 3; i++) byStep.paysFor(i)],
-        [10000, 20000, 20000],
-      );
+    test('step amounts allocate the reward, but money moves on the final '
+        'step; a per-run one does the same (D1), or any without a mode, as before', () {
+      expect([for (var i = 0; i < 3; i++) byStep.paysFor(i)], [0, 0, 50000]);
       expect(
         [for (var i = 0; i < 3; i++) _demo.orchidFoods.paysFor(i)],
         [0, 0, 50000],
@@ -479,19 +499,14 @@ void main() {
     test('the progress reads as the design profile has it', () {
       final started = byStep.withProgress(_run());
       expect(progressLine(started), 'No steps confirmed yet');
-      expect(earnedLine(started), '₦0 earned of up to ₦500');
-      final one = byStep.withProgress(
-        _run(
-          confirmed: [Duration.zero],
-          payouts: [ActivationStepPayout(step: 0, kobo: 10000, paidAt: _now)],
-        ),
-      );
+      expect(earnedLine(started), 'Finish every step to get paid');
+      final one = byStep.withProgress(_run(confirmed: [Duration.zero]));
       expect(progressLine(one), 'Step 1 of 3 confirmed');
-      expect(earnedLine(one), '₦100 earned of up to ₦500');
+      expect(earnedLine(one), '₦100 waiting · finish to get paid');
       expect(
         perStepLine(byStep),
-        'Rewards land in your iQLY wallet as each step is confirmed. Finish '
-        'every step by 2 Oct, when the activation ends.',
+        'Each step is held until you finish every step by 2 Oct. '
+        'Then it lands in your iQLY wallet.',
       );
       expect(
         progressLine(_demo.kudiBox.withProgress(_run())),
@@ -532,6 +547,23 @@ void main() {
       expect(stepRewardText(run, 1), '₦200');
       expect(run.payoutOf(1), isNull);
     });
+  });
+
+  group('open discovery', () {
+    test(
+      'full no-deadline offers leave Available, dated and started runs stay',
+      () {
+        final full = _offer(closesAt: null, spotsLeft: 0);
+        final dated = _offer(
+          closesAt: _now.add(const Duration(days: 1)),
+          spotsLeft: 0,
+        );
+        final started = _offer(closesAt: null, spotsLeft: 0, progress: _run());
+        expect(full.availableAt(_now), isFalse);
+        expect(dated.availableAt(_now), isTrue);
+        expect(started.availableAt(_now), isTrue);
+      },
+    );
   });
 
   group('the demo service', () {
@@ -579,23 +611,24 @@ void main() {
       },
     );
 
-    test('proof mode by step: each step pays as it is confirmed', () async {
-      final demo = service([_demo.orchidFoodsByStep]);
-      await demo.start('a1');
-      final first = await prove(demo, 'a1');
-      expect(
-        [for (final p in first.progress!.stepPayouts) (p.step, p.kobo)],
-        [(0, 10000)],
-      );
-      await prove(demo, 'a1');
-      final last = await prove(demo, 'a1');
-      expect(
-        [for (final p in last.progress!.stepPayouts) p.kobo],
-        [10000, 20000, 20000],
-      );
-      expect(last.credited, isTrue);
-      demo.dispose();
-    });
+    test(
+      'proof mode by step: the reward pays only on the final step',
+      () async {
+        final demo = service([_demo.orchidFoodsByStep]);
+        await demo.start('a1');
+        final first = await prove(demo, 'a1');
+        expect(first.progress!.stepPayouts, isEmpty);
+        expect(first.credited, isFalse);
+        await prove(demo, 'a1');
+        final last = await prove(demo, 'a1');
+        expect(
+          [for (final p in last.progress!.stepPayouts) (p.step, p.kobo)],
+          [(0, 10000), (1, 20000), (2, 20000)],
+        );
+        expect(last.credited, isTrue);
+        demo.dispose();
+      },
+    );
 
     test('postback mode: the run has its code; a refreshed proof confirms '
         'its step and the app the rest', () async {

@@ -9,6 +9,8 @@ import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../data/device.dart';
 import '../../data/models.dart';
+import '../../data/assessment_data.dart';
+import '../../data/assessment_service.dart';
 import '../../data/submit_service.dart' show briefAudienceProvider;
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -16,6 +18,7 @@ import '../../ui/banner.dart';
 import '../../ui/bookmark.dart';
 import '../../ui/brief_hero.dart';
 import '../../ui/button.dart';
+import '../../ui/brief_sections.dart';
 import '../../ui/setting_row.dart';
 import '../../ui/skeleton.dart';
 import '../../ui/switch.dart';
@@ -94,7 +97,7 @@ class _BriefDetailScreenState extends ConsumerState<BriefDetailScreen> {
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
         resizeToAvoidBottomInset: false,
-        backgroundColor: IqColors.bg,
+        backgroundColor: IqColors.card,
         body: SafeArea(
           maintainBottomViewPadding: true,
           child: CenteredContent(
@@ -156,6 +159,7 @@ class _ActionBar extends ConsumerWidget {
         brief.inAudience == false && ref.watch(briefAudienceProvider);
     final full = brief.spotsLeft == 0;
     final sent = ref.watch(briefSubmissionProvider(brief.id));
+    final access = ref.watch(assessmentAccessProvider).value;
     final Widget button;
     if (sent != null) {
       button = IqButton(
@@ -163,6 +167,14 @@ class _ActionBar extends ConsumerWidget {
         kind: IqButtonKind.secondary,
         width: double.infinity,
         onTap: () => context.open(submissionPath(sent)),
+      );
+    } else if (access != null && !access.canAccessChallenges) {
+      button = IqButton(
+        label: access.state == 'unavailable'
+            ? 'New challenges are currently unavailable'
+            : assessmentIntro.title,
+        width: double.infinity,
+        onTap: () => context.open(Routes.assessment),
       );
     } else {
       button = IqButton(
@@ -311,21 +323,17 @@ class _Body extends ConsumerWidget {
               cover: businessCover(brief.cover),
               logo: businessLogo(brief.logo),
               showDots: false,
+              showLogo: false,
               height: 232,
             ),
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: IqSpace.s3),
           StaggerItem(
             index: 0,
             child: inset(
-              Padding(
-                padding: const EdgeInsets.only(left: 66),
-                child: Text(
-                  businessLabel(brief),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: IqText.smallStrong.copyWith(color: IqColors.fg),
-                ),
+              Text(
+                '${brief.tier.label} · ${brief.category.label}',
+                style: IqText.smallStrong.copyWith(color: IqColors.fg2),
               ),
             ),
           ),
@@ -339,9 +347,43 @@ class _Body extends ConsumerWidget {
               ),
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: IqSpace.s6),
           StaggerItem(
             index: 1,
+            child: inset(
+              Row(
+                children: [
+                  SizedBox.square(
+                    dimension: 40,
+                    child: ClipOval(child: businessLogo(brief.logo, size: 40)),
+                  ),
+                  const SizedBox(width: IqSpace.s3),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Posted by',
+                          style: IqText.small.copyWith(color: IqColors.fg3),
+                        ),
+                        Text(
+                          businessLabel(brief),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: IqText.smallStrong.copyWith(
+                            color: IqColors.fg,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          StaggerItem(
+            index: 2,
             child: inset(
               Wrap(
                 spacing: IqSpace.s1p5,
@@ -352,12 +394,7 @@ class _Body extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 14),
-          StaggerItem(
-            index: 2,
-            child: inset(
-              Text(brief.body, style: IqText.body.copyWith(color: IqColors.fg)),
-            ),
-          ),
+          StaggerItem(index: 2, child: inset(BriefSections(brief: brief))),
           if (canRemind) ...[
             const SizedBox(height: 14),
             StaggerItem(

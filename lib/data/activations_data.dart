@@ -301,7 +301,7 @@ class Activation {
   /// "about 10 min".
   final int minutes;
   final int rewardKobo;
-  final DateTime closesAt;
+  final DateTime? closesAt;
   final int spotsLeft;
   final int spotsTotal;
   final List<ActivationStep> steps;
@@ -335,7 +335,15 @@ class Activation {
 
   bool get full => spotsLeft <= 0;
 
-  bool closedAt(DateTime now) => !closesAt.isAfter(now);
+  bool closedAt(DateTime now) => closesAt != null && !closesAt!.isAfter(now);
+
+  /// Open discovery includes dated offers even when full, and started runs
+  /// even when their no-deadline offer is full. An unstarted full offer with
+  /// no deadline leaves discovery.
+  bool availableAt(DateTime now) =>
+      !credited &&
+      !closedAt(now) &&
+      (started || closesAt != null || spotsLeft > 0);
 
   /// Whether a recording can still go as proof: started, not paid, and
   /// open. A proof turned down after the close cannot be recorded again,
@@ -344,13 +352,18 @@ class Activation {
 
   bool get perStep => rewardMode == RewardMode.perStep;
 
-  /// What confirming step [i] pays: its own amount on a per-step
-  /// activation; on a per-run one the reward, on its last step only once
-  /// the run has a mode (D1: before, a checked proof paid the whole run).
+  /// What confirming step [i] pays. Legacy per-step runs settle every
+  /// unpaid allocation on the final step, using the API's zero-based index.
   int paysFor(int i) {
-    if (perStep) return i < steps.length ? steps[i].rewardKobo ?? 0 : 0;
     if (confirmationMode == null) return rewardKobo;
-    return i == steps.length - 1 ? rewardKobo : 0;
+    if (i != steps.length - 1) return 0;
+    if (!perStep) return rewardKobo;
+    var kobo = 0;
+    for (final (index, step) in steps.indexed) {
+      final allocation = step.rewardKobo ?? 0;
+      if (allocation > 0 && payoutOf(index) == null) kobo += allocation;
+    }
+    return kobo;
   }
 
   /// Round 18: once more than one step pays, each paying step shows its
@@ -405,18 +418,17 @@ class Activation {
   }
 
   /// What a run kept open after the close can still be paid, as the API
-  /// counts it: on per_run the reward when the steps in [_reach] finish the
-  /// run, else nothing; on per_step their rewards not yet paid.
+  /// counts it: the unpaid reward when the steps in [_reach] finish the
+  /// run, else nothing. A mid-run that cannot finish pays nothing.
   int get stillPayable {
     final run = progress;
     if (run == null || credited) return 0;
     final done = run.confirmedAt.length;
     final reach = _reach;
-    if (!perStep) {
-      return reach > 0 && done + reach >= steps.length ? rewardKobo : 0;
-    }
+    if (reach == 0 || done + reach < steps.length) return 0;
+    if (!perStep) return rewardKobo;
     var kobo = 0;
-    for (var i = done; i < done + reach; i++) {
+    for (var i = 0; i < steps.length; i++) {
       if (payoutOf(i) == null) kobo += steps[i].rewardKobo ?? 0;
     }
     return kobo;
@@ -598,7 +610,7 @@ class DemoActivations {
     confirmationMode: ConfirmationMode.proof,
   );
 
-  /// Orchid Foods paying ₦100, ₦200 and ₦200 as each step is confirmed.
+  /// Orchid Foods holding ₦100, ₦200 and ₦200 until every step is done.
   late final orchidFoodsByStep = Activation(
     id: orchidFoods.id,
     business: orchidFoods.business,

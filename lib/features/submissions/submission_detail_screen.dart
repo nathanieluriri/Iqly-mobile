@@ -15,6 +15,7 @@ import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/brief_hero.dart';
+import '../../ui/brief_sections.dart';
 import '../../ui/button.dart';
 import '../../ui/meta.dart';
 import '../../ui/section_title.dart';
@@ -22,13 +23,15 @@ import '../../ui/skeleton.dart';
 import '../../ui/top_bar.dart';
 import '../outcomes/business_note.dart';
 import '../outcomes/outcomes_routes.dart' show leaderboardPath;
+import '../discover/discover_state.dart';
 import 'brief_art.dart';
+import 'submission_answer.dart';
 import 'submission_files.dart';
 import 'submissions_state.dart';
 
 /// B4 Submission detail (35:146), a sub page: the brief's photo with the
-/// business logo, who it is for and the status, your title, when you sent it
-/// and the brief, the pool and deadline, your answer and when results come,
+/// business logo, who it is for and the status, your title, the pool and
+/// deadline, and your answer,
 /// what the person sent with it (no frame draws the files: they keep the submit
 /// flow's attachments group), and the business's note once its results are out
 /// (contract 12.2). View the brief opens Brief detail. Not selected
@@ -41,95 +44,108 @@ class SubmissionDetailScreen extends ConsumerWidget {
 
   final String id;
 
-  static const double heroHeight = 160;
+  static const double heroHeight = 232;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final loaded = ref.watch(submissionItemProvider(id));
     final item = loaded.value;
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
-      child: Scaffold(
-        resizeToAvoidBottomInset: false,
-        backgroundColor: IqColors.bg,
-        body: SafeArea(
-          maintainBottomViewPadding: true,
-          child: CenteredContent(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                IqTopBar(
-                  variant: IqTopBarVariant.page,
-                  title: 'Submission',
-                  onBack: () => context.canPop()
-                      ? context.pop()
-                      : context.go(
-                          Routes.submissions,
-                          extra: NavDirection.back,
-                        ),
-                ),
-                Expanded(
-                  child: LoadingGate(
-                    loading: item == null && loaded.isLoading,
-                    skeleton: const _Skeleton(),
-                    child: item != null
-                        ? _Body(
-                            item: item,
-                            now: ref.watch(clockProvider)(),
-                            note: ref.watch(businessNoteShownProvider)
-                                ? item.submission.note
-                                : null,
-                          )
-                        : loaded.hasError
-                        ? Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: IqSpace.s4,
-                            ),
-                            child: Align(
-                              alignment: Alignment.topCenter,
-                              child: IqBanner(
-                                kind: IqBannerKind.error,
-                                title: 'Couldn’t load. Check your connection.',
-                                action: 'Try again',
-                                onAction: () =>
-                                    ref.invalidate(submissionItemProvider(id)),
+    return PopScope(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) leaveSubmission(context);
+      },
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.dark,
+        child: Scaffold(
+          resizeToAvoidBottomInset: false,
+          backgroundColor: IqColors.card,
+          body: SafeArea(
+            maintainBottomViewPadding: true,
+            child: CenteredContent(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  IqTopBar(
+                    variant: IqTopBarVariant.page,
+                    title: 'Submission',
+                    onBack: () => leaveSubmission(context),
+                  ),
+                  Expanded(
+                    child: LoadingGate(
+                      loading: item == null && loaded.isLoading,
+                      skeleton: const _Skeleton(),
+                      child: item != null
+                          ? _Body(
+                              item: item,
+                              now: ref.watch(clockProvider)(),
+                              note: ref.watch(businessNoteShownProvider)
+                                  ? item.submission.note
+                                  : null,
+                            )
+                          : loaded.hasError
+                          ? Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: IqSpace.s4,
+                              ),
+                              child: Align(
+                                alignment: Alignment.topCenter,
+                                child: IqBanner(
+                                  kind: IqBannerKind.error,
+                                  title:
+                                      'Couldn’t load. Check your connection.',
+                                  action: 'Try again',
+                                  onAction: () => ref.invalidate(
+                                    submissionItemProvider(id),
+                                  ),
+                                ),
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  ),
+                  if (item != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: IqSpace.s4,
+                        vertical: IqSpace.s3,
+                      ),
+                      child: _notSelected(item)
+                          ? IqButton(
+                              label: 'See what won',
+                              kind: IqButtonKind.secondary,
+                              showIcon: false,
+                              width: double.infinity,
+                              onTap: () =>
+                                  context.open(leaderboardPath(item.id)),
+                            )
+                          : IqButton(
+                              label: 'View the brief',
+                              kind: IqButtonKind.secondary,
+                              showIcon: false,
+                              width: double.infinity,
+                              onTap: () => context.open(
+                                Routes.brief(item.submission.briefId),
+                                extra: item.brief,
                               ),
                             ),
-                          )
-                        : const SizedBox.shrink(),
-                  ),
-                ),
-                if (item != null)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: IqSpace.s4,
-                      vertical: IqSpace.s3,
                     ),
-                    child: _notSelected(item)
-                        ? IqButton(
-                            label: 'See what won',
-                            kind: IqButtonKind.secondary,
-                            showIcon: false,
-                            width: double.infinity,
-                            onTap: () => context.open(leaderboardPath(item.id)),
-                          )
-                        : IqButton(
-                            label: 'View the brief',
-                            kind: IqButtonKind.secondary,
-                            showIcon: false,
-                            width: double.infinity,
-                            onTap: () => context.open(
-                              Routes.brief(item.submission.briefId),
-                              extra: item.brief,
-                            ),
-                          ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
+  }
+}
+
+/// Back to the opener, or to My submissions when this page is the stack.
+void leaveSubmission(BuildContext context) {
+  if (context.canPop()) {
+    context.pop();
+  } else {
+    context.go(Routes.submissions, extra: NavDirection.back);
   }
 }
 
@@ -176,7 +192,7 @@ class _Skeleton extends StatelessWidget {
   }
 }
 
-class _Body extends StatelessWidget {
+class _Body extends ConsumerWidget {
   const _Body({required this.item, required this.now, this.note});
 
   final SubmissionItem item;
@@ -186,8 +202,10 @@ class _Body extends StatelessWidget {
   final BusinessNote? note;
 
   @override
-  Widget build(BuildContext context) {
-    final brief = item.brief;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final brief =
+        ref.watch(briefDetailProvider(item.submission.briefId)).value ??
+        item.brief;
     Widget gap() => const SizedBox(height: IqSpace.s3);
     return Stagger(
       move: StaggerMove.settle,
@@ -198,6 +216,7 @@ class _Body extends StatelessWidget {
             IqBriefHero(
               height: SubmissionDetailScreen.heroHeight,
               showDots: false,
+              showLogo: false,
               cover: briefCover(brief),
               logo: briefLogo(brief),
             ),
@@ -211,28 +230,13 @@ class _Body extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.only(left: 66),
-                    child: Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            brief?.businessName ?? 'Private business',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: IqText.smallStrong.copyWith(
-                              color: IqColors.fg,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: IqSpace.s2p5),
-                        IqMeta(
-                          kind: _notSelected(item)
-                              ? IqMetaKind.plain
-                              : IqMetaKind.time,
-                          label: item.status.label,
-                        ),
-                      ],
+                  StaggerItem(
+                    index: 0,
+                    child: IqMeta(
+                      kind: _notSelected(item)
+                          ? IqMetaKind.plain
+                          : IqMetaKind.time,
+                      label: item.status.label,
                     ),
                   ),
                   gap(),
@@ -243,15 +247,38 @@ class _Body extends StatelessWidget {
                       style: IqText.headline.copyWith(color: IqColors.fg),
                     ),
                   ),
-                  gap(),
+                  const SizedBox(height: IqSpace.s6),
                   StaggerItem(
                     index: 1,
-                    child: Text(
-                      [
-                        sentAgo(item.submission.createdAt, now),
-                        if (brief != null) 'For: ${brief.title}',
-                      ].join(' · '),
-                      style: IqText.small.copyWith(color: IqColors.fg3),
+                    child: Row(
+                      children: [
+                        SizedBox.square(
+                          dimension: 40,
+                          child: ClipOval(child: briefLogo(brief, size: 40)),
+                        ),
+                        const SizedBox(width: IqSpace.s3),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Posted by',
+                                style: IqText.small.copyWith(
+                                  color: IqColors.fg3,
+                                ),
+                              ),
+                              Text(
+                                brief?.businessName ?? 'Private business',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: IqText.smallStrong.copyWith(
+                                  color: IqColors.fg,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   if (brief != null) ...[
@@ -278,36 +305,14 @@ class _Body extends StatelessWidget {
                       ),
                     ),
                   ],
+                  if (brief != null) ...[
+                    gap(),
+                    StaggerItem(index: 3, child: BriefSections(brief: brief)),
+                  ],
                   gap(),
                   StaggerItem(
-                    index: 3,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: IqSpace.s4,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: IqColors.line),
-                        borderRadius: BorderRadius.circular(IqRadius.xl2),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Your answer',
-                            style: IqText.smallStrong.copyWith(
-                              color: IqColors.fg3,
-                            ),
-                          ),
-                          const SizedBox(height: IqSpace.s1p5),
-                          Text(
-                            item.submission.body,
-                            style: IqText.body.copyWith(color: IqColors.fg),
-                          ),
-                        ],
-                      ),
-                    ),
+                    index: 4,
+                    child: SubmissionAnswerCard(body: item.submission.body),
                   ),
                   if (item.submission.files case final files
                       when files.isNotEmpty) ...[
@@ -338,16 +343,6 @@ class _Body extends StatelessWidget {
                         note: note,
                         brief: brief,
                         now: now,
-                      ),
-                    ),
-                  ],
-                  if (item.underReview) ...[
-                    gap(),
-                    StaggerItem(
-                      index: 4,
-                      child: Text(
-                        'Results after the brief closes.',
-                        style: IqText.small.copyWith(color: IqColors.fg3),
                       ),
                     ),
                   ],
