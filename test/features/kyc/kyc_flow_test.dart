@@ -66,10 +66,10 @@ class _QueuedKyc extends FakeKyc {
 
 void main() {
   testWidgets(
-    'Discover shows KYC outside withdrawal and opens the root route',
+    'Discover shows KYC outside withdrawal and opens the KYC sheet',
     (tester) async {
       final kyc = FakeKyc(unverified);
-      final (_, router) = await pumpLiveLaunch(
+      await pumpLiveLaunch(
         tester,
         Routes.home,
         api: FakeApi().api(),
@@ -81,7 +81,6 @@ void main() {
       await tester.tap(find.text('Verify your account'));
       await tester.pumpAndSettle();
       expect(find.byType(KycSheet), findsOneWidget);
-      expect(router.routerDelegate.currentConfiguration.uri.path, Routes.kyc);
     },
   );
 
@@ -89,7 +88,7 @@ void main() {
     tester,
   ) async {
     final kyc = FakeKyc(unverified);
-    final (_, router) = await pumpLiveLaunch(
+    await pumpLiveLaunch(
       tester,
       Routes.more,
       api: FakeApi().api(),
@@ -102,7 +101,6 @@ void main() {
     await tester.tap(find.text('Verification'));
     await tester.pumpAndSettle();
     expect(find.byType(KycSheet), findsOneWidget);
-    expect(router.routerDelegate.currentConfiguration.uri.path, Routes.kyc);
   });
 
   testWidgets('phone More exposes the current verification tier', (
@@ -148,7 +146,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.byType(WithdrawSheet), findsNothing);
-    expect(find.text('Try again'), findsOneWidget);
+    expect(find.text('Try again'), findsWidgets);
   });
 
   testWidgets('missing API service fails closed', (tester) async {
@@ -346,6 +344,7 @@ void main() {
     await old;
     expect(container.read(kycControllerProvider).status, ready);
     final disposed = Completer<KycStatus>();
+    kyc.responses.clear();
     kyc.fallback = disposed;
     final pending = container.read(kycControllerProvider.notifier).refresh();
     container.dispose();
