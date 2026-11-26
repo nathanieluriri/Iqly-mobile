@@ -22,7 +22,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 final figmaNow = DateTime(2026, 10, 3, 9, 41);
 
 class DemoKycService implements KycService {
-  static const status = KycStatus(
+  static const verifiedStatus = KycStatus(
     required: true,
     verified: true,
     tier: 3,
@@ -36,13 +36,14 @@ class DemoKycService implements KycService {
   );
 
   @override
-  Future<KycStatus> status() async => status;
+  Future<KycStatus> status() async => verifiedStatus;
 
   @override
-  Future<KycStatus> verify(KycCheck check) async => status;
+  Future<KycStatus> verify(KycCheck check) async => verifiedStatus;
 
   @override
-  Future<KycStatus> upload(KycCheckKind check, KycEvidence file) async => status;
+  Future<KycStatus> upload(KycCheckKind check, KycEvidence file) async =>
+      verifiedStatus;
 }
 
 /// The demo dataset with the briefs call scripted per test: [calls] lists
