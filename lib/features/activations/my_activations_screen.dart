@@ -54,7 +54,10 @@ class _MyActivationsScreenState extends ConsumerState<MyActivationsScreen> {
   @override
   Widget build(BuildContext context) {
     final now = ref.watch(clockProvider)();
-    final all = ref.watch(activationsProvider).value ?? const <Activation>[];
+    final activations = ref.watch(activationsProvider);
+    final all = activations.isReloading
+        ? const <Activation>[]
+        : activations.value ?? const <Activation>[];
     bool ended(Activation a) => switch (a.phaseAt(now)) {
       ActivationPhase.credited || ActivationPhase.expired => true,
       _ => false,
@@ -154,7 +157,8 @@ class _Cards extends StatelessWidget {
             activation: a,
             now: now,
             feature: i == 0,
-            onTap: () => context.open(activationPath(a.id)),
+            onTap: () =>
+                context.open(activationPath(a.id, history: a.credited)),
           ),
         ],
       ],

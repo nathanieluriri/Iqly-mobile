@@ -57,6 +57,28 @@ void main() {
     );
   });
 
+  testWidgets('Quick polls, completed', (tester) async {
+    await _golden(
+      tester,
+      'completed',
+      Routes.polls,
+      act: (tester) => tester.tap(find.text('Completed')),
+    );
+  });
+
+  testWidgets('Quick polls, completed results', (tester) async {
+    await _golden(
+      tester,
+      'completed_results',
+      Routes.polls,
+      act: (tester) async {
+        await tester.tap(find.text('Completed'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('When should a kiosk open in the morning?'));
+      },
+    );
+  });
+
   Future<void> tapText(WidgetTester tester, String text) async {
     await tester.tap(find.text(text));
     await tester.pumpAndSettle();

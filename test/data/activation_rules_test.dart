@@ -405,28 +405,30 @@ void main() {
         expect(run.stepEndedAt(2, _now), isFalse);
       });
 
-      test('per_step with a paying step held: it waits, counting only what '
-          'can still be paid, and the steps left have ended', () {
-        final run = closed(
-          _run(started: const Duration(hours: 30), held: [0]),
-          rewards: [20000, 30000, 0],
-          rewardKobo: 50000,
-        );
-        expect(run.stillPayable, 20000);
-        expect(run.phaseAt(_now), ActivationPhase.confirming);
-        expect(
-          perStepLine(run),
-          'Rewards land in your iQLY wallet as each step is confirmed. Finish '
-          'every step by 2 Oct, when the activation ends.',
-          reason: 'the design profile\'s rules, whoever confirms the steps',
-        );
-        expect(earnedLine(run, now: _now), '₦0 earned of up to ₦200');
-        expect(earnedLine(run), '₦0 earned of up to ₦500');
-        expect(
-          [for (var i = 0; i < 3; i++) run.stepEndedAt(i, _now)],
-          [false, true, true],
-        );
-      });
+      test(
+        'per_step with a paying step held that cannot finish: it has ended',
+        () {
+          final run = closed(
+            _run(started: const Duration(hours: 30), held: [0]),
+            rewards: [20000, 30000, 0],
+            rewardKobo: 50000,
+          );
+          expect(run.stillPayable, 0);
+          expect(run.phaseAt(_now), ActivationPhase.expired);
+          expect(
+            perStepLine(run),
+            'Each step is held until you finish every step by 2 Oct. '
+            'Then it lands in your iQLY wallet.',
+            reason: 'the design profile\'s rules, whoever confirms the steps',
+          );
+          expect(earnedLine(run, now: _now), 'Finish every step to get paid');
+          expect(earnedLine(run), 'Finish every step to get paid');
+          expect(
+            [for (var i = 0; i < 3; i++) run.stepEndedAt(i, _now)],
+            [false, true, true],
+          );
+        },
+      );
 
       test('per_step whose held step pays nothing: it has ended', () {
         final run = closed(
@@ -479,19 +481,14 @@ void main() {
     test('the progress reads as the design profile has it', () {
       final started = byStep.withProgress(_run());
       expect(progressLine(started), 'No steps confirmed yet');
-      expect(earnedLine(started), '₦0 earned of up to ₦500');
-      final one = byStep.withProgress(
-        _run(
-          confirmed: [Duration.zero],
-          payouts: [ActivationStepPayout(step: 0, kobo: 10000, paidAt: _now)],
-        ),
-      );
+      expect(earnedLine(started), 'Finish every step to get paid');
+      final one = byStep.withProgress(_run(confirmed: [Duration.zero]));
       expect(progressLine(one), 'Step 1 of 3 confirmed');
-      expect(earnedLine(one), '₦100 earned of up to ₦500');
+      expect(earnedLine(one), '₦100 waiting · finish to get paid');
       expect(
         perStepLine(byStep),
-        'Rewards land in your iQLY wallet as each step is confirmed. Finish '
-        'every step by 2 Oct, when the activation ends.',
+        'Each step is held until you finish every step by 2 Oct. '
+        'Then it lands in your iQLY wallet.',
       );
       expect(
         progressLine(_demo.kudiBox.withProgress(_run())),

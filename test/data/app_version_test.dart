@@ -60,7 +60,7 @@ void main() {
     );
   });
 
-  test('nobody is asked while Play does not list the app', () async {
+  test('a required update still shows when Play is not a public 200', () async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     addTearDown(() => debugDefaultTargetPlatformOverride = null);
     final release = await serviceAnswering(
@@ -68,6 +68,25 @@ void main() {
       {
         'success': true,
         'data': {'status': 'update_required', 'minimum': '0.2.0'},
+      },
+      [],
+      play: 404,
+    ).check();
+    expect(release.status, UpdateStatus.required);
+    expect(
+      release.updateUrl,
+      Uri.parse('https://play.google.com/store/apps/details?id=net.iqly.app'),
+    );
+  });
+
+  test('an optional update stays quiet while Play is not listed', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    final release = await serviceAnswering(
+      200,
+      {
+        'success': true,
+        'data': {'status': 'update_available', 'latest': '0.2.0+4'},
       },
       [],
       play: 404,

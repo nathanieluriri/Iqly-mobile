@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/deadline.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
+import '../../core/session.dart';
 import '../../data/activations_data.dart';
 import '../../theme/theme.dart';
 import '../../ui/biz_filter_chip.dart';
+import '../../ui/banner.dart';
 import '../../ui/biz_ledger_header.dart';
 import '../../ui/biz_segment.dart';
 import '../../ui/button.dart';
@@ -22,15 +24,7 @@ import 'activation_format.dart';
 import 'activations_routes.dart';
 import 'activations_state.dart';
 
-enum _Lens { all, active, done }
-
-enum _Sort {
-  closing('Closing soonest'),
-  reward('Biggest reward');
-
-  const _Sort(this.label);
-  final String label;
-}
+enum _Lens { available, completed }
 
 /// T10 · Activations (Mobile App · tablet, 1843:48473): My activations
 /// over the lens tabs and the table. Portrait keeps Activation, Reward and
@@ -43,8 +37,8 @@ class TabletActivations extends ConsumerStatefulWidget {
 }
 
 class _TabletActivationsState extends ConsumerState<TabletActivations> {
-  _Lens _lens = _Lens.all;
-  _Sort _sort = _Sort.closing;
+  _Lens _lens = _Lens.available;
+  ActivationListSort _sort = ActivationListSort.closing;
   bool _sorting = false;
 
   @override
@@ -52,29 +46,35 @@ class _TabletActivationsState extends ConsumerState<TabletActivations> {
     final state = ref.watch(activationsProvider);
     final now = ref.watch(clockProvider)();
     final expanded = Layout.isExpanded(context);
-    final all = state.value ?? const <Activation>[];
-    final open = [
+    final history = _lens == _Lens.completed
+        ? ref.watch(activationHistoryProvider)
+        : null;
+    final historyPage = activationHistoryFor(
+      history,
+      ref.watch(accountProvider),
+    );
+    final all = mergeActivations(
+      historyPage?.activations ?? const [],
+      state.isReloading || state.hasError
+          ? const <Activation>[]
+          : state.value ?? const <Activation>[],
+    );
+    final open = sortActivationTiles([
       for (final a in all)
         if (!a.credited && !a.closedAt(now)) a,
-    ];
-    final active = [
-      for (final a in all)
-        if (a.inFlight) a,
-    ];
-    final done = [
-      for (final a in all)
-        if (a.credited) a,
-    ];
-    final shown =
-        switch (_lens) {
-          _Lens.all => open,
-          _Lens.active => active,
-          _Lens.done => done,
-        }..sort(
-          (a, b) => _sort == _Sort.closing
-              ? a.closesAt.compareTo(b.closesAt)
-              : b.rewardKobo.compareTo(a.rewardKobo),
-        );
+    ], _sort);
+    final done = sortActivationTiles(
+      [
+        for (final a in all)
+          if (a.credited) a,
+      ],
+      _sort,
+      completed: true,
+    );
+    final shown = switch (_lens) {
+      _Lens.available => open,
+      _Lens.completed => done,
+    };
     final lead = leadActivation(all);
 
     final columns = [
@@ -84,16 +84,19 @@ class _TabletActivationsState extends ConsumerState<TabletActivations> {
       const IqBizLedgerColumn('Closes', width: 150),
     ];
 
-    final toolbar = Row(
+    final toolbar = Wrap(
+      spacing: IqSpace.s3,
+      runSpacing: IqSpace.s2,
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         IqBizSegment.track(
           children: [
             for (final lens in _Lens.values)
               IqBizSegment(
                 label: switch (lens) {
-                  _Lens.all => 'All · ${open.length}',
-                  _Lens.active => 'Active · ${active.length}',
-                  _Lens.done => 'Done',
+                  _Lens.available => 'Available',
+                  _Lens.completed => 'Completed',
                 },
                 state: lens == _lens
                     ? IqBizSegmentState.selected
@@ -102,17 +105,24 @@ class _TabletActivationsState extends ConsumerState<TabletActivations> {
               ),
           ],
         ),
-        const Spacer(),
         TabletPopover(
           open: _sorting,
           onClose: () => setState(() => _sorting = false),
           anchor: IqBizFilterChip(
-            label: 'Sort: ${_sort.label}',
+            label:
+                _lens == _Lens.completed && _sort == ActivationListSort.closing
+                ? 'Sort: Most recent'
+                : 'Sort: ${_sort.label}',
             onTap: () => setState(() => _sorting = !_sorting),
           ),
-          popover: TabletMenu<_Sort>(
-            options: _Sort.values,
-            label: (s) => s.label,
+          popover: TabletMenu<ActivationListSort>(
+            options: ActivationListSort.values,
+            label: (s) =>
+                _lens == _Lens.completed && s == ActivationListSort.closing
+                ? 'Most recent'
+                : _lens == _Lens.completed && s == ActivationListSort.latest
+                ? 'Oldest'
+                : s.label,
             selected: _sort,
             onPick: (s) => setState(() {
               _sort = s;
@@ -124,13 +134,27 @@ class _TabletActivationsState extends ConsumerState<TabletActivations> {
     );
 
     Widget body;
-    if (state.value == null && state.hasError) {
+    if (_lens == _Lens.completed &&
+        history?.hasError == true &&
+        shown.isEmpty) {
+      body = IqBanner(
+        kind: IqBannerKind.error,
+        title: "Couldn't load activations.",
+        action: 'Try again',
+        onAction: () => ref.invalidate(activationHistoryProvider),
+      );
+    } else if (_lens == _Lens.available &&
+        !state.isReloading &&
+        state.value == null &&
+        state.hasError) {
       body = const IqEmptyState(
         figure: IqFigures.thinker,
         title: 'Couldn’t load activations',
         body: 'Check your data or Wi-Fi and try again.',
       );
-    } else if (state.value == null) {
+    } else if ((_lens == _Lens.available &&
+            (state.isReloading || state.value == null)) ||
+        (_lens == _Lens.completed && historyPage == null && shown.isEmpty)) {
       body = const SizedBox(
         height: 200,
         child: Center(
@@ -138,10 +162,18 @@ class _TabletActivationsState extends ConsumerState<TabletActivations> {
         ),
       );
     } else if (shown.isEmpty) {
-      body = const IqEmptyState(
+      body = IqEmptyState(
         figure: IqFigures.shrug,
-        title: 'No activations right now',
-        body: 'New activations land here.',
+        title: _lens == _Lens.completed
+            ? historyPage?.nextCursor != null
+                  ? 'No completed activations on this page'
+                  : 'No completed activations yet'
+            : 'No activations right now',
+        body: _lens == _Lens.completed
+            ? historyPage?.nextCursor != null
+                  ? 'Load more to keep looking.'
+                  : 'Activations you complete will appear here.'
+            : 'New activations land here.',
       );
     } else {
       body = TabletCard(
@@ -154,7 +186,7 @@ class _TabletActivationsState extends ConsumerState<TabletActivations> {
                 columns: columns,
                 business: a.business,
                 title: a.title,
-                status: progressLine(a),
+                status: a.credited ? 'Paid to your wallet' : progressLine(a),
                 statusWarm: a.inFlight && a.confirmed < a.steps.length,
                 cover: activationCoverArt(a),
                 logo: activationLogoArt(a),
@@ -163,7 +195,12 @@ class _TabletActivationsState extends ConsumerState<TabletActivations> {
                     ? '${a.spotsLeft} ${a.spotsLeft == 1 ? 'spot' : 'spots'} left'
                     : null,
                 spotsLow: closingSoon(a, now),
-                closes: closingSoon(a, now)
+                closes: a.credited
+                    ? Text(
+                        'Completed',
+                        style: IqWebText.bodySmall.copyWith(color: IqColors.fg),
+                      )
+                    : closingSoon(a, now)
                     ? IqUrgency(
                         text: deadlineText(a, now),
                         tone: IqUrgencyTone.warm,
@@ -187,7 +224,8 @@ class _TabletActivationsState extends ConsumerState<TabletActivations> {
                           ),
                         ],
                       ),
-                onTap: () => context.open(activationPath(a.id)),
+                onTap: () =>
+                    context.open(activationPath(a.id, history: a.credited)),
               ),
             Container(
               padding: const EdgeInsets.symmetric(
@@ -213,9 +251,28 @@ class _TabletActivationsState extends ConsumerState<TabletActivations> {
           'Paid to your iQLY wallet once the business confirms, usually '
           'within 24 hours.',
       children: [
-        if (lead != null) _Mine(lead: lead, now: now),
+        if (lead != null && _lens == _Lens.available)
+          _Mine(lead: lead, now: now),
         toolbar,
         body,
+        if (_lens == _Lens.completed &&
+            history?.hasError == true &&
+            shown.isNotEmpty)
+          IqBanner(
+            kind: IqBannerKind.error,
+            title: "Couldn't load older activations.",
+            action: 'Try again',
+            onAction: () => ref.invalidate(activationHistoryProvider),
+          ),
+        if (_lens == _Lens.completed && historyPage?.nextCursor != null)
+          IqButton(
+            label: historyPage!.loadMoreFailed ? 'Try again' : 'Load more',
+            kind: IqButtonKind.secondary,
+            showIcon: false,
+            loading: historyPage.loadingMore,
+            onTap: () =>
+                ref.read(activationHistoryProvider.notifier).loadMore(),
+          ),
       ],
     );
   }
@@ -259,7 +316,7 @@ class _Mine extends StatelessWidget {
                 ),
                 if (waiting)
                   Text(
-                    'Step $next not confirmed yet · ${waitingCount(lead, now)}',
+                    'Step $next not confirmed yet',
                     style: IqWebText.metaCaption.copyWith(
                       color: IqColors.accentStrong,
                     ),

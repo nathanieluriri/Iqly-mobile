@@ -75,6 +75,7 @@ abstract final class Routes {
   static const notifications = '/notifications';
   static const briefDetail = '/briefs/:id';
   static const submit = '/briefs/:id/submit';
+  static const assessment = '/assessment';
   static const pickBrief = '/pick-a-brief';
   static const drafts = '/drafts';
   static const polls = '/polls';
@@ -86,7 +87,6 @@ abstract final class Routes {
   static const restoreAccount = '/restore-account';
   static const phoneCode = '/profile/details/phone/code';
   static const moreSavedBriefs = '/saved-briefs';
-  static const tryNotifications = '/try-notifications';
   static const withdrawalPin = '/pin';
   static const withdrawalPinReset = '/pin?reset=1';
   static const referrals = '/referrals';
@@ -127,7 +127,8 @@ final routerProvider = Provider<GoRouter>(
 /// does not run them.
 bool hiddenRoute(Reader read, String path) {
   bool under(String root) => path == root || path.startsWith('$root/');
-  return (!read(pollsShownProvider) && under(Routes.polls)) ||
+  return (!read(pollsShownProvider) &&
+          (under(Routes.polls) || under('${Routes.home}/poll'))) ||
       (!read(activationsShownProvider) && under(Routes.activations)) ||
       (!read(leaderboardShownProvider) && under(Routes.pointsLeaderboard)) ||
       (!read(referralsShownProvider) && under(Routes.referrals)) ||

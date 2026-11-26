@@ -29,6 +29,7 @@ import '../shell/tablet_page.dart';
 import '../shell/tablet_popover.dart';
 import '../shell/tablet_sheet.dart';
 import 'brief_art.dart';
+import 'submission_answer.dart';
 import 'submissions_state.dart';
 
 enum _Lens { all, underReview, winners, notSelected, drafts }
@@ -180,6 +181,7 @@ class _TabletSubmissionsState extends ConsumerState<TabletSubmissions>
       );
     } else if (data.items.isEmpty) {
       body = IqEmptyState(
+        figure: IqFigures.shrug,
         title: 'No submissions yet',
         body: 'Find a brief that fits you.',
         action: 'Browse briefs',
@@ -321,7 +323,7 @@ class _WonCard extends StatelessWidget {
     ),
     SubmissionStatus.filteredOut => (
       IqBizStatusPillStatus.notSelected,
-      'Didn’t pass screening',
+      'Rejected',
     ),
   };
 }
@@ -554,28 +556,16 @@ class SubmissionPanel extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: IqSpace.s5),
-          TabletCard(
-            padding: const EdgeInsets.all(IqSpace.s4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Your answer',
-                  style: IqWebText.metaCaption.copyWith(color: IqColors.fg3),
-                ),
-                const SizedBox(height: IqSpace.s1),
-                Text(
-                  item.submission.body,
-                  style: IqWebText.bodyBase.copyWith(color: IqColors.fg),
-                ),
-              ],
-            ),
-          ),
+          SubmissionAnswerCard(body: item.submission.body),
           const SizedBox(height: IqSpace.s5),
           if (item.status == SubmissionStatus.filteredOut) ...[
             Text(
-              'Not selected this time',
+              'Rejected',
               style: IqText.bodyStrong.copyWith(color: IqColors.fg),
+            ),
+            Text(
+              'You can’t send another response to this brief.',
+              style: IqWebText.metaCaption.copyWith(color: IqColors.fg3),
             ),
             if (note != null)
               Text(

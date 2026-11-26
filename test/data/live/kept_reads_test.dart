@@ -253,6 +253,28 @@ void main() {
           outbox: Outbox(store),
           userId: () => 'u_1',
         );
+        unawaited(() async {
+          try {
+            polls = await link.fetch(
+              '/polls',
+              AccountKeys.polls,
+              allowCache: false,
+            );
+          } catch (error) {
+            pollsError = error;
+          }
+        }());
+        unawaited(() async {
+          try {
+            activations = (await link.fetchDated(
+              '/activations',
+              AccountKeys.activations,
+              allowCache: false,
+            )).json;
+          } catch (error) {
+            activationsError = error;
+          }
+        }());
         link
             .fetch('/polls', AccountKeys.polls, allowCache: false)
             .then((v) => polls = v)

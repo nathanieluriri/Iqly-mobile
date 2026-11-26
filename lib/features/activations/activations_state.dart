@@ -69,6 +69,7 @@ class ActivationsNotifier extends AsyncNotifier<List<Activation>> {
           (a.credited && !(before[a.id]?.credited ?? true)) ||
           (before.containsKey(a.id) && _newPayouts(before[a.id], a).isNotEmpty),
     )) {
+      ref.invalidate(activationHistoryProvider);
       _readWallet();
     }
   }
@@ -104,12 +105,24 @@ class ActivationsNotifier extends AsyncNotifier<List<Activation>> {
   /// null once it is in the list, else why it is not. A list that failed
   /// is read again first, so the activation has somewhere to land.
   Future<ActivationMissing?> load(String id) async {
-    bool held() => state.value?.any((a) => a.id == id) ?? false;
+    bool held() {
+      if (!state.isReloading &&
+          (state.value?.any((a) => a.id == id) ?? false)) {
+        return true;
+      }
+      if (!ref.exists(activationHistoryProvider)) return false;
+      return activationHistoryFor(
+            ref.read(activationHistoryProvider),
+            ref.read(accountProvider),
+          )?.activations.any((a) => a.id == id) ??
+          false;
+    }
+
     try {
       if (state.hasError) ref.invalidateSelf();
       await future;
     } on Object {
-      return ActivationMissing.unreachable;
+      return held() ? null : ActivationMissing.unreachable;
     }
     if (!ref.read(_liveProvider)) {
       return held() ? null : ActivationMissing.gone;
@@ -171,6 +184,7 @@ class ActivationsNotifier extends AsyncNotifier<List<Activation>> {
     ]);
     final paid = activation.credited && !(before?.credited ?? false);
     final steps = _newPayouts(before, activation);
+    if (paid) ref.invalidate(activationHistoryProvider);
     if (paid || steps.isNotEmpty) _credit(activation, steps, run: paid);
   }
 
@@ -236,14 +250,145 @@ final activationsProvider =
       retry: (_, _) => null,
     );
 
+List<Activation> mergeActivations(
+  List<Activation> first,
+  List<Activation> second,
+) {
+  final activations = <String, Activation>{for (final a in first) a.id: a};
+  for (final activation in second) {
+    final previous = activations[activation.id];
+    if (previous?.credited == true && !activation.credited) continue;
+    activations[activation.id] = activation;
+  }
+  return activations.values.toList();
+}
+
+class ActivationHistoryNotifier extends AsyncNotifier<ActivationHistoryPage> {
+  @override
+  Future<ActivationHistoryPage> build() async {
+    final account = ref.watch(accountProvider);
+    final scope = ref.watch(accountScopeProvider);
+    final page = await scope.guard(
+      ref.watch(activationsServiceProvider).history(),
+    );
+    return ActivationHistoryPage(
+      activations: page.activations,
+      nextCursor: page.nextCursor,
+      account: account,
+    );
+  }
+
+  Future<void> loadMore() async {
+    final current = state.value;
+    final cursor = current?.nextCursor;
+    if (current == null || cursor == null || current.loadingMore) return;
+    final scope = ref.read(accountScopeProvider);
+    final loading = ActivationHistoryPage(
+      activations: current.activations,
+      nextCursor: cursor,
+      loadingMore: true,
+      account: current.account,
+    );
+    state = AsyncData(loading);
+    try {
+      final next = await ref
+          .read(activationsServiceProvider)
+          .history(cursor: cursor);
+      if (!ref.mounted || !scope.open || !identical(state.value, loading)) {
+        return;
+      }
+      if (next.nextCursor == cursor) {
+        throw StateError('Repeated activation cursor');
+      }
+      state = AsyncData(
+        ActivationHistoryPage(
+          activations: mergeActivations(current.activations, next.activations),
+          nextCursor: next.nextCursor,
+          account: current.account,
+        ),
+      );
+    } on Object {
+      if (!ref.mounted || !scope.open || !identical(state.value, loading)) {
+        return;
+      }
+      state = AsyncData(
+        ActivationHistoryPage(
+          activations: current.activations,
+          nextCursor: cursor,
+          loadMoreFailed: true,
+          account: current.account,
+        ),
+      );
+    }
+  }
+}
+
+enum ActivationListSort {
+  closing,
+  latest,
+  reward;
+
+  String get label => switch (this) {
+    closing => 'Closing soonest',
+    latest => 'Closing latest',
+    reward => 'Biggest reward',
+  };
+}
+
+List<Activation> sortActivationTiles(
+  List<Activation> activations,
+  ActivationListSort sort, {
+  bool completed = false,
+}) {
+  final tiles = [...activations];
+  tiles.sort((a, b) {
+    switch (sort) {
+      case ActivationListSort.reward:
+        return b.rewardKobo.compareTo(a.rewardKobo);
+      case ActivationListSort.latest:
+        if (completed) {
+          return a.progress!.paidAt!.compareTo(b.progress!.paidAt!);
+        }
+        return b.closesAt.compareTo(a.closesAt);
+      case ActivationListSort.closing:
+        if (completed) {
+          return b.progress!.paidAt!.compareTo(a.progress!.paidAt!);
+        }
+        return a.closesAt.compareTo(b.closesAt);
+    }
+  });
+  return tiles;
+}
+
+final activationHistoryProvider =
+    AsyncNotifierProvider<ActivationHistoryNotifier, ActivationHistoryPage>(
+      ActivationHistoryNotifier.new,
+      retry: (_, _) => null,
+    );
+
+ActivationHistoryPage? activationHistoryFor(
+  AsyncValue<ActivationHistoryPage>? history,
+  String? account,
+) {
+  final page = history?.value;
+  return page?.account == account ? page : null;
+}
+
 /// One activation, or null while the list loads.
-final activationProvider = Provider.family<Activation?, String>(
-  (ref, id) => ref
-      .watch(activationsProvider)
-      .value
-      ?.where((a) => a.id == id)
-      .firstOrNull,
-);
+final activationProvider = Provider.family<Activation?, String>((ref, id) {
+  final state = ref.watch(activationsProvider);
+  final current = state.isReloading
+      ? null
+      : state.value?.where((a) => a.id == id).firstOrNull;
+  if (!ref.exists(activationHistoryProvider)) return current;
+  final previous = activationHistoryFor(
+    ref.watch(activationHistoryProvider),
+    ref.watch(accountProvider),
+  )?.activations.where((a) => a.id == id).firstOrNull;
+  return previous?.credited == true && current?.credited != true
+      ? previous
+      : current ?? previous;
+});
 
 enum ProofStage {
   /// Nothing picked: the ProofTile.

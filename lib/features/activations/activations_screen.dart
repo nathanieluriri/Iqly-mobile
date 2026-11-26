@@ -9,12 +9,16 @@ import '../../core/deadline.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
+import '../../core/session.dart';
 import '../../core/transitions.dart';
 import '../../data/activations_data.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/empty_state.dart';
 import '../../ui/banner.dart';
+import '../../ui/biz_filter_chip.dart';
+import '../../ui/button.dart';
+import '../../ui/chip.dart';
 import '../../ui/illustration.dart';
 import '../../ui/list_row.dart';
 import '../../ui/top_bar.dart';
@@ -45,18 +49,47 @@ class _ActivationsScreenState extends ConsumerState<ActivationsScreen> {
   bool _skeleton = false;
   bool _minimumMet = true;
   bool _retrying = false;
+  bool _completed = false;
+  ActivationListSort _sort = ActivationListSort.closing;
   Timer? _delay;
   Timer? _minimum;
 
   static bool _loading(AsyncValue<List<Activation>> state) =>
-      !(state.hasValue && !state.hasError) &&
-      !(state.hasError && !state.isLoading);
+      state.isReloading ||
+      (!(state.hasValue && !state.hasError) &&
+          !(state.hasError && !state.isLoading));
 
   @override
   void initState() {
     super.initState();
     if (_loading(ref.read(activationsProvider))) _armGate();
     ref.read(activationsProvider.notifier).refreshQuietly().ignore();
+  }
+
+  Future<void> _pickSort(BuildContext context) async {
+    final next = await showModalBottomSheet<ActivationListSort>(
+      context: context,
+      backgroundColor: IqColors.card,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final sort in ActivationListSort.values)
+              ListTile(
+                title: Text(
+                  _completed && sort == ActivationListSort.closing
+                      ? 'Most recent'
+                      : _completed && sort == ActivationListSort.latest
+                      ? 'Oldest'
+                      : sort.label,
+                ),
+                onTap: () => Navigator.pop(context, sort),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (next != null && mounted) setState(() => _sort = next);
   }
 
   void _armGate() {
@@ -103,22 +136,57 @@ class _ActivationsScreenState extends ConsumerState<ActivationsScreen> {
     final state = ref.watch(activationsProvider);
     final now = ref.watch(clockProvider)();
     final held = _skeleton && !_minimumMet;
+    final history = _completed ? ref.watch(activationHistoryProvider) : null;
+    final historyPage = activationHistoryFor(
+      history,
+      ref.watch(accountProvider),
+    );
+    final all = mergeActivations(
+      historyPage?.activations ?? const [],
+      state.isReloading || state.hasError ? const [] : state.value ?? const [],
+    );
+    final open = sortActivationTiles([
+      for (final a in all)
+        if (!a.credited && !a.closedAt(now)) a,
+    ], _sort);
+    final completed = sortActivationTiles(
+      [
+        for (final a in all)
+          if (a.credited) a,
+      ],
+      _sort,
+      completed: true,
+    );
+    final shown = _completed ? completed : open;
     final Widget body;
-    if (_loading(state) || held) {
+    if (!_completed && (_loading(state) || held)) {
       body = _skeleton
           ? const ActivationsLoading(key: ValueKey('loading'))
           : const SizedBox.shrink(key: ValueKey('paper'));
-    } else if (state.hasError) {
+    } else if (!_completed && state.hasError) {
       body = _Failed(key: const ValueKey('failed'), onRetry: _retry);
+    } else if (_completed && history?.hasError == true && shown.isEmpty) {
+      body = _Failed(
+        key: const ValueKey('history-failed'),
+        onRetry: () => ref.invalidate(activationHistoryProvider),
+      );
+    } else if (_completed && historyPage == null && shown.isEmpty) {
+      body = const ActivationsLoading(key: ValueKey('history-loading'));
+    } else if (shown.isEmpty && _completed && historyPage?.nextCursor != null) {
+      body = const _MoreHistory(key: ValueKey('history-more'));
     } else {
-      final all = state.requireValue;
-      final open = [
-        for (final a in all)
-          if (!a.credited && !a.closedAt(now)) a,
-      ]..sort((a, b) => a.closesAt.compareTo(b.closesAt));
-      body = open.isEmpty
-          ? const _Empty(key: ValueKey('empty'))
-          : _List(key: const ValueKey('list'), all: all, open: open, now: now);
+      body = shown.isEmpty
+          ? _Empty(
+              key: ValueKey(_completed ? 'completed-empty' : 'available-empty'),
+              completed: _completed,
+            )
+          : _List(
+              key: ValueKey(_completed ? 'completed' : 'available'),
+              all: all,
+              open: shown,
+              now: now,
+              history: _completed,
+            );
     }
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -137,6 +205,42 @@ class _ActivationsScreenState extends ConsumerState<ActivationsScreen> {
                   title: 'Activations',
                   onBack: () => leave(context),
                 ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    IqSpace.s4,
+                    0,
+                    IqSpace.s4,
+                    IqSpace.s3,
+                  ),
+                  child: Wrap(
+                    spacing: IqSpace.s2,
+                    runSpacing: IqSpace.s2,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      IqChip(
+                        label: 'Available',
+                        state: !_completed
+                            ? IqChipState.selected
+                            : IqChipState.standard,
+                        onChanged: (_) => setState(() => _completed = false),
+                      ),
+                      IqChip(
+                        label: 'Completed',
+                        state: _completed
+                            ? IqChipState.selected
+                            : IqChipState.standard,
+                        onChanged: (_) => setState(() => _completed = true),
+                      ),
+                      IqBizFilterChip(
+                        label: _completed && _sort == ActivationListSort.closing
+                            ? 'Sort: Most recent'
+                            : 'Sort: ${_sort.label}',
+                        onTap: () => _pickSort(context),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: IqSpace.s3),
                 Expanded(child: Dissolve(child: body)),
               ],
             ),
@@ -153,11 +257,13 @@ class _List extends StatelessWidget {
     required this.all,
     required this.open,
     required this.now,
+    required this.history,
   });
 
   final List<Activation> all;
   final List<Activation> open;
   final DateTime now;
+  final bool history;
 
   @override
   Widget build(BuildContext context) {
@@ -180,11 +286,12 @@ class _List extends StatelessWidget {
                 activation: a,
                 now: now,
                 feature: i == 0,
-                onTap: () => context.open(activationPath(a.id)),
+                onTap: () =>
+                    context.open(activationPath(a.id, history: history)),
               ),
             ),
           ],
-          if (lead != null) ...[
+          if (!history && lead != null) ...[
             const SizedBox(height: IqSpace.s3),
             StaggerItem(
               index: open.length,
@@ -198,8 +305,57 @@ class _List extends StatelessWidget {
               ),
             ),
           ],
+          if (history) ...[
+            const SizedBox(height: IqSpace.s3),
+            const _HistoryFooter(),
+          ],
         ],
       ),
+    );
+  }
+}
+
+class _MoreHistory extends StatelessWidget {
+  const _MoreHistory({super.key});
+
+  @override
+  Widget build(BuildContext context) => ListView(
+    padding: const EdgeInsets.all(IqSpace.s4),
+    children: const [
+      IqEmptyState(
+        figure: IqFigures.shrug,
+        title: 'No completed activations on this page',
+        body: 'Load more to keep looking.',
+      ),
+      SizedBox(height: IqSpace.s3),
+      _HistoryFooter(),
+    ],
+  );
+}
+
+class _HistoryFooter extends ConsumerWidget {
+  const _HistoryFooter();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final history = ref.watch(activationHistoryProvider);
+    if (history.hasError) {
+      return IqBanner(
+        kind: IqBannerKind.error,
+        title: "Couldn't load older activations.",
+        action: 'Try again',
+        onAction: () => ref.invalidate(activationHistoryProvider),
+      );
+    }
+    final page = activationHistoryFor(history, ref.watch(accountProvider));
+    if (page?.nextCursor == null) return const SizedBox.shrink();
+    return IqButton(
+      label: page!.loadMoreFailed ? 'Try again' : 'Load more',
+      kind: IqButtonKind.secondary,
+      showIcon: false,
+      loading: page.loadingMore,
+      width: double.infinity,
+      onTap: () => ref.read(activationHistoryProvider.notifier).loadMore(),
     );
   }
 }
@@ -229,17 +385,25 @@ class _Grouped extends StatelessWidget {
 
 /// 165:7855: the Shrug, centred in the space under the top bar.
 class _Empty extends StatelessWidget {
-  const _Empty({super.key});
+  const _Empty({super.key, required this.completed});
+
+  final bool completed;
 
   @override
   Widget build(BuildContext context) {
     return IqEmptyFill(
       child: IqEmptyState(
         figure: IqFigures.shrug,
-        title: 'No activations right now',
-        body: 'Check back soon.',
-        action: 'Browse briefs',
-        onAction: () => context.go(Routes.home, extra: NavDirection.back),
+        title: completed
+            ? 'No completed activations yet'
+            : 'No activations right now',
+        body: completed
+            ? 'Activations you complete will appear here.'
+            : 'Check back soon.',
+        action: completed ? null : 'Browse briefs',
+        onAction: completed
+            ? null
+            : () => context.go(Routes.home, extra: NavDirection.back),
       ),
     );
   }

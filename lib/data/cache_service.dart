@@ -1,4 +1,5 @@
 import 'package:flutter/painting.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/session.dart';
@@ -25,8 +26,9 @@ class DemoCacheService implements CacheService {
 }
 
 /// A live launch: the API answers [store] keeps for [userId], and the
-/// images the app holds. Drafts and the outbox stay (plan 4.9). The images
-/// live in memory only, so the size counts the kept answers alone.
+/// images the app holds. Drafts and the outbox stay (plan 4.9). Network
+/// photos also sit in [DefaultCacheManager]; the size still counts the
+/// kept answers alone.
 class LiveCacheService implements CacheService {
   LiveCacheService(this.store, this.userId, {ImageCache Function()? images})
     : _images = images ?? (() => PaintingBinding.instance.imageCache);
@@ -55,6 +57,11 @@ class LiveCacheService implements CacheService {
     _images()
       ..clear()
       ..clearLiveImages();
+    try {
+      await DefaultCacheManager().emptyCache();
+    } on Object {
+      // Cache manager needs a path; tests and a first frame may not have one.
+    }
   }
 }
 

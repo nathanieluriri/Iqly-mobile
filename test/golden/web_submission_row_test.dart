@@ -27,7 +27,7 @@ void main() {
             brief: 'How should a campus bookshop sell online?',
             thumb: const ColoredBox(color: IqColors.tintStrong),
             status: IqBizStatusPillStatus.underReview,
-            note: 'Closes in 20 days',
+            note: '20 days left',
             sent: '1 day ago',
             state: state,
           ),

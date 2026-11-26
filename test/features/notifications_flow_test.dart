@@ -56,7 +56,7 @@ void main() {
         .map((n) => (n.headline, n.when, n.unread))
         .toList();
     expect(headlines, [
-      ('Closes in 7h', '1h', true),
+      ('7h left', '1h', true),
       ('Kudi Box closes tomorrow', '5h', true),
       ('You won ₦12,500.00', '2d', false),
       ('₦1,500.00 added to your wallet', '3d', true),
@@ -65,13 +65,13 @@ void main() {
     ]);
     expect(container.read(unreadNotificationsProvider).value, 0);
 
-    await _tap(tester, find.text('Closes in 7h'));
+    await _tap(tester, find.text('7h left'));
     expect(find.byType(NotificationScreen), findsOneWidget);
     await _tap(tester, find.text('See the brief'));
     expect(find.byType(BriefDetailScreen), findsOneWidget);
     await _tap(tester, _labelled('Back').last);
     await _back(tester);
-    expect(_row(tester, 'Closes in 7h').unread, isFalse);
+    expect(_row(tester, '7h left').unread, isFalse);
     expect(_row(tester, 'Kudi Box closes tomorrow').unread, isTrue);
 
     await _tap(tester, find.text('You won ₦12,500.00'));

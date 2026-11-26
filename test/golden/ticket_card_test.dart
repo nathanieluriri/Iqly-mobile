@@ -54,7 +54,7 @@ void main() {
         home: Scaffold(
           body: IqTicketCard(
             kind: IqTicketCardKind.list,
-            urgency: 'Closes in 25 days',
+            urgency: '25 days left',
           ),
         ),
       ),

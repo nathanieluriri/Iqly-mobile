@@ -10,6 +10,7 @@ import '../../core/tablet_layout.dart';
 import '../../core/responsive.dart';
 import '../../core/session.dart';
 import '../../core/transitions.dart';
+import '../../data/models.dart';
 import '../../data/outcomes_service.dart' show businessNoteShownProvider;
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -29,6 +30,7 @@ import '../submissions/brief_art.dart';
 import '../submissions/row_card.dart';
 import '../submissions/submissions_routes.dart';
 import '../submissions/submissions_state.dart';
+import '../submissions/submission_viewer.dart';
 import 'business_note.dart';
 import 'outcomes_routes.dart';
 import 'outcomes_state.dart';
@@ -365,6 +367,13 @@ class _WinnerViewState extends ConsumerState<WinnerView>
           width: double.infinity,
           onTap: () => context.go(Routes.wallet),
         ),
+        IqButton(
+          label: 'View submission',
+          kind: IqButtonKind.ghost,
+          showIcon: false,
+          width: double.infinity,
+          onTap: () => showSubmissionViewer(context, data.item),
+        ),
       ],
     );
     return Column(
@@ -465,9 +474,10 @@ class _WinnerViewState extends ConsumerState<WinnerView>
 /// B13 · Result · Not selected (193:9681), calm: the parts settle in with
 /// the push and the business's note bubble arrives at +200 (MOTION-SPEC
 /// §5.33); no haptic. The note is a proposal behind Flags.businessNote. No
-/// answer shows here (20 Oct): View your submission pushes the person's own
-/// Submission detail (1639:125902). See what won opens the leaderboard, the
-/// For you ticket its brief, and Find your next brief the For you feed.
+/// answer shows here (20 Oct): View your submission opens the complete answer
+/// and available brief context in a sheet or tablet dialog. See what won opens
+/// the leaderboard, the For you ticket its brief, and Find your next brief the
+/// For you feed.
 ///
 /// Figma: the eyebrow is the entry's title ("ONE COUNTER FOR QUICK JOBS");
 /// the "Not selected" Highlight in the status row is hidden.
@@ -508,10 +518,19 @@ class NotSelectedView extends ConsumerWidget {
                   ),
                   settle(
                     Text(
-                      'Not selected this time',
+                      data.item.status == SubmissionStatus.filteredOut
+                          ? 'Rejected'
+                          : 'Not selected this time',
                       style: IqText.display.copyWith(color: IqColors.fg),
                     ),
                   ),
+                  if (data.item.status == SubmissionStatus.filteredOut)
+                    settle(
+                      Text(
+                        'You can’t send another response to this brief.',
+                        style: IqText.body.copyWith(color: IqColors.fg2),
+                      ),
+                    ),
                   settle(
                     RowCard(
                       child: IqListRow(
@@ -519,7 +538,7 @@ class NotSelectedView extends ConsumerWidget {
                         showDescription: false,
                         icon: IqIcons.document,
                         divider: false,
-                        onTap: () => context.open(submissionPath(data.item.id)),
+                        onTap: () => showSubmissionViewer(context, data.item),
                       ),
                     ),
                   ),

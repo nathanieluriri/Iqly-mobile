@@ -981,12 +981,8 @@ void main() {
         );
         expect(shown(seed.flavourPoll).total, 214);
 
-        await expectLater(
-          service.vote(seed.flavourPoll, 1),
-          refusedWith('POLL_ALREADY_VOTED'),
-        );
-        expect(await polls.vote(seed.flavourPoll, 2), VoteOutcome.refused);
-        expect(shown(seed.flavourPoll).chosen, 0);
+        expect(await polls.vote(seed.flavourPoll, 1), VoteOutcome.counted);
+        expect(shown(seed.flavourPoll).chosen, 1);
 
         await expectLater(
           service.vote(seed.canSizePoll, 3),
@@ -3691,16 +3687,15 @@ void _rules19OctOn(String? base) {
 
         final started = await service.start(id);
         expect(started.phaseAt(DateTime.now()), ActivationPhase.recording);
-        expect(earnedLine(started), '₦0 earned of up to ₦500');
+        expect(earnedLine(started), 'Finish every step to get paid');
         expect(progressLine(started), 'No steps confirmed yet');
 
         final one = await walk.prove(id, 0);
         expect(one.phaseAt(DateTime.now()), ActivationPhase.recording);
         expect(one.proofStep, 1);
-        final first = one.payoutOf(0)!;
-        expect(first.kobo, 20000);
-        expect(stepRewardText(one, 0), 'Paid ₦200');
-        expect(earnedLine(one), '₦200 earned of up to ₦500');
+        expect(one.payoutOf(0), isNull);
+        expect(stepRewardText(one, 0), 'Held ₦200');
+        expect(earnedLine(one), '₦200 waiting · finish to get paid');
         expect(progressLine(one), 'Step 1 of 2 confirmed');
 
         final paid = await walk.prove(id, 1);
@@ -3709,12 +3704,14 @@ void _rules19OctOn(String? base) {
           [for (final p in paid.progress!.stepPayouts) p.kobo],
           [20000, 30000],
         );
-        expect(earnedLine(paid), '₦500 earned of up to ₦500');
+        expect(earnedLine(paid), '₦500 paid');
         final ledger = await walk.repository.ledger();
+        expect(
+          ledger.where((l) => l.activationId == id).map((l) => l.amountKobo),
+          [50000],
+        );
         for (final payout in paid.progress!.stepPayouts) {
-          final row = ledger.singleWhere((l) => l.id == payout.ledgerId);
-          expect(row.amountKobo, payout.kobo);
-          expect(row.activationId, id);
+          expect(ledger.any((l) => l.id == payout.ledgerId), isTrue);
         }
         final told = [
           for (final n in await walk.feed())
@@ -3722,7 +3719,7 @@ void _rules19OctOn(String? base) {
                 n.facts?.activationId == id)
               n.facts!.amountKobo,
         ];
-        expect(told, unorderedEquals([20000, 30000]));
+        expect(told, [50000]);
       });
 
       test('proof mode, paid by step: step 1 confirmed, then a proof of '
@@ -3741,7 +3738,8 @@ void _rules19OctOn(String? base) {
           {'step': 0},
         );
         final one = await service.refresh(id);
-        expect(one.payoutOf(0)!.kobo, 20000);
+        expect(one.payoutOf(0), isNull);
+        expect(earnedLine(one), '₦200 waiting · finish to get paid');
         final video = walk.recording('closing.mp4');
         final checking = await service.sendProof(
           id,
@@ -4003,8 +4001,8 @@ void _rules19OctOn(String? base) {
         expect(gone.code, 'ACTIVATION_UPLOAD_NOT_FOUND');
       });
 
-      test('closed while a step is held: the step still waits on the '
-          'business and pays when its hold ends', () async {
+      test('closed while a step is held that cannot finish: the run has '
+          'ended and nothing is still payable', () async {
         final service = walk.activations;
         final id = await walk.publish(
           'Open the app, held a day, then closed',
@@ -4022,23 +4020,18 @@ void _rules19OctOn(String? base) {
         final raw = (await walk.api.get('/activations/$id')).data;
         expect(raw['status'], 'closed');
         expect((raw['progress'] as Map)['status'], 'started');
-        expect(raw['phase'], 'confirming');
+        expect(raw['phase'], 'expired');
         final closed = await service.refresh(id);
         final now = DateTime.now();
         expect(closed.closedAt(now), isTrue);
         expect(closed.progress!.heldSteps.single.step, 0);
-        expect(closed.phaseAt(now), ActivationPhase.confirming);
+        expect(closed.phaseAt(now), ActivationPhase.expired);
         expect(closed.canProveAt(now), isFalse);
-        expect(closed.paysFor(0), 20000);
-        expect(closed.stillPayable, 20000);
-        expect(earnedLine(closed, now: now), '₦0 earned of up to ₦200');
+        expect(closed.stillPayable, 0);
+        expect(earnedLine(closed, now: now), 'Finish every step to get paid');
         expect(
           [closed.stepEndedAt(0, now), closed.stepEndedAt(1, now)],
           [false, true],
-        );
-        expect(
-          proofHeldBack(closed, now),
-          'Waiting for Sunline Foods to confirm.',
         );
         final late = await walk.postback(code, 1);
         expect(late['status'], 'flagged');

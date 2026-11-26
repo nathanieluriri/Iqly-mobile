@@ -61,6 +61,8 @@
 		<string>To record a voice note, or a video, for support. You can change this later in Settings.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>To add your screen recording, a photo for your avatar, or a photo or video for support. You can change this later in Settings.</string>
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>To send a notification that is relevant to where you are. You can change this later in Settings.</string>
 		<key>NSSupportsLiveActivities</key>
 		<true/>
 		<key>UIBackgroundModes</key>

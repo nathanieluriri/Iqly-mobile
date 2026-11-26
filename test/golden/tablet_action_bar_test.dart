@@ -17,7 +17,7 @@ void main() {
         width: 734,
         child: IqTabletActionBar(
           title: '₦150,000',
-          caption: 'Closes in 6h · 12 spots left',
+          caption: '6h left · 12 spots left',
           actions: [
             IqBookmark(state: IqBookmarkState.on),
             IqButton(label: 'Start your submission', width: 248),

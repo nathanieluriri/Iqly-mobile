@@ -121,9 +121,10 @@ void main() {
       expect(haptics.last, 'HapticFeedbackType.successNotification');
       await tester.pumpAndSettle();
       expect(
-        find.text('29 people have submitted so far, including you.'),
+        find.text('You will get notified if your submission is selected.'),
         findsOneWidget,
       );
+      expect(find.textContaining('submitted so far'), findsNothing);
     });
 
     testWidgets('the questions keep what was sent while they fade out', (

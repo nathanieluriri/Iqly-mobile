@@ -53,9 +53,10 @@ abstract class AppVersionService {
 /// it comes before sign-in too.
 ///
 /// Android updates go through Google Play only: the link is the store page
-/// for this app's package, whatever installed it. Until Play lists the app
-/// (its page answers 404) nobody is asked to update, since there is nowhere
-/// to send them. Patches reach everyone through Shorebird either way.
+/// for this app's package, whatever installed it. A required update still
+/// shows when that page is not a public 200 (internal testing). An optional
+/// offer stays quiet until the listing answers, so a nag never sends people
+/// nowhere. Patches reach everyone through Shorebird either way.
 class LiveAppVersionService implements AppVersionService {
   LiveAppVersionService({
     http.Client? client,
@@ -98,7 +99,9 @@ class LiveAppVersionService implements AppVersionService {
       return release;
     }
     final page = playPage(info.packageName);
-    if (!await _listed(page)) return AppRelease(installed: installed);
+    if (!await _listed(page) && release.status != UpdateStatus.required) {
+      return AppRelease(installed: installed);
+    }
     return AppRelease(
       installed: installed,
       status: release.status,

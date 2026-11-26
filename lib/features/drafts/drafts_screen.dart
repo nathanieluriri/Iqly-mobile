@@ -14,6 +14,8 @@ import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/button.dart';
 import '../../ui/draft_row.dart';
+import '../../ui/empty_state.dart';
+import '../../ui/illustration.dart';
 import '../../ui/sample_logo.dart';
 import '../../ui/section_title.dart';
 import '../../ui/top_bar.dart';
@@ -84,17 +86,14 @@ class _DraftsScreenState extends ConsumerState<DraftsScreen> {
         : await showDiscardManySheet(context, count);
     if (!mounted || discard != true) return;
     await ref.read(draftsProvider.notifier).discard({..._selected});
-    if (mounted) _stopSelecting();
+    if (mounted) {
+      _stopSelecting();
+      if (ref.read(draftsProvider).value?.isEmpty ?? false) _leave();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(draftsProvider, (_, next) {
-      if (!(next.value?.isEmpty ?? false)) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _leave();
-      });
-    });
     final items = ref.watch(draftItemsProvider);
     final now = ref.watch(clockProvider)();
     final list = items.value ?? const <DraftItem>[];
@@ -131,6 +130,16 @@ class _DraftsScreenState extends ConsumerState<DraftsScreen> {
                                 onAction: () =>
                                     ref.invalidate(draftItemsProvider),
                               ),
+                            ),
+                          )
+                        : items.hasValue && list.isEmpty
+                        ? IqEmptyFill(
+                            child: IqEmptyState(
+                              figure: IqFigures.shrug,
+                              title: 'No drafts yet',
+                              body: 'Briefs you start land here.',
+                              action: 'Browse briefs',
+                              onAction: () => context.open(Routes.pickBrief),
                             ),
                           )
                         : ListView(

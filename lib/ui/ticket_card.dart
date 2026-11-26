@@ -38,7 +38,7 @@ class IqTicketCard extends StatelessWidget {
     this.showBookmark = false,
     this.spots = '12 spots left',
     this.showSpotsMarker = true,
-    this.urgency = 'Closes in 6h',
+    this.urgency = '6h left',
     this.urgencyTone,
     this.bookmarkState = IqBookmarkState.off,
     this.onBookmarkChanged,

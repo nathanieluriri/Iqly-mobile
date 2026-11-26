@@ -268,6 +268,74 @@ void main() {
       );
     });
 
+    testWidgets('a past API poll opens its saved results without voting', (
+      tester,
+    ) async {
+      const question = 'A poll answered last month';
+      final api = _Api({
+        'GET /polls/history': (_) => _ok({
+          ..._json.pollsJson([
+            {
+              ..._json.pollJson(
+                id: 'past',
+                question: question,
+                chosen: 1,
+                votes: [2, 3, 0],
+                closed: true,
+              ),
+              'answered': true,
+            },
+          ]),
+          'nextCursor': null,
+        }),
+      });
+      await pumpLiveLaunch(tester, Routes.polls, api: api.client, mode: _on);
+      await tester.pumpAndSettle();
+      await _tap(tester, find.text('Completed'));
+      await _tap(tester, find.text(question));
+      expect(find.text('5 votes'), findsOneWidget);
+      expect(find.text('Tiger nut'), findsOneWidget);
+      await _tap(tester, find.text('Tiger nut'));
+      expect(api.to('POST /polls/past/vote'), isEmpty);
+      expect(api.to('POST /polls/past/answers'), isEmpty);
+    });
+
+    testWidgets('a completed API activation shows paid steps and count', (
+      tester,
+    ) async {
+      final at = _json.at(const Duration(hours: 1));
+      final paid = {
+        ..._json.activationJson(
+          progress: _json.runJson(
+            status: 'paid',
+            confirmedAt: [at, at, at],
+            paidAt: at,
+          ),
+        ),
+        'completedCount': 7,
+      };
+      final api = _Api({
+        'GET /activations': (_) => _ok({
+          'items': [paid],
+        }),
+        'GET /activations/a_1': (_) => _ok(paid),
+      });
+      await pumpLiveLaunch(
+        tester,
+        Routes.activations,
+        api: api.client,
+        mode: _on,
+      );
+      await tester.pumpAndSettle();
+      await _tap(tester, find.text('Completed'));
+      await _tap(tester, find.text(_plan));
+      expect(find.text('Completed steps'), findsOneWidget);
+      expect(find.text('7 people completed this activation.'), findsOneWidget);
+      expect(_button('Start activation'), findsNothing);
+      expect(_button('Open Harbour Telecom'), findsNothing);
+      expect(api.to('POST /activations/a_1/start'), isEmpty);
+    });
+
     testWidgets('a vote goes to the API and its results show', (tester) async {
       final api = _Api({
         'POST /polls/p_1/vote': (_) =>
@@ -285,7 +353,7 @@ void main() {
       expect(jsonDecode(api.to('POST /polls/p_1/vote').single.body), {
         'choice': 0,
       });
-      expect(find.text('You voted · 214 votes'), findsOneWidget);
+      expect(find.text('214 votes'), findsOneWidget);
       expect(find.textContaining('Couldn’t send'), findsNothing);
     });
 
@@ -307,7 +375,7 @@ void main() {
       await _tap(tester, find.text('Zobo and ginger'));
       expect(find.text('Couldn’t send.'), findsOneWidget);
       expect(api.to('GET /polls/p_1'), hasLength(1));
-      expect(find.text('You voted · 214 votes'), findsOneWidget);
+      expect(find.text('214 votes'), findsOneWidget);
     });
 
     testWidgets('a closed poll the API reports shows as closed', (
@@ -345,7 +413,7 @@ void main() {
         find.text('Couldn’t send. Check your connection.'),
         findsOneWidget,
       );
-      expect(find.text('You voted · 214 votes'), findsNothing);
+      expect(find.text('214 votes'), findsNothing);
     });
 
     testWidgets('a closing account goes to Restore', (tester) async {
@@ -403,7 +471,7 @@ void main() {
       expect(api.to('GET /polls/p_9'), hasLength(1));
       expect(find.byType(PollSheet), findsOneWidget);
       expect(find.text('Where do you buy your noodles?'), findsOneWidget);
-      expect(find.text('You voted · 97 votes'), findsOneWidget);
+      expect(find.text('97 votes'), findsOneWidget);
     });
 
     testWidgets('start goes to the API and the steps follow', (tester) async {
@@ -848,16 +916,15 @@ void main() {
         run = byStep(
           progress: _json.runJson(
             confirmedAt: [_json.at(Duration.zero), _json.at(Duration.zero)],
-            stepPayouts: [_json.payoutJson(1, 50000, Duration.zero)],
           ),
         );
         await container.read(activationsProvider.notifier).refresh('a_1');
         await tester.pumpAndSettle();
-        expect(find.text('Paid ₦500'), findsOneWidget);
+        expect(find.text('Held ₦500'), findsOneWidget);
         expect(find.text('₦1,000'), findsOneWidget);
         expect(find.text('Step 2 of 3 confirmed'), findsOneWidget);
         await tester.scrollUntilVisible(find.text('Your progress:'), 100);
-        expect(find.text('₦500 earned of up to ₦1,500'), findsOneWidget);
+        expect(find.text('₦500 waiting · finish to get paid'), findsOneWidget);
       });
 
       const held = 'Waiting for Harbour Telecom to confirm.';
@@ -1091,15 +1158,14 @@ void main() {
         expect(find.byType(ProofScreen), findsOneWidget);
       });
 
-      testWidgets('closed while a paying step is held: that step still '
-          'waits on the business, with what it pays; the steps left have '
-          'ended and pay nothing', (tester) async {
+      testWidgets('closed while a paying step is held that cannot finish: '
+          'the run has ended, with no money promised', (tester) async {
         final closedHeld = _json.activationJson(
           status: 'closed',
           confirmationMode: 'postback',
           rewardMode: 'per_step',
           stepRewards: [20000, 30000, 100000],
-          phase: 'confirming',
+          phase: 'expired',
           progress: _json.runJson(
             started: const Duration(hours: 30),
             refCode: 'IQ-7K3P2',
@@ -1112,27 +1178,22 @@ void main() {
           }),
           'GET /activations/a_1': (_) => _ok(closedHeld),
         });
-        await pumpLiveLaunch(
+        final (container, _) = await pumpLiveLaunch(
           tester,
           activationPath('a_1'),
           api: api.client,
           mode: gated,
         );
         await tester.pumpAndSettle();
+        expect(_button('This activation has ended'), findsOneWidget);
         expect(
-          find.text('Waiting for Harbour Telecom to confirm.'),
-          findsOneWidget,
+          find.textContaining('Waiting for Harbour Telecom'),
+          findsNothing,
         );
-        expect(find.text('₦200'), findsOneWidget);
-        expect(find.text('₦300'), findsNothing);
-        expect(find.text('₦1,000'), findsNothing);
-        expect(find.text('Ended with the activation'), findsNWidgets(2));
-        await tester.scrollUntilVisible(find.text('Your progress:'), 100);
-        expect(find.text('₦0 earned of up to ₦200'), findsOneWidget);
-        expect(_button('This activation has ended'), findsNothing);
-        expect(_button('Open Harbour Telecom'), findsNothing);
-        expect(find.textContaining('IQ-7K3P2'), findsNothing);
-        expect(find.textContaining('Upload proof'), findsNothing);
+        expect(find.textContaining('earned of up to'), findsNothing);
+        final a = container.read(activationProvider('a_1'))!;
+        expect(a.phaseAt(DateTime.now()), ActivationPhase.expired);
+        expect(a.stillPayable, 0);
       });
 
       for (final (name, stepRewards, phase) in [
@@ -1182,9 +1243,9 @@ void main() {
         });
       }
 
-      for (final (name, stepRewards, ended) in [
-        ('a step that still pays', [20000, 30000, 100000], false),
-        ('a run it can no longer pay', null, true),
+      for (final (name, stepRewards, ended, confirmed, heldStep) in [
+        ('a last step that still pays', [20000, 30000, 100000], false, 2, 2),
+        ('a run it can no longer pay', null, true, 0, 0),
       ]) {
         testWidgets('Upload proof after the close of a held step ($name): '
             '${ended ? 'the activation has ended' : 'says why'}, with '
@@ -1196,13 +1257,16 @@ void main() {
             stepRewards: stepRewards,
             progress: _json.runJson(
               started: const Duration(hours: 26),
+              confirmedAt: [
+                for (var i = 0; i < confirmed; i++) _json.at(Duration.zero),
+              ],
               refCode: 'IQ-7K3P2',
               proof: _json.proofJson(
                 status: 'rejected',
                 reason: 'The recording ends too soon.',
-                step: 0,
+                step: heldStep,
               ),
-              heldSteps: [_json.heldJson(0, const Duration(hours: 20))],
+              heldSteps: [_json.heldJson(heldStep, const Duration(hours: 20))],
             ),
           );
           final api = _Api({
@@ -2249,6 +2313,7 @@ void main() {
       expect(on.read(pollsShownProvider), isTrue);
       expect(on.read(activationsShownProvider), isTrue);
       expect(hiddenRoute(on.read, Routes.polls), isFalse);
+      expect(hiddenRoute(on.read, discoverPollOf('org_sunline')), isFalse);
       expect(hiddenRoute(on.read, activationPath('a_1')), isFalse);
 
       final off = launch(_off, api: api);
@@ -2258,6 +2323,7 @@ void main() {
         isA<PausedActivationsService>(),
       );
       expect(hiddenRoute(off.read, Routes.polls), isTrue);
+      expect(hiddenRoute(off.read, discoverPollOf('org_sunline')), isTrue);
       expect(hiddenRoute(off.read, activationPath('a_1')), isTrue);
     });
 

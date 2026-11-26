@@ -38,14 +38,14 @@ List<IqLeaderboardRow> _rows(WidgetTester tester) => tester
     .toList();
 
 void main() {
-  testWidgets('B13 iQL points: all contributors this month, the podium in '
+  testWidgets('B13 iQ points: all contributors this month, the podium in '
       'points, every other rank with wins and submissions, you in place', (
     tester,
   ) async {
     await pumpApp(tester, Routes.pointsLeaderboard);
     expect(find.byType(PointsLeaderboardScreen), findsOneWidget);
     expect(find.byType(IqDock), findsNothing);
-    expect(find.text('iQL points'), findsOneWidget);
+    expect(find.text('iQ points'), findsOneWidget);
     expect(find.text('All contributors · October'), findsOneWidget);
     expect(find.text('You are 7th of 2,130'), findsOneWidget);
 
@@ -71,7 +71,7 @@ void main() {
     expect(rows.every((r) => r.showAmount), isTrue);
   });
 
-  testWidgets('B13 iQL points: the board is the current month\'s', (
+  testWidgets('B13 iQ points: the board is the current month\'s', (
     tester,
   ) async {
     final november = DateTime(2026, 11, 4, 9, 41);
@@ -84,7 +84,7 @@ void main() {
     expect(find.text('All contributors · November'), findsOneWidget);
   });
 
-  testWidgets('B13 iQL points: the viewer row foots to the pass and the '
+  testWidgets('B13 iQ points: the viewer row foots to the pass and the '
       'repository', (tester) async {
     final data = DemoData(now: figmaNow);
     final board = await DemoRepository(data).pointsLeaderboard();
@@ -101,7 +101,7 @@ void main() {
     ], [...board.entries.map((e) => e.points)]..sort((a, b) => b - a));
   });
 
-  testWidgets('B13 iQL points: How points work opens the Help centre', (
+  testWidgets('B13 iQ points: How points work opens the Help centre', (
     tester,
   ) async {
     await pumpApp(tester, Routes.pointsLeaderboard);
@@ -111,7 +111,7 @@ void main() {
     expect(_path(tester), Routes.helpCentre);
   });
 
-  testWidgets('B13 iQL points: the filling mark while the board loads', (
+  testWidgets('B13 iQ points: the filling mark while the board loads', (
     tester,
   ) async {
     final repository = _Waiting();
@@ -129,7 +129,7 @@ void main() {
     expect(find.byType(LeaderboardFew), findsOneWidget);
   });
 
-  testWidgets('B13 iQL points: an empty board says no one is on it', (
+  testWidgets('B13 iQ points: an empty board says no one is on it', (
     tester,
   ) async {
     await pumpApp(
@@ -141,7 +141,7 @@ void main() {
     expect(find.byType(IqPodium), findsNothing);
   });
 
-  testWidgets('B13 iQL points: one person stands alone under confetti', (
+  testWidgets('B13 iQ points: one person stands alone under confetti', (
     tester,
   ) async {
     await pumpApp(
@@ -155,7 +155,7 @@ void main() {
   });
 
   for (final count in [2, 3]) {
-    testWidgets('B13 iQL points: $count people get the tall podium and no '
+    testWidgets('B13 iQ points: $count people get the tall podium and no '
         'rows', (tester) async {
       await pumpApp(
         tester,

@@ -12,7 +12,8 @@ import 'my_activations_screen.dart';
 import 'proof_player_screen.dart';
 import 'proof_screen.dart';
 
-String activationPath(String id) => '/activations/$id';
+String activationPath(String id, {bool history = false}) =>
+    '/activations/$id${history ? '?history=1' : ''}';
 
 String proofPath(String id) => '/activations/$id/proof';
 
@@ -59,7 +60,10 @@ final activationsRoutes = <RouteBase>[
           path: ':id',
           pageBuilder: (context, state) => pushPage(
             state,
-            ActivationScreen(id: state.pathParameters['id']!),
+            ActivationScreen(
+              id: state.pathParameters['id']!,
+              history: state.uri.queryParameters['history'] == '1',
+            ),
           ),
           routes: [
             GoRoute(

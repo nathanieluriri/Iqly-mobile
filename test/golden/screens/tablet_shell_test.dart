@@ -90,7 +90,7 @@ void main() {
       Routes.submissions,
       frame: TabletFrameSize.landscape,
     );
-    await tester.tap(find.text('Not selected').last);
+    await tester.tap(find.text('Rejected').last);
     await tester.pumpAndSettle();
     expect(find.byType(SubmissionPanel), findsOneWidget);
     tester.view.physicalSize = TabletFrameSize.portrait.size;

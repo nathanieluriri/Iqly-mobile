@@ -7,6 +7,22 @@ import 'live/live_account.dart';
 import 'live/live_repository.dart' show liveModeProvider;
 import 'polls_data.dart';
 
+class PollHistoryPage {
+  const PollHistoryPage({
+    required this.businesses,
+    this.nextCursor,
+    this.loadingMore = false,
+    this.loadMoreFailed = false,
+    this.account,
+  });
+
+  final List<PollBusiness> businesses;
+  final String? nextCursor;
+  final bool loadingMore;
+  final bool loadMoreFailed;
+  final String? account;
+}
+
 /// Polls (Flags.polls): the demo answers with the B2 figures after a short
 /// delay and keeps the person's votes for as long as the app runs; a live
 /// launch reads and votes on the API (contract 11.1).
@@ -18,6 +34,8 @@ abstract class PollsService {
 
   /// What the phone kept from the last list, without asking the API.
   Future<List<PollBusiness>> kept() async => const [];
+
+  Future<PollHistoryPage> history({String? cursor});
 
   /// One poll the person may see, under its business with that poll alone.
   Future<PollBusiness> poll(String pollId);
@@ -55,6 +73,14 @@ class DemoPollsService implements PollsService {
   Future<List<PollBusiness>> kept() async => const [];
 
   @override
+  Future<PollHistoryPage> history({String? cursor}) async => PollHistoryPage(
+    businesses: [
+      for (final business in _businesses)
+        if (business.polls.any((poll) => poll.voted)) business,
+    ],
+  );
+
+  @override
   Future<PollBusiness> poll(String pollId) async {
     for (final business in _businesses) {
       for (final poll in business.polls) {
@@ -74,11 +100,12 @@ class DemoPollsService implements PollsService {
     for (final business in _businesses) {
       for (final poll in business.polls) {
         if (poll.id != pollId) continue;
-        if (poll.voted || poll.closedAt(_clock())) return poll;
+        if (poll.closedAt(_clock()) || !poll.changeableAt(_clock())) {
+          return poll;
+        }
         var counted = poll;
         for (final (:question, :choice) in answers) {
-          if (question < counted.questions.length &&
-              !counted.questions[question].answered) {
+          if (question < counted.questions.length) {
             counted = counted.withVote(choice, question: question);
           }
         }
@@ -115,6 +142,18 @@ class LivePollsService implements PollsService {
     await link.kept(AccountKeys.polls) ?? const {},
     questions: questions,
   );
+
+  @override
+  Future<PollHistoryPage> history({String? cursor}) async {
+    final query = Uri(queryParameters: {'limit': '50', 'cursor': ?cursor})
+        .query;
+    final res = await link.scope.guard(link.api.get('/polls/history?$query'));
+    if (!res.ok) throw ApiRefused.of(res);
+    return PollHistoryPage(
+      businesses: pollBusinessesFromJson(res.data, questions: questions),
+      nextCursor: apiText(res.data['nextCursor']),
+    );
+  }
 
   @override
   Future<PollBusiness> poll(String pollId) async {
@@ -175,6 +214,9 @@ class PausedPollsService implements PollsService {
 
   @override
   Future<List<PollBusiness>> kept() async => const [];
+
+  @override
+  Future<PollHistoryPage> history({String? cursor}) => _paused();
 
   @override
   Future<PollBusiness> poll(String pollId) => _paused();
@@ -261,6 +303,9 @@ Poll? pollFromJson(Object? json, {bool questions = false}) {
     chosen: _pick(json['chosen'], choices.length),
     closed: json['closed'] == true,
     followUps: followUps,
+    completed: json['answered'] is bool ? json['answered'] as bool : null,
+    changes: apiInt(json['changes']) ?? 0,
+    canChange: json['canChange'] is bool ? json['canChange'] as bool : null,
   );
 }
 

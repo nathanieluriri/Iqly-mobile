@@ -7,6 +7,7 @@ import 'package:iqly_mobile/features/discover/discover_state.dart';
 import 'package:iqly_mobile/features/discover/filters_sheet.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
 import 'package:iqly_mobile/features/discover/saved_briefs_screen.dart';
+import 'package:iqly_mobile/features/polls/poll_sheet.dart';
 import 'package:iqly_mobile/features/polls/polls_screen.dart';
 import 'package:iqly_mobile/features/referrals/referrals_screen.dart';
 import 'package:iqly_mobile/features/submit/submit_screen.dart';
@@ -76,7 +77,7 @@ void main() {
     expect(find.text('Quick polls'), findsOneWidget);
     expect(find.text('Which flavour should we launch first?'), findsOneWidget);
     expect(find.text('Rate 3 recipes in the Orchid Foods app'), findsOneWidget);
-    expect(find.text('Closes in 5h 40m'), findsOneWidget);
+    expect(find.text('5h 40m left'), findsOneWidget);
     expect(find.text('Briefs'), findsOneWidget);
     await _scrollTo(tester, find.text('More briefs'));
     expect(_cards(tester).take(4), [
@@ -108,7 +109,7 @@ void main() {
 
     await _tap(tester, find.text('A tagline for a solar kiosk network'));
     expect(find.byType(BriefDetailScreen), findsOneWidget);
-    expect(find.text('Closes in 6h'), findsOneWidget);
+    expect(find.text('6h left'), findsOneWidget);
     expect(find.text('₦150k'), findsOneWidget);
     expect(find.text('2 min'), findsOneWidget);
 
@@ -275,11 +276,17 @@ void main() {
     expect(find.byType(HomeScreen), findsOneWidget);
 
     await _tap(tester, find.text('Which flavour should we launch first?'));
-    expect(find.byType(PollsScreen), findsOneWidget);
+    expect(find.byType(PollsScreen), findsNothing);
+    expect(find.byType(PollSheet), findsOneWidget);
+    expect(find.byType(HomeScreen), findsOneWidget);
     expect(
       find.text('1 poll · 3 questions · about 15 seconds'),
       findsOneWidget,
     );
+    await _tap(tester, find.bySemanticsLabel(RegExp('Close')));
+    expect(find.byType(PollSheet), findsNothing);
+    expect(find.byType(PollsScreen), findsNothing);
+    expect(find.byType(HomeScreen), findsOneWidget);
   });
 
   testWidgets('Discover: the gift opens Referrals; back returns', (

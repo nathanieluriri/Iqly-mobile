@@ -48,7 +48,7 @@ void main() {
 
     testWidgets('T7 a submission opened, $f', (tester) async {
       await pumpTablet(tester, Routes.submissions, frame: frame);
-      await tester.tap(find.text('Not selected').last);
+      await tester.tap(find.text('Rejected').last);
       await tester.pumpAndSettle();
       await expectTabletGolden(tester, 'submissions_open_$f');
     });

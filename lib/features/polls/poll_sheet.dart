@@ -6,6 +6,7 @@ import '../../core/deadline.dart';
 import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
+import '../../core/session.dart';
 import '../../core/transitions.dart';
 import '../../data/polls_data.dart';
 import '../../theme/theme.dart';
@@ -17,11 +18,13 @@ import '../../ui/brand_header.dart';
 import '../../ui/button.dart';
 import '../../ui/poll_card.dart';
 import '../../ui/skeleton.dart';
+import '../../ui/toast.dart';
 import '../../ui/step_mark.dart';
 import '../../ui/top_bar.dart';
 import '../discover/business_art.dart';
 import '../discover/discover_routes.dart';
 import '../settings/restore_account_screen.dart' show showClosingAccount;
+import 'latest_poll_vote.dart';
 import 'polls_state.dart';
 import '../shell/tablet_sheet.dart' show TabletClose;
 
@@ -34,20 +37,23 @@ import '../shell/tablet_sheet.dart' show TabletClose;
 /// a vote that does not go in clears the pick, with the error haptic and
 /// banner. Dragging the sheet up opens the same polls as a page (345:15957).
 class PollSheet extends ConsumerWidget {
-  const PollSheet({super.key, required this.businessId});
+  const PollSheet({
+    super.key,
+    required this.businessId,
+    this.pollId,
+    this.history = false,
+  });
 
   final String businessId;
+  final String? pollId;
+  final bool history;
 
   /// Figma's sheet tops out 52 under the status bar.
   static const double topGap = 52;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final business = ref
-        .watch(pollsProvider)
-        .value
-        ?.where((b) => b.id == businessId)
-        .firstOrNull;
+    final business = _business(ref, businessId, pollId, history: history);
     final media = MediaQuery.of(context);
     final done = pollsDone(business);
 
@@ -122,17 +128,20 @@ class PollSheet extends ConsumerWidget {
 /// sub page (Page top bar, Back, no dock), with Exp/BrandHeader Leading
 /// across the full width.
 class PollPage extends ConsumerWidget {
-  const PollPage({super.key, required this.businessId});
+  const PollPage({
+    super.key,
+    required this.businessId,
+    this.pollId,
+    this.history = false,
+  });
 
   final String businessId;
+  final String? pollId;
+  final bool history;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final business = ref
-        .watch(pollsProvider)
-        .value
-        ?.where((b) => b.id == businessId)
-        .firstOrNull;
+    final business = _business(ref, businessId, pollId, history: history);
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
@@ -167,6 +176,32 @@ class PollPage extends ConsumerWidget {
       ),
     );
   }
+}
+
+PollBusiness? _business(
+  WidgetRef ref,
+  String businessId,
+  String? pollId, {
+  required bool history,
+}) {
+  final state = ref.watch(pollsProvider);
+  final current = state.isReloading
+      ? const <PollBusiness>[]
+      : state.value ?? const <PollBusiness>[];
+  final previous = history
+      ? pollHistoryFor(
+              ref.watch(pollHistoryProvider),
+              ref.watch(accountProvider),
+            )?.businesses ??
+            const <PollBusiness>[]
+      : const <PollBusiness>[];
+  final business = mergePollBusinesses(
+    previous,
+    current,
+  ).where((b) => b.id == businessId).firstOrNull;
+  if (business == null || pollId == null) return business;
+  final poll = business.polls.where((p) => p.id == pollId).firstOrNull;
+  return poll == null ? null : business.only(poll);
 }
 
 /// Whether the sheet says "You’re done": every question answered.
@@ -223,16 +258,35 @@ class _PollsState extends ConsumerState<_Polls> {
     return view;
   }
 
+  final _queues = <String, LatestPollVote>{};
+  int? _wanted;
+
+  LatestPollVote _queueFor(Poll poll) {
+    return _queues[poll.id] ??= LatestPollVote((choice) {
+      return ref
+          .read(pollsProvider.notifier)
+          .vote(
+            poll.id,
+            choice,
+            apply: () => _wanted == null || _wanted == choice,
+          );
+    });
+  }
+
   Future<void> _vote(Poll poll, int choice) async {
-    if (_picks.isNotEmpty) return;
-    final key = _key(poll, 0);
-    setState(() => _picks[key] = choice);
-    final outcome = await ref
-        .read(pollsProvider.notifier)
-        .vote(poll.id, choice);
+    if (poll.chosen == choice && poll.voted) return;
+    _wanted = choice;
+    ref.read(pollsProvider.notifier).show(poll.withChange(choice));
+    setState(() {
+      _picks[_key(poll, 0)] = choice;
+      _failed = null;
+    });
+    final outcome = await _queueFor(poll).enqueue(choice);
     if (!mounted) return;
-    setState(() => _picks.remove(key));
-    await _counted(outcome);
+    if (_wanted == choice) {
+      setState(() => _picks.remove(_key(poll, 0)));
+      await _counted(outcome);
+    }
   }
 
   /// Done: each poll's answers go together; the results show once in.
@@ -258,10 +312,30 @@ class _PollsState extends ConsumerState<_Polls> {
         VoteOutcome.counted => null,
         VoteOutcome.offline => 'Couldn’t send. Check your connection.',
         VoteOutcome.closing when Flags.deleteAccount => null,
+        VoteOutcome.closed => 'No longer accepting responses',
+        VoteOutcome.recorded => 'Your response has already been recorded.',
         VoteOutcome.refused || VoteOutcome.closing => 'Couldn’t send.',
       };
     });
-    if (outcome == VoteOutcome.counted) return;
+    if (outcome == VoteOutcome.counted) {
+      final poll = widget.business?.polls.firstOrNull;
+      final note = poll?.remainingChangeNote;
+      if (note != null && mounted) {
+        IqToast.show(context, note);
+      }
+      return;
+    }
+    if (outcome == VoteOutcome.closed || outcome == VoteOutcome.recorded) {
+      if (mounted) {
+        IqToast.show(
+          context,
+          outcome == VoteOutcome.closed
+              ? 'No longer accepting responses'
+              : 'Your response has already been recorded.',
+          kind: IqToastKind.error,
+        );
+      }
+    }
     errorHaptic();
     if (outcome == VoteOutcome.closing && Flags.deleteAccount) {
       await showClosingAccount(context, ref);
@@ -307,7 +381,7 @@ class _PollsState extends ConsumerState<_Polls> {
           inset(_FailedVote(title: _failed)),
           _header(
             business,
-            widget.done ? pollDoneDetail(business) : pollDetail(business),
+            widget.done ? pollDoneDetail(business) : openPollNote,
           ),
           SizedBox(height: leading ? IqSpace.s4 : IqSpace.s3),
           for (final (i, card) in [
@@ -374,7 +448,7 @@ class _PollsState extends ConsumerState<_Polls> {
         votes: asked.total,
         timeLeft: closed
             ? ''
-            : 'Closes in ${pollTimeLeft(timeLeft(poll.closesAt, now)!)}',
+            : '${pollTimeLeft(timeLeft(poll.closesAt, now)!)} left',
         chosen: 0,
         selected: walking.questions[question].chosen,
         hint: 'Pick one',
@@ -384,7 +458,8 @@ class _PollsState extends ConsumerState<_Polls> {
                   setState(() => (_held[poll.id] ??= {})[question] = choice),
       );
     }
-    final voting = !asked.answered && !closed && _picks.isEmpty;
+    final changeable = poll.changeableAt(now);
+    final voting = (!asked.answered || changeable) && !closed;
     return IqPollCard(
       key: ValueKey(_key(poll, question)),
       question: asked.question,
@@ -400,11 +475,25 @@ class _PollsState extends ConsumerState<_Polls> {
       votes: asked.total,
       timeLeft: closed
           ? ''
-          : 'Closes in ${pollTimeLeft(timeLeft(poll.closesAt, now)!)}',
+          : '${pollTimeLeft(timeLeft(poll.closesAt, now)!)} left',
       chosen: asked.chosen ?? 0,
       selected: _picks[_key(poll, question)],
       hint: 'Pick one',
-      onVote: voting && question == 0 ? (choice) => _vote(poll, choice) : null,
+      onVote: !voting
+          ? (choice) {
+              if (closed) {
+                IqToast.show(context, 'No longer accepting responses');
+              } else {
+                IqToast.show(
+                  context,
+                  'Your response has already been recorded.',
+                  kind: IqToastKind.error,
+                );
+              }
+            }
+          : question == 0
+          ? (choice) => _vote(poll, choice)
+          : null,
     );
   }
 
@@ -476,7 +565,7 @@ class _PollsState extends ConsumerState<_Polls> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           inset(_FailedVote(title: _failed)),
-          _header(business, pollDetail(business)),
+          _header(business, openPollNote),
           SizedBox(height: leading ? IqSpace.s4 : IqSpace.s3),
           inset(
             Text(

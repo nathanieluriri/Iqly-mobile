@@ -108,6 +108,54 @@ void main() {
       );
     });
 
+    testWidgets('completed activations', (tester) async {
+      await _golden(
+        tester,
+        'activations_completed',
+        Routes.activations,
+        now: thursday,
+        service: instantActivations(
+          now: thursday,
+          seed: [
+            DemoActivations(thursday).unibooks.withProgress(
+              ActivationProgress(
+                startedAt: Figma.startedAt,
+                confirmedAt: [Figma.step1At, Figma.step1At],
+                paidAt: Figma.step1At,
+              ),
+            ),
+          ],
+        ),
+        act: (tester) => tester.tap(find.text('Completed')),
+      );
+    });
+
+    testWidgets('completed activation steps', (tester) async {
+      await _golden(
+        tester,
+        'activations_completed_steps',
+        Routes.activations,
+        now: thursday,
+        service: instantActivations(
+          now: thursday,
+          seed: [
+            DemoActivations(thursday).unibooks.withProgress(
+              ActivationProgress(
+                startedAt: Figma.startedAt,
+                confirmedAt: [Figma.step1At, Figma.step1At],
+                paidAt: Figma.step1At,
+              ),
+            ),
+          ],
+        ),
+        act: (tester) async {
+          await tester.tap(find.text('Completed'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Place your first Unibooks order'));
+        },
+      );
+    });
+
     testWidgets('my activations, Active (485:38281)', (tester) async {
       await _golden(
         tester,

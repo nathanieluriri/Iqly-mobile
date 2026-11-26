@@ -93,17 +93,32 @@ class _IqPollCardState extends State<IqPollCard>
 
   @override
   Widget build(BuildContext context) {
+    final votes = '${widget.votes} ${widget.votes == 1 ? 'vote' : 'votes'}';
     final hint = switch (widget.state) {
       IqPollCardState.open =>
         widget.hint ?? 'Pick one · results show after you vote',
-      IqPollCardState.voted => 'You voted · ${widget.votes} votes',
-      IqPollCardState.closed => 'Final · ${widget.votes} votes',
+      IqPollCardState.voted => votes,
+      IqPollCardState.closed => votes,
     };
-    final hintLine = Text(
-      hint,
-      style: IqText.small.copyWith(color: IqColors.fg3),
+    final hintLine = Text.rich(
+      TextSpan(
+        style: IqText.small.copyWith(color: IqColors.fg3),
+        children: [
+          if (widget.state != IqPollCardState.open)
+            TextSpan(
+              text: hint,
+              style: IqText.small.copyWith(
+                color: IqColors.fg,
+                fontWeight: FontWeight.w700,
+              ),
+            )
+          else
+            TextSpan(text: hint),
+        ],
+      ),
     );
     return Container(
+      clipBehavior: Clip.none,
       padding: const EdgeInsets.all(IqSpace.s4),
       decoration: BoxDecoration(
         color: IqColors.card,
@@ -146,12 +161,12 @@ class _IqPollCardState extends State<IqPollCard>
               ),
             ),
             const SizedBox(height: IqSpace.s3),
-            Text(
-              widget.state == IqPollCardState.closed
-                  ? 'Closed'
-                  : widget.timeLeft,
-              style: IqText.small.copyWith(color: IqColors.fg3),
-            ),
+            if (widget.state != IqPollCardState.closed &&
+                widget.timeLeft.isNotEmpty)
+              Text(
+                widget.timeLeft,
+                style: IqText.small.copyWith(color: IqColors.fg3),
+              ),
           ],
         ),
       ),

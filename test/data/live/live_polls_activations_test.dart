@@ -187,6 +187,35 @@ void main() {
       },
     );
 
+    test('history reads saved choices and follows the cursor', () async {
+      final api = _Api({
+        'GET /polls/history': (r) => _ok({
+          ..._f.pollsJson([
+            {
+              ..._f.pollJson(
+                id: r.url.queryParameters['cursor'] == null ? 'p_1' : 'p_2',
+                chosen: 1,
+                votes: [2, 3, 0],
+                closed: true,
+              ),
+              'answered': true,
+            },
+          ]),
+          'nextCursor': r.url.queryParameters['cursor'] == null ? 'next' : null,
+        }),
+      });
+      final service = LivePollsService(api.link);
+      final first = await service.history();
+      final poll = first.businesses.single.polls.single;
+      expect(poll.voted, isTrue);
+      expect(poll.chosen, 1);
+      expect(poll.total, 5);
+      expect(first.nextCursor, 'next');
+      final second = await service.history(cursor: first.nextCursor);
+      expect(second.businesses.single.polls.single.id, 'p_2');
+      expect(second.nextCursor, isNull);
+    });
+
     test('detail, vote and a refusal', () async {
       final api = _Api({
         'GET /polls/p_1': (_) => _ok(_f.pollJson()),
@@ -610,6 +639,16 @@ void main() {
       expect(a.imageUrl, 'https://api.test/activations/a_1/image?v=1');
       expect(a.steps[1].howTo, 'Settings → Verification. About 2 min');
       expect(a.link, Uri.parse('https://harbour.example/app'));
+    });
+
+    test('completed participation counts come from the API', () {
+      final a = read({
+        ..._f.activationJson(progress: _f.runJson(paidAt: _at(Duration.zero))),
+        'completedCount': 42,
+      });
+      expect(a.completedCount, 42);
+      expect(a.withProgress(a.progress!).completedCount, 42);
+      expect(read(_f.activationJson()).completedCount, isNull);
     });
 
     test('the list adds the runs only My activations has', () async {

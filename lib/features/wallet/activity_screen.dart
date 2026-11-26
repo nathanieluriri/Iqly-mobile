@@ -14,6 +14,7 @@ import '../../ui/segmented.dart';
 import '../../ui/text_link.dart';
 import '../../ui/top_bar.dart';
 import '../../ui/icon.dart';
+import '../activations/activations_state.dart';
 import 'wallet_overview.dart' show NoActivity;
 import 'wallet_routes.dart';
 import 'wallet_rows.dart';
@@ -118,6 +119,9 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
     final data = ref.watch(walletProvider).value;
     final now = ref.watch(clockProvider)();
     final briefs = ref.watch(rewardBriefsProvider).value ?? const {};
+    final activationLogos = activationLogosOf(
+      ref.watch(activationsProvider).value ?? const [],
+    );
     final hidden = ref.watch(walletLensProvider).hidden;
     final rows = data == null
         ? const <ActivityItem>[]
@@ -143,6 +147,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                 key: ValueKey(item.key),
                 item: item,
                 briefs: briefs,
+                activationLogos: activationLogos,
                 now: now,
                 hidden: hidden,
                 divider: i < items.length - 1,

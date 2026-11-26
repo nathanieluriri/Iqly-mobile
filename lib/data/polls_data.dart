@@ -67,6 +67,22 @@ class PollQuestion {
     chosen: choice,
     showIf: showIf,
   );
+
+  /// Moves the person's pick. A first pick adds one; a change takes one
+  /// off the old choice so the card does not count both.
+  PollQuestion withChange(int choice) {
+    if (chosen == choice) return this;
+    return PollQuestion(
+      question: question,
+      choices: choices,
+      votes: [
+        for (var i = 0; i < votes.length; i++)
+          votes[i] + (i == choice ? 1 : 0) - (i == chosen ? 1 : 0),
+      ],
+      chosen: choice,
+      showIf: showIf,
+    );
+  }
 }
 
 /// One poll a business runs (Exp/PollCard), behind Flags.polls: the
@@ -86,6 +102,9 @@ class Poll {
     this.chosen,
     this.closed = false,
     this.followUps = const [],
+    this.completed,
+    this.changes = 0,
+    this.canChange,
   });
 
   final String id;
@@ -98,6 +117,9 @@ class Poll {
   /// The API says it has closed, whatever this phone's clock says.
   final bool closed;
   final List<PollQuestion> followUps;
+  final bool? completed;
+  final int changes;
+  final bool? canChange;
 
   /// Every question, the first included.
   List<PollQuestion> get questions => [
@@ -142,6 +164,7 @@ class Poll {
 
   /// Every question it asks is answered.
   bool get voted {
+    if (completed != null) return completed!;
     final all = questions;
     for (var i = 0; i < all.length; i++) {
       if (!all[i].answered && !skips(i)) return false;
@@ -152,6 +175,27 @@ class Poll {
   int get total => votes.fold(0, (sum, count) => sum + count);
 
   bool closedAt(DateTime now) => closed || !closesAt.isAfter(now);
+
+  bool changeableAt(DateTime now) {
+    if (closedAt(now)) return false;
+    if (canChange != null) return canChange!;
+    return changes < 10;
+  }
+
+  /// Remaining writes to toast after a successful write, or null.
+  int? get remainingChanges {
+    if (changes < 7 || changes >= 10) return null;
+    return 11 - changes;
+  }
+
+  String? get remainingChangeNote {
+    if (changes == 10) return 'That was your last change on this poll.';
+    final left = remainingChanges;
+    if (left == null) return null;
+    return left == 1
+        ? '1 change left on this poll.'
+        : '$left changes left on this poll.';
+  }
 
   List<int> get shares => wholeShares(votes);
 
@@ -165,6 +209,9 @@ class Poll {
     closesAt: closesAt,
     chosen: question == 0 ? choice : chosen,
     closed: closed,
+    completed: completed,
+    changes: changes,
+    canChange: canChange,
     followUps: [
       for (final (i, q) in followUps.indexed)
         i + 1 == question
@@ -198,9 +245,33 @@ class Poll {
       closesAt: closesAt,
       chosen: first?.chosen ?? chosen,
       closed: closed,
+      completed: completed,
+      changes: changes + 1,
+      canChange: changes + 1 < 10,
       followUps: [
         for (final (i, q) in followUps.indexed)
           i + 1 == question ? q.withVote(choice) : q,
+      ],
+    );
+  }
+
+  /// Instant card update: move the pick without waiting on the API.
+  Poll withChange(int choice, {int question = 0}) {
+    final first = question == 0 ? questions.first.withChange(choice) : null;
+    return Poll(
+      id: id,
+      question: this.question,
+      choices: choices,
+      votes: first?.votes ?? votes,
+      closesAt: closesAt,
+      chosen: first?.chosen ?? chosen,
+      closed: closed,
+      completed: completed,
+      changes: changes,
+      canChange: canChange,
+      followUps: [
+        for (final (i, q) in followUps.indexed)
+          i + 1 == question ? q.withChange(choice) : q,
       ],
     );
   }
