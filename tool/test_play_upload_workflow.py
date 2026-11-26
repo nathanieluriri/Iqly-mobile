@@ -107,10 +107,23 @@ class ShorebirdReleaseWorkflowTest(unittest.TestCase):
         inputs = dispatch["inputs"]
         self.assertEqual(inputs["upload"]["type"], "boolean")
         self.assertEqual(inputs["upload"]["default"], "true")
+        self.assertIn("reuse_release", inputs)
+        self.assertEqual(inputs["reuse_release"]["type"], "boolean")
+        self.assertEqual(inputs["reuse_release"]["default"], "false")
         self.assertEqual(inputs["track"]["type"], "choice")
         self.assertEqual(
             inputs["track"]["options"], ["internal", "alpha", "beta", "production"]
         )
+
+        download = next(
+            step
+            for step in self.steps
+            if step.get("name") == "Download existing AAB from Shorebird"
+        )
+        self.assertEqual(download["if"], "inputs.reuse_release")
+        self.assertIn("shorebird releases info", download["run"])
+        self.assertIn("/releases/$release_id/artifacts", download["run"])
+        self.assertIn('iqly-$version.aab', download["run"])
 
         upload = next(
             step for step in self.steps if step.get("name") == "Send the AAB to Play"

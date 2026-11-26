@@ -13,6 +13,10 @@ on:
         description: Send the AAB to Play Console
         type: boolean
         default: true
+      reuse_release:
+        description: Download the existing Shorebird release instead of building again
+        type: boolean
+        default: false
       track:
         description: Play track
         type: choice
@@ -39,23 +43,41 @@ jobs:
         with:
           cache: true
       - name: Restore the upload key
+        if: ${{ !inputs.reuse_release }}
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/iqly-upload.jks"
           echo "IQLY_KEYSTORE_PATH=$RUNNER_TEMP/iqly-upload.jks" >> "$GITHUB_ENV"
-      - run: shorebird release android --flutter-version=3.50.1
+      - name: Build Shorebird Android release
+        if: ${{ !inputs.reuse_release }}
+        run: shorebird release android --flutter-version=3.50.1
         env:
           IQLY_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           IQLY_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           IQLY_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
       - name: Name the files after the version
+        if: ${{ !inputs.reuse_release }}
         run: |
           version=$(sed -n 's/^version: *//p' pubspec.yaml)
           mv build/app/outputs/bundle/release/app-release.aab "iqly-$version.aab"
           if [ -f build/app/outputs/flutter-apk/app-release.apk ]; then
             mv build/app/outputs/flutter-apk/app-release.apk "iqly-$version.apk"
           fi
+      - name: Download existing AAB from Shorebird
+        if: inputs.reuse_release
+        run: |
+          version=$(sed -n 's/^version: *//p' pubspec.yaml)
+          app_id=$(sed -n 's/^app_id: *//p' shorebird.yaml)
+          release_json=$(shorebird releases info --release-version "$version" --json)
+          release_id=$(jq -er '.release.id | numbers' <<<"$release_json")
+          artifact_url=$(curl -fsS -G \
+            -H "Authorization: Bearer $SHOREBIRD_TOKEN" \
+            "https://api.shorebird.dev/api/v1/apps/$app_id/releases/$release_id/artifacts" \
+            --data-urlencode 'arch=aab' \
+            --data-urlencode 'platform=android' \
+            | jq -er '.artifacts[] | select(.arch == "aab" and .platform == "android") | .url')
+          curl -fsSL "$artifact_url" -o "iqly-$version.aab"
       - name: Publish the APK to the download link
         if: env.R2_ENDPOINT != '' && hashFiles('iqly-*.apk') != ''
         env:
