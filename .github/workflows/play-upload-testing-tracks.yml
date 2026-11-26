@@ -158,7 +158,7 @@ jobs:
               edit_id = service.edits().insert(
                   packageName=package_name, body={}
               ).execute()["id"]
-              for track_name in ["qa", "alpha", "beta"]:
+              for track_name in ["internal", "alpha", "beta"]:
                   try:
                       track = service.edits().tracks().get(
                           packageName=package_name, editId=edit_id, track=track_name
@@ -190,7 +190,7 @@ jobs:
                   packageName=package_name, editId=edit_id
               ).execute()
               committed = True
-              print(f"Assigned version code {version_code} to qa, alpha, and beta.")
+              print(f"Assigned version code {version_code} to internal, alpha, and beta.")
           finally:
               if edit_id and not committed:
                   service.edits().delete(
