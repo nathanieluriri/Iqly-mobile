@@ -4,8 +4,24 @@ name: shorebird-release
 # patched onto it. Run it from the Actions tab once the version in
 # pubspec.yaml is new: every release needs its own version. Releases are
 # dispatched manually from the Actions tab.
+# A manual run can also send the AAB to Play Console. That needs
+# PLAY_SERVICE_ACCOUNT_JSON. See android/SIGNING.md.
 on:
   workflow_dispatch:
+    inputs:
+      upload:
+        description: Send the AAB to Play Console
+        type: boolean
+        default: true
+      track:
+        description: Play track
+        type: choice
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
+        default: internal
 
 jobs:
   release:
@@ -28,14 +44,12 @@ jobs:
         run: |
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/iqly-upload.jks"
           echo "IQLY_KEYSTORE_PATH=$RUNNER_TEMP/iqly-upload.jks" >> "$GITHUB_ENV"
-      - run: shorebird release android --flutter-version=3.50.1 $DRY_RUN
+      - run: shorebird release android --flutter-version=3.50.1
         env:
-          DRY_RUN: ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
           IQLY_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           IQLY_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           IQLY_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
       - name: Name the files after the version
-        if: github.event_name != 'pull_request'
         run: |
           version=$(sed -n 's/^version: *//p' pubspec.yaml)
           mv build/app/outputs/bundle/release/app-release.aab "iqly-$version.aab"
@@ -43,7 +57,7 @@ jobs:
             mv build/app/outputs/flutter-apk/app-release.apk "iqly-$version.apk"
           fi
       - name: Publish the APK to the download link
-        if: github.event_name != 'pull_request' && env.R2_ENDPOINT != '' && hashFiles('iqly-*.apk') != ''
+        if: env.R2_ENDPOINT != '' && hashFiles('iqly-*.apk') != ''
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -57,17 +71,26 @@ jobs:
             --endpoint-url "$R2_ENDPOINT" \
             --content-type application/vnd.android.package-archive \
             --metadata "version=$version"
-      - name: Upload the bundle to Play closed and open testing
-        if: github.event_name != 'pull_request'
+      - name: Check the Play secret
+        if: inputs.upload
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$PLAY_SERVICE_ACCOUNT_JSON" ]; then
+            echo "::error::Add the PLAY_SERVICE_ACCOUNT_JSON secret (see android/SIGNING.md)"
+            exit 1
+          fi
+      - name: Send the AAB to Play
+        if: inputs.upload
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: net.iqly.app
           releaseFiles: iqly-*.aab
-          tracks: alpha,beta
-          status: completed
+          tracks: ${{ inputs.track }}
+          status: ${{ inputs.track == 'production' && 'draft' || 'completed' }}
+          changesNotSentForReview: true
       - uses: actions/upload-artifact@v4
-        if: github.event_name != 'pull_request'
         with:
           name: iqly-release
           path: |
