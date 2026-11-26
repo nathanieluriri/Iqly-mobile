@@ -199,7 +199,7 @@ void main() {
     });
 
     testWidgets('expired (485:38428)', (tester) async {
-      final ended = DemoActivations(thursday).kudiBox.closesAt
+      final ended = DemoActivations(thursday).kudiBox.closesAt!
           .add(const Duration(days: 2));
       await _golden(
         tester,
@@ -533,7 +533,7 @@ void main() {
   test('the Discover row counts what the list shows closing today', () {
     final open = DemoActivations(figmaNow).all;
     final today = open.where(
-      (a) => a.closesAt.difference(figmaNow) < ActivationRules.closingSoon,
+      (a) => a.closesAt!.difference(figmaNow) < ActivationRules.closingSoon,
     );
     expect(today.length, DemoData.activations.closingToday);
   });

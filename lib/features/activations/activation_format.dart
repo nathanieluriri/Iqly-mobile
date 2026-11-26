@@ -24,19 +24,28 @@ String countdownText(Duration left) {
 
 String _count(int n, String unit) => '$n ${n == 1 ? unit : '${unit}s'}';
 
-Duration activationLeft(Activation activation, DateTime now) =>
-    timeLeft(activation.closesAt, now)!;
+Duration? activationLeft(Activation activation, DateTime now) =>
+    timeLeft(activation.closesAt, now);
 
-/// "2 days left", or "Ended 2 days ago" once closed.
-String deadlineText(Activation activation, DateTime now) =>
-    activation.closedAt(now)
-    ? 'Ended ${timeAgo(activation.closesAt, now)}'
-    : '${countdownText(activationLeft(activation, now))} left';
+/// "2 days left", "Closes when full", or "Ended 2 days ago" once closed.
+String deadlineText(Activation activation, DateTime now) {
+  final closesAt = activation.closesAt;
+  if (activation.closedAt(now)) {
+    return closesAt == null ? 'Ended' : 'Ended ${timeAgo(closesAt, now)}';
+  }
+  if (closesAt == null) {
+    return activation.full ? 'Full' : 'Closes when full';
+  }
+  return '${countdownText(activationLeft(activation, now)!)} left';
+}
 
 /// Closing within a day: the deadline sits on the Urgent pill.
-bool closingSoon(Activation activation, DateTime now) =>
-    !activation.closedAt(now) &&
-    activationLeft(activation, now) < ActivationRules.closingSoon;
+bool closingSoon(Activation activation, DateTime now) {
+  final left = activationLeft(activation, now);
+  return left != null &&
+      !activation.closedAt(now) &&
+      left < ActivationRules.closingSoon;
+}
 
 /// "Thu, 1:52 pm", as the B8 and B9 timelines write a moment.
 String dayTime(DateTime at) =>
@@ -115,9 +124,11 @@ int heldStepKobo(Activation activation) {
 /// The offer's line on how a per-step activation pays, in the design
 /// profile's rules for step rewards (round 18), whoever confirms the steps.
 String perStepLine(Activation activation) {
-  final by = DateFormat('d MMM').format(activation.closesAt);
-  return 'Each step is held until you finish every step by $by. '
-      'Then it lands in your iQLY wallet.';
+  final by = activation.closesAt;
+  final timing = by == null
+      ? 'Each step is held until you finish every step. '
+      : 'Each step is held until you finish every step by ${DateFormat('d MMM').format(by)}. ';
+  return '${timing}Then it lands in your iQLY wallet.';
 }
 
 /// Whether step [i]'s row shows an amount: a paying step, once more than one
@@ -130,6 +141,12 @@ bool showsStepReward(Activation activation, int i) =>
 String stepRewardText(Activation activation, int i) {
   final payout = activation.payoutOf(i);
   if (payout != null) return 'Paid ${rewardPool(payout.kobo)}';
+  if (activation.perStep &&
+      (activation.progress?.stepPayouts.isNotEmpty ?? false) &&
+      i == activation.steps.length - 1 &&
+      activation.progress?.paidAt == null) {
+    return rewardPool(activation.paysFor(i));
+  }
   if (i < activation.confirmed && activation.progress?.paidAt == null) {
     return 'Held ${rewardPool(activation.steps[i].rewardKobo ?? 0)}';
   }

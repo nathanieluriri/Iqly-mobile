@@ -13,6 +13,7 @@ import 'package:iqly_mobile/data/local/memory_local_store.dart';
 import 'package:iqly_mobile/data/local/outbox.dart';
 import 'package:iqly_mobile/data/polls_service.dart';
 import 'package:iqly_mobile/data/token_store.dart';
+import 'package:iqly_mobile/features/activations/activation_format.dart';
 import 'package:iqly_mobile/features/activations/activations_state.dart';
 import 'package:iqly_mobile/ui/recording_player.dart';
 
@@ -347,6 +348,9 @@ void main() {
         expect(a.phaseAt(_now.toLocal()), ActivationPhase.recording);
         expect(a.proofStep, 2);
         expect(a.showsStepRewards, isTrue);
+        expect(a.paysFor(0), 0);
+        expect(a.paysFor(1), 0);
+        expect(a.paysFor(2), 100000);
       });
 
       test('a postback run per run reads its code', () {
@@ -610,6 +614,21 @@ void main() {
       });
     });
 
+    test('a null deadline stays open until the spots are full', () {
+      final a = read({..._f.activationJson(), 'closesAt': null});
+      expect(a.closesAt, isNull);
+      expect(a.closedAt(_now.toLocal()), isFalse);
+      expect(a.phaseAt(_now.toLocal()), ActivationPhase.offer);
+      expect(deadlineText(a, _now.toLocal()), 'Closes when full');
+
+      final closed = read({
+        ..._f.activationJson(status: 'closed'),
+        'closesAt': null,
+      });
+      expect(closed.closedAt(_now.toLocal()), isTrue);
+      expect(closed.phaseAt(_now.toLocal()), ActivationPhase.expired);
+    });
+
     test('closed early: ended from the run’s end, never still open', () {
       final ended = read(
         _f.activationJson(
@@ -622,7 +641,7 @@ void main() {
       );
       expect(ended.phaseAt(_now.toLocal()), ActivationPhase.expired);
       expect(
-        ended.closesAt.isAtSameMomentAs(
+        ended.closesAt!.isAtSameMomentAs(
           _now.subtract(const Duration(hours: 3)),
         ),
         isTrue,

@@ -296,8 +296,9 @@ class _PickBriefScreenState extends ConsumerState<PickBriefScreen> {
   static Activation? _firstOpen(List<Activation>? list, DateTime now) {
     final open = [
       for (final a in list ?? const <Activation>[])
-        if (!a.started && a.closesAt.isAfter(now)) a,
-    ]..sort((a, b) => a.closesAt.compareTo(b.closesAt));
+        if (!a.started && !a.closedAt(now) && (a.closesAt != null || !a.full))
+          a,
+    ]..sort((a, b) => compareActivationCloses(a, b, latest: false));
     return open.firstOrNull;
   }
 }
@@ -366,8 +367,10 @@ class _ActivationCard extends StatelessWidget {
           label: cardReward(activation, poolShort(activation.rewardKobo)),
         ),
         IqMeta(
-          kind: IqMetaKind.urgent,
-          label: '${countdownText(activationLeft(activation, now))} left',
+          kind: closingSoon(activation, now)
+              ? IqMetaKind.urgent
+              : IqMetaKind.deadline,
+          label: deadlineText(activation, now),
         ),
       ],
       onTap: () => context.open('${Routes.activations}/${activation.id}'),

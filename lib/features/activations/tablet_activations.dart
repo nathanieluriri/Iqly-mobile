@@ -61,7 +61,7 @@ class _TabletActivationsState extends ConsumerState<TabletActivations> {
     );
     final open = sortActivationTiles([
       for (final a in all)
-        if (!a.credited && !a.closedAt(now)) a,
+        if (a.availableAt(now)) a,
     ], _sort);
     final done = sortActivationTiles(
       [
