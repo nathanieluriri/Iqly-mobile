@@ -20,6 +20,19 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
+      - name: Format KYC files with the CI SDK
+        run: dart format lib/features/kyc/kyc_controller.dart lib/features/kyc/kyc_nudge.dart lib/features/more/more_screen.dart test/features/kyc/kyc_flow_test.dart test/screenshots/kyc_screenshots_test.dart test/support/live_launch.dart
+      - name: Upload CI-formatted KYC files
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-formatted-kyc
+          path: |
+            lib/features/kyc/kyc_controller.dart
+            lib/features/kyc/kyc_nudge.dart
+            lib/features/more/more_screen.dart
+            test/features/kyc/kyc_flow_test.dart
+            test/screenshots/kyc_screenshots_test.dart
+            test/support/live_launch.dart
       - run: dart run tool/gen_tokens.dart --check
       - run: dart format --output=none --set-exit-if-changed lib test tool
       - run: flutter analyze --no-fatal-infos
