@@ -256,7 +256,10 @@ void main() {
         link
             .fetch('/polls', AccountKeys.polls, allowCache: false)
             .then((v) => polls = v)
-            .catchError((Object e) => pollsError = e);
+            .catchError((Object e) {
+              pollsError = e;
+              return <String, dynamic>{};
+            });
         link
             .fetchDated(
               '/activations',
@@ -264,7 +267,10 @@ void main() {
               allowCache: false,
             )
             .then((v) => activations = v.json)
-            .catchError((Object e) => activationsError = e);
+            .catchError((Object e) {
+              activationsError = e;
+              return <String, dynamic>{};
+            });
         async.elapse(const Duration(seconds: 3));
         expect(polls, isNull);
         expect(activations, isNull);
