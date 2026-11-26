@@ -17,6 +17,11 @@ on:
         default: false
         required: true
         type: boolean
+      reference_existing:
+        description: Assign the already uploaded version code to testing tracks without uploading again
+        default: false
+        required: true
+        type: boolean
 
 permissions:
   actions: read
@@ -118,7 +123,75 @@ jobs:
                       packageName=package_name, editId=edit_id
                   ).execute()
           PY
+      - name: Assign existing version code to testing tracks
+        if: inputs.reference_existing
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          version=$(sed -n 's/^version: *//p' pubspec.yaml)
+          export VERSION_CODE="${version##*+}"
+          export VERSION_NAME="$version"
+          python3 -m pip install --quiet google-api-python-client google-auth
+          python3 <<'PY'
+          import json
+          import os
+
+          from google.oauth2 import service_account
+          from googleapiclient.discovery import build
+
+          info = json.loads(os.environ["PLAY_SERVICE_ACCOUNT_JSON"])
+          credentials = service_account.Credentials.from_service_account_info(
+              info,
+              scopes=["https://www.googleapis.com/auth/androidpublisher"],
+          )
+          service = build(
+              "androidpublisher", "v3", credentials=credentials, cache_discovery=False
+          )
+          package_name = "net.iqly.app"
+          version_code = os.environ["VERSION_CODE"]
+          version_name = os.environ["VERSION_NAME"]
+          edit_id = None
+          committed = False
+          try:
+              edit_id = service.edits().insert(
+                  packageName=package_name, body={}
+              ).execute()["id"]
+              for track_name in ["qa", "alpha", "beta"]:
+                  track = service.edits().tracks().get(
+                      packageName=package_name, editId=edit_id, track=track_name
+                  ).execute()
+                  releases = [
+                      release
+                      for release in track.get("releases", [])
+                      if version_code
+                      not in [str(code) for code in release.get("versionCodes", [])]
+                  ]
+                  releases.append(
+                      {
+                          "name": f"{version_name} ({version_code})",
+                          "versionCodes": [version_code],
+                          "status": "completed",
+                      }
+                  )
+                  service.edits().tracks().update(
+                      packageName=package_name,
+                      editId=edit_id,
+                      track=track_name,
+                      body={"releases": releases},
+                  ).execute()
+              service.edits().commit(
+                  packageName=package_name, editId=edit_id
+              ).execute()
+              committed = True
+              print(f"Assigned version code {version_code} to qa, alpha, and beta.")
+          finally:
+              if edit_id and not committed:
+                  service.edits().delete(
+                      packageName=package_name, editId=edit_id
+                  ).execute()
+          PY
       - name: Upload AAB to internal alpha and beta
+        if: ${{ !inputs.reference_existing }}
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}

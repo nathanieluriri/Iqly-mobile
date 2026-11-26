@@ -126,6 +126,9 @@ class ShorebirdReleaseWorkflowTest(unittest.TestCase):
         self.assertEqual(
             testing_inputs["discard_production_draft"]["default"], "false"
         )
+        self.assertIn("reference_existing", testing_inputs)
+        self.assertEqual(testing_inputs["reference_existing"]["type"], "boolean")
+        self.assertEqual(testing_inputs["reference_existing"]["default"], "false")
         discard = next(
             step
             for step in testing["jobs"]["upload"]["steps"]
@@ -134,6 +137,21 @@ class ShorebirdReleaseWorkflowTest(unittest.TestCase):
         self.assertEqual(discard["if"], "inputs.discard_production_draft")
         self.assertIn('release.get("status") != "draft"', discard["run"])
         self.assertIn("tracks().update", discard["run"])
+
+        assign = next(
+            step
+            for step in testing["jobs"]["upload"]["steps"]
+            if step.get("name") == "Assign existing version code to testing tracks"
+        )
+        self.assertEqual(assign["if"], "inputs.reference_existing")
+        self.assertIn('["qa", "alpha", "beta"]', assign["run"])
+        self.assertIn('"status": "completed"', assign["run"])
+        testing_upload = next(
+            step
+            for step in testing["jobs"]["upload"]["steps"]
+            if step.get("name") == "Upload AAB to internal alpha and beta"
+        )
+        self.assertEqual(testing_upload["if"], "${{ !inputs.reference_existing }}")
 
         download = next(
             step
