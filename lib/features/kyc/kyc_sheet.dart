@@ -376,7 +376,7 @@ class _KycSheetState extends ConsumerState<KycSheet> {
   );
 
   Widget _illustration(KycStatus status) {
-    final complete = !status.needsCheck;
+    final complete = status.required && status.canWithdraw;
     final identity =
         status.nextCheck == KycCheckKind.identity ||
         status.nextCheck == KycCheckKind.bankMatch;
