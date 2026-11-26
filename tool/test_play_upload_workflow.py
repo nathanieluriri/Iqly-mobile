@@ -43,6 +43,7 @@ class PlayUploadWorkflowTest(unittest.TestCase):
         self.assertEqual(upload["with"]["releaseFiles"], "${{ env.AAB_PATH }}")
         self.assertEqual(upload["with"]["tracks"], "internal,alpha,beta")
         self.assertEqual(upload["with"]["status"], "completed")
+        self.assertNotIn("changesNotSentForReview", upload["with"])
 
         for step in self.steps:
             self.assertNotIn("shorebirdtech/setup-shorebird", step.get("uses", ""))
