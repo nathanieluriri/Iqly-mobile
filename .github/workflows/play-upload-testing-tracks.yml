@@ -12,6 +12,11 @@ on:
         default: iqly-release
         required: true
         type: string
+      discard_production_draft:
+        description: Discard a production draft with the same version code before uploading
+        default: false
+        required: true
+        type: boolean
 
 permissions:
   actions: read
@@ -46,6 +51,73 @@ jobs:
           fi
           echo "AAB_PATH=${bundles[0]}" >> "$GITHUB_ENV"
           echo "AAB_SHA256=$(sha256sum "${bundles[0]}" | cut -d ' ' -f 1)" >> "$GITHUB_ENV"
+      - name: Discard production draft for this version code
+        if: inputs.discard_production_draft
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          version=$(sed -n 's/^version: *//p' pubspec.yaml)
+          export VERSION_CODE="${version##*+}"
+          python3 -m pip install --quiet google-api-python-client google-auth
+          python3 <<'PY'
+          import json
+          import os
+
+          from google.oauth2 import service_account
+          from googleapiclient.discovery import build
+
+          info = json.loads(os.environ["PLAY_SERVICE_ACCOUNT_JSON"])
+          credentials = service_account.Credentials.from_service_account_info(
+              info,
+              scopes=["https://www.googleapis.com/auth/androidpublisher"],
+          )
+          service = build(
+              "androidpublisher", "v3", credentials=credentials, cache_discovery=False
+          )
+          package_name = "net.iqly.app"
+          version_code = os.environ["VERSION_CODE"]
+          edit_id = None
+          committed = False
+          try:
+              edit_id = service.edits().insert(
+                  packageName=package_name, body={}
+              ).execute()["id"]
+              track = service.edits().tracks().get(
+                  packageName=package_name, editId=edit_id, track="production"
+              ).execute()
+              releases = track.get("releases", [])
+              matching = [
+                  release
+                  for release in releases
+                  if version_code in [str(code) for code in release.get("versionCodes", [])]
+              ]
+              if not matching:
+                  print(f"No production release uses version code {version_code}.")
+                  raise SystemExit(0)
+              for release in matching:
+                  if release.get("status") != "draft":
+                      raise SystemExit(
+                          "Refusing to discard a non-draft production release "
+                          f"for version code {version_code}."
+                      )
+              remaining = [release for release in releases if release not in matching]
+              service.edits().tracks().update(
+                  packageName=package_name,
+                  editId=edit_id,
+                  track="production",
+                  body={"releases": remaining},
+              ).execute()
+              service.edits().commit(
+                  packageName=package_name, editId=edit_id
+              ).execute()
+              committed = True
+              print(f"Discarded production draft for version code {version_code}.")
+          finally:
+              if edit_id and not committed:
+                  service.edits().delete(
+                      packageName=package_name, editId=edit_id
+                  ).execute()
+          PY
       - name: Upload AAB to internal alpha and beta
         uses: r0adkll/upload-google-play@v1
         with:

@@ -115,6 +115,26 @@ class ShorebirdReleaseWorkflowTest(unittest.TestCase):
             inputs["track"]["options"], ["internal", "alpha", "beta", "production"]
         )
 
+        testing = yaml.load(
+            WORKFLOW.read_text(encoding="utf-8"), Loader=yaml.BaseLoader
+        )
+        testing_inputs = testing["on"]["workflow_dispatch"]["inputs"]
+        self.assertIn("discard_production_draft", testing_inputs)
+        self.assertEqual(
+            testing_inputs["discard_production_draft"]["type"], "boolean"
+        )
+        self.assertEqual(
+            testing_inputs["discard_production_draft"]["default"], "false"
+        )
+        discard = next(
+            step
+            for step in testing["jobs"]["upload"]["steps"]
+            if step.get("name") == "Discard production draft for this version code"
+        )
+        self.assertEqual(discard["if"], "inputs.discard_production_draft")
+        self.assertIn('release.get("status") != "draft"', discard["run"])
+        self.assertIn("tracks().update", discard["run"])
+
         download = next(
             step
             for step in self.steps
