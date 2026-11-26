@@ -17,6 +17,7 @@ import 'package:iqly_mobile/ui/brief_card.dart';
 import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/empty_state.dart';
 import 'package:iqly_mobile/ui/gift_button.dart';
+import 'package:iqly_mobile/ui/pressable.dart';
 import 'package:iqly_mobile/ui/switch.dart';
 import 'package:iqly_mobile/ui/ticket_card.dart';
 
@@ -53,7 +54,12 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
 }
 
 Future<void> _openFilters(WidgetTester tester) async {
-  await _tap(tester, find.text('Filter').first);
+  await _tap(
+    tester,
+    find.byWidgetPredicate(
+      (widget) => widget is IqPressable && widget.semanticLabel == 'Filter',
+    ),
+  );
   expect(find.byType(FiltersSheet), findsOneWidget);
 }
 

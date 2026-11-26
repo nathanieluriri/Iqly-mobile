@@ -27,6 +27,8 @@ import '../../ui/web_range_field.dart';
 import '../../data/assessment_service.dart';
 import '../assessments/assessment_nudge.dart';
 import '../drafts/drafts_state.dart';
+import '../kyc/kyc_controller.dart';
+import '../kyc/kyc_nudge.dart';
 import '../shell/tablet_page.dart';
 import '../shell/tablet_popover.dart';
 import 'business_art.dart';
@@ -95,6 +97,7 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
     final savedBriefs = ref.watch(savedBriefsProvider).value ?? const [];
     final briefs = feed.value?.briefs;
     final drafts = ref.watch(draftsProvider).value ?? const [];
+    final kyc = ref.watch(kycControllerProvider).status;
     final showPickUp = hasPickUpDrafts(drafts);
     ref.listen(draftsProvider, (previous, next) {
       if (!hasPickUpDrafts(next.value ?? const []) &&
@@ -153,6 +156,13 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
     final chips = filters.chips();
 
     final children = <Widget>[
+      if (kyc != null)
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: KycNudge(status: kyc),
+          ),
+        ),
       toolbar,
       const AssessmentNudge(),
       if (chips.isNotEmpty)
@@ -269,16 +279,16 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
               ),
           ],
         ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
+        Wrap(
+          spacing: IqSpace.s3,
+          runSpacing: IqSpace.s2,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            if (count != null) ...[
+            if (count != null)
               Text(
                 '$count ${count == 1 ? 'brief' : 'briefs'}',
                 style: IqWebText.bodySmall.copyWith(color: IqColors.fg3),
               ),
-              const SizedBox(width: IqSpace.s3),
-            ],
             TabletPopover(
               open: _open != _Open.none,
               onClose: _close,

@@ -38,6 +38,8 @@ import '../activations/activations_routes.dart';
 import '../activations/activations_state.dart';
 import '../entry/first_tip.dart';
 import '../entry/notifications_ask_screen.dart';
+import '../kyc/kyc_controller.dart';
+import '../kyc/kyc_nudge.dart';
 import '../notifications/notifications_state.dart';
 import '../polls/polls_routes.dart';
 import '../polls/polls_state.dart';
@@ -426,6 +428,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final needCheckIn =
         assessmentNudge(ref.watch(assessmentAccessProvider).value) != null;
     final payout = ref.watch(recentPayoutProvider);
+    final kyc = ref.watch(kycControllerProvider).status;
     _proposalsPending = proposalsPending;
     final loading = (data == null && !failed) || proposalsPending;
     if (!_built) {
@@ -487,6 +490,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                               ),
                             ),
                           ),
+                          if (kyc != null)
+                            SliverToBoxAdapter(child: KycNudge(status: kyc)),
                           if (payout != null)
                             SliverToBoxAdapter(
                               key: const ValueKey('payout'),

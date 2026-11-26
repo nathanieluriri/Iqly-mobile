@@ -22,6 +22,7 @@ import 'features/entry/sign_in_screen.dart';
 import 'features/entry/verify_email_screen.dart';
 import 'features/entry/your_name_screen.dart';
 import 'features/help/help_routes.dart';
+import 'features/kyc/kyc_sheet.dart';
 import 'features/more/more_routes.dart';
 import 'features/onboarding/onboarding_routes.dart';
 import 'features/profile/profile_routes.dart';
@@ -65,6 +66,7 @@ abstract final class Routes {
   static const result = '/submissions/:id/result';
   static const wallet = '/wallet';
   static const withdraw = '/wallet/withdraw';
+  static const kyc = '/kyc';
   static const selectBank = '/wallet/select-bank';
   static const withdrawal = '/wallet/withdrawals/:id';
   static const withdrawalPending = '/wallet/withdrawals/:id/pending';
@@ -186,6 +188,7 @@ GoRouter buildRouter({
       ),
       appShellRoute(rootKey),
       ...discoverRoutes,
+      _push(Routes.kyc, const KycSheet()),
       ..._entryRoutes,
       ...onboardingRoutes,
       ...submissionRoutes,

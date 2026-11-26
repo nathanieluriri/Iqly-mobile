@@ -14,6 +14,7 @@ import 'package:iqly_mobile/data/live_auth.dart';
 import 'package:iqly_mobile/data/local/local_providers.dart';
 import 'package:iqly_mobile/data/local/local_store.dart';
 import 'package:iqly_mobile/data/local/memory_local_store.dart';
+import 'package:iqly_mobile/data/kyc_service.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/profile/profile_state.dart';
 import 'package:iqly_mobile/router.dart';
@@ -24,6 +25,31 @@ import '../data/live/live_data_fixtures.dart' show FixedBackend, firstFeatures;
 import 'live_app.dart' show NoSocial;
 
 final launchNow = DateTime(2026, 10, 17, 10);
+
+class _VerifiedKyc implements KycService {
+  static const verifiedStatus = KycStatus(
+    required: true,
+    verified: true,
+    tier: 3,
+    requiredTier: 1,
+    nextCheck: KycCheckKind.none,
+    checks: {
+      KycCheckKind.identity: KycCheckState.passed,
+      KycCheckKind.bankMatch: KycCheckState.passed,
+      KycCheckKind.amlIndividual: KycCheckState.passed,
+    },
+  );
+
+  @override
+  Future<KycStatus> status() async => verifiedStatus;
+
+  @override
+  Future<KycStatus> verify(KycCheck check) async => verifiedStatus;
+
+  @override
+  Future<KycStatus> upload(KycCheckKind check, KycEvidence file) async =>
+      verifiedStatus;
+}
 
 /// Signed in as u_1 (Ada Obi) with first run done.
 Map<String, Object> signedInLive([Map<String, Object> more = const {}]) => {
@@ -49,6 +75,7 @@ Future<(ProviderContainer, GoRouter)> pumpLiveLaunch(
   LocalStore? store,
   Map<String, Object>? prefs,
   Backend? mode,
+  KycService? kyc,
   List<Override> overrides = const [],
 }) async {
   tester.view.physicalSize = const Size(390, 844);
@@ -72,6 +99,7 @@ Future<(ProviderContainer, GoRouter)> pumpLiveLaunch(
       clockProvider.overrideWithValue(() => launchNow),
       routerProvider.overrideWithValue(router),
       apiClientProvider.overrideWithValue(api),
+      kycServiceProvider.overrideWithValue(kyc ?? _VerifiedKyc()),
       localStoreProvider.overrideWithValue(
         store ?? MemoryLocalStore(clock: () => launchNow),
       ),
@@ -100,7 +128,10 @@ Future<(ProviderContainer, GoRouter)> pumpLiveLaunch(
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: MaterialApp.router(theme: buildTheme(), routerConfig: router),
+      child: RepaintBoundary(
+        key: const ValueKey('app-surface'),
+        child: MaterialApp.router(theme: buildTheme(), routerConfig: router),
+      ),
     ),
   );
   return (container, router);

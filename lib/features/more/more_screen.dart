@@ -18,6 +18,7 @@ import '../../data/live/live_repository.dart' show liveModeProvider;
 import '../../data/pin_service.dart';
 import '../help/help_state.dart' show supportUnreadProvider;
 import '../../data/referrals_service.dart';
+import '../../data/kyc_service.dart';
 import '../../data/repository.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -36,6 +37,7 @@ import '../../ui/top_bar.dart';
 import '../avatar/avatar_state.dart';
 import '../avatar/choose_avatar.dart';
 import '../discover/app_shell.dart';
+import '../kyc/kyc_controller.dart';
 import '../onboarding/onboarding_draft.dart';
 import '../profile/profile_state.dart';
 import '../profile/leaving.dart';
@@ -141,9 +143,10 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
     final ios = defaultTargetPlatform == TargetPlatform.iOS;
     final pin = ref.watch(pinServiceProvider) != null;
     final biometric = pin ? ref.watch(biometricWithdrawProvider).value : null;
+    final kyc = ref.watch(kycControllerProvider).status;
 
     if (Layout.isTablet(context)) {
-      return _security(context, pin: pin, biometric: biometric);
+      return _security(context, pin: pin, biometric: biometric, kyc: kyc);
     }
     final avatar = ref.watch(avatarProvider.select((a) => a.spec));
     final children = <Widget>[
@@ -234,6 +237,15 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
                   ? bankAccountPath
                   : Routes.selectBank,
             ),
+          ),
+          IqListRow(
+            label: 'Verification',
+            description: kyc == null
+                ? 'Check your verification status'
+                : 'Tier C${kyc.tier} of C${kyc.requiredTier}',
+            icon: IqIcons.shield,
+            divider: pin,
+            onTap: () => context.open(Routes.kyc),
           ),
           if (pin)
             IqListRow(
@@ -376,6 +388,7 @@ extension on _MoreScreenState {
     BuildContext context, {
     required bool pin,
     required BiometricWithdraw? biometric,
+    required KycStatus? kyc,
   }) {
     final cache = ref.watch(cacheProvider);
     final ios = defaultTargetPlatform == TargetPlatform.iOS;
@@ -437,6 +450,15 @@ extension on _MoreScreenState {
                   ? bankAccountPath
                   : Routes.selectBank,
             ),
+          ),
+          IqListRow(
+            label: 'Verification',
+            description: kyc == null
+                ? 'Check your verification status'
+                : 'Tier C${kyc.tier} of C${kyc.requiredTier}',
+            icon: IqIcons.shield,
+            divider: true,
+            onTap: () => context.open(Routes.kyc),
           ),
           IqListRow(
             label: 'Help centre',
