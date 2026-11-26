@@ -81,14 +81,15 @@ void main() {
   });
 
   test('withdrawal requires every check for the required tier', () {
+    final checks = {
+      'identity': 'passed',
+      'bank_match': 'passed',
+      'aml_individual': 'passed',
+      'document': 'passed',
+    };
     final ready = {
       ...statusJson(verified: true, tier: 2, nextCheck: 'none'),
-      'checks': {
-        'identity': 'passed',
-        'bank_match': 'passed',
-        'aml_individual': 'passed',
-        'document': 'passed',
-      },
+      'checks': checks,
     };
     expect(KycStatus.fromJson(ready).canWithdraw, isTrue);
     for (final check in [
@@ -101,7 +102,7 @@ void main() {
         expect(
           KycStatus.fromJson({
             ...ready,
-            'checks': {...ready['checks'], check: value},
+            'checks': {...checks, check: value},
           }).canWithdraw,
           isFalse,
           reason: '$check must be passed, not $value',

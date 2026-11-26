@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/navigation.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/brand_logo.dart';

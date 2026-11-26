@@ -18,10 +18,11 @@ import '../../ui/segmented.dart';
 import '../../ui/spinner.dart';
 import '../../ui/top_bar.dart';
 import '../wallet/wallet_sheet.dart';
+import 'kyc_controller.dart';
 
 class KycPicker {
   Future<KycEvidence?> document() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
       withData: true,
@@ -148,7 +149,7 @@ class _KycSheetState extends ConsumerState<KycSheet> {
       _error = null;
     });
     try {
-      final KycStatus? next;
+      KycStatus? next;
       if (status.nextCheck == KycCheckKind.identity) {
         final number = _number.text.trim();
         final first = _first.text.trim();
