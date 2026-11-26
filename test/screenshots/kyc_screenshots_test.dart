@@ -9,9 +9,9 @@ import 'package:iqly_mobile/features/kyc/kyc_sheet.dart';
 import 'package:iqly_mobile/features/wallet/withdraw_sheet.dart';
 import 'package:iqly_mobile/router.dart';
 
-import '../data/live/live_data_fixtures.dart' show FakeApi;
 import '../golden/golden.dart' show loadAppFonts;
-import '../support/live_launch.dart';
+import '../golden/screens/app_harness.dart';
+import '../golden/screens/wallet_harness.dart';
 
 const screenshotStatus = KycStatus(
   required: true,
@@ -33,6 +33,9 @@ class ScreenshotKyc implements KycService {
   Future<KycStatus> upload(KycCheckKind check, KycEvidence file) async =>
       screenshotStatus;
 }
+
+Widget _appSurface(BuildContext context, Widget? child) =>
+    RepaintBoundary(key: const ValueKey('app-surface'), child: child!);
 
 Future<void> capture(WidgetTester tester, String name) async {
   await tester.pumpAndSettle();
@@ -58,21 +61,21 @@ void main() {
   setUpAll(loadAppFonts);
 
   testWidgets('writes the Discover KYC screenshot', (tester) async {
-    await pumpLiveLaunch(
+    await pumpApp(
       tester,
       Routes.home,
-      api: FakeApi().api(),
-      kyc: ScreenshotKyc(),
+      overrides: [kycServiceProvider.overrideWithValue(ScreenshotKyc())],
+      builder: _appSurface,
     );
     await capture(tester, 'discover-kyc');
   });
 
   testWidgets('writes the More KYC screenshot', (tester) async {
-    await pumpLiveLaunch(
+    await pumpApp(
       tester,
       Routes.more,
-      api: FakeApi().api(),
-      kyc: ScreenshotKyc(),
+      overrides: [kycServiceProvider.overrideWithValue(ScreenshotKyc())],
+      builder: _appSurface,
     );
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Verification'));
@@ -80,11 +83,15 @@ void main() {
   });
 
   testWidgets('writes the withdrawal KYC screenshot', (tester) async {
-    await pumpLiveLaunch(
+    await pumpApp(
       tester,
       Routes.withdraw,
-      api: FakeApi().api(),
-      kyc: ScreenshotKyc(),
+      repository: WalletRepository(),
+      overrides: [
+        kycServiceProvider.overrideWithValue(ScreenshotKyc()),
+        ...walletOverrides(),
+      ],
+      builder: _appSurface,
     );
     await capture(tester, 'withdrawal-kyc');
     expect(find.byType(KycSheet), findsOneWidget);
