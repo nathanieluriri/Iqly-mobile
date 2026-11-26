@@ -1,0 +1,57 @@
+name: play-upload-testing-tracks
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Shorebird release workflow run containing the AAB artifact
+        required: true
+        type: string
+      artifact_name:
+        description: GitHub Actions artifact name
+        default: iqly-release
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: play-testing-tracks-${{ inputs.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify upload workflow contract
+        run: |
+          python3 -m pip install --quiet pyyaml
+          python3 tool/test_play_upload_workflow.py
+      - name: Download existing release artifact
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          run_id: ${{ inputs.run_id }}
+          name: ${{ inputs.artifact_name }}
+          path: artifacts
+      - name: Select the AAB
+        run: |
+          set -euo pipefail
+          mapfile -t bundles < <(find artifacts -type f -name '*.aab' -print)
+          if [ "${#bundles[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one AAB, found ${#bundles[@]}"
+            exit 1
+          fi
+          echo "AAB_PATH=${bundles[0]}" >> "$GITHUB_ENV"
+          echo "AAB_SHA256=$(sha256sum "${bundles[0]}" | cut -d ' ' -f 1)" >> "$GITHUB_ENV"
+      - name: Upload AAB to internal alpha and beta
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: net.iqly.app
+          releaseFiles: ${{ env.AAB_PATH }}
+          tracks: internal,alpha,beta
+          status: completed
+          changesNotSentForReview: true
