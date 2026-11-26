@@ -269,16 +269,16 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
               ),
           ],
         ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
+        Wrap(
+          spacing: IqSpace.s3,
+          runSpacing: IqSpace.s2,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            if (count != null) ...[
+            if (count != null)
               Text(
                 '$count ${count == 1 ? 'brief' : 'briefs'}',
                 style: IqWebText.bodySmall.copyWith(color: IqColors.fg3),
               ),
-              const SizedBox(width: IqSpace.s3),
-            ],
             TabletPopover(
               open: _open != _Open.none,
               onClose: _close,

@@ -146,9 +146,15 @@ class _FiltersSheetState extends ConsumerState<FiltersSheet> {
                       'Sort',
                       sorts,
                       _draft.sort.name,
-                      (v) => _draft = _draft.copyWith(
-                        sort: FeedSort.values.byName(v),
-                      ),
+                      (v) {
+                        final sort = FeedSort.values.byName(v);
+                        _draft = _draft.copyWith(
+                          sort: sort,
+                          lens: sort == FeedSort.myInterests
+                              ? FeedLens.forYou
+                              : FeedLens.all,
+                        );
+                      },
                     ),
                   ],
                 ),

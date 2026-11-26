@@ -166,7 +166,11 @@ void main() {
     test('the files show going up with the send, and come back on a '
         'failure', () async {
       final api = FakeApi();
-      api.data('GET', '/challenges/c_1', challengeJson());
+      api.data(
+        'GET',
+        '/challenges/c_1',
+        challengeJson({'deliverables': const []}),
+      );
       api.data('GET', '/submissions/mine/by-challenge/c_1', null);
       final upload = Completer<void>();
       final seen = <String>[];

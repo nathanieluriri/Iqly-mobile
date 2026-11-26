@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../core/navigation.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/brand_logo.dart';
@@ -20,7 +20,7 @@ class KycNudge extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(IqSpace.s4, 0, IqSpace.s4, IqSpace.s3),
       child: IqPressable(
         semanticLabel: 'Verify your account',
-        onTap: () => context.push(Routes.kyc),
+        onTap: () => context.open(Routes.kyc),
         builder: (context, pressed) => Container(
           padding: const EdgeInsets.all(IqSpace.s3),
           decoration: BoxDecoration(

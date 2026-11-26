@@ -65,35 +65,24 @@ class _QueuedKyc extends FakeKyc {
 }
 
 void main() {
-  testWidgets(
-    'Discover shows KYC outside withdrawal and opens the KYC sheet',
-    (tester) async {
-      final kyc = FakeKyc(unverified);
-      await pumpLiveLaunch(
-        tester,
-        Routes.home,
-        api: FakeApi().api(),
-        kyc: kyc,
-      );
-      await tester.pumpAndSettle();
-      expect(find.byType(KycNudge), findsOneWidget);
-      expect(find.text('Complete tier C2 to withdraw.'), findsOneWidget);
-      await tester.tap(find.text('Verify your account'));
-      await tester.pumpAndSettle();
-      expect(find.byType(KycSheet), findsOneWidget);
-    },
-  );
+  testWidgets('Discover shows KYC outside withdrawal and opens the KYC sheet', (
+    tester,
+  ) async {
+    final kyc = FakeKyc(unverified);
+    await pumpLiveLaunch(tester, Routes.home, api: FakeApi().api(), kyc: kyc);
+    await tester.pumpAndSettle();
+    expect(find.byType(KycNudge), findsOneWidget);
+    expect(find.text('Complete tier C2 to withdraw.'), findsOneWidget);
+    await tester.tap(find.text('Verify your account'));
+    await tester.pumpAndSettle();
+    expect(find.byType(KycSheet), findsOneWidget);
+  });
 
   testWidgets('More exposes the current tier on phone and tablet', (
     tester,
   ) async {
     final kyc = FakeKyc(unverified);
-    await pumpLiveLaunch(
-      tester,
-      Routes.more,
-      api: FakeApi().api(),
-      kyc: kyc,
-    );
+    await pumpLiveLaunch(tester, Routes.more, api: FakeApi().api(), kyc: kyc);
     tester.view.physicalSize = const Size(1024, 844);
     await tester.pumpAndSettle();
     expect(find.byType(MoreScreen), findsOneWidget);

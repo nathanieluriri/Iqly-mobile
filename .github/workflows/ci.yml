@@ -20,15 +20,6 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - name: Format KYC tests with the CI SDK
-        run: dart format test/features/kyc/kyc_flow_test.dart test/golden/screens/app_harness.dart
-      - name: Upload CI-formatted KYC tests
-        uses: actions/upload-artifact@v4
-        with:
-          name: ci-formatted-kyc-tests
-          path: |
-            test/features/kyc/kyc_flow_test.dart
-            test/golden/screens/app_harness.dart
       - run: dart run tool/gen_tokens.dart --check
       - run: dart format --output=none --set-exit-if-changed lib test tool
       - run: flutter analyze --no-fatal-infos

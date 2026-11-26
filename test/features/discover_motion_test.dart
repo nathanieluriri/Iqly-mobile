@@ -795,10 +795,10 @@ void main() {
       );
       await tester.tap(find.text('All'));
       await tester.pumpAndSettle();
-      expect(
-        tester.widget<IqChip>(find.byType(IqChip).at(1)).state,
-        IqChipState.selected,
+      final all = find.byWidgetPredicate(
+        (widget) => widget is IqChip && widget.label == 'All',
       );
+      expect(tester.widget<IqChip>(all).state, IqChipState.selected);
     },
   );
 

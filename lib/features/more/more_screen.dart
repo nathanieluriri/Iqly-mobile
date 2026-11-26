@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/backend.dart';
 import '../../core/flags.dart';
@@ -210,7 +209,7 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
                 : 'Tier C${kyc.tier} of C${kyc.requiredTier}',
             icon: IqIcons.shield,
             divider: pin,
-            onTap: () => context.push(Routes.kyc),
+            onTap: () => context.open(Routes.kyc),
           ),
           if (pin)
             IqListRow(
@@ -421,7 +420,7 @@ extension on _MoreScreenState {
                 : 'Tier C${kyc.tier} of C${kyc.requiredTier}',
             icon: IqIcons.shield,
             divider: true,
-            onTap: () => context.push(Routes.kyc),
+            onTap: () => context.open(Routes.kyc),
           ),
           IqListRow(
             label: 'Help centre',
