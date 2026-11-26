@@ -147,7 +147,7 @@ class _ActivationsScreenState extends ConsumerState<ActivationsScreen> {
     );
     final open = sortActivationTiles([
       for (final a in all)
-        if (!a.credited && !a.closedAt(now)) a,
+        if (a.availableAt(now)) a,
     ], _sort);
     final completed = sortActivationTiles(
       [

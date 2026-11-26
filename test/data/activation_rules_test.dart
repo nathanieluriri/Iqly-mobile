@@ -26,6 +26,27 @@ ActivationProgress _run({
   ],
 );
 
+Activation _offer({
+  DateTime? closesAt,
+  int spotsLeft = 10,
+  ActivationProgress? progress,
+}) => Activation(
+  id: 'offer',
+  business: 'Kudi Box',
+  title: 'Open an account',
+  minutes: 10,
+  rewardKobo: 150000,
+  closesAt: closesAt,
+  spotsLeft: spotsLeft,
+  spotsTotal: 50,
+  steps: const [
+    ActivationStep(title: 'Open', hint: 'Open the app'),
+    ActivationStep(title: 'Save', hint: 'Save a naira'),
+  ],
+  link: Uri.parse('https://example.com/join'),
+  progress: progress,
+);
+
 ActivationProof _proof(int step, {String? refused, bool checked = false}) =>
     ActivationProof(
       step: step,
@@ -526,6 +547,23 @@ void main() {
       expect(stepRewardText(run, 1), '₦200');
       expect(run.payoutOf(1), isNull);
     });
+  });
+
+  group('open discovery', () {
+    test(
+      'full no-deadline offers leave Available, dated and started runs stay',
+      () {
+        final full = _offer(closesAt: null, spotsLeft: 0);
+        final dated = _offer(
+          closesAt: _now.add(const Duration(days: 1)),
+          spotsLeft: 0,
+        );
+        final started = _offer(closesAt: null, spotsLeft: 0, progress: _run());
+        expect(full.availableAt(_now), isFalse);
+        expect(dated.availableAt(_now), isTrue);
+        expect(started.availableAt(_now), isTrue);
+      },
+    );
   });
 
   group('the demo service', () {

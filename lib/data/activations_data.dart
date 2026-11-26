@@ -337,6 +337,14 @@ class Activation {
 
   bool closedAt(DateTime now) => closesAt != null && !closesAt!.isAfter(now);
 
+  /// Open discovery includes dated offers even when full, and started runs
+  /// even when their no-deadline offer is full. An unstarted full offer with
+  /// no deadline leaves discovery.
+  bool availableAt(DateTime now) =>
+      !credited &&
+      !closedAt(now) &&
+      (started || closesAt != null || spotsLeft > 0);
+
   /// Whether a recording can still go as proof: started, not paid, and
   /// open. A proof turned down after the close cannot be recorded again,
   /// as the run ended with the activation.
