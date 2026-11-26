@@ -22,18 +22,14 @@ import 'kyc_controller.dart';
 
 class KycPicker {
   Future<KycEvidence?> document() async {
-    final result = await FilePicker.pickFiles(
+    final file = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
-      withData: true,
     );
-    final files = result?.files;
-    if (files == null || files.length != 1) return null;
-    final file = files.single;
-    if (file.bytes == null) return null;
+    if (file == null) return null;
     return KycEvidence(
       filename: file.name,
-      bytes: file.bytes!,
+      bytes: await file.readAsBytes(),
       contentType: _contentType(file.name),
     );
   }
