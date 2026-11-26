@@ -13,6 +13,12 @@ WORKFLOW = (
     / "workflows"
     / "play-upload-testing-tracks.yml"
 )
+RELEASE_WORKFLOW = (
+    Path(__file__).resolve().parents[1]
+    / ".github"
+    / "workflows"
+    / "shorebird-release.yml"
+)
 GIT_BASH = Path(r"C:\Program Files\Git\bin\bash.exe")
 BASH = str(GIT_BASH) if GIT_BASH.exists() else "bash"
 
@@ -84,6 +90,39 @@ class PlayUploadWorkflowTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("AAB_PATH=artifacts/iqly-1.1.1+14.aab\n", output)
         self.assertIn("AAB_SHA256=", output)
+
+
+class ShorebirdReleaseWorkflowTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.workflow = yaml.load(
+            RELEASE_WORKFLOW.read_text(encoding="utf-8"), Loader=yaml.BaseLoader
+        )
+        cls.steps = cls.workflow["jobs"]["release"]["steps"]
+
+    def test_release_upload_is_manual_and_selectable(self):
+        self.assertEqual(set(self.workflow["on"]), {"workflow_dispatch"})
+        dispatch = self.workflow["on"]["workflow_dispatch"] or {}
+        self.assertIn("inputs", dispatch)
+        inputs = dispatch["inputs"]
+        self.assertEqual(inputs["upload"]["type"], "boolean")
+        self.assertEqual(inputs["upload"]["default"], "true")
+        self.assertEqual(inputs["track"]["type"], "choice")
+        self.assertEqual(
+            inputs["track"]["options"], ["internal", "alpha", "beta", "production"]
+        )
+
+        upload = next(
+            step for step in self.steps if step.get("name") == "Send the AAB to Play"
+        )
+        self.assertEqual(upload["uses"], "r0adkll/upload-google-play@v1")
+        self.assertEqual(upload["if"], "inputs.upload")
+        self.assertEqual(upload["with"]["tracks"], "${{ inputs.track }}")
+        self.assertEqual(
+            upload["with"]["status"],
+            "${{ inputs.track == 'production' && 'draft' || 'completed' }}",
+        )
+        self.assertEqual(upload["with"]["changesNotSentForReview"], "true")
 
 
 if __name__ == "__main__":

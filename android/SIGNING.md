@@ -32,3 +32,16 @@ Repository secrets read by `.github/workflows/ci.yml`:
 Without these, CI builds fall back to the runner's own debug key, which Google sign-in will reject.
 
 Once the app is in Play Console, add the Play app signing key's SHA-1 (App integrity) to the same Google Android OAuth client.
+
+## Upload the AAB to Play from CI
+
+`shorebird-release` can send the AAB to Play Console after it builds. That needs one more secret.
+
+1. In Google Cloud, enable the **Google Play Android Developer API**.
+2. Create a service account. Do not grant it Cloud roles. Add a JSON key.
+3. In Play Console, **Users and permissions**, invite that service account email. Give it permission to release to testing tracks and production if needed.
+4. Add the JSON file contents as the repository secret `PLAY_SERVICE_ACCOUNT_JSON`.
+
+Do not paste the JSON into a chat or a commit.
+
+Run **shorebird-release** manually from the Actions tab. Leave **upload** selected and choose the track. The default is **internal**. Production uploads land as a **draft**, so nothing goes live until you roll it out in Play Console.
