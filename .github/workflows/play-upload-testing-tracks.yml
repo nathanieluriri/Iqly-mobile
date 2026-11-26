@@ -70,6 +70,7 @@ jobs:
 
           from google.oauth2 import service_account
           from googleapiclient.discovery import build
+          from googleapiclient.errors import HttpError
 
           info = json.loads(os.environ["PLAY_SERVICE_ACCOUNT_JSON"])
           credentials = service_account.Credentials.from_service_account_info(
@@ -138,6 +139,7 @@ jobs:
 
           from google.oauth2 import service_account
           from googleapiclient.discovery import build
+          from googleapiclient.errors import HttpError
 
           info = json.loads(os.environ["PLAY_SERVICE_ACCOUNT_JSON"])
           credentials = service_account.Credentials.from_service_account_info(
@@ -157,9 +159,14 @@ jobs:
                   packageName=package_name, body={}
               ).execute()["id"]
               for track_name in ["qa", "alpha", "beta"]:
-                  track = service.edits().tracks().get(
-                      packageName=package_name, editId=edit_id, track=track_name
-                  ).execute()
+                  try:
+                      track = service.edits().tracks().get(
+                          packageName=package_name, editId=edit_id, track=track_name
+                      ).execute()
+                  except HttpError as error:
+                      if error.resp.status != 404:
+                          raise
+                      track = {}
                   releases = [
                       release
                       for release in track.get("releases", [])

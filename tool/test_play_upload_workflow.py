@@ -146,6 +146,8 @@ class ShorebirdReleaseWorkflowTest(unittest.TestCase):
         self.assertEqual(assign["if"], "inputs.reference_existing")
         self.assertIn('["qa", "alpha", "beta"]', assign["run"])
         self.assertIn('"status": "completed"', assign["run"])
+        self.assertIn("from googleapiclient.errors import HttpError", assign["run"])
+        self.assertIn("error.resp.status != 404", assign["run"])
         testing_upload = next(
             step
             for step in testing["jobs"]["upload"]["steps"]
