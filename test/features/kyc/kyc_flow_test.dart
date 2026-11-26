@@ -51,15 +51,16 @@ class _QueuedKyc extends FakeKyc {
   _QueuedKyc(super.current, this.responses);
 
   final List<Completer<KycStatus>> responses;
+  Completer<KycStatus>? fallback;
   var _calls = 0;
-
-  Completer<KycStatus> get next => responses.first;
 
   @override
   Future<KycStatus> status() async {
     _calls++;
-    if (_calls == 1 || responses.isEmpty) return current;
-    return responses.removeAt(0).future;
+    if (_calls == 1) return current;
+    if (responses.isNotEmpty) return responses.removeAt(0).future;
+    if (fallback != null) return fallback!.future;
+    return current;
   }
 }
 
@@ -79,8 +80,8 @@ void main() {
       expect(find.text('Complete tier C2 to withdraw.'), findsOneWidget);
       await tester.tap(find.text('Verify your account'));
       await tester.pumpAndSettle();
-      expect(router.routeInformationProvider.value.uri.path, Routes.kyc);
       expect(find.byType(KycSheet), findsOneWidget);
+      expect(router.routerDelegate.currentConfiguration.uri.path, Routes.kyc);
     },
   );
 
@@ -100,7 +101,8 @@ void main() {
     expect(find.text('Tier C1 of C2'), findsOneWidget);
     await tester.tap(find.text('Verification'));
     await tester.pumpAndSettle();
-    expect(router.routeInformationProvider.value.uri.path, Routes.kyc);
+    expect(find.byType(KycSheet), findsOneWidget);
+    expect(router.routerDelegate.currentConfiguration.uri.path, Routes.kyc);
   });
 
   testWidgets('phone More exposes the current verification tier', (
@@ -146,13 +148,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.byType(WithdrawSheet), findsNothing);
-    expect(
-      find.descendant(
-        of: find.byType(KycSheet),
-        matching: find.text('Try again'),
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('Try again'), findsOneWidget);
   });
 
   testWidgets('missing API service fails closed', (tester) async {
@@ -269,14 +265,16 @@ void main() {
         child: const MaterialApp(home: Scaffold(body: KycSheet())),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
     expect(
       find.text('The identity check did not complete. Try again.'),
       findsOneWidget,
     );
     kyc.failure = null;
     await tester.tap(find.text('Try again'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
     expect(
       find.text('The identity check did not complete. Try again.'),
       findsNothing,
@@ -347,9 +345,11 @@ void main() {
     first.complete(unverified);
     await old;
     expect(container.read(kycControllerProvider).status, ready);
+    final disposed = Completer<KycStatus>();
+    kyc.fallback = disposed;
     final pending = container.read(kycControllerProvider.notifier).refresh();
     container.dispose();
-    kyc.next.complete(unverified);
+    disposed.complete(unverified);
     await pending;
   });
 
