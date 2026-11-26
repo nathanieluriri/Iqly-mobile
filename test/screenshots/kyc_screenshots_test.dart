@@ -93,6 +93,15 @@ void main() {
       ],
       builder: _appSurface,
     );
+    final illustration = find.byKey(
+      const ValueKey('kyc-illustration-evidence'),
+    );
+    expect(illustration, findsOneWidget);
+    final provider = tester.widget<Image>(illustration).image;
+    await tester.runAsync(
+      () => precacheImage(provider, tester.element(illustration)),
+    );
+    await tester.pumpAndSettle();
     await capture(tester, 'withdrawal-kyc');
     expect(find.byType(KycSheet), findsOneWidget);
     expect(find.byType(WithdrawSheet), findsNothing);

@@ -13,7 +13,6 @@ import '../../ui/banner.dart';
 import '../../ui/brand_logo.dart';
 import '../../ui/button.dart';
 import '../../ui/field.dart';
-import '../../ui/illustration.dart';
 import '../../ui/segmented.dart';
 import '../../ui/spinner.dart';
 import '../../ui/top_bar.dart';
@@ -372,10 +371,35 @@ class _KycSheetState extends ConsumerState<KycSheet> {
             ],
           ),
         ),
-        const IqFigure(IqFigures.writer, width: 88),
       ],
     ),
   );
+
+  Widget _illustration(KycStatus status) {
+    final complete = status.required && status.canWithdraw;
+    final identity =
+        status.nextCheck == KycCheckKind.identity ||
+        status.nextCheck == KycCheckKind.bankMatch;
+    final asset = complete
+        ? 'assets/illustrations/contributor-verification-success.png'
+        : identity
+        ? 'assets/illustrations/contributor-identity-check.png'
+        : 'assets/illustrations/contributor-document-selfie.png';
+    final key = complete
+        ? 'kyc-illustration-success'
+        : identity
+        ? 'kyc-illustration-identity'
+        : 'kyc-illustration-evidence';
+    return SizedBox(
+      height: complete || identity ? 148 : 164,
+      child: Image.asset(
+        asset,
+        key: ValueKey(key),
+        fit: BoxFit.contain,
+        excludeFromSemantics: true,
+      ),
+    );
+  }
 
   Widget _loading() => const Center(
     child: Padding(
@@ -387,7 +411,7 @@ class _KycSheetState extends ConsumerState<KycSheet> {
   Widget _identity(KycStatus status) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      const IqFigure(IqFigures.writer, width: 120),
+      _illustration(status),
       Text(
         'Before your first withdrawal, we match your name to your NIN or BVN.',
         style: IqText.body.copyWith(color: IqColors.fg2),
@@ -471,7 +495,7 @@ class _KycSheetState extends ConsumerState<KycSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const IqFigure(IqFigures.writer, width: 160),
+        _illustration(status),
         Text(
           _copy(status.nextCheck),
           style: IqText.title.copyWith(color: IqColors.fg),

@@ -103,6 +103,73 @@ void main() {
     expect(find.text('Tier C1 of C2'), findsOneWidget);
   });
 
+  testWidgets('KYC states show their launch illustrations', (tester) async {
+    const states = [
+      (
+        KycStatus(
+          required: true,
+          requiredTier: 1,
+          nextCheck: KycCheckKind.identity,
+        ),
+        'kyc-illustration-identity',
+      ),
+      (unverified, 'kyc-illustration-evidence'),
+      (
+        KycStatus(
+          required: true,
+          tier: 2,
+          requiredTier: 3,
+          nextCheck: KycCheckKind.selfie,
+        ),
+        'kyc-illustration-evidence',
+      ),
+      (
+        KycStatus(
+          required: true,
+          verified: true,
+          tier: 1,
+          requiredTier: 2,
+          nextCheck: KycCheckKind.none,
+        ),
+        'kyc-illustration-evidence',
+      ),
+      (
+        KycStatus(
+          required: true,
+          verified: true,
+          tier: 2,
+          requiredTier: 2,
+          nextCheck: KycCheckKind.none,
+          checks: {
+            KycCheckKind.identity: KycCheckState.passed,
+            KycCheckKind.bankMatch: KycCheckState.passed,
+            KycCheckKind.amlIndividual: KycCheckState.passed,
+            KycCheckKind.document: KycCheckState.passed,
+          },
+        ),
+        'kyc-illustration-success',
+      ),
+    ];
+    for (final (status, key) in states) {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: KycSheet(
+                key: ValueKey(
+                  '${status.nextCheck}-${status.tier}-${status.requiredTier}',
+                ),
+                initialStatus: status,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(ValueKey(key)), findsOneWidget);
+    }
+  });
+
   testWidgets('unverified withdrawal opens KYC, never WithdrawSheet', (
     tester,
   ) async {
