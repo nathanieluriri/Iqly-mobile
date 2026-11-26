@@ -6,7 +6,7 @@ import '../golden/screens/app_harness.dart';
 
 Activation _activation(
   String id, {
-  required DateTime closesAt,
+  required DateTime? closesAt,
   required int rewardKobo,
 }) {
   return Activation(
@@ -42,18 +42,23 @@ void main() {
         closesAt: figmaNow.add(const Duration(days: 4)),
         rewardKobo: 150000,
       );
-      final mixed = [far, soon, mid];
+      final openEnded = _activation(
+        'open-ended',
+        closesAt: null,
+        rewardKobo: 200000,
+      );
+      final mixed = [far, soon, mid, openEnded];
       expect(
         sortActivationTiles(mixed, ActivationListSort.closing).map((a) => a.id),
-        ['soon', 'mid', 'far'],
+        ['soon', 'mid', 'far', 'open-ended'],
       );
       expect(
         sortActivationTiles(mixed, ActivationListSort.latest).map((a) => a.id),
-        ['far', 'mid', 'soon'],
+        ['far', 'mid', 'soon', 'open-ended'],
       );
       expect(
         sortActivationTiles(mixed, ActivationListSort.reward).map((a) => a.id),
-        ['far', 'mid', 'soon'],
+        ['open-ended', 'far', 'mid', 'soon'],
       );
     },
   );

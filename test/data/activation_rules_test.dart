@@ -177,7 +177,7 @@ void main() {
     test('closed before step 1 was recorded: ended', () {
       final a = _kudiBox(ConfirmationMode.proof, _run());
       expect(
-        a.phaseAt(a.closesAt.add(const Duration(minutes: 1))),
+        a.phaseAt(a.closesAt!.add(const Duration(minutes: 1))),
         ActivationPhase.expired,
       );
     });
@@ -462,12 +462,9 @@ void main() {
   group('paid step by step (Round 18)', () {
     final byStep = _demo.orchidFoodsByStep;
 
-    test('each step pays its own amount; a per-run one pays the reward on '
-        'its last step (D1), or on any without a mode, as before', () {
-      expect(
-        [for (var i = 0; i < 3; i++) byStep.paysFor(i)],
-        [10000, 20000, 20000],
-      );
+    test('step amounts allocate the reward, but money moves on the final '
+        'step; a per-run one does the same (D1), or any without a mode, as before', () {
+      expect([for (var i = 0; i < 3; i++) byStep.paysFor(i)], [0, 0, 50000]);
       expect(
         [for (var i = 0; i < 3; i++) _demo.orchidFoods.paysFor(i)],
         [0, 0, 50000],
@@ -576,23 +573,24 @@ void main() {
       },
     );
 
-    test('proof mode by step: each step pays as it is confirmed', () async {
-      final demo = service([_demo.orchidFoodsByStep]);
-      await demo.start('a1');
-      final first = await prove(demo, 'a1');
-      expect(
-        [for (final p in first.progress!.stepPayouts) (p.step, p.kobo)],
-        [(0, 10000)],
-      );
-      await prove(demo, 'a1');
-      final last = await prove(demo, 'a1');
-      expect(
-        [for (final p in last.progress!.stepPayouts) p.kobo],
-        [10000, 20000, 20000],
-      );
-      expect(last.credited, isTrue);
-      demo.dispose();
-    });
+    test(
+      'proof mode by step: the reward pays only on the final step',
+      () async {
+        final demo = service([_demo.orchidFoodsByStep]);
+        await demo.start('a1');
+        final first = await prove(demo, 'a1');
+        expect(first.progress!.stepPayouts, isEmpty);
+        expect(first.credited, isFalse);
+        await prove(demo, 'a1');
+        final last = await prove(demo, 'a1');
+        expect(
+          [for (final p in last.progress!.stepPayouts) (p.step, p.kobo)],
+          [(2, 50000)],
+        );
+        expect(last.credited, isTrue);
+        demo.dispose();
+      },
+    );
 
     test('postback mode: the run has its code; a refreshed proof confirms '
         'its step and the app the rest', () async {

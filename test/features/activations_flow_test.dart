@@ -358,7 +358,7 @@ void main() {
   });
 
   testWidgets('B8: an activation that has ended cannot start', (tester) async {
-    final ended = DemoActivations(thursday).kudiBox.closesAt
+    final ended = DemoActivations(thursday).kudiBox.closesAt!
         .add(const Duration(days: 2));
     await pumpActivations(
       tester,
@@ -710,7 +710,7 @@ void main() {
     expect(_awards(container), {'activation-a1': 50000});
   });
 
-  testWidgets('paid by step: each accepted proof puts its step on the wallet', (
+  testWidgets('paid by step: the full reward pays only after the last proof', (
     tester,
   ) async {
     final container = await pumpActivations(
@@ -724,18 +724,28 @@ void main() {
       ),
     );
     await _tap(tester, find.text('Start activation'));
-    await _tap(tester, find.text('Upload proof of step 1'));
-    expect(
-      find.text('Record step 1. Orchid Foods confirms it, then we pay ₦100.'),
-      findsOneWidget,
-    );
-    await _tap(tester, find.byType(IqProofTile));
-    await _tap(tester, find.text('Send proof'));
-    expect(find.text('₦100.00 after confirmation'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 4));
-    await tester.pumpAndSettle();
-    expect(find.text('Paid ₦100'), findsOneWidget);
-    expect(_awards(container), {'activation-a1-step-0': 10000});
+    for (var step = 1; step <= 3; step++) {
+      await _tap(tester, find.text('Upload proof of step $step'));
+      if (step == 1) {
+        expect(
+          find.text('Record step 1. Orchid Foods confirms it.'),
+          findsOneWidget,
+        );
+      }
+      await _tap(tester, find.byType(IqProofTile));
+      await _tap(tester, find.text('Send proof'));
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      if (step < 3) {
+        expect(container.read(activationProvider('a1'))!.credited, isFalse);
+        expect(
+          container.read(activationProvider('a1'))!.progress!.stepPayouts,
+          isEmpty,
+        );
+      }
+    }
+    expect(find.text('₦500.00 is yours'), findsOneWidget);
+    expect(_awards(container), {'activation-a1-step-2': 50000});
   });
 
   testWidgets('a run under way asks for help about itself', (tester) async {

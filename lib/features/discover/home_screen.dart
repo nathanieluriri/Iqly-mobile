@@ -733,8 +733,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ];
     final open = [
       for (final a in activations)
-        if (!a.closedAt(now) && !a.credited && (!pickUp || a.started)) a,
-    ]..sort((a, b) => a.closesAt.compareTo(b.closesAt));
+        if (!a.closedAt(now) &&
+            !a.credited &&
+            (!pickUp || a.started) &&
+            (a.closesAt != null || a.started || !a.full))
+          a,
+    ]..sort((a, b) => compareActivationCloses(a, b, latest: false));
     final shownActivations = pickUp ? open : open.take(5).toList();
     Widget activationCard(Activation activation) => IqBriefCard(
       kind: IqBriefCardKind.row,
@@ -749,8 +753,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           label: cardReward(activation, rewardShort(activation.rewardKobo)),
         ),
         IqMeta(
-          kind: IqMetaKind.urgent,
-          label: '${countdownText(activationLeft(activation, now))} left',
+          kind: closingSoon(activation, now)
+              ? IqMetaKind.urgent
+              : IqMetaKind.deadline,
+          label: deadlineText(activation, now),
         ),
       ],
       onTap: () => context.open(activationPath(activation.id)),
