@@ -10,6 +10,7 @@ import 'package:iqly_mobile/features/wallet/withdraw_sheet.dart';
 import 'package:iqly_mobile/router.dart';
 
 import '../data/live/live_data_fixtures.dart' show FakeApi;
+import '../golden/golden.dart' show loadAppFonts;
 import '../support/live_launch.dart';
 
 const screenshotStatus = KycStatus(
@@ -54,6 +55,8 @@ Future<void> capture(WidgetTester tester, String name) async {
 }
 
 void main() {
+  setUpAll(loadAppFonts);
+
   testWidgets('writes the Discover KYC screenshot', (tester) async {
     await pumpLiveLaunch(
       tester,
