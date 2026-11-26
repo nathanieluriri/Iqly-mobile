@@ -8,6 +8,7 @@ import 'package:iqly_mobile/core/deadline.dart';
 import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/data/activations_service.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
+import 'package:iqly_mobile/data/kyc_service.dart';
 import 'package:iqly_mobile/data/models.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/data/help_service.dart'
@@ -19,6 +20,30 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// 9:41 on the Figma status bar, a morning.
 final figmaNow = DateTime(2026, 10, 3, 9, 41);
+
+class DemoKycService implements KycService {
+  static const status = KycStatus(
+    required: true,
+    verified: true,
+    tier: 3,
+    requiredTier: 1,
+    nextCheck: KycCheckKind.none,
+    checks: {
+      KycCheckKind.identity: KycCheckState.passed,
+      KycCheckKind.bankMatch: KycCheckState.passed,
+      KycCheckKind.amlIndividual: KycCheckState.passed,
+    },
+  );
+
+  @override
+  Future<KycStatus> status() async => status;
+
+  @override
+  Future<KycStatus> verify(KycCheck check) async => status;
+
+  @override
+  Future<KycStatus> upload(KycCheckKind check, KycEvidence file) async => status;
+}
 
 /// The demo dataset with the briefs call scripted per test: [calls] lists
 /// what each successive call does (data, hang, fail, empty); the last entry
@@ -99,6 +124,8 @@ Future<ProviderContainer> pumpApp(
       sharedPreferencesProvider.overrideWithValue(shared),
       repositoryProvider.overrideWithValue(repository ?? ScriptedRepository()),
       clockProvider.overrideWithValue(clock ?? () => figmaNow),
+      if (!_overrides(overrides, kycServiceProvider))
+        kycServiceProvider.overrideWithValue(DemoKycService()),
       if (!_overrides(overrides, activationsServiceProvider))
         activationsServiceProvider.overrideWithValue(
           DemoActivationsService(
