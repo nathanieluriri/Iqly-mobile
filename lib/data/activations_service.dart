@@ -214,12 +214,12 @@ class DemoActivationsService implements ActivationsService {
     DateTime at,
   ) => [
     ...run.stepPayouts,
-    if (activation.perStep)
-      for (final i in steps)
-        if (activation.paysFor(i) > 0)
+    if (activation.perStep && steps.contains(activation.steps.length - 1))
+      for (final (i, step) in activation.steps.indexed)
+        if ((step.rewardKobo ?? 0) > 0 && activation.payoutOf(i) == null)
           ActivationStepPayout(
             step: i,
-            kobo: activation.paysFor(i),
+            kobo: step.rewardKobo!,
             paidAt: at,
             ledgerId: '${activation.creditId}-step-$i',
           ),

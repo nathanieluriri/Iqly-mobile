@@ -348,6 +348,9 @@ void main() {
         expect(a.phaseAt(_now.toLocal()), ActivationPhase.recording);
         expect(a.proofStep, 2);
         expect(a.showsStepRewards, isTrue);
+        expect(a.paysFor(0), 0);
+        expect(a.paysFor(1), 0);
+        expect(a.paysFor(2), 100000);
       });
 
       test('a postback run per run reads its code', () {

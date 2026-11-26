@@ -855,6 +855,7 @@ class _OfferPage extends StatelessWidget {
     final a = activation;
     final ended = a.closedAt(now) || unstartable == _Unstartable.ended;
     final paused = !ended && (a.paused || unstartable == _Unstartable.paused);
+    final full = !ended && a.full;
     return _Page(
       activation: activation,
       title: 'Activation',
@@ -918,6 +919,16 @@ class _OfferPage extends StatelessWidget {
                     perStepLine(a),
                     style: IqText.body.copyWith(color: IqColors.fg),
                   ),
+                if (full) ...[
+                  Text(
+                    'Full',
+                    style: IqText.bodyStrong.copyWith(color: IqColors.fg),
+                  ),
+                  Text(
+                    'No spots left',
+                    style: IqText.body.copyWith(color: IqColors.fg2),
+                  ),
+                ],
                 const IqSectionTitle(title: 'What to do', showLink: false),
                 for (final (i, step) in a.steps.indexed)
                   IqStepRow(
@@ -939,6 +950,8 @@ class _OfferPage extends StatelessWidget {
               ? 'This activation has ended'
               : paused
               ? 'This activation is paused'
+              : full
+              ? 'Full'
               : 'Start activation',
           showIcon: false,
           width: double.infinity,

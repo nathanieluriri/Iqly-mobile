@@ -623,7 +623,7 @@ void main() {
         final last = await prove(demo, 'a1');
         expect(
           [for (final p in last.progress!.stepPayouts) (p.step, p.kobo)],
-          [(2, 50000)],
+          [(0, 10000), (1, 20000), (2, 20000)],
         );
         expect(last.credited, isTrue);
         demo.dispose();

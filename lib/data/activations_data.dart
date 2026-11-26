@@ -352,11 +352,18 @@ class Activation {
 
   bool get perStep => rewardMode == RewardMode.perStep;
 
-  /// What confirming step [i] pays: the full reward on the last step once
-  /// the run has a mode (D1: before, a checked proof paid the whole run).
+  /// What confirming step [i] pays. Legacy per-step runs settle every
+  /// unpaid allocation on the final step, using the API's zero-based index.
   int paysFor(int i) {
     if (confirmationMode == null) return rewardKobo;
-    return i == steps.length - 1 ? rewardKobo : 0;
+    if (i != steps.length - 1) return 0;
+    if (!perStep) return rewardKobo;
+    var kobo = 0;
+    for (final (index, step) in steps.indexed) {
+      final allocation = step.rewardKobo ?? 0;
+      if (allocation > 0 && payoutOf(index) == null) kobo += allocation;
+    }
+    return kobo;
   }
 
   /// Round 18: once more than one step pays, each paying step shows its

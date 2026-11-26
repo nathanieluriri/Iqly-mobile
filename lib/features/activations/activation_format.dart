@@ -141,6 +141,12 @@ bool showsStepReward(Activation activation, int i) =>
 String stepRewardText(Activation activation, int i) {
   final payout = activation.payoutOf(i);
   if (payout != null) return 'Paid ${rewardPool(payout.kobo)}';
+  if (activation.perStep &&
+      (activation.progress?.stepPayouts.isNotEmpty ?? false) &&
+      i == activation.steps.length - 1 &&
+      activation.progress?.paidAt == null) {
+    return rewardPool(activation.paysFor(i));
+  }
   if (i < activation.confirmed && activation.progress?.paidAt == null) {
     return 'Held ${rewardPool(activation.steps[i].rewardKobo ?? 0)}';
   }
