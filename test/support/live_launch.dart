@@ -16,7 +16,6 @@ import 'package:iqly_mobile/data/local/local_store.dart';
 import 'package:iqly_mobile/data/local/memory_local_store.dart';
 import 'package:iqly_mobile/data/kyc_service.dart';
 import 'package:iqly_mobile/data/repository.dart';
-import 'package:iqly_mobile/features/kyc/kyc_status.dart';
 import 'package:iqly_mobile/features/profile/profile_state.dart';
 import 'package:iqly_mobile/router.dart';
 import 'package:iqly_mobile/theme/theme.dart';
@@ -28,7 +27,7 @@ import 'live_app.dart' show NoSocial;
 final launchNow = DateTime(2026, 10, 17, 10);
 
 class _VerifiedKyc implements KycService {
-  static const status = KycStatus(
+  static const verifiedStatus = KycStatus(
     required: true,
     verified: true,
     tier: 3,
@@ -42,14 +41,14 @@ class _VerifiedKyc implements KycService {
   );
 
   @override
-  Future<KycStatus> status() async => status;
+  Future<KycStatus> status() async => verifiedStatus;
 
   @override
-  Future<KycStatus> verify(KycCheck check) async => status;
+  Future<KycStatus> verify(KycCheck check) async => verifiedStatus;
 
   @override
   Future<KycStatus> upload(KycCheckKind check, KycEvidence file) async =>
-      status;
+      verifiedStatus;
 }
 
 /// Signed in as u_1 (Ada Obi) with first run done.
