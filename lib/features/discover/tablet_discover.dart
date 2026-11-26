@@ -25,6 +25,8 @@ import '../../ui/ticket_card.dart';
 import '../../ui/web_filter_option.dart';
 import '../../ui/web_range_field.dart';
 import '../drafts/drafts_state.dart';
+import '../kyc/kyc_controller.dart';
+import '../kyc/kyc_nudge.dart';
 import '../shell/tablet_page.dart';
 import '../shell/tablet_popover.dart';
 import 'business_art.dart';
@@ -97,6 +99,7 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
         if (b.isLive) b,
     ];
     final drafts = ref.watch(draftsProvider).value ?? const [];
+    final kyc = ref.watch(kycControllerProvider).status;
     final showPickUp = hasPickUpDrafts(drafts);
     ref.listen(draftsProvider, (previous, next) {
       if (!hasPickUpDrafts(next.value ?? const []) &&
@@ -144,6 +147,13 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
     final chips = filters.chips();
 
     final children = <Widget>[
+      if (kyc != null)
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: KycNudge(status: kyc),
+          ),
+        ),
       toolbar,
       if (chips.isNotEmpty)
         Wrap(
@@ -935,8 +945,9 @@ class TicketZoom extends StatelessWidget {
         child: SizedBox.fromSize(
           size: size,
           child: MediaQuery(
-            data: MediaQuery.of(context)
-                .copyWith(textScaler: TextScaler.noScaling),
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.noScaling),
             child: child,
           ),
         ),
