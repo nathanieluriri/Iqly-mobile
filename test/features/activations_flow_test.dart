@@ -278,8 +278,9 @@ void main() {
     );
   });
 
-  testWidgets('B8: Available omits My activations; Done and Active keep their '
-      'lists', (tester) async {
+  testWidgets('B8: Available omits My activations; Completed keeps paid runs', (
+    tester,
+  ) async {
     await pumpActivations(
       tester,
       Routes.activations,
@@ -306,16 +307,10 @@ void main() {
     expect(find.text('Kudi Box · step 1 of 3 confirmed'), findsNothing);
     expect(find.text(_kudiBox), findsOneWidget);
 
-    await _tap(tester, find.text('Done'));
+    await _tap(tester, find.text('Completed'));
     expect(find.text('Place your first Unibooks order'), findsOneWidget);
     expect(find.text('Paid to your wallet'), findsOneWidget);
     expect(find.text(_kudiBox), findsNothing);
-
-    await _tap(tester, find.text('Active'));
-    await _tap(tester, find.text(_kudiBox));
-    expect(find.byType(ActivationScreen), findsOneWidget);
-    await _tap(tester, _button('Back'));
-    expect(find.byType(ActivationsScreen), findsOneWidget);
   });
 
   testWidgets('B8: Available cards open directly without My activations', (
