@@ -26,6 +26,7 @@ import 'data/profile_service.dart';
 import 'data/token_store.dart';
 import 'data/voice_recorder.dart' show VoiceNotes;
 import 'features/discover/discover_state.dart';
+import 'features/kyc/kyc_controller.dart';
 import 'features/more/more_state.dart';
 import 'features/notifications/notifications_state.dart';
 import 'features/profile/account_sync.dart';
@@ -112,6 +113,7 @@ Future<void> main() async {
   container.listen(appConfigProvider, (_, _) {});
   if (ApiConfig.liveAuth) {
     container.read(setupNudgeRefreshProvider);
+    container.read(kycNudgeRefreshProvider);
     _startAccount(container);
   }
   runApp(

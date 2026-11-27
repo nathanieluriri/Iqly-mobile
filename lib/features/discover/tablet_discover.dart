@@ -96,7 +96,8 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
     final savedBriefs = ref.watch(savedBriefsProvider).value ?? const [];
     final briefs = feed.value?.briefs;
     final drafts = ref.watch(draftsProvider).value ?? const [];
-    final kyc = ref.watch(kycControllerProvider).status;
+    final kycState = ref.watch(kycControllerProvider);
+    final kyc = kycState.status;
     final showPickUp = hasPickUpDrafts(drafts);
     ref.listen(draftsProvider, (previous, next) {
       if (!hasPickUpDrafts(next.value ?? const []) &&
@@ -148,13 +149,12 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
     final chips = filters.chips();
 
     final children = <Widget>[
-      if (kyc != null)
-        Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: KycNudge(status: kyc),
-          ),
+      Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: KycNudge(status: kyc, error: kycState.error),
         ),
+      ),
       toolbar,
       const AssessmentNudge(),
       if (chips.isNotEmpty)

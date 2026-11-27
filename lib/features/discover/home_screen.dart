@@ -186,6 +186,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     refreshUnseenOn(ref);
     unawaited(ref.read(accountRefreshProvider)(force: true));
     unawaited(ref.read(assessmentAccessProvider.notifier).refresh(force: true));
+    unawaited(ref.read(kycControllerProvider.notifier).refresh(force: true));
   }
 
   /// A pull hands its overscroll to the slot, so nothing jumps, and the list
@@ -423,7 +424,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         !assessment.terminalPassed &&
         assessmentNudge(assessment.access) != null;
     final payout = ref.watch(recentPayoutProvider);
-    final kyc = ref.watch(kycControllerProvider).status;
+    final kycState = ref.watch(kycControllerProvider);
+    final kyc = kycState.status;
     _proposalsPending = proposalsPending;
     final loading = (data == null && !failed) || proposalsPending;
     if (!_built) {
@@ -485,8 +487,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                               ),
                             ),
                           ),
-                          if (kyc != null)
-                            SliverToBoxAdapter(child: KycNudge(status: kyc)),
+                          SliverToBoxAdapter(
+                            child: KycNudge(status: kyc, error: kycState.error),
+                          ),
                           if (payout != null)
                             SliverToBoxAdapter(
                               key: const ValueKey('payout'),

@@ -31,7 +31,6 @@ StartRequirement resolveStartRequirements(
         ? StartRequirement.checking
         : StartRequirement.kycUnavailable;
   }
-  // Matches KycStatus.canSubmit: effective C1 is verified and tier 1+.
-  if (status.verified && status.tier >= 1) return StartRequirement.ready;
+  if (status.canSubmit) return StartRequirement.ready;
   return StartRequirement.kyc;
 }

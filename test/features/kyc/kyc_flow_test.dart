@@ -72,8 +72,8 @@ void main() {
     await pumpLiveLaunch(tester, Routes.home, api: FakeApi().api(), kyc: kyc);
     await tester.pumpAndSettle();
     expect(find.byType(KycNudge), findsOneWidget);
-    expect(find.text('Complete Tier 2 to withdraw.'), findsOneWidget);
-    await tester.tap(find.text('Verify your account'));
+    expect(find.text('Verify to submit and withdraw'), findsOneWidget);
+    await tester.tap(find.text('Verify to submit and withdraw'));
     await tester.pumpAndSettle();
     expect(find.byType(KycSheet), findsOneWidget);
   });
@@ -472,7 +472,7 @@ void main() {
     await pending;
   });
 
-  test('controller clears verified gating status on refresh failure', () async {
+  test('controller keeps verified gating status on refresh failure', () async {
     final kyc = FakeKyc(unverified);
     final container = ProviderContainer(
       overrides: [kycServiceProvider.overrideWithValue(kyc)],
@@ -480,16 +480,17 @@ void main() {
     addTearDown(container.dispose);
     container.listen(kycControllerProvider, (_, _) {});
     await Future<void>.delayed(Duration.zero);
-    kyc.current = const KycStatus(
+    final ready = const KycStatus(
       verified: true,
       tier: 2,
       nextCheck: KycCheckKind.none,
     );
+    kyc.current = ready;
     await container.read(kycControllerProvider.notifier).refresh();
     kyc.failure = const KycRefused(KycProblem.unavailable);
     await container.read(kycControllerProvider.notifier).refresh();
     final state = container.read(kycControllerProvider);
-    expect(state.status, isNull);
+    expect(state.status, same(ready));
     expect(state.loading, isFalse);
   });
 
@@ -507,6 +508,6 @@ void main() {
     await container.read(kycControllerProvider.notifier).refresh();
     final state = container.read(kycControllerProvider);
     expect(state.error?.problem, KycProblem.review);
-    expect(state.status, isNull);
+    expect(state.status, same(unverified));
   });
 }

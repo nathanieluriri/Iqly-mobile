@@ -8,6 +8,7 @@ import '../../ui/banner.dart';
 import '../../ui/spinner.dart';
 import '../../ui/top_bar.dart';
 import '../kyc/kyc_sheet.dart';
+import '../kyc/kyc_controller.dart';
 import 'wallet_sheet.dart';
 import 'withdraw_sheet.dart';
 
@@ -51,6 +52,9 @@ class _WithdrawEntryState extends ConsumerState<WithdrawEntry> {
         _status = status;
         _step = status.canWithdraw ? _Step.withdraw : _Step.kyc;
       });
+      if (ref.exists(kycControllerProvider)) {
+        await ref.read(kycControllerProvider.notifier).refresh(force: true);
+      }
     } on KycRefused catch (error) {
       if (!mounted || request != _request) return;
       setState(() {

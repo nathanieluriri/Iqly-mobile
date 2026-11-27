@@ -13,6 +13,7 @@ import 'data/onboarding_service.dart' show genderAskedProvider;
 import 'features/onboarding/onboarding_flow.dart';
 import 'data/live/live_repository.dart';
 import 'features/activations/activations_state.dart';
+import 'features/kyc/kyc_controller.dart';
 import 'features/notifications/notifications_state.dart';
 import 'features/polls/polls_state.dart';
 import 'features/shell/tablet_frame.dart';
@@ -43,6 +44,11 @@ class _IqlyAppState extends ConsumerState<IqlyApp> {
         refreshUnseenOn(ref);
         unawaited(ref.read(accountRefreshProvider)());
         unawaited(ref.read(assessmentAccessProvider.notifier).refresh());
+        if (ref.exists(kycControllerProvider)) {
+          unawaited(
+            ref.read(kycControllerProvider.notifier).refresh(force: false),
+          );
+        }
         if (!ref.read(liveModeProvider).isPreview &&
             ref.exists(mySubmissionsProvider)) {
           ref.read(mySubmissionsProvider.notifier).refreshQuietly();
