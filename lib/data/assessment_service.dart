@@ -211,6 +211,21 @@ final assessmentAccessProvider =
       AssessmentAccessController.new,
     );
 
+/// Refreshes stale qualification state when connectivity returns, and detaches
+/// completely after a server-confirmed pass.
+final assessmentNudgeRefreshProvider = Provider<void>((ref) {
+  final state = ref.watch(assessmentAccessProvider);
+  if (state.terminalPassed || state.preview) return;
+  final api = ref.watch(apiClientProvider);
+  if (api == null) return;
+  final subscription = api.reachable.listen((_) {
+    unawaited(
+      ref.read(assessmentAccessProvider.notifier).refresh(force: false),
+    );
+  });
+  ref.onDispose(subscription.cancel);
+});
+
 class AssessmentService {
   AssessmentService(this.api);
 

@@ -1,13 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/core/deadline.dart';
+import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/data/kyc_service.dart';
 import 'package:iqly_mobile/features/kyc/kyc_controller.dart';
 import 'package:iqly_mobile/features/kyc/kyc_nudge.dart';
 import 'package:iqly_mobile/features/kyc/kyc_sheet.dart';
 import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/ui/segmented.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class _KycService implements KycService {
   KycStatus current;
@@ -31,6 +35,19 @@ class _KycService implements KycService {
   @override
   Future<KycStatus> upload(KycCheckKind check, KycEvidence file) async =>
       current;
+}
+
+class _BlockingKyc extends _KycService {
+  _BlockingKyc(super.current);
+
+  final next = Completer<KycStatus>();
+  var calls = 0;
+
+  @override
+  Future<KycStatus> status() {
+    calls++;
+    return calls == 1 ? super.status() : next.future;
+  }
 }
 
 KycStatus _status({
@@ -116,11 +133,14 @@ void main() {
   });
 
   test('controller failure keeps the last good status and fetchedAt', () async {
+    SharedPreferences.setMockInitialValues(const {});
+    final prefs = await SharedPreferences.getInstance();
     final now = DateTime(2026, 11, 27, 12);
     final service = _KycService(_status(tier: 1, verified: true));
     final container = ProviderContainer(
       overrides: [
         kycServiceProvider.overrideWithValue(service),
+        sharedPreferencesProvider.overrideWithValue(prefs),
         clockProvider.overrideWithValue(() => now),
       ],
     );
@@ -135,6 +155,31 @@ void main() {
     expect(after.status, before.status);
     expect(after.fetchedAt, before.fetchedAt);
     expect(after.error?.problem, KycProblem.unavailable);
+  });
+
+  test('account changes clear the previous contributor KYC status', () async {
+    SharedPreferences.setMockInitialValues({
+      'session.signedIn': true,
+      'session.userId': 'u1',
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final service = _BlockingKyc(_status(tier: 1, verified: true));
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        kycServiceProvider.overrideWithValue(service),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.listen(kycControllerProvider, (_, _) {});
+    await Future<void>.delayed(Duration.zero);
+    expect(container.read(kycControllerProvider).status?.canSubmit, isTrue);
+    await container.read(sessionProvider.notifier).setUserId('u2');
+    await Future<void>.delayed(Duration.zero);
+    final state = container.read(kycControllerProvider);
+    expect(state.status, isNull);
+    expect(state.loading, isTrue);
+    expect(service.calls, 2);
   });
 
   testWidgets('tier one hides BVN and forces a legacy BVN status to NIN', (

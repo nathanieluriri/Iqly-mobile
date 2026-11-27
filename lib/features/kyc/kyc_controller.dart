@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/deadline.dart';
+import '../../core/session.dart';
 import '../../data/api_client.dart';
 import '../../data/kyc_service.dart';
 
@@ -13,6 +14,7 @@ class KycController extends Notifier<KycState> {
 
   @override
   KycState build() {
+    ref.watch(accountProvider);
     ref.watch(kycServiceProvider);
     Future.microtask(() {
       if (ref.mounted) refresh();

@@ -17,6 +17,7 @@ import 'data/app_version.dart';
 import 'data/auth.dart';
 import 'data/device.dart';
 import 'data/live_auth.dart';
+import 'data/assessment_service.dart';
 import 'data/local/local_providers.dart';
 import 'data/local/local_store.dart';
 import 'data/local/memory_local_store.dart';
@@ -113,6 +114,7 @@ Future<void> main() async {
   container.listen(appConfigProvider, (_, _) {});
   if (ApiConfig.liveAuth) {
     container.read(setupNudgeRefreshProvider);
+    container.read(assessmentNudgeRefreshProvider);
     container.read(kycNudgeRefreshProvider);
     _startAccount(container);
   }
