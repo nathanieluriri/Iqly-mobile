@@ -24,9 +24,9 @@ import 'feed_slivers.dart';
 ///
 /// Motion (spec 6.28, 3.7, 5.12): a lens over Discover's chrome, so the
 /// route itself does not move and the content crosses under the still chips
-/// (200 ms); the saved tickets arrive on the first open of the session. The
+/// (200 ms); the saved cards arrive on the first open of the session. The
 /// Offline banner
-/// arrives under the chips. An unsaved ticket folds away 300 ms after the
+/// arrives under the chips. An unsaved card folds away 300 ms after the
 /// tap; when the last one goes, the empty state arrives after it: the 96 pt
 /// bookmark rises 16, the title and line appear at +80 and +120.
 class SavedBriefsScreen extends ConsumerStatefulWidget {
@@ -58,7 +58,7 @@ class _SavedBriefsScreenState extends ConsumerState<SavedBriefsScreen> {
     super.dispose();
   }
 
-  /// Keeps an unsaved ticket in its place for 300 ms, folds it away over
+  /// Keeps an unsaved card in its place for 300 ms, folds it away over
   /// 200 and only then lets it go; saving it again in that time keeps it.
   void _sync(List<Brief>? saved) {
     if (saved == null) return;
@@ -169,9 +169,9 @@ class _SavedBriefsScreenState extends ConsumerState<SavedBriefsScreen> {
       for (var i = 0; i < 2; i++)
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: IqSpace.s4),
-          child: IqSkeleton(),
+          child: BriefFeatureCardSkeleton(),
         ),
-    ]);
+    ], gap: IqSpace.s6);
     return switch (phase) {
       GatePhase.waiting => const SliverToBoxAdapter(),
       GatePhase.skeleton => SliverList.list(children: skeletons),
@@ -200,8 +200,10 @@ class _SavedBriefsScreenState extends ConsumerState<SavedBriefsScreen> {
                         child: Collapse(
                           open: !_folding.contains(brief.id),
                           child: Padding(
-                            padding: const EdgeInsets.only(bottom: IqSpace.s3),
-                            child: Center(child: BriefTicket(brief: brief)),
+                            padding: const EdgeInsets.only(bottom: IqSpace.s6),
+                            child: Center(
+                              child: BriefFeatureCard(brief: brief),
+                            ),
                           ),
                         ),
                       ),

@@ -105,7 +105,14 @@ void main() {
     await tester.pumpAndSettle();
     await _tap(tester, find.text('Saved'));
     expect(find.byType(SavedBriefsScreen), findsOneWidget);
-    expect(find.byType(IqTicketCard), findsNWidgets(3));
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is IqBriefCard && widget.kind == IqBriefCardKind.feature,
+      ),
+      findsNWidgets(3),
+    );
+    expect(find.byType(IqTicketCard), findsNothing);
 
     await _tap(tester, find.text('A tagline for a solar kiosk network'));
     expect(find.byType(BriefDetailScreen), findsOneWidget);
