@@ -10,6 +10,7 @@ import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/patches.dart';
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../core/updates.dart';
 import '../../data/app_version.dart';
 import '../../data/cache_service.dart';
@@ -336,7 +337,7 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
     ];
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         backgroundColor: IqColors.bg,
         resizeToAvoidBottomInset: false,

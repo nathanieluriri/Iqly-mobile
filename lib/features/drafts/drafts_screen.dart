@@ -7,6 +7,7 @@ import '../../core/deadline.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../core/transitions.dart';
 import '../../data/drafts_data.dart';
 import '../../router.dart';
@@ -104,7 +105,7 @@ class _DraftsScreenState extends ConsumerState<DraftsScreen> {
         if (!didPop) _back();
       },
       child: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.dark,
+        value: IqSystemUi.paper,
         child: Scaffold(
           backgroundColor: IqColors.bg,
           body: SafeArea(

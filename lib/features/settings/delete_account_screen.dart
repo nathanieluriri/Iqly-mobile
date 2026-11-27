@@ -9,6 +9,7 @@ import '../../core/backend.dart';
 import '../../core/money.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../data/api_client.dart';
 import '../../data/live/live_repository.dart';
 import '../../data/models.dart';
@@ -188,7 +189,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
     ];
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         backgroundColor: IqColors.bg,
         body: SafeArea(

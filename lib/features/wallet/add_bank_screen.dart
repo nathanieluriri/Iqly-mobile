@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../core/session.dart';
+import '../../core/system_ui.dart';
 import '../../core/transitions.dart';
 import '../../data/api_client.dart';
 import '../../data/models.dart';
@@ -140,7 +141,7 @@ class _AddBankScreenState extends ConsumerState<AddBankScreen> {
     final bank = _bankName(data);
     final verified = _verifiedName;
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         backgroundColor: IqColors.bg,
         resizeToAvoidBottomInset: true,

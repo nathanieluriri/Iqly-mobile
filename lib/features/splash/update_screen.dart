@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../core/session.dart';
+import '../../core/system_ui.dart';
 import '../../core/updates.dart';
 import '../../data/api_config.dart';
 import '../../data/app_version.dart';
@@ -162,7 +163,7 @@ class _UpdateScreenState extends ConsumerState<UpdateScreen>
         if (!didPop) SystemNavigator.pop();
       },
       child: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: IqSystemUi.ink,
         child: Scaffold(
           backgroundColor: IqColors.brandDark,
           body: Stack(

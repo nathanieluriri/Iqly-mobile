@@ -7,6 +7,7 @@ import '../../core/money.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../core/transitions.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -43,7 +44,7 @@ class LeaderboardScreen extends ConsumerWidget {
     final data = result.value;
     final board = data == null ? null : Leaderboard.of(data);
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         resizeToAvoidBottomInset: false,
         backgroundColor: IqColors.bg,

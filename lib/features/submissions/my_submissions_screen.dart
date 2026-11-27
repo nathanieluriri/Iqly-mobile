@@ -9,6 +9,7 @@ import '../../core/money.dart';
 import '../../core/navigation.dart';
 import '../../core/relative_time.dart';
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../core/transitions.dart';
 import '../../data/models.dart';
 import '../../data/live/live_repository.dart';
@@ -138,7 +139,7 @@ class _MySubmissionsScreenState extends ConsumerState<MySubmissionsScreen> {
       );
     }
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         resizeToAvoidBottomInset: false,
         backgroundColor: IqColors.bg,

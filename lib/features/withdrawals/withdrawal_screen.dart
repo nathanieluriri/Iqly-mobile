@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../data/models.dart';
 import '../../data/wallet_service.dart';
 import '../wallet/wallet_routes.dart';
@@ -131,7 +132,7 @@ class _Waiting extends StatelessWidget {
   Widget build(BuildContext context) {
     final retry = onRetry;
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         backgroundColor: IqColors.bg,
         body: SafeArea(

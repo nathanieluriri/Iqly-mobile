@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/money.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../theme/theme.dart';
 import '../../ui/button.dart';
 import '../../ui/illustration.dart';
@@ -30,7 +31,7 @@ class WithdrawalPendingScreen extends ConsumerWidget {
     final data = ref.watch(walletProvider).value;
     final withdrawal = data?.withdrawal(id);
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         resizeToAvoidBottomInset: false,
         backgroundColor: IqColors.bg,

@@ -8,6 +8,7 @@ import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../core/session.dart';
+import '../../core/system_ui.dart';
 import '../../core/transitions.dart';
 import '../../data/assessment_service.dart';
 import '../../data/models.dart';
@@ -104,7 +105,7 @@ class SubmitScreen extends ConsumerWidget {
           submitFlowProvider(briefId).select((f) => f.step == SubmitStep.sent),
         );
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         resizeToAvoidBottomInset: typing,
         backgroundColor: IqColors.bg,

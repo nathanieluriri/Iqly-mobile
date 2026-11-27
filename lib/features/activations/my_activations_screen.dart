@@ -6,6 +6,7 @@ import '../../core/deadline.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../data/activations_data.dart';
 import '../../theme/theme.dart';
 import '../../ui/empty_state.dart';
@@ -73,7 +74,7 @@ class _MyActivationsScreenState extends ConsumerState<MyActivationsScreen> {
     final shown = _tab == MyActivationsTab.active ? active : done;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         resizeToAvoidBottomInset: false,
         backgroundColor: IqColors.bg,

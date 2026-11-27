@@ -8,6 +8,7 @@ import '../../core/money.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../core/transitions.dart';
 import '../../data/points_data.dart';
 import '../../data/repository.dart';
@@ -46,7 +47,7 @@ class PointsLeaderboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final board = ref.watch(pointsBoardProvider);
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         resizeToAvoidBottomInset: false,
         backgroundColor: IqColors.bg,

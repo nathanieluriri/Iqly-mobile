@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/app.dart';
 import 'package:iqly_mobile/core/motion.dart';
 import 'package:iqly_mobile/core/session.dart';
+import 'package:iqly_mobile/core/system_ui.dart';
 import 'package:iqly_mobile/data/demo_data.dart';
 import 'package:iqly_mobile/data/repository.dart';
 import 'package:iqly_mobile/features/entry/landing_screen.dart';
@@ -127,11 +128,11 @@ void main() {
         await tester.pump();
         await tester.pump(_ms * 3600);
         expect(prefs.getBool(SplashScreen.litKey), isTrue);
-        expect(_statusBar(tester), SystemUiOverlayStyle.light);
+        expect(_statusBar(tester), IqSystemUi.ink);
         await tester.pump(_ms * 150);
-        expect(_statusBar(tester), SystemUiOverlayStyle.light);
+        expect(_statusBar(tester), IqSystemUi.ink);
         await tester.pump(_ms * 100);
-        expect(_statusBar(tester), SystemUiOverlayStyle.dark);
+        expect(_statusBar(tester), IqSystemUi.paper);
         await tester.pump(_ms * 150);
         final logos = find.byType(IqBrandLogo);
         final splashLogo = tester.getRect(logos.last);
@@ -205,15 +206,15 @@ void main() {
       await tester.pump();
       expect(find.byType(WelcomeScreen), findsOneWidget);
       await tester.pump(_ms * 100);
-      expect(_statusBar(tester), SystemUiOverlayStyle.light);
+      expect(_statusBar(tester), IqSystemUi.ink);
       final welcome = _opacityAbove(tester, find.byType(WelcomeScreen));
       expect(welcome, inExclusiveRange(0, 1));
       await tester.pump(_ms * 150);
-      expect(_statusBar(tester), SystemUiOverlayStyle.dark);
+      expect(_statusBar(tester), IqSystemUi.paper);
       await tester.pump(_ms * 200);
       await tester.pumpAndSettle();
       expect(find.byType(SplashScreen), findsNothing);
-      expect(_statusBar(tester), SystemUiOverlayStyle.dark);
+      expect(_statusBar(tester), IqSystemUi.paper);
     },
   );
 }

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/motion.dart';
 import '../../core/session.dart';
+import '../../core/system_ui.dart';
 import '../../core/transitions.dart';
 import '../../ui/tip_card.dart';
 
@@ -56,7 +57,7 @@ class FirstTipOverlay extends ConsumerWidget {
             shown: shown,
             scrim: IqScrim.tip,
             delay: IqDurations.tipWait + (cue ?? Duration.zero),
-            statusBar: SystemUiOverlayStyle.light,
+            statusBar: IqSystemUi.ink,
             top: (constraints) {
               final free = math.max(0.0, constraints.maxHeight - _cardHeight);
               return free * _cardTop / (_frameHeight - _cardHeight);

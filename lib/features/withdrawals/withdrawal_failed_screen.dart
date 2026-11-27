@@ -6,6 +6,7 @@ import '../../core/deadline.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../data/models.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -39,7 +40,7 @@ class WithdrawalFailedScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final now = ref.watch(clockProvider)();
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         backgroundColor: IqColors.bg,
         body: SafeArea(

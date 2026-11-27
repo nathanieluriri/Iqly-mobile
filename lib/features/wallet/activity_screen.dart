@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/deadline.dart';
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../core/transitions.dart';
 import '../../data/models.dart';
 import '../../theme/theme.dart';
@@ -158,7 +159,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
     );
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         backgroundColor: IqColors.bg,
         body: SafeArea(

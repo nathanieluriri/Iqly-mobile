@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/backend.dart';
 import '../../core/motion.dart';
 import '../../core/session.dart';
+import '../../core/system_ui.dart';
 import '../../core/transitions.dart';
 import '../../core/updates.dart';
 import '../../data/app_config.dart';
@@ -170,7 +171,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         height: top + 1,
         child: const IgnorePointer(
           child: AnnotatedRegion<SystemUiOverlayStyle>(
-            value: SystemUiOverlayStyle.light,
+            value: IqSystemUi.ink,
             child: SizedBox.expand(),
           ),
         ),
@@ -211,9 +212,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       builder: (context, _) {
         final frame = _timeline.frameAt(_now, media.size, media.padding.top);
         return AnnotatedRegion<SystemUiOverlayStyle>(
-          value: frame.darkStatusBar
-              ? SystemUiOverlayStyle.dark
-              : SystemUiOverlayStyle.light,
+          value: frame.darkStatusBar ? IqSystemUi.paper : IqSystemUi.ink,
           child: Scaffold(
             backgroundColor: Color.lerp(
               IqColors.brandDark,
