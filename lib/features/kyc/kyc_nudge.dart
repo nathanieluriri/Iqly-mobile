@@ -47,7 +47,7 @@ class KycNudge extends StatelessWidget {
                     Text(
                       status.inReview
                           ? 'Your details are being reviewed.'
-                          : 'Complete tier C${status.requiredTier} to withdraw.',
+                          : 'Complete Tier ${status.requiredTier} to withdraw.',
                       style: IqText.small.copyWith(color: IqColors.fg2),
                     ),
                   ],

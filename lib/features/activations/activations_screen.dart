@@ -20,7 +20,6 @@ import '../../ui/biz_filter_chip.dart';
 import '../../ui/button.dart';
 import '../../ui/chip.dart';
 import '../../ui/illustration.dart';
-import '../../ui/list_row.dart';
 import '../../ui/top_bar.dart';
 import '../discover/discover_routes.dart' show leave;
 import 'activation_format.dart';
@@ -34,10 +33,10 @@ import 'activations_widgets.dart';
 /// page, pushed from Discover's Activations row or from More.
 ///
 /// The open activations, closing soonest first: the first as a Feature
-/// card, the rest as Rows, then My activations once one is under way.
-/// Loading shows paper for 300 ms, then the skeleton for at least 600; the
-/// content dissolves in and its cards arrive 40 ms apart. Try again
-/// reloads; a retry that fails again gives the error haptic.
+/// card and the rest as Rows. Loading shows paper for 300 ms, then the
+/// skeleton for at least 600; the content dissolves in and its cards arrive
+/// 40 ms apart. Try again reloads; a retry that fails again gives the error
+/// haptic.
 class ActivationsScreen extends ConsumerStatefulWidget {
   const ActivationsScreen({super.key});
 
@@ -182,7 +181,6 @@ class _ActivationsScreenState extends ConsumerState<ActivationsScreen> {
             )
           : _List(
               key: ValueKey(_completed ? 'completed' : 'available'),
-              all: all,
               open: shown,
               now: now,
               history: _completed,
@@ -254,20 +252,17 @@ class _ActivationsScreenState extends ConsumerState<ActivationsScreen> {
 class _List extends StatelessWidget {
   const _List({
     super.key,
-    required this.all,
     required this.open,
     required this.now,
     required this.history,
   });
 
-  final List<Activation> all;
   final List<Activation> open;
   final DateTime now;
   final bool history;
 
   @override
   Widget build(BuildContext context) {
-    final lead = leadActivation(all);
     return Stagger(
       child: ListView(
         padding: const EdgeInsets.fromLTRB(
@@ -291,6 +286,7 @@ class _List extends StatelessWidget {
               ),
             ),
           ],
+          /* Temporarily hidden while the list keeps Available and Completed only.
           if (!history && lead != null) ...[
             const SizedBox(height: IqSpace.s3),
             StaggerItem(
@@ -305,6 +301,7 @@ class _List extends StatelessWidget {
               ),
             ),
           ],
+          */
           if (history) ...[
             const SizedBox(height: IqSpace.s3),
             const _HistoryFooter(),
@@ -360,6 +357,7 @@ class _HistoryFooter extends ConsumerWidget {
   }
 }
 
+/*
 /// The 1 pt line card, radius 16, the frame's "group" puts the row in.
 class _Grouped extends StatelessWidget {
   const _Grouped({required this.child});
@@ -382,6 +380,7 @@ class _Grouped extends StatelessWidget {
     );
   }
 }
+*/
 
 /// 165:7855: the Shrug, centred in the space under the top bar.
 class _Empty extends StatelessWidget {

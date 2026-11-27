@@ -10,10 +10,11 @@ import 'package:iqly_mobile/features/kyc/kyc_sheet.dart';
 import 'package:iqly_mobile/features/kyc/kyc_status.dart';
 import 'package:iqly_mobile/features/more/more_screen.dart';
 import 'package:iqly_mobile/features/wallet/kyc_sheet.dart' as withdraw;
+import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/features/wallet/withdraw_sheet.dart';
 import 'package:iqly_mobile/router.dart';
 
-import '../../data/live/live_data_fixtures.dart' show FakeApi;
+import '../../data/live/live_data_fixtures.dart' show FakeApi, refused;
 import '../../support/live_launch.dart';
 
 const unverified = KycStatus(
@@ -72,7 +73,7 @@ void main() {
     await pumpLiveLaunch(tester, Routes.home, api: FakeApi().api(), kyc: kyc);
     await tester.pumpAndSettle();
     expect(find.byType(KycNudge), findsOneWidget);
-    expect(find.text('Complete tier C2 to withdraw.'), findsOneWidget);
+    expect(find.text('Complete Tier 2 to withdraw.'), findsOneWidget);
     await tester.tap(find.text('Verify your account'));
     await tester.pumpAndSettle();
     expect(find.byType(KycSheet), findsOneWidget);
@@ -86,7 +87,7 @@ void main() {
     tester.view.physicalSize = const Size(1024, 844);
     await tester.pumpAndSettle();
     expect(find.byType(MoreScreen), findsOneWidget);
-    expect(find.text('Tier C1 of C2'), findsOneWidget);
+    expect(find.text('Tier 1 of 2'), findsOneWidget);
     await tester.tap(find.text('Verification'));
     await tester.pumpAndSettle();
     expect(find.byType(KycSheet), findsOneWidget);
@@ -100,7 +101,47 @@ void main() {
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Verification'));
     await tester.pumpAndSettle();
-    expect(find.text('Tier C1 of C2'), findsOneWidget);
+    expect(find.text('Tier 1 of 2'), findsOneWidget);
+  });
+
+  testWidgets('Tier 1 confirms the legal name before verification', (
+    tester,
+  ) async {
+    const identity = KycStatus(
+      required: true,
+      requiredTier: 1,
+      nextCheck: KycCheckKind.identity,
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(body: KycSheet(initialStatus: identity)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('First name'), findsNothing);
+    await tester.enterText(find.byType(EditableText).first, '12345678901');
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    expect(find.text('First name'), findsOneWidget);
+    expect(find.text('Last name'), findsOneWidget);
+    await tester.enterText(find.byType(EditableText).at(0), 'Ada');
+    await tester.enterText(find.byType(EditableText).at(1), 'Okafor');
+    expect(
+      tester
+          .widget<IqButton>(find.widgetWithText(IqButton, 'Verify identity'))
+          .disabled,
+      isTrue,
+    );
+    await tester.tap(find.byType(Checkbox));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<IqButton>(find.widgetWithText(IqButton, 'Verify identity'))
+          .disabled,
+      isFalse,
+    );
   });
 
   testWidgets('KYC states show their launch illustrations', (tester) async {
@@ -203,6 +244,27 @@ void main() {
     );
     expect(find.byType(WithdrawSheet), findsNothing);
     expect(find.text('Try again'), findsWidgets);
+  });
+
+  testWidgets('missing KYC configuration explains that setup is pending', (
+    tester,
+  ) async {
+    final kyc = FakeKyc(unverified)
+      ..failure = KycRefused.of(refused(503, 'KYC_NOT_CONFIGURED'));
+    await pumpLiveLaunch(
+      tester,
+      Routes.withdraw,
+      api: FakeApi().api(),
+      kyc: kyc,
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        'Account verification isn’t set up yet. Please try again later.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.byType(WithdrawSheet), findsNothing);
   });
 
   testWidgets('missing API service fails closed', (tester) async {

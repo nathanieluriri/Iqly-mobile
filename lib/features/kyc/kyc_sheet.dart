@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../data/live/live_account.dart' show meProvider;
 import '../../data/kyc_service.dart';
 import '../../theme/theme.dart';
 import '../../ui/banner.dart';
@@ -77,13 +78,14 @@ class _KycSheetState extends ConsumerState<KycSheet> {
   final _first = TextEditingController();
   final _last = TextEditingController();
   KycMethod _method = KycMethod.nin;
+  var _identityStep = 'number';
+  var _confirmedName = false;
   KycEvidence? _evidence;
   KycStatus? _status;
   KycRefused? _error;
   String? _numberError;
   String? _firstError;
   String? _lastError;
-  DateTime? _dob;
   var _busy = false;
 
   @override
@@ -115,17 +117,6 @@ class _KycSheetState extends ConsumerState<KycSheet> {
     }
   }
 
-  Future<void> _pickDob() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _dob ?? DateTime(now.year - 25, now.month, now.day),
-      firstDate: DateTime(1900),
-      lastDate: DateTime(now.year, now.month, now.day),
-    );
-    if (picked != null && mounted) setState(() => _dob = picked);
-  }
-
   Future<void> _pick(KycCheckKind check) async {
     setState(() => _error = null);
     final picker = ref.read(kycPickerProvider);
@@ -149,6 +140,18 @@ class _KycSheetState extends ConsumerState<KycSheet> {
         final number = _number.text.trim();
         final first = _first.text.trim();
         final last = _last.text.trim();
+        if (_identityStep == 'number') {
+          setState(() {
+            _busy = false;
+            _numberError = RegExp(r'^\d{11}$').hasMatch(number)
+                ? null
+                : 'Enter the 11 digit NIN or BVN.';
+          });
+          if (_numberError == null) {
+            setState(() => _identityStep = 'name');
+          }
+          return;
+        }
         setState(() {
           _numberError = RegExp(r'^\d{11}$').hasMatch(number)
               ? null
@@ -156,7 +159,10 @@ class _KycSheetState extends ConsumerState<KycSheet> {
           _firstError = first.length >= 2 ? null : 'Enter your first name.';
           _lastError = last.length >= 2 ? null : 'Enter your last name.';
         });
-        if (_numberError != null || _firstError != null || _lastError != null) {
+        if (_numberError != null ||
+            _firstError != null ||
+            _lastError != null ||
+            !_confirmedName) {
           setState(() => _busy = false);
           return;
         }
@@ -169,7 +175,6 @@ class _KycSheetState extends ConsumerState<KycSheet> {
                       number: number,
                       firstName: first,
                       lastName: last,
-                      dob: _dob == null ? null : _iso(_dob!),
                     ),
                   )
             : await ref
@@ -180,7 +185,6 @@ class _KycSheetState extends ConsumerState<KycSheet> {
                       number: number,
                       firstName: first,
                       lastName: last,
-                      dob: _dob == null ? null : _iso(_dob!),
                     ),
                   );
       } else if (status.nextCheck == KycCheckKind.bankMatch) {
@@ -259,9 +263,21 @@ class _KycSheetState extends ConsumerState<KycSheet> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(meProvider, (_, next) {
+      final name = next.value?.name.trim() ?? '';
+      if (name.isEmpty || _first.text.isNotEmpty || _last.text.isNotEmpty) {
+        return;
+      }
+      final split = name.split(RegExp(r'\s+'));
+      setState(() {
+        _first.text = split.first;
+        _last.text = split.skip(1).join(' ');
+      });
+    });
     final status = _current;
     final loading = widget.initialStatus == null && (_live?.loading ?? true);
     final refused = _refused;
+    final notConfigured = refused?.problem == KycProblem.notConfigured;
     final fields = status == null
         ? _loading()
         : status.nextCheck == KycCheckKind.identity
@@ -287,7 +303,11 @@ class _KycSheetState extends ConsumerState<KycSheet> {
               IqSpace.s4,
               IqSpace.s3,
             ),
-            child: _brand(status: status, failed: refused != null),
+            child: _brand(
+              status: status,
+              failed: refused != null,
+              notConfigured: notConfigured,
+            ),
           ),
           if (refused != null)
             Padding(
@@ -298,9 +318,9 @@ class _KycSheetState extends ConsumerState<KycSheet> {
                 IqSpace.s3,
               ),
               child: IqBanner(
-                kind: IqBannerKind.error,
+                kind: notConfigured ? IqBannerKind.urgent : IqBannerKind.error,
                 title: kycError(refused),
-                action: 'Try again',
+                action: notConfigured ? 'Check again' : 'Try again',
                 onAction: _refresh,
               ),
             ),
@@ -318,10 +338,19 @@ class _KycSheetState extends ConsumerState<KycSheet> {
                     ? 'Done'
                     : _waiting(status)
                     ? 'Refresh status'
+                    : status.nextCheck == KycCheckKind.identity &&
+                          _identityStep == 'name'
+                    ? 'Verify identity'
                     : 'Continue',
                 showIcon: false,
                 width: double.infinity,
                 loading: _busy,
+                disabled:
+                    status.nextCheck == KycCheckKind.identity &&
+                    _identityStep == 'name' &&
+                    (!_confirmedName ||
+                        _first.text.trim().length < 2 ||
+                        _last.text.trim().length < 2),
                 onTap: !status.needsCheck
                     ? () => widget.onComplete?.call(status)
                     : _waiting(status)
@@ -343,10 +372,15 @@ class _KycSheetState extends ConsumerState<KycSheet> {
   Widget _brand({
     required KycStatus? status,
     required bool failed,
+    required bool notConfigured,
   }) => Container(
     padding: const EdgeInsets.all(IqSpace.s4),
     decoration: BoxDecoration(
-      color: failed ? IqColors.errSoft : IqColors.brandSoft,
+      color: notConfigured
+          ? IqColors.warnSoft
+          : failed
+          ? IqColors.errSoft
+          : IqColors.brandSoft,
       borderRadius: BorderRadius.circular(IqRadius.xl2),
     ),
     child: Row(
@@ -364,8 +398,10 @@ class _KycSheetState extends ConsumerState<KycSheet> {
               const SizedBox(height: IqSpace.s1),
               Text(
                 status == null
-                    ? 'Checking your details.'
-                    : 'Tier C${status.tier} of C${status.requiredTier}. ${_copy(status.nextCheck)}',
+                    ? notConfigured
+                          ? 'Verification isn’t set up yet.'
+                          : 'Checking your details.'
+                    : 'Tier ${status.tier} of ${status.requiredTier}. ${_copy(status.nextCheck)}',
                 style: IqText.small.copyWith(color: IqColors.fg2),
               ),
             ],
@@ -408,83 +444,100 @@ class _KycSheetState extends ConsumerState<KycSheet> {
     ),
   );
 
-  Widget _identity(KycStatus status) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      _illustration(status),
-      Text(
-        'Before your first withdrawal, we match your name to your NIN or BVN.',
-        style: IqText.body.copyWith(color: IqColors.fg2),
-      ),
-      const SizedBox(height: IqSpace.s3),
-      IqSegmented(
-        option1: 'NIN',
-        option2: 'BVN',
-        option3: null,
-        selected: _method == KycMethod.nin
-            ? IqSegmentedSelected.first
-            : IqSegmentedSelected.second,
-        onChanged: (selected) => setState(() {
-          _method = selected == IqSegmentedSelected.first
-              ? KycMethod.nin
-              : KycMethod.bvn;
-        }),
-      ),
-      const SizedBox(height: IqSpace.s3),
-      IqField(
-        label: _method == KycMethod.nin ? 'NIN' : 'BVN',
-        value: '12345678901',
-        controller: _number,
-        state: _numberError == null ? null : IqFieldState.error,
-        help: _numberError ?? '11 digits.',
-        showNote: false,
-        keyboardType: TextInputType.number,
-        inputFormatters: [
-          FilteringTextInputFormatter.digitsOnly,
-          LengthLimitingTextInputFormatter(11),
+  Widget _identity(KycStatus status) {
+    if (_identityStep == 'name') {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Confirm your legal name',
+            style: IqText.title.copyWith(color: IqColors.fg),
+          ),
+          const SizedBox(height: IqSpace.s2),
+          Text(
+            'Is this the name shown on your ${_method == KycMethod.nin ? 'NIN' : 'BVN'}? Edit it if needed.',
+            style: IqText.body.copyWith(color: IqColors.fg2),
+          ),
+          const SizedBox(height: IqSpace.s3),
+          IqField(
+            label: 'First name',
+            controller: _first,
+            state: _firstError == null ? null : IqFieldState.error,
+            help: _firstError ?? '',
+            showNote: false,
+            autofillHints: const [AutofillHints.givenName],
+            keyboardType: TextInputType.name,
+            onChanged: (_) => setState(() => _confirmedName = false),
+          ),
+          const SizedBox(height: IqSpace.s2),
+          IqField(
+            label: 'Last name',
+            controller: _last,
+            state: _lastError == null ? null : IqFieldState.error,
+            help: _lastError ?? '',
+            showNote: false,
+            autofillHints: const [AutofillHints.familyName],
+            keyboardType: TextInputType.name,
+            onChanged: (_) => setState(() => _confirmedName = false),
+          ),
+          const SizedBox(height: IqSpace.s2),
+          CheckboxListTile(
+            value: _confirmedName,
+            onChanged: (value) =>
+                setState(() => _confirmedName = value ?? false),
+            controlAffinity: ListTileControlAffinity.leading,
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              'I confirm this is the legal name shown on my ${_method == KycMethod.nin ? 'NIN' : 'BVN'}.',
+              style: IqText.small.copyWith(color: IqColors.fg2),
+            ),
+          ),
         ],
-      ),
-      const SizedBox(height: IqSpace.s2),
-      IqField(
-        label: 'First name',
-        value: 'Adaeze',
-        controller: _first,
-        state: _firstError == null ? null : IqFieldState.error,
-        help: _firstError ?? '',
-        showNote: false,
-        autofillHints: const [AutofillHints.givenName],
-        keyboardType: TextInputType.name,
-      ),
-      const SizedBox(height: IqSpace.s2),
-      IqField(
-        label: 'Last name',
-        value: 'Okafor',
-        controller: _last,
-        state: _lastError == null ? null : IqFieldState.error,
-        help: _lastError ?? '',
-        showNote: false,
-        autofillHints: const [AutofillHints.familyName],
-        keyboardType: TextInputType.name,
-      ),
-      const SizedBox(height: IqSpace.s2),
-      IqField(
-        kind: IqFieldKind.picker,
-        pickerLabel: 'Date of birth',
-        pickerValue: _dob == null ? '' : _iso(_dob!),
-        pickerPlaceholder: 'Optional',
-        state: _dob == null ? IqFieldState.empty : IqFieldState.valid,
-        help: 'Optional.',
-        showNote: false,
-        showStatus: false,
-        onTap: _pickDob,
-      ),
-      const SizedBox(height: IqSpace.s3),
-      Text(
-        'We keep the last 4 digits, not the full number.',
-        style: IqText.small.copyWith(color: IqColors.fg3),
-      ),
-    ],
-  );
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _illustration(status),
+        Text(
+          'Before your first withdrawal, we match your name to your NIN or BVN.',
+          style: IqText.body.copyWith(color: IqColors.fg2),
+        ),
+        const SizedBox(height: IqSpace.s3),
+        IqSegmented(
+          option1: 'NIN',
+          option2: 'BVN',
+          option3: null,
+          selected: _method == KycMethod.nin
+              ? IqSegmentedSelected.first
+              : IqSegmentedSelected.second,
+          onChanged: (selected) => setState(() {
+            _method = selected == IqSegmentedSelected.first
+                ? KycMethod.nin
+                : KycMethod.bvn;
+          }),
+        ),
+        const SizedBox(height: IqSpace.s3),
+        IqField(
+          label: _method == KycMethod.nin ? 'NIN' : 'BVN',
+          controller: _number,
+          state: _numberError == null ? null : IqFieldState.error,
+          help: _numberError ?? '11 digits.',
+          showNote: false,
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(11),
+          ],
+        ),
+        const SizedBox(height: IqSpace.s3),
+        Text(
+          'We keep the last 4 digits, not the full number.',
+          style: IqText.small.copyWith(color: IqColors.fg3),
+        ),
+      ],
+    );
+  }
 
   Widget _evidenceStep(KycStatus status) {
     final document = status.nextCheck == KycCheckKind.document;
@@ -539,8 +592,3 @@ String _copy(KycCheckKind check) => switch (check) {
   KycCheckKind.none => 'Your account is verified',
   _ => 'Complete account verification',
 };
-
-String _iso(DateTime date) =>
-    '${date.year.toString().padLeft(4, '0')}-'
-    '${date.month.toString().padLeft(2, '0')}-'
-    '${date.day.toString().padLeft(2, '0')}';

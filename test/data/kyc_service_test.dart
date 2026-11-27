@@ -49,13 +49,15 @@ void main() {
   test('verified tier is required for withdrawal', () {
     expect(KycStatus.fromJson(statusJson(verified: true)).canWithdraw, isFalse);
     expect(
-      KycStatus.fromJson(statusJson(verified: true, tier: 2, nextCheck: 'none'))
-          .canWithdraw,
+      KycStatus.fromJson(
+        statusJson(verified: true, tier: 2, nextCheck: 'none'),
+      ).canWithdraw,
       isTrue,
     );
     expect(
-      KycStatus.fromJson(statusJson(required: false, nextCheck: 'none'))
-          .needsCheck,
+      KycStatus.fromJson(
+        statusJson(required: false, nextCheck: 'none'),
+      ).needsCheck,
       isFalse,
     );
   });
@@ -120,6 +122,14 @@ void main() {
     await expectLater(service.status(), throwsA(isA<KycRefused>()));
   });
 
+  test('missing KYC configuration has a calm setup message', () {
+    final refused = KycRefused.of(refused(503, 'KYC_NOT_CONFIGURED'));
+    expect(
+      kycError(refused),
+      "Account verification isn’t set up yet. Please try again later.",
+    );
+  });
+
   test('configuration and review refusals never advance', () async {
     for (final code in ['KYC_NOT_CONFIGURED', 'KYC_REVIEW', 'KYC_FAILED']) {
       final api = FakeApi();
@@ -134,6 +144,8 @@ void main() {
                 ? KycProblem.review
                 : code == 'KYC_FAILED'
                 ? KycProblem.failed
+                : code == 'KYC_NOT_CONFIGURED'
+                ? KycProblem.notConfigured
                 : KycProblem.unavailable,
           ),
         ),
