@@ -1,11 +1,13 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
 import '../../core/session.dart';
 import '../../data/auth.dart';
 import '../../data/live/live_account.dart';
+import '../../data/live/live_profile_service.dart';
 import '../../data/models.dart';
 import '../../data/onboarding_service.dart';
 import '../../data/reference_data.dart';
@@ -160,6 +162,99 @@ class OnboardingDraft {
   );
 }
 
+/// The freshest effective answers: local draft, then non-empty server values,
+/// then queued writes (which are newer than the server snapshot). Missing
+/// server fields never erase an answer the user is still editing locally.
+OnboardingProfile mergeOnboardingProfile(
+  OnboardingProfile local,
+  ContributorProfile? server,
+  List<Map<String, dynamic>> pendingWrites,
+) {
+  var occupation = local.occupation;
+  var state = local.state;
+  var city = local.city;
+  var education = local.education;
+  var university = local.university;
+  var interests = local.interests;
+  var otherInterest = local.otherInterest;
+  var dateOfBirth = local.dateOfBirth;
+  var phone = local.phone;
+  var sector = local.sector;
+  var otherSector = local.otherSector;
+  var gender = local.gender;
+
+  if (server != null) {
+    if (server.occupations.isNotEmpty) occupation = server.occupations.first;
+    if (server.stateOfResidence != null) state = server.stateOfResidence;
+    if (server.city != null && server.city!.trim().isNotEmpty) {
+      city = server.city!;
+    }
+    if (server.education != null) education = server.education;
+    if (server.university != null) university = server.university;
+    if (server.interests.isNotEmpty) interests = server.interests;
+    if (server.interestOther != null) otherInterest = server.interestOther!;
+    if (server.dateOfBirth != null) dateOfBirth = server.dateOfBirth;
+    if (server.phone != null) phone = server.phone!;
+    if (server.sector != null) sector = server.sector;
+    if (server.sectorOther != null) otherSector = server.sectorOther!;
+    if (server.gender != null) gender = server.gender;
+  }
+
+  for (final write in pendingWrites) {
+    if (write.containsKey('occupations')) {
+      final values = write['occupations'];
+      occupation = values is List
+          ? values.whereType<String>().firstOrNull
+          : null;
+    }
+    if (write.containsKey('stateOfResidence')) {
+      state = apiText(write['stateOfResidence']);
+    }
+    if (write.containsKey('city')) city = apiText(write['city']) ?? '';
+    if (write.containsKey('education')) {
+      education = apiText(write['education']);
+    }
+    if (write.containsKey('university')) {
+      university = apiText(write['university']);
+    }
+    if (write.containsKey('interests')) {
+      final values = write['interests'];
+      interests = values is List
+          ? values.whereType<String>().toList(growable: false)
+          : const [];
+    }
+    if (write.containsKey('interestOther')) {
+      otherInterest = apiText(write['interestOther']) ?? '';
+    }
+    if (write.containsKey('dateOfBirth')) {
+      dateOfBirth = apiDate(write['dateOfBirth']);
+    }
+    if (write.containsKey('phone')) phone = apiText(write['phone']) ?? '';
+    if (write.containsKey('sector')) sector = apiText(write['sector']);
+    if (write.containsKey('sectorOther')) {
+      otherSector = apiText(write['sectorOther']) ?? '';
+    }
+    if (write.containsKey('gender')) gender = apiText(write['gender']);
+  }
+
+  return OnboardingFlow.current.tidy(
+    OnboardingProfile(
+      occupation: occupation,
+      state: state,
+      city: city,
+      education: education,
+      university: university,
+      interests: interests,
+      otherInterest: otherInterest,
+      dateOfBirth: dateOfBirth,
+      phone: phone,
+      sector: sector,
+      otherSector: otherSector,
+      gender: gender,
+    ),
+  );
+}
+
 /// Autosaves every answer to the device as it changes, so reopening the app
 /// mid-flow can resume.
 class OnboardingDraftNotifier extends Notifier<OnboardingDraft> {
@@ -239,9 +334,34 @@ class OnboardingDraftNotifier extends Notifier<OnboardingDraft> {
 
   void setOtherInterest(String value) => _save(_profile(otherInterest: value));
 
-  /// Profile's Your details edits the same answers.
+  /// Your details edits the same answers.
   void setProfile(OnboardingProfile profile) =>
       _save(state.copyWith(profile: profile));
+
+  /// Reconciles answers completed on web with the local draft. Pending outbox
+  /// writes win because they are newer than the server snapshot.
+  void reconcileServer(
+    ContributorProfile server,
+    List<Map<String, dynamic>> pendingWrites,
+  ) {
+    final next = mergeOnboardingProfile(state.profile, server, pendingWrites);
+    final current = state.profile;
+    if (current.occupation == next.occupation &&
+        current.state == next.state &&
+        current.city == next.city &&
+        current.education == next.education &&
+        current.university == next.university &&
+        listEquals(current.interests, next.interests) &&
+        current.otherInterest == next.otherInterest &&
+        current.dateOfBirth == next.dateOfBirth &&
+        current.phone == next.phone &&
+        current.sector == next.sector &&
+        current.otherSector == next.otherSector &&
+        current.gender == next.gender) {
+      return;
+    }
+    _save(state.copyWith(profile: next));
+  }
 
   /// Sign out and account deletion leave nothing of the answers on the device.
   void clear() {

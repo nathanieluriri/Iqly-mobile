@@ -20,6 +20,7 @@ import '../../core/money.dart';
 import '../../data/activations_data.dart';
 import '../../data/device.dart';
 import '../../data/drafts_data.dart';
+import '../../data/live/live_account.dart';
 import '../../data/repository.dart';
 import '../../data/polls_data.dart';
 import '../../ui/banner.dart';
@@ -49,6 +50,7 @@ import '../../data/assessment_data.dart';
 import '../../data/assessment_service.dart';
 import '../assessments/assessment_nudge.dart';
 import '../onboarding/setup_nudge.dart';
+import '../onboarding/setup_nudge_state.dart';
 import '../withdrawals/payout_arrival.dart';
 import 'app_shell.dart';
 import 'business_art.dart';
@@ -99,7 +101,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   bool _retrying = false;
   bool _built = false;
   bool _landed = false;
-  bool? _nudge;
   IqPullIndicatorState? _closingAs;
   Timer? _doneTimer;
   Timer? _shineTimer;
@@ -183,6 +184,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ref.read(activationsProvider.notifier).refreshQuietly();
     }
     refreshUnseenOn(ref);
+    unawaited(ref.read(accountRefreshProvider)(force: true));
+    unawaited(ref.read(assessmentAccessProvider.notifier).refresh(force: true));
+    unawaited(ref.read(kycControllerProvider.notifier).refresh(force: true));
   }
 
   /// A pull hands its overscroll to the slot, so nothing jumps, and the list
@@ -326,19 +330,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       for (final d in drafts)
         if (!d.isEmpty) d.briefId,
     };
-    final access = ref.read(assessmentAccessProvider).value;
-    final started = {...draftIds, ...submittedBriefIds(ref)};
-    final allowed = unlockedDiscoverBriefs(
-      [for (final brief in data.briefs) brief.id],
-      access,
-      started,
-    ).toSet();
     return buildFeed(
       briefs: [
         for (final brief in data.briefs)
-          if (allowed.contains(brief.id) &&
-              (!filters.pickUp || draftIds.contains(brief.id)))
-            brief,
+          if (!filters.pickUp || draftIds.contains(brief.id)) brief,
       ],
       filters: filters,
       interests: ref.read(feedInterestsProvider),
@@ -421,14 +416,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         (ref.watch(pollsShownProvider) && _pending(ref.watch(pollsProvider))) ||
         (ref.watch(activationsShownProvider) &&
             _pending(ref.watch(activationsProvider)));
-    final onboardingDone = ref.watch(
-      sessionProvider.select((s) => s.onboardingDone),
+    final nudge = ref.watch(
+      setupNudgeStateProvider.select((state) => state.visible),
     );
-    final nudge = _nudge ??= !onboardingDone;
+    final assessment = ref.watch(assessmentAccessProvider);
     final needCheckIn =
-        assessmentNudge(ref.watch(assessmentAccessProvider).value) != null;
+        !assessment.terminalPassed &&
+        assessmentNudge(assessment.access) != null;
     final payout = ref.watch(recentPayoutProvider);
-    final kyc = ref.watch(kycControllerProvider).status;
+    final kycState = ref.watch(kycControllerProvider);
+    final kyc = kycState.status;
     _proposalsPending = proposalsPending;
     final loading = (data == null && !failed) || proposalsPending;
     if (!_built) {
@@ -490,8 +487,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                               ),
                             ),
                           ),
-                          if (kyc != null)
-                            SliverToBoxAdapter(child: KycNudge(status: kyc)),
+                          SliverToBoxAdapter(
+                            child: KycNudge(status: kyc, error: kycState.error),
+                          ),
                           if (payout != null)
                             SliverToBoxAdapter(
                               key: const ValueKey('payout'),
@@ -848,10 +846,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   Widget? _emptyFeed(FeedData data) {
     if (!_view(data).isEmpty) return null;
     final filters = ref.read(discoverFiltersProvider);
-    final access = ref.read(assessmentAccessProvider).value;
-    if (access != null && !access.canAccessChallenges) {
-      return const SizedBox.shrink();
-    }
     if (filters.pickUp) {
       if (_proposals().isNotEmpty) return null;
       return IqEmptyState(

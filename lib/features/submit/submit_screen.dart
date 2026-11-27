@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,6 +23,7 @@ import '../../ui/button.dart';
 import '../../ui/top_bar.dart';
 import '../discover/discover_state.dart';
 import '../drafts/drafts_state.dart';
+import '../kyc/kyc_controller.dart';
 import '../profile/profile_routes.dart';
 import '../profile/your_details_screen.dart';
 import '../settings/restore_account_screen.dart';
@@ -28,6 +31,8 @@ import '../submissions/submissions_routes.dart';
 import '../submissions/submissions_state.dart';
 import 'brief_sheet.dart';
 import 'more_sheet.dart';
+import 'start_requirements.dart';
+import 'start_requirements_sheet.dart';
 import 'submit_header.dart';
 import 'submit_sent.dart';
 import 'submit_state.dart';
@@ -64,16 +69,23 @@ class SubmitScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final opening = ref.watch(submitOpeningProvider(briefId));
     final drafts = ref.watch(draftsProvider);
-    final access = ref.watch(assessmentAccessProvider).value;
-    if (access != null &&
-        !access.canAccessChallenges &&
-        opening.value?.block != SubmitBlock.alreadySubmitted) {
-      return _ToAssessment();
-    }
     ref.listen(
       submitOpeningProvider(briefId),
       (_, next) => _openSubmitted(context, ref, next.value),
     );
+    final requirement = resolveStartRequirements(
+      ref.watch(assessmentAccessProvider),
+      ref.watch(kycControllerProvider),
+    );
+    final open = opening.value;
+    if (requirement != StartRequirement.ready &&
+        open?.block != SubmitBlock.alreadySubmitted &&
+        open?.brief != null) {
+      return _RequirementGate(
+        brief: open!.brief!,
+        onClose: () => leaveSubmit(context, briefId),
+      );
+    }
 
     final Widget body;
     if (opening.value case final open? when !drafts.isLoading) {
@@ -252,6 +264,16 @@ class _FlowState extends ConsumerState<_Flow> {
       case SubmitFailure.blocked
           when result.block == SubmitBlock.alreadySubmitted:
         ref.invalidate(submitOpeningProvider(_id));
+      case SubmitFailure.assessmentRequired:
+        unawaited(
+          ref.read(assessmentAccessProvider.notifier).refresh(force: true),
+        );
+        await showStartRequirementsSheet(context, widget.brief);
+      case SubmitFailure.kycRequired:
+        unawaited(
+          ref.read(kycControllerProvider.notifier).refresh(force: true),
+        );
+        await showStartRequirementsSheet(context, widget.brief);
       case SubmitFailure.underAge:
         await context.open<void>(editDetailPath(DetailField.dateOfBirth));
       case SubmitFailure.closing when Flags.deleteAccount:
@@ -684,20 +706,20 @@ class _LoadFailed extends StatelessWidget {
   }
 }
 
-class _ToAssessment extends StatefulWidget {
-  @override
-  State<_ToAssessment> createState() => _ToAssessmentState();
-}
+class _RequirementGate extends StatelessWidget {
+  const _RequirementGate({required this.brief, required this.onClose});
 
-class _ToAssessmentState extends State<_ToAssessment> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.go(Routes.assessment);
-    });
-  }
+  final Brief brief;
+  final VoidCallback onClose;
 
   @override
-  Widget build(BuildContext context) => const SizedBox.shrink();
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: IqColors.bg,
+    body: SafeArea(
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: StartRequirementsSheet(brief: brief, onClose: onClose),
+      ),
+    ),
+  );
 }

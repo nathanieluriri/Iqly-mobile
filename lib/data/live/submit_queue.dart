@@ -153,6 +153,8 @@ SubmitResult submitResultFor(String? code, int status) {
   }
   return SubmitResult.failure(switch (code) {
     'UNDER_AGE' => SubmitFailure.underAge,
+    'ASSESSMENT_REQUIRED' => SubmitFailure.assessmentRequired,
+    'KYC_REQUIRED' => SubmitFailure.kycRequired,
     'ACCOUNT_CLOSING' => SubmitFailure.closing,
     'FILE_TYPE_NOT_ALLOWED' => SubmitFailure.fileType,
     'SUBMISSION_UPLOAD_NOT_FOUND' ||

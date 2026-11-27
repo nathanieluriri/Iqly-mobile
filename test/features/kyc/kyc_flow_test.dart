@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/data/kyc_service.dart';
 import 'package:iqly_mobile/features/kyc/kyc_controller.dart';
 import 'package:iqly_mobile/features/kyc/kyc_nudge.dart';
@@ -12,6 +13,7 @@ import 'package:iqly_mobile/features/wallet/kyc_sheet.dart' as withdraw;
 import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/features/wallet/withdraw_sheet.dart';
 import 'package:iqly_mobile/router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/live/live_data_fixtures.dart' show FakeApi;
 import '../../support/live_launch.dart';
@@ -65,6 +67,13 @@ class _QueuedKyc extends FakeKyc {
 }
 
 void main() {
+  late SharedPreferences prefs;
+
+  setUp(() async {
+    SharedPreferences.setMockInitialValues(const {});
+    prefs = await SharedPreferences.getInstance();
+  });
+
   testWidgets('Discover shows KYC outside withdrawal and opens the KYC sheet', (
     tester,
   ) async {
@@ -72,8 +81,8 @@ void main() {
     await pumpLiveLaunch(tester, Routes.home, api: FakeApi().api(), kyc: kyc);
     await tester.pumpAndSettle();
     expect(find.byType(KycNudge), findsOneWidget);
-    expect(find.text('Complete Tier 2 to withdraw.'), findsOneWidget);
-    await tester.tap(find.text('Verify your account'));
+    expect(find.text('Verify to submit and withdraw'), findsOneWidget);
+    await tester.tap(find.text('Verify to submit and withdraw'));
     await tester.pumpAndSettle();
     expect(find.byType(KycSheet), findsOneWidget);
   });
@@ -379,7 +388,10 @@ void main() {
       ..failure = const KycRefused(KycProblem.unavailable);
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [kycServiceProvider.overrideWithValue(kyc)],
+        overrides: [
+          kycServiceProvider.overrideWithValue(kyc),
+          sharedPreferencesProvider.overrideWithValue(prefs),
+        ],
         child: const MaterialApp(home: Scaffold(body: KycSheet())),
       ),
     );
@@ -405,7 +417,10 @@ void main() {
     const selfie = KycStatus(tier: 2, nextCheck: KycCheckKind.selfie);
     final kyc = FakeKyc(identity);
     final container = ProviderContainer(
-      overrides: [kycServiceProvider.overrideWithValue(kyc)],
+      overrides: [
+        kycServiceProvider.overrideWithValue(kyc),
+        sharedPreferencesProvider.overrideWithValue(prefs),
+      ],
     );
     addTearDown(container.dispose);
     container.listen(kycControllerProvider, (_, _) {});
@@ -445,7 +460,10 @@ void main() {
     final third = Completer<KycStatus>();
     final kyc = _QueuedKyc(unverified, []);
     final container = ProviderContainer(
-      overrides: [kycServiceProvider.overrideWithValue(kyc)],
+      overrides: [
+        kycServiceProvider.overrideWithValue(kyc),
+        sharedPreferencesProvider.overrideWithValue(prefs),
+      ],
     );
     container.listen(kycControllerProvider, (_, _) {});
     await Future<void>.delayed(Duration.zero);
@@ -472,31 +490,38 @@ void main() {
     await pending;
   });
 
-  test('controller clears verified gating status on refresh failure', () async {
+  test('controller keeps verified gating status on refresh failure', () async {
     final kyc = FakeKyc(unverified);
     final container = ProviderContainer(
-      overrides: [kycServiceProvider.overrideWithValue(kyc)],
+      overrides: [
+        kycServiceProvider.overrideWithValue(kyc),
+        sharedPreferencesProvider.overrideWithValue(prefs),
+      ],
     );
     addTearDown(container.dispose);
     container.listen(kycControllerProvider, (_, _) {});
     await Future<void>.delayed(Duration.zero);
-    kyc.current = const KycStatus(
+    final ready = const KycStatus(
       verified: true,
       tier: 2,
       nextCheck: KycCheckKind.none,
     );
+    kyc.current = ready;
     await container.read(kycControllerProvider.notifier).refresh();
     kyc.failure = const KycRefused(KycProblem.unavailable);
     await container.read(kycControllerProvider.notifier).refresh();
     final state = container.read(kycControllerProvider);
-    expect(state.status, isNull);
+    expect(state.status, same(ready));
     expect(state.loading, isFalse);
   });
 
   test('controller keeps review and outage states unverified', () async {
     final kyc = FakeKyc(unverified);
     final container = ProviderContainer(
-      overrides: [kycServiceProvider.overrideWithValue(kyc)],
+      overrides: [
+        kycServiceProvider.overrideWithValue(kyc),
+        sharedPreferencesProvider.overrideWithValue(prefs),
+      ],
     );
     addTearDown(container.dispose);
     final subscription = container.listen(kycControllerProvider, (_, _) {});
@@ -507,6 +532,6 @@ void main() {
     await container.read(kycControllerProvider.notifier).refresh();
     final state = container.read(kycControllerProvider);
     expect(state.error?.problem, KycProblem.review);
-    expect(state.status, isNull);
+    expect(state.status, same(unverified));
   });
 }

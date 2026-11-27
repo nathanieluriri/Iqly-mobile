@@ -7,10 +7,13 @@ import 'core/backend.dart';
 import 'core/edge_haptics.dart';
 import 'core/patches.dart';
 import 'core/updates.dart';
+import 'data/assessment_service.dart';
+import 'data/live/live_account.dart';
 import 'data/onboarding_service.dart' show genderAskedProvider;
 import 'features/onboarding/onboarding_flow.dart';
 import 'data/live/live_repository.dart';
 import 'features/activations/activations_state.dart';
+import 'features/kyc/kyc_controller.dart';
 import 'features/notifications/notifications_state.dart';
 import 'features/polls/polls_state.dart';
 import 'features/shell/tablet_frame.dart';
@@ -39,6 +42,13 @@ class _IqlyAppState extends ConsumerState<IqlyApp> {
         ref.read(backendProvider.notifier).resumed();
         ref.read(patchesProvider.notifier).resumed();
         refreshUnseenOn(ref);
+        unawaited(ref.read(accountRefreshProvider)());
+        unawaited(ref.read(assessmentAccessProvider.notifier).refresh());
+        if (ref.exists(kycControllerProvider)) {
+          unawaited(
+            ref.read(kycControllerProvider.notifier).refresh(force: false),
+          );
+        }
         if (!ref.read(liveModeProvider).isPreview &&
             ref.exists(mySubmissionsProvider)) {
           ref.read(mySubmissionsProvider.notifier).refreshQuietly();

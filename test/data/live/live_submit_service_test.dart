@@ -385,6 +385,8 @@ void main() {
       }
       for (final (status, code, failure) in [
         (403, 'UNDER_AGE', SubmitFailure.underAge),
+        (403, 'ASSESSMENT_REQUIRED', SubmitFailure.assessmentRequired),
+        (403, 'KYC_REQUIRED', SubmitFailure.kycRequired),
         (403, 'ACCOUNT_CLOSING', SubmitFailure.closing),
         (415, 'FILE_TYPE_NOT_ALLOWED', SubmitFailure.fileType),
         (413, 'FILE_TOO_LARGE', SubmitFailure.unknown),

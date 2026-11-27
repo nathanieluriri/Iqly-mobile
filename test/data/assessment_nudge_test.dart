@@ -60,37 +60,4 @@ void main() {
       description: 'Twenty questions before new challenges',
     ));
   });
-
-  test('new live briefs stay off Discover until they pass', () {
-    expect(
-      unlockedDiscoverBriefs(
-        const ['new', 'draft', 'sent'],
-        access(canTake: true),
-        const {'draft', 'sent'},
-      ),
-      ['draft', 'sent'],
-    );
-  });
-
-  test('a pass puts every live brief back', () {
-    expect(
-      unlockedDiscoverBriefs(
-        const ['new', 'draft', 'sent'],
-        access(canAccessChallenges: true, state: 'passed'),
-        const {'draft', 'sent'},
-      ),
-      ['new', 'draft', 'sent'],
-    );
-  });
-
-  test('an unknown access does not hide the feed', () {
-    expect(
-      unlockedDiscoverBriefs(
-        const ['new', 'draft', 'sent'],
-        null,
-        const {'draft', 'sent'},
-      ),
-      ['new', 'draft', 'sent'],
-    );
-  });
 }

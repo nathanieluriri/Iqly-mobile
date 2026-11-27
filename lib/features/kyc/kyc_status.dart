@@ -112,6 +112,13 @@ class KycStatus {
   bool get needsCheck =>
       required && (!verified || nextCheck != KycCheckKind.none);
 
+  /// New challenge submissions require effective C1, independent of any
+  /// higher tier needed for a larger withdrawal.
+  bool get canSubmit => verified && tier >= 1;
+
+  /// Mobile contributor Tier 1 deliberately exposes NIN only.
+  bool get ninOnly => requiredTier == 1;
+
   bool get canWithdraw {
     if (!verified || tier < requiredTier || nextCheck != KycCheckKind.none) {
       return false;

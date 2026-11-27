@@ -54,6 +54,12 @@ enum SubmitFailure {
   /// The profile's date of birth is under 18 (403 UNDER_AGE).
   underAge,
 
+  /// Qualification is required before a new submission.
+  assessmentRequired,
+
+  /// Contributor KYC Tier 1 is required before a new submission.
+  kycRequired,
+
   /// The account is closing, so it takes no writes (403 ACCOUNT_CLOSING).
   closing,
 

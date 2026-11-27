@@ -92,7 +92,9 @@ class _KycSheetState extends ConsumerState<KycSheet> {
   void initState() {
     super.initState();
     _status = widget.initialStatus;
-    _method = _status?.method ?? KycMethod.nin;
+    _method = _status?.ninOnly == true
+        ? KycMethod.nin
+        : _status?.method ?? KycMethod.nin;
   }
 
   @override
@@ -108,6 +110,9 @@ class _KycSheetState extends ConsumerState<KycSheet> {
 
   KycStatus? get _current => _status ?? _live?.status;
   KycRefused? get _refused => _error ?? _live?.error;
+  bool get _ninOnly => _current?.ninOnly ?? false;
+  String get _methodLabel =>
+      _ninOnly || _method == KycMethod.nin ? 'NIN' : 'BVN';
 
   void _close() {
     if (widget.onClose != null) {
@@ -145,7 +150,7 @@ class _KycSheetState extends ConsumerState<KycSheet> {
             _busy = false;
             _numberError = RegExp(r'^\d{11}$').hasMatch(number)
                 ? null
-                : 'Enter the 11 digit NIN or BVN.';
+                : 'Enter the 11 digit NIN.';
           });
           if (_numberError == null) {
             setState(() => _identityStep = 'name');
@@ -155,7 +160,7 @@ class _KycSheetState extends ConsumerState<KycSheet> {
         setState(() {
           _numberError = RegExp(r'^\d{11}$').hasMatch(number)
               ? null
-              : 'Enter the 11 digit NIN or BVN.';
+              : 'Enter the 11 digit NIN.';
           _firstError = first.length >= 2 ? null : 'Enter your first name.';
           _lastError = last.length >= 2 ? null : 'Enter your last name.';
         });
@@ -171,7 +176,7 @@ class _KycSheetState extends ConsumerState<KycSheet> {
                   .read(kycControllerProvider.notifier)
                   .verify(
                     KycCheck(
-                      method: _method,
+                      method: _ninOnly ? KycMethod.nin : _method,
                       number: number,
                       firstName: first,
                       lastName: last,
@@ -181,7 +186,7 @@ class _KycSheetState extends ConsumerState<KycSheet> {
                   .read(kycServiceProvider)
                   .verify(
                     KycCheck(
-                      method: _method,
+                      method: _ninOnly ? KycMethod.nin : _method,
                       number: number,
                       firstName: first,
                       lastName: last,
@@ -191,7 +196,7 @@ class _KycSheetState extends ConsumerState<KycSheet> {
         next = widget.initialStatus == null
             ? await ref.read(kycControllerProvider.notifier).refresh()
             : await ref.read(kycServiceProvider).status();
-        if (next == null) next = status;
+        next ??= status;
       } else {
         final file = _evidence;
         if (file == null) {
@@ -455,7 +460,7 @@ class _KycSheetState extends ConsumerState<KycSheet> {
           ),
           const SizedBox(height: IqSpace.s2),
           Text(
-            'Is this the name shown on your ${_method == KycMethod.nin ? 'NIN' : 'BVN'}? Edit it if needed.',
+            'Is this the name shown on your $_methodLabel? Edit it if needed.',
             style: IqText.body.copyWith(color: IqColors.fg2),
           ),
           const SizedBox(height: IqSpace.s3),
@@ -488,7 +493,7 @@ class _KycSheetState extends ConsumerState<KycSheet> {
             controlAffinity: ListTileControlAffinity.leading,
             contentPadding: EdgeInsets.zero,
             title: Text(
-              'I confirm this is the legal name shown on my ${_method == KycMethod.nin ? 'NIN' : 'BVN'}.',
+              'I confirm this is the legal name shown on my $_methodLabel.',
               style: IqText.small.copyWith(color: IqColors.fg2),
             ),
           ),
@@ -500,26 +505,30 @@ class _KycSheetState extends ConsumerState<KycSheet> {
       children: [
         _illustration(status),
         Text(
-          'Before your first withdrawal, we match your name to your NIN or BVN.',
+          _ninOnly
+              ? 'Before you submit or withdraw, we match your name to your NIN.'
+              : 'Before you submit or withdraw, we match your name to your NIN or BVN.',
           style: IqText.body.copyWith(color: IqColors.fg2),
         ),
-        const SizedBox(height: IqSpace.s3),
-        IqSegmented(
-          option1: 'NIN',
-          option2: 'BVN',
-          option3: null,
-          selected: _method == KycMethod.nin
-              ? IqSegmentedSelected.first
-              : IqSegmentedSelected.second,
-          onChanged: (selected) => setState(() {
-            _method = selected == IqSegmentedSelected.first
-                ? KycMethod.nin
-                : KycMethod.bvn;
-          }),
-        ),
+        if (!_ninOnly) ...[
+          const SizedBox(height: IqSpace.s3),
+          IqSegmented(
+            option1: 'NIN',
+            option2: 'BVN',
+            option3: null,
+            selected: _method == KycMethod.nin
+                ? IqSegmentedSelected.first
+                : IqSegmentedSelected.second,
+            onChanged: (selected) => setState(() {
+              _method = selected == IqSegmentedSelected.first
+                  ? KycMethod.nin
+                  : KycMethod.bvn;
+            }),
+          ),
+        ],
         const SizedBox(height: IqSpace.s3),
         IqField(
-          label: _method == KycMethod.nin ? 'NIN' : 'BVN',
+          label: _methodLabel,
           controller: _number,
           state: _numberError == null ? null : IqFieldState.error,
           help: _numberError ?? '11 digits.',
@@ -561,6 +570,8 @@ class _KycSheetState extends ConsumerState<KycSheet> {
               ? 'Add a clear photo or PDF of your government ID.'
               : status.nextCheck == KycCheckKind.liveness
               ? 'Take a live selfie to complete the liveness check.'
+              : _ninOnly
+              ? 'Take a selfie so we can match it to your NIN photo.'
               : 'Take a selfie so we can match it to your NIN or BVN photo.',
           style: IqText.body.copyWith(color: IqColors.fg2),
         ),

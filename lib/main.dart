@@ -17,6 +17,7 @@ import 'data/app_version.dart';
 import 'data/auth.dart';
 import 'data/device.dart';
 import 'data/live_auth.dart';
+import 'data/assessment_service.dart';
 import 'data/local/local_providers.dart';
 import 'data/local/local_store.dart';
 import 'data/local/memory_local_store.dart';
@@ -26,11 +27,13 @@ import 'data/profile_service.dart';
 import 'data/token_store.dart';
 import 'data/voice_recorder.dart' show VoiceNotes;
 import 'features/discover/discover_state.dart';
+import 'features/kyc/kyc_controller.dart';
 import 'features/more/more_state.dart';
 import 'features/notifications/notifications_state.dart';
 import 'features/profile/account_sync.dart';
 import 'features/profile/profile_state.dart';
 import 'features/settings/settings_state.dart';
+import 'features/onboarding/setup_nudge_state.dart';
 import 'router.dart';
 import 'surfaces/push.dart';
 import 'surfaces/surfaces.dart';
@@ -109,7 +112,12 @@ Future<void> main() async {
   container.read(sessionGuardProvider);
   container.read(hapticsProvider);
   container.listen(appConfigProvider, (_, _) {});
-  if (ApiConfig.liveAuth) _startAccount(container);
+  if (ApiConfig.liveAuth) {
+    container.read(setupNudgeRefreshProvider);
+    container.read(assessmentNudgeRefreshProvider);
+    container.read(kycNudgeRefreshProvider);
+    _startAccount(container);
+  }
   runApp(
     UncontrolledProviderScope(container: container, child: const IqlyApp()),
   );

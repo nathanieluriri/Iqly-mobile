@@ -21,7 +21,10 @@ class AssessmentNudge extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final copy = assessmentNudge(ref.watch(assessmentAccessProvider).value);
+    final assessment = ref.watch(assessmentAccessProvider);
+    final copy = assessment.terminalPassed
+        ? null
+        : assessmentNudge(assessment.access);
     return Collapse(
       open: copy != null,
       child: Padding(
