@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iqly_mobile/data/kyc_service.dart';
-import 'package:iqly_mobile/features/kyc/kyc_status.dart';
 
 import 'live/live_data_fixtures.dart';
 
@@ -121,7 +120,7 @@ void main() {
   });
 
   test('missing KYC configuration has a calm setup message', () {
-    final failure = KycRefused.of(refused(503, 'KYC_NOT_CONFIGURED'));
+    final failure = const KycRefused(KycProblem.notConfigured);
     expect(
       kycError(failure),
       "Account verification isn’t set up yet. Please try again later.",
