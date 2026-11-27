@@ -22,7 +22,6 @@ import '../../ui/chip.dart';
 import '../../ui/illustration.dart';
 import '../../ui/top_bar.dart';
 import '../discover/discover_routes.dart' show leave;
-import 'activation_format.dart';
 import 'activations_routes.dart';
 import 'activations_state.dart';
 import 'tablet_activations.dart';

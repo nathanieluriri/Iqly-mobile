@@ -121,9 +121,9 @@ void main() {
   });
 
   test('missing KYC configuration has a calm setup message', () {
-    final refused = KycRefused.of(refused(503, 'KYC_NOT_CONFIGURED'));
+    final failure = KycRefused.of(refused(503, 'KYC_NOT_CONFIGURED'));
     expect(
-      kycError(refused),
+      kycError(failure),
       "Account verification isn’t set up yet. Please try again later.",
     );
   });

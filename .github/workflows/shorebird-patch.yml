@@ -24,9 +24,19 @@ on:
         type: boolean
         required: false
         default: false
+      platforms:
+        description: Platforms to patch
+        type: choice
+        required: true
+        default: both
+        options:
+          - both
+          - android
+          - ios
 
 jobs:
   android:
+    if: inputs.platforms != 'ios'
     runs-on: ubuntu-latest
     env:
       SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
@@ -78,6 +88,7 @@ jobs:
           IQLY_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
   ios:
+    if: inputs.platforms != 'android'
     runs-on: xcode-27
     env:
       SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}

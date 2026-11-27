@@ -7,14 +7,13 @@ import 'package:iqly_mobile/data/kyc_service.dart';
 import 'package:iqly_mobile/features/kyc/kyc_controller.dart';
 import 'package:iqly_mobile/features/kyc/kyc_nudge.dart';
 import 'package:iqly_mobile/features/kyc/kyc_sheet.dart';
-import 'package:iqly_mobile/features/kyc/kyc_status.dart';
 import 'package:iqly_mobile/features/more/more_screen.dart';
 import 'package:iqly_mobile/features/wallet/kyc_sheet.dart' as withdraw;
 import 'package:iqly_mobile/ui/button.dart';
 import 'package:iqly_mobile/features/wallet/withdraw_sheet.dart';
 import 'package:iqly_mobile/router.dart';
 
-import '../../data/live/live_data_fixtures.dart' show FakeApi, refused;
+import '../../data/live/live_data_fixtures.dart' show FakeApi;
 import '../../support/live_launch.dart';
 
 const unverified = KycStatus(
@@ -250,7 +249,7 @@ void main() {
     tester,
   ) async {
     final kyc = FakeKyc(unverified)
-      ..failure = KycRefused.of(refused(503, 'KYC_NOT_CONFIGURED'));
+      ..failure = const KycRefused(KycProblem.notConfigured);
     await pumpLiveLaunch(
       tester,
       Routes.withdraw,
