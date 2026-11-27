@@ -1,7 +1,7 @@
 # Mobile requirement gates and nudge state design
 
 Date: 2026-11-27
-Status: Approved for implementation
+Status: Implemented on mobile; web handoff pending.
 Scope: Flutter mobile first. Web receives comments and a handoff document only.
 
 ## 1. Product behavior
@@ -192,3 +192,14 @@ Web behavior is not implemented in this pass. Add TODO comments at the relevant 
 - Qualification/KYC completion returns to the originating flow.
 - Tier 1 offers NIN only, including legacy BVN status input.
 - Existing submitted, closed, full and audience rules are unchanged.
+
+## 11. Delivered implementation map
+
+- Qualification snapshot/controller: `lib/data/assessment_service.dart`.
+- Setup reconciliation/state: `lib/features/onboarding/setup_nudge_state.dart`.
+- Shared requirement resolver: `lib/features/submit/start_requirements.dart`.
+- Requirement sheet: `lib/features/submit/start_requirements_sheet.dart`.
+- Direct-submit guard: `lib/features/submit/submit_screen.dart`.
+- NIN-only Tier 1 and KYC readiness: `lib/features/kyc/kyc_status.dart`.
+- KYC nudge/error/freshness: `lib/features/kyc/kyc_nudge.dart`, `lib/features/kyc/kyc_controller.dart`.
+- Web handoff: `docs/mobile-web-parity-handoff.md`.

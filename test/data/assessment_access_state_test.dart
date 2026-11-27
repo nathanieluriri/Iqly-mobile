@@ -2,12 +2,14 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:iqly_mobile/core/backend.dart';
 import 'package:iqly_mobile/core/deadline.dart';
 import 'package:iqly_mobile/core/session.dart';
 import 'package:iqly_mobile/data/api_client.dart';
 import 'package:iqly_mobile/data/assessment_data.dart';
 import 'package:iqly_mobile/data/assessment_service.dart';
 import 'package:iqly_mobile/data/token_store.dart';
+import 'package:iqly_mobile/data/live/live_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _Service extends AssessmentService {
@@ -53,6 +55,7 @@ Future<ProviderContainer> _container(
     overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
       clockProvider.overrideWithValue(() => now ?? DateTime(2026, 11, 27, 12)),
+      liveModeProvider.overrideWithValue(Backend.none),
       assessmentServiceProvider.overrideWithValue(service),
     ],
   );
