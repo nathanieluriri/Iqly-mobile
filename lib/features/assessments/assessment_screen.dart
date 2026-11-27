@@ -131,7 +131,9 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
       });
       _lockScreen(session.question != null);
       if (session.status == 'passed' || session.status == 'failed') {
-        ref.invalidate(assessmentAccessProvider);
+        unawaited(
+          ref.read(assessmentAccessProvider.notifier).refresh(force: true),
+        );
       }
     } on ApiException catch (e) {
       _fail(e.message);

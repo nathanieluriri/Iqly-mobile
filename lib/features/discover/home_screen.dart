@@ -326,7 +326,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       for (final d in drafts)
         if (!d.isEmpty) d.briefId,
     };
-    final access = ref.read(assessmentAccessProvider).value;
+    final access = ref.read(assessmentAccessProvider).effectiveAccess;
     final started = {...draftIds, ...submittedBriefIds(ref)};
     final allowed = unlockedDiscoverBriefs(
       [for (final brief in data.briefs) brief.id],
@@ -425,8 +425,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       sessionProvider.select((s) => s.onboardingDone),
     );
     final nudge = _nudge ??= !onboardingDone;
+    final assessment = ref.watch(assessmentAccessProvider);
     final needCheckIn =
-        assessmentNudge(ref.watch(assessmentAccessProvider).value) != null;
+        !assessment.terminalPassed &&
+        assessmentNudge(assessment.access) != null;
     final payout = ref.watch(recentPayoutProvider);
     final kyc = ref.watch(kycControllerProvider).status;
     _proposalsPending = proposalsPending;
@@ -848,7 +850,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   Widget? _emptyFeed(FeedData data) {
     if (!_view(data).isEmpty) return null;
     final filters = ref.read(discoverFiltersProvider);
-    final access = ref.read(assessmentAccessProvider).value;
+    final access = ref.read(assessmentAccessProvider).effectiveAccess;
     if (access != null && !access.canAccessChallenges) {
       return const SizedBox.shrink();
     }

@@ -21,6 +21,14 @@ class AssessmentAccess {
         state: json['state'] as String? ?? 'needed',
         activeSessionId: json['activeSessionId'] as String?,
       );
+
+  Map<String, Object?> toJson() => {
+    'canTake': canTake,
+    'canResume': canResume,
+    'canAccessChallenges': canAccessChallenges,
+    'state': state,
+    'activeSessionId': activeSessionId,
+  };
 }
 
 typedef AssessmentNudgeCopy = ({String label, String description});

@@ -160,7 +160,7 @@ class _ActionBar extends ConsumerWidget {
         brief.inAudience == false && ref.watch(briefAudienceProvider);
     final full = brief.spotsLeft == 0;
     final sent = ref.watch(briefSubmissionProvider(brief.id));
-    final access = ref.watch(assessmentAccessProvider).value;
+    final access = ref.watch(assessmentAccessProvider).effectiveAccess;
     final Widget button;
     if (sent != null) {
       button = IqButton(

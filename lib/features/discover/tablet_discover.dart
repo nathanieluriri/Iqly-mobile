@@ -109,7 +109,7 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
       for (final d in drafts)
         if (!d.isEmpty) d.briefId,
     };
-    final access = ref.watch(assessmentAccessProvider).value;
+    final access = ref.watch(assessmentAccessProvider).effectiveAccess;
     final started = {...draftIds, ...submittedBriefIds(ref)};
     final locked = access != null && !access.canAccessChallenges;
     bool open(String id) => !locked || started.contains(id);

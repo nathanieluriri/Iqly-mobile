@@ -41,7 +41,7 @@ import 'discover_widgets.dart';
   final outside = brief.inAudience == false && ref.watch(briefAudienceProvider);
   final full = brief.spotsLeft == 0;
   final sent = ref.watch(briefSubmissionProvider(brief.id));
-  final access = ref.watch(assessmentAccessProvider).value;
+  final access = ref.watch(assessmentAccessProvider).effectiveAccess;
   if (sent != null) {
     return (
       label: 'View your submission',
