@@ -263,7 +263,7 @@ jobs:
 
   release:
     if: ${{ !inputs.check_only && !inputs.setup_testers }}
-    runs-on: xcode-27-arm64
+    runs-on: xcode-27
     env:
       SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
       DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
