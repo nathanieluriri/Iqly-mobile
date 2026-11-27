@@ -106,6 +106,9 @@ void main() {
   testWidgets('Tier 1 confirms the legal name before verification', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     const identity = KycStatus(
       required: true,
       requiredTier: 1,

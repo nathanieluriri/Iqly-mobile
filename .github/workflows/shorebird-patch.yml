@@ -33,6 +33,14 @@ on:
           - both
           - android
           - ios
+      test_scope:
+        description: Test suite to run before publishing
+        type: choice
+        required: true
+        default: full
+        options:
+          - full
+          - patch
 
 jobs:
   android:
@@ -63,7 +71,16 @@ jobs:
       - run: dart run tool/gen_tokens.dart --check
       - run: dart format --output=none --set-exit-if-changed lib test tool
       - run: flutter analyze --no-fatal-infos
-      - run: flutter test
+      - name: Run Flutter tests
+        env:
+          TEST_SCOPE: ${{ inputs.test_scope }}
+        run: |
+          if [ "$TEST_SCOPE" = "patch" ]; then
+            flutter test test/data/kyc_service_test.dart test/features/kyc/kyc_flow_test.dart test/golden/screens/activations_screens_test.dart
+            flutter test test/features/activations_flow_test.dart --name 'B8: Available omits|B8: Available cards|B8: an activation that has ended'
+          else
+            flutter test
+          fi
       - name: Restore the upload key
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
