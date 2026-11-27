@@ -76,7 +76,7 @@ jobs:
           TEST_SCOPE: ${{ inputs.test_scope }}
         run: |
           if [ "$TEST_SCOPE" = "patch" ]; then
-            flutter test test/data/assessment_access_state_test.dart test/data/assessment_nudge_test.dart test/features/onboarding/setup_nudge_state_test.dart test/features/submit/start_requirements_test.dart test/features/submit/start_requirements_sheet_test.dart test/features/discover_requirement_visibility_test.dart test/features/requirement_navigation_test.dart test/features/kyc/kyc_submission_state_test.dart test/data/kyc_service_test.dart test/features/kyc/kyc_flow_test.dart
+            flutter test test/data/assessment_access_state_test.dart test/data/assessment_nudge_test.dart test/features/onboarding/setup_nudge_state_test.dart test/features/submit/start_requirements_test.dart test/features/submit/start_requirements_sheet_test.dart test/features/discover_requirement_visibility_test.dart test/features/requirement_navigation_test.dart test/features/kyc/kyc_submission_state_test.dart test/data/kyc_service_test.dart test/features/kyc/kyc_flow_test.dart test/data/live/live_submit_service_test.dart
             flutter test test/golden/screens/activations_screens_test.dart --plain-name 'activations (141:4597, 161:16268)'
             flutter test test/features/activations_flow_test.dart --name 'B8: Available omits|B8: Available cards|B8: an activation that has ended'
           else

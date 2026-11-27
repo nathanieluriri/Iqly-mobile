@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -262,6 +264,16 @@ class _FlowState extends ConsumerState<_Flow> {
       case SubmitFailure.blocked
           when result.block == SubmitBlock.alreadySubmitted:
         ref.invalidate(submitOpeningProvider(_id));
+      case SubmitFailure.assessmentRequired:
+        unawaited(
+          ref.read(assessmentAccessProvider.notifier).refresh(force: true),
+        );
+        await showStartRequirementsSheet(context, widget.brief);
+      case SubmitFailure.kycRequired:
+        unawaited(
+          ref.read(kycControllerProvider.notifier).refresh(force: true),
+        );
+        await showStartRequirementsSheet(context, widget.brief);
       case SubmitFailure.underAge:
         await context.open<void>(editDetailPath(DetailField.dateOfBirth));
       case SubmitFailure.closing when Flags.deleteAccount:
