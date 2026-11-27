@@ -116,11 +116,17 @@ jobs:
 
   ios:
     if: inputs.platforms != 'android'
-    runs-on: xcode-27
+    runs-on: xcode-27-arm64
     env:
       SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
+      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
     steps:
       - uses: actions/checkout@v4
+      - name: Verify the pinned Xcode and iOS SDK
+        run: |
+          xcodebuild -version
+          test "$(xcodebuild -version | sed -n 's/^Xcode //p')" = "27.2"
+          xcodebuild -showsdks | grep -q 'iphoneos27.2'
       - uses: shorebirdtech/setup-shorebird@v1
         with:
           cache: true
