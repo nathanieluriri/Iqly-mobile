@@ -9,6 +9,7 @@ import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../core/deadline.dart' show clockProvider;
 import '../../core/session.dart';
+import '../../core/system_ui.dart';
 import '../../data/polls_data.dart';
 import '../../theme/theme.dart';
 import '../../ui/empty_state.dart';
@@ -122,7 +123,7 @@ class _PollsScreenState extends ConsumerState<PollsScreen> {
         : data == null && !failed;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         resizeToAvoidBottomInset: false,
         backgroundColor: IqColors.bg,

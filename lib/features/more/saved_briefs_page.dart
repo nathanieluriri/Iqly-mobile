@@ -16,8 +16,8 @@ import '../splash/patch_dialog.dart' show IqPageLoading;
 /// banner of the Discover Saved lens (250:12609); with nothing saved it
 /// shows that lens's empty state (250:12880).
 ///
-/// The cards are Discover's brief tickets, the shared widget on dev; the
-/// frame draws Exp/BriefCard Feature, which the Discover lane brings in.
+/// The cards are Discover's feature brief cards, the shared widget on dev;
+/// the frame draws Exp/BriefCard Feature, which the Discover lane brings in.
 class MoreSavedBriefsPage extends ConsumerWidget {
   const MoreSavedBriefsPage({super.key});
 
@@ -56,8 +56,8 @@ class MoreSavedBriefsPage extends ConsumerWidget {
                 ),
                 for (final brief in saved)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: IqSpace.s3),
-                    child: Center(child: BriefTicket(brief: brief)),
+                    padding: const EdgeInsets.only(bottom: IqSpace.s6),
+                    child: Center(child: BriefFeatureCard(brief: brief)),
                   ),
               ],
             ),

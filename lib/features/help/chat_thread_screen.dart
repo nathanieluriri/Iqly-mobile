@@ -13,6 +13,7 @@ import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../core/transitions.dart';
 import '../../data/activations_data.dart';
 import '../../data/device.dart' show deviceServiceProvider;
@@ -542,7 +543,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
     final topic = known?.topic;
     final loading = id != null && ticket == null && failure == null;
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         backgroundColor: IqColors.bg,
         body: SafeArea(

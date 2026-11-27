@@ -7,6 +7,7 @@ import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../data/help_service.dart' show supportShownProvider;
+import '../../core/system_ui.dart';
 import '../../data/models.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -31,7 +32,7 @@ class WithdrawalTrackerScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final now = ref.watch(clockProvider)();
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         backgroundColor: IqColors.bg,
         body: SafeArea(

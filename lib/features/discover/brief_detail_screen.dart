@@ -7,6 +7,7 @@ import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../data/device.dart';
 import '../../data/models.dart';
 import '../../data/assessment_data.dart';
@@ -94,7 +95,7 @@ class _BriefDetailScreenState extends ConsumerState<BriefDetailScreen> {
       return TabletBriefDetail(brief: brief);
     }
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         resizeToAvoidBottomInset: false,
         backgroundColor: IqColors.card,

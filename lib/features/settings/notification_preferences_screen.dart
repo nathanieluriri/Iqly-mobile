@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../data/device.dart';
 import '../../data/profile_service.dart';
 import '../../data/repository.dart';
@@ -65,7 +66,7 @@ class NotificationPreferencesScreen extends ConsumerWidget {
 
     return _Rechecks(
       child: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.dark,
+        value: IqSystemUi.paper,
         child: Scaffold(
           backgroundColor: IqColors.bg,
           body: SafeArea(

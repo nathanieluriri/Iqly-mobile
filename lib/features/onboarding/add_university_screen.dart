@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
 import '../../ui/button.dart';
@@ -53,7 +54,7 @@ class _AddUniversityScreenState extends ConsumerState<AddUniversityScreen> {
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         backgroundColor: IqColors.bg,
         body: SafeArea(

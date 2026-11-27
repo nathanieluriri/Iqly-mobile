@@ -28,7 +28,6 @@ import 'package:iqly_mobile/ui/dock.dart';
 import 'package:iqly_mobile/ui/illustration.dart';
 import 'package:iqly_mobile/ui/pull_indicator.dart';
 import 'package:iqly_mobile/ui/switch.dart';
-import 'package:iqly_mobile/ui/ticket_card.dart';
 import 'package:iqly_mobile/ui/tip_card.dart';
 
 import '../golden/screens/app_harness.dart';
@@ -740,25 +739,23 @@ void main() {
     expect(tester.widget<IqSwitch>(remind).state, IqSwitchState.on);
   });
 
-  testWidgets('Saved: an unsaved ticket folds away after 300 ms', (
-    tester,
-  ) async {
+  testWidgets('Saved: an unsaved card folds away after 300 ms', (tester) async {
     await pumpApp(tester, Routes.savedBriefs, reducedMotion: false);
-    expect(find.byType(IqTicketCard), findsNWidgets(2));
-    final first = find.byType(IqTicketCard).first;
+    expect(find.byType(IqBriefCard), findsNWidgets(2));
+    final first = find.byType(IqBriefCard).first;
     final height = tester.getSize(first).height;
     await tester.tap(
       find.descendant(of: first, matching: find.bySemanticsLabel('Saved')),
     );
     await tester.pump(_ms * 299);
-    expect(find.byType(IqTicketCard), findsNWidgets(2));
-    expect(tester.getSize(find.byType(IqTicketCard).first).height, height);
+    expect(find.byType(IqBriefCard), findsNWidgets(2));
+    expect(tester.getSize(find.byType(IqBriefCard).first).height, height);
     await tester.pump(_ms * 2);
     await tester.pump(_ms * 100);
-    expect(find.byType(IqTicketCard), findsNWidgets(2));
+    expect(find.byType(IqBriefCard), findsNWidgets(2));
     await tester.pump(_ms * 120);
     await tester.pumpAndSettle();
-    expect(find.byType(IqTicketCard), findsOneWidget);
+    expect(find.byType(IqBriefCard), findsOneWidget);
   });
 
   testWidgets(

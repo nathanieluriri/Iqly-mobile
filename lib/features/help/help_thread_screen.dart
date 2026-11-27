@@ -8,6 +8,7 @@ import '../../core/deadline.dart';
 import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../core/transitions.dart';
 import '../../data/help_data.dart';
 import '../../theme/theme.dart';
@@ -227,7 +228,7 @@ class _HelpThreadScreenState extends ConsumerState<HelpThreadScreen> {
           );
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         backgroundColor: IqColors.bg,
         body: SafeArea(

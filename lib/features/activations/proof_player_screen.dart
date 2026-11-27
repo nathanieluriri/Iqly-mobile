@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../theme/theme.dart';
 import '../../ui/recording_player.dart';
 import '../../ui/top_bar.dart';
@@ -29,7 +30,7 @@ class ProofPlayerScreen extends ConsumerWidget {
     final sent = ref.watch(activationProvider(id))?.progress?.proof?.video;
     final video = sent ?? ref.watch(proofDraftProvider(id)).video;
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         resizeToAvoidBottomInset: false,
         backgroundColor: IqColors.bg,

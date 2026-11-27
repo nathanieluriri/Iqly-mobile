@@ -9,6 +9,7 @@ import 'app.dart';
 import 'core/backend.dart';
 import 'core/haptics.dart';
 import 'core/session.dart';
+import 'core/system_ui.dart';
 import 'data/api_client.dart';
 import 'data/api_config.dart';
 import 'data/app_config.dart';
@@ -37,6 +38,7 @@ import 'ui/svg_precache.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await configureEdgeToEdge();
   unawaited(VoiceNotes.clear());
   final version = LiveAppVersionService.installedVersion().then<String?>(
     (installed) => installed,

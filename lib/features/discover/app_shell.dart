@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../core/transitions.dart';
 import '../../theme/theme.dart';
 import '../../ui/dock.dart';
@@ -58,7 +59,7 @@ class AppShell extends ConsumerWidget {
     // On a tablet the frame's nav replaces the dock.
     final tablet = Layout.isTablet(context);
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: FirstTipOverlay(
         child: Material(
           color: tablet ? IqColors.card : IqColors.bg,

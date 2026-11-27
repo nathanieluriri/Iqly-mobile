@@ -18,6 +18,7 @@ import '../../ui/bookmark.dart';
 import '../../ui/brief_card.dart';
 import '../../ui/chip.dart';
 import '../../ui/meta.dart';
+import '../../ui/skeleton.dart';
 import '../../ui/ticket_card.dart';
 import '../../ui/top_bar.dart';
 import '../drafts/drafts_state.dart';
@@ -224,6 +225,77 @@ class BriefFeatureCard extends ConsumerWidget {
           .read(savedBriefsProvider.notifier)
           .setSaved(brief, state == IqBookmarkState.on),
       onTap: () => context.open(Routes.brief(brief.id), extra: brief),
+    );
+  }
+}
+
+/// The feature brief card while Discover or Saved loads.
+class BriefFeatureCardSkeleton extends StatelessWidget {
+  const BriefFeatureCardSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget bar(Animation<double> opacity, double w, double h) => FadeTransition(
+      opacity: opacity,
+      child: Container(
+        width: w,
+        height: h,
+        decoration: BoxDecoration(
+          color: IqColors.panel,
+          borderRadius: BorderRadius.circular(h / 2),
+        ),
+      ),
+    );
+    return Semantics(
+      label: 'Loading',
+      child: SkeletonPulse(
+        builder: (context, opacity) => Container(
+          height: 298,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: IqColors.card,
+            borderRadius: BorderRadius.circular(IqRadius.xl2),
+            border: Border.all(color: IqColors.line),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              FadeTransition(
+                opacity: opacity,
+                child: Container(height: 168, color: IqColors.panel),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  IqSpace.s4,
+                  IqSpace.s3,
+                  IqSpace.s4,
+                  0,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    bar(opacity, 120, 12),
+                    const SizedBox(height: IqSpace.s2p5),
+                    bar(opacity, 280, 16),
+                    const SizedBox(height: IqSpace.s2p5),
+                    bar(opacity, 200, 16),
+                    const SizedBox(height: IqSpace.s2p5),
+                    Row(
+                      children: [
+                        bar(opacity, 96, 26),
+                        const SizedBox(width: IqSpace.s2),
+                        bar(opacity, 64, 26),
+                        const SizedBox(width: IqSpace.s2),
+                        bar(opacity, 80, 26),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

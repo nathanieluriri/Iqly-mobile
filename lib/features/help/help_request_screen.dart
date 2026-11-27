@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../core/transitions.dart';
 import '../../data/activations_data.dart';
 import '../../data/app_config.dart';
@@ -131,7 +132,7 @@ class _HelpRequestScreenState extends ConsumerState<HelpRequestScreen> {
     final limit = _thousands.format(HelpRequestScreen.maxLength);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         backgroundColor: IqColors.bg,
         body: SafeArea(

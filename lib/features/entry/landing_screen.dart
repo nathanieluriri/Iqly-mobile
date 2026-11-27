@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../core/transitions.dart';
 import '../../data/auth.dart';
 import '../../data/device.dart';
@@ -287,7 +288,7 @@ class _LandingScreenState extends ConsumerState<LandingScreen>
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: ListenableBuilder(
         listenable: _email.changes,
         builder: (context, _) {

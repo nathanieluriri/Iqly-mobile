@@ -11,6 +11,7 @@ import '../../core/money.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../data/activations_data.dart';
 import '../../data/api_client.dart';
 import '../../data/media_service.dart';
@@ -305,7 +306,7 @@ class _ProofScreenState extends ConsumerState<ProofScreen> {
     );
     const consent = 'By sending, you confirm you did these steps yourself.';
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         backgroundColor: Layout.isTablet(context) ? IqColors.card : IqColors.bg,
         body: SafeArea(

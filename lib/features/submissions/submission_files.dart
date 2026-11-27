@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../core/session.dart';
+import '../../core/system_ui.dart';
 import '../../core/transitions.dart';
 import '../../data/api_client.dart';
 import '../../data/models.dart';
@@ -262,7 +263,7 @@ class _SubmissionFileScreenState extends ConsumerState<SubmissionFileScreen> {
       );
     }
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         resizeToAvoidBottomInset: false,
         backgroundColor: IqColors.bg,

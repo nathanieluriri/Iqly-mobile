@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../theme/theme.dart';
 import '../../ui/top_bar.dart';
 import '../../ui/wallet_card.dart';
@@ -22,7 +23,7 @@ class WalletBalanceScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final data = ref.watch(walletProvider).value;
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         backgroundColor: IqColors.bg,
         body: SafeArea(

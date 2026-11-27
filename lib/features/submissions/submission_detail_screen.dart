@@ -7,6 +7,7 @@ import '../../core/deadline.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../core/transitions.dart';
 import '../../data/models.dart' show SubmissionStatus;
 import '../../data/outcomes_data.dart' show BusinessNote;
@@ -56,7 +57,7 @@ class SubmissionDetailScreen extends ConsumerWidget {
         if (!didPop) leaveSubmission(context);
       },
       child: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.dark,
+        value: IqSystemUi.paper,
         child: Scaffold(
           resizeToAvoidBottomInset: false,
           backgroundColor: IqColors.card,

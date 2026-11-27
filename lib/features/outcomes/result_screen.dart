@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/deadline.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
+import '../../core/system_ui.dart';
 import '../../core/tablet_layout.dart';
 import '../../core/responsive.dart';
 import '../../core/session.dart';
@@ -77,7 +78,7 @@ class ResultScreen extends ConsumerWidget {
       body = const SizedBox.shrink(key: ValueKey('loading'));
     }
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         resizeToAvoidBottomInset: false,
         backgroundColor: IqColors.bg,

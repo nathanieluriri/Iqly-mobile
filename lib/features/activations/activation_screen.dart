@@ -13,6 +13,7 @@ import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/qr.dart';
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../core/transitions.dart';
 import '../../data/activations_data.dart';
 import '../../data/api_client.dart';
@@ -354,7 +355,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
       };
     }
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         resizeToAvoidBottomInset: false,
         backgroundColor: Layout.isTablet(context) ? IqColors.card : IqColors.bg,

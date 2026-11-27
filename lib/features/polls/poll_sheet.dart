@@ -7,6 +7,7 @@ import '../../core/flags.dart';
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
 import '../../core/session.dart';
+import '../../core/system_ui.dart';
 import '../../core/transitions.dart';
 import '../../data/polls_data.dart';
 import '../../theme/theme.dart';
@@ -143,7 +144,7 @@ class PollPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final business = _business(ref, businessId, pollId, history: history);
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         resizeToAvoidBottomInset: false,
         backgroundColor: IqColors.bg,

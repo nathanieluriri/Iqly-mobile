@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/motion.dart';
 import '../../core/navigation.dart';
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../data/repository.dart';
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -90,7 +91,7 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
     final failed = data == null && wallet.hasError && !wallet.isLoading;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         backgroundColor: IqColors.bg,
         resizeToAvoidBottomInset: false,

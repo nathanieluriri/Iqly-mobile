@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/motion.dart';
 import '../../core/responsive.dart';
+import '../../core/system_ui.dart';
 import '../../data/models.dart';
 import '../../theme/theme.dart';
 import '../../ui/field.dart';
@@ -58,7 +59,7 @@ class _SelectBankScreenState extends ConsumerState<SelectBankScreen> {
     ];
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: IqSystemUi.paper,
       child: Scaffold(
         backgroundColor: IqColors.bg,
         body: SafeArea(
