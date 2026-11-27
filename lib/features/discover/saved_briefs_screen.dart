@@ -11,7 +11,6 @@ import '../../theme/theme.dart';
 import '../../ui/banner.dart';
 import '../../ui/empty_state.dart';
 import '../../ui/illustration.dart';
-import '../../ui/skeleton.dart';
 import 'app_shell.dart';
 import 'discover_state.dart';
 import 'tablet_discover.dart';
