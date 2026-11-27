@@ -10,8 +10,6 @@ import '../../core/responsive.dart';
 import '../../core/system_ui.dart';
 import '../../data/device.dart';
 import '../../data/models.dart';
-import '../../data/assessment_data.dart';
-import '../../data/assessment_service.dart';
 import '../../data/submit_service.dart' show briefAudienceProvider;
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -25,6 +23,7 @@ import '../../ui/skeleton.dart';
 import '../../ui/switch.dart';
 import '../../ui/top_bar.dart';
 import '../submissions/submissions_routes.dart';
+import '../submit/start_requirements_sheet.dart';
 import 'business_art.dart';
 import 'discover_routes.dart';
 import 'discover_state.dart';
@@ -160,7 +159,6 @@ class _ActionBar extends ConsumerWidget {
         brief.inAudience == false && ref.watch(briefAudienceProvider);
     final full = brief.spotsLeft == 0;
     final sent = ref.watch(briefSubmissionProvider(brief.id));
-    final access = ref.watch(assessmentAccessProvider).effectiveAccess;
     final Widget button;
     if (sent != null) {
       button = IqButton(
@@ -168,14 +166,6 @@ class _ActionBar extends ConsumerWidget {
         kind: IqButtonKind.secondary,
         width: double.infinity,
         onTap: () => context.open(submissionPath(sent)),
-      );
-    } else if (access != null && !access.canAccessChallenges) {
-      button = IqButton(
-        label: access.state == 'unavailable'
-            ? 'New challenges are currently unavailable'
-            : assessmentIntro.title,
-        width: double.infinity,
-        onTap: () => context.open(Routes.assessment),
       );
     } else {
       button = IqButton(
@@ -188,7 +178,13 @@ class _ActionBar extends ConsumerWidget {
             : 'Start your submission',
         width: double.infinity,
         disabled: closed || outside || full,
-        onTap: () => context.open(Routes.submitTo(brief.id)),
+        onTap: () async {
+          if (closed || outside || full) return;
+          final ready = await showStartRequirementsSheet(context, brief);
+          if (ready && context.mounted) {
+            context.open(Routes.submitTo(brief.id));
+          }
+        },
       );
     }
     return Padding(

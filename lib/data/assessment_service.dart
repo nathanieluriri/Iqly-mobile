@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/deadline.dart';
 import '../core/session.dart';
+import 'live/live_repository.dart';
 import 'api_client.dart';
 import 'assessment_data.dart';
 
@@ -30,6 +31,7 @@ class AssessmentAccessState {
     this.refreshing = false,
     this.error,
     this.terminalPassed = false,
+    this.preview = false,
   });
 
   final AssessmentAccess? access;
@@ -37,9 +39,10 @@ class AssessmentAccessState {
   final bool refreshing;
   final Object? error;
   final bool terminalPassed;
+  final bool preview;
 
   AssessmentAccess? get effectiveAccess =>
-      terminalPassed ? _passedAccess : access;
+      terminalPassed || preview ? _passedAccess : access;
 
   AssessmentAccessState copyWith({
     AssessmentAccess? access,
@@ -47,6 +50,7 @@ class AssessmentAccessState {
     bool? refreshing,
     Object? error,
     bool? terminalPassed,
+    bool? preview,
     bool clearError = false,
   }) => AssessmentAccessState(
     access: access ?? this.access,
@@ -54,6 +58,7 @@ class AssessmentAccessState {
     refreshing: refreshing ?? this.refreshing,
     error: clearError ? null : error ?? this.error,
     terminalPassed: terminalPassed ?? this.terminalPassed,
+    preview: preview ?? this.preview,
   );
 }
 
@@ -109,6 +114,9 @@ class AssessmentAccessController extends Notifier<AssessmentAccessState> {
     _userId = scope.userId;
     _request++;
     _refreshing = false;
+    if (ref.watch(liveModeProvider).isPreview) {
+      return const AssessmentAccessState(preview: true);
+    }
     final qualifiedAt = _qualifiedKey == null
         ? null
         : DateTime.tryParse(prefs.getString(_qualifiedKey!) ?? '');
@@ -134,7 +142,7 @@ class AssessmentAccessController extends Notifier<AssessmentAccessState> {
   }
 
   Future<void> refresh({bool force = false}) async {
-    if (state.terminalPassed || _refreshing) return;
+    if (state.preview || state.terminalPassed || _refreshing) return;
     if (!force && !_stale(state.fetchedAt)) return;
     final scope = _scope;
     final userId = _userId;

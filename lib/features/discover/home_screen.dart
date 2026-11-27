@@ -329,19 +329,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       for (final d in drafts)
         if (!d.isEmpty) d.briefId,
     };
-    final access = ref.read(assessmentAccessProvider).effectiveAccess;
-    final started = {...draftIds, ...submittedBriefIds(ref)};
-    final allowed = unlockedDiscoverBriefs(
-      [for (final brief in data.briefs) brief.id],
-      access,
-      started,
-    ).toSet();
     return buildFeed(
       briefs: [
         for (final brief in data.briefs)
-          if (allowed.contains(brief.id) &&
-              (!filters.pickUp || draftIds.contains(brief.id)))
-            brief,
+          if (!filters.pickUp || draftIds.contains(brief.id)) brief,
       ],
       filters: filters,
       interests: ref.read(feedInterestsProvider),
@@ -852,10 +843,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   Widget? _emptyFeed(FeedData data) {
     if (!_view(data).isEmpty) return null;
     final filters = ref.read(discoverFiltersProvider);
-    final access = ref.read(assessmentAccessProvider).effectiveAccess;
-    if (access != null && !access.canAccessChallenges) {
-      return const SizedBox.shrink();
-    }
     if (filters.pickUp) {
       if (_proposals().isNotEmpty) return null;
       return IqEmptyState(

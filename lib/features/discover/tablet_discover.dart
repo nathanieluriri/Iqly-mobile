@@ -24,7 +24,6 @@ import '../../ui/pressable.dart';
 import '../../ui/ticket_card.dart';
 import '../../ui/web_filter_option.dart';
 import '../../ui/web_range_field.dart';
-import '../../data/assessment_service.dart';
 import '../assessments/assessment_nudge.dart';
 import '../drafts/drafts_state.dart';
 import '../kyc/kyc_controller.dart';
@@ -109,19 +108,12 @@ class _TabletDiscoverState extends ConsumerState<TabletDiscover> {
       for (final d in drafts)
         if (!d.isEmpty) d.briefId,
     };
-    final access = ref.watch(assessmentAccessProvider).effectiveAccess;
-    final started = {...draftIds, ...submittedBriefIds(ref)};
-    final locked = access != null && !access.canAccessChallenges;
-    bool open(String id) => !locked || started.contains(id);
     final live = [
       for (final b in briefs ?? const <Brief>[])
-        if (b.isLive && open(b.id)) b,
+        if (b.isLive) b,
     ];
     final source = saved
-        ? [
-            for (final b in savedBriefs)
-              if (open(b.id)) b,
-          ]
+        ? savedBriefs
         : pickUp
         ? [
             for (final b in live)

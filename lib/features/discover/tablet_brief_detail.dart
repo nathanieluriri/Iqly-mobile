@@ -10,8 +10,6 @@ import '../../core/navigation.dart';
 import '../../core/responsive.dart';
 import '../../data/device.dart';
 import '../../data/models.dart';
-import '../../data/assessment_data.dart';
-import '../../data/assessment_service.dart';
 import '../../data/submit_service.dart' show briefAudienceProvider;
 import '../../router.dart';
 import '../../theme/theme.dart';
@@ -24,6 +22,7 @@ import '../../ui/urgency.dart';
 import '../../core/brief_labels.dart';
 import '../shell/tablet_page.dart';
 import '../submissions/submissions_routes.dart';
+import '../submit/start_requirements_sheet.dart';
 import 'business_art.dart';
 import 'discover_state.dart';
 import 'discover_widgets.dart';
@@ -41,23 +40,12 @@ import 'discover_widgets.dart';
   final outside = brief.inAudience == false && ref.watch(briefAudienceProvider);
   final full = brief.spotsLeft == 0;
   final sent = ref.watch(briefSubmissionProvider(brief.id));
-  final access = ref.watch(assessmentAccessProvider).effectiveAccess;
   if (sent != null) {
     return (
       label: 'View your submission',
       disabled: false,
       secondary: true,
       onTap: () => context.open(submissionPath(sent)),
-    );
-  }
-  if (access != null && !access.canAccessChallenges) {
-    return (
-      label: access.state == 'unavailable'
-          ? 'New challenges are currently unavailable'
-          : assessmentIntro.title,
-      disabled: false,
-      secondary: false,
-      onTap: () => context.open(Routes.assessment),
     );
   }
   return (
@@ -70,7 +58,13 @@ import 'discover_widgets.dart';
         : 'Start your submission',
     disabled: closed || outside || full,
     secondary: false,
-    onTap: () => context.open(Routes.submitTo(brief.id)),
+    onTap: () async {
+      if (closed || outside || full) return;
+      final ready = await showStartRequirementsSheet(context, brief);
+      if (ready && context.mounted) {
+        context.open(Routes.submitTo(brief.id));
+      }
+    },
   );
 }
 

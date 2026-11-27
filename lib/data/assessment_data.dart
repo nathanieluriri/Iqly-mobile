@@ -74,19 +74,6 @@ AssessmentNudgeCopy? assessmentNudge(AssessmentAccess? access) {
   return null;
 }
 
-/// Live briefs they have not started stay off Discover until they pass.
-List<String> unlockedDiscoverBriefs(
-  List<String> briefIds,
-  AssessmentAccess? access,
-  Set<String> startedIds,
-) {
-  if (access == null || access.canAccessChallenges) return briefIds;
-  return [
-    for (final id in briefIds)
-      if (startedIds.contains(id)) id,
-  ];
-}
-
 class AssessmentOption {
   const AssessmentOption({required this.index, required this.text});
 

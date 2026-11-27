@@ -8,7 +8,12 @@ import 'package:iqly_mobile/features/submit/start_requirements.dart';
 AssessmentAccessState _assessment({
   AssessmentAccess? access,
   bool terminalPassed = false,
-}) => AssessmentAccessState(access: access, terminalPassed: terminalPassed);
+  bool preview = false,
+}) => AssessmentAccessState(
+  access: access,
+  terminalPassed: terminalPassed,
+  preview: preview,
+);
 
 AssessmentAccess _access({
   bool canTake = false,
@@ -112,6 +117,16 @@ void main() {
         _kyc(status: _status()),
       ),
       StartRequirement.kyc,
+    );
+  });
+
+  test('preview mode keeps Start usable without a backend gate', () {
+    expect(
+      resolveStartRequirements(
+        _assessment(preview: true),
+        _kyc(status: _status(tier: 1, verified: true)),
+      ),
+      StartRequirement.ready,
     );
   });
 
