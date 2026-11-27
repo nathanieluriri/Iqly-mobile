@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
+import '../../core/deadline.dart';
 import '../../core/session.dart';
 import '../api_client.dart';
 import '../local/local_providers.dart';
@@ -147,6 +148,30 @@ abstract final class AccountKeys {
 
   static String outcome(String submissionId) => 'outcomes/$submissionId';
 }
+
+const accountMeTtl = Duration(hours: 6);
+
+/// Refreshes `/me` only when its cached snapshot is stale. A failed or
+/// offline refresh leaves the cached account and setup state untouched.
+Future<void> refreshAccountIfStale(Ref ref, {bool force = false}) async {
+  final link = ref.read(liveLinkProvider(LiveFeature.profile));
+  final user = ref.read(accountProvider);
+  if (link == null || user == null) return;
+  CacheEntry? kept;
+  try {
+    kept = await link.store.readCache(user, AccountKeys.me);
+  } on Object {
+    kept = null;
+  }
+  final now = ref.read(clockProvider)();
+  final stale = kept == null || !now.isBefore(kept.fetchedAt.add(accountMeTtl));
+  if ((force || stale) && ref.mounted) ref.invalidate(meProvider);
+}
+
+final accountRefreshProvider = Provider<Future<void> Function({bool force})>(
+  (ref) =>
+      ({force = false}) => refreshAccountIfStale(ref, force: force),
+);
 
 /// Sends a queued write: its payload as the JSON body, its id as the
 /// Idempotency-Key, the answer mapped onto the outbox. A write whose answer

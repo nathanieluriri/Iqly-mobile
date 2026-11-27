@@ -31,6 +31,7 @@ import 'features/notifications/notifications_state.dart';
 import 'features/profile/account_sync.dart';
 import 'features/profile/profile_state.dart';
 import 'features/settings/settings_state.dart';
+import 'features/onboarding/setup_nudge_state.dart';
 import 'router.dart';
 import 'surfaces/push.dart';
 import 'surfaces/surfaces.dart';
@@ -109,7 +110,10 @@ Future<void> main() async {
   container.read(sessionGuardProvider);
   container.read(hapticsProvider);
   container.listen(appConfigProvider, (_, _) {});
-  if (ApiConfig.liveAuth) _startAccount(container);
+  if (ApiConfig.liveAuth) {
+    container.read(setupNudgeRefreshProvider);
+    _startAccount(container);
+  }
   runApp(
     UncontrolledProviderScope(container: container, child: const IqlyApp()),
   );

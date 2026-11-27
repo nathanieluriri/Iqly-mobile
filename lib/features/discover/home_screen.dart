@@ -20,6 +20,7 @@ import '../../core/money.dart';
 import '../../data/activations_data.dart';
 import '../../data/device.dart';
 import '../../data/drafts_data.dart';
+import '../../data/live/live_account.dart';
 import '../../data/repository.dart';
 import '../../data/polls_data.dart';
 import '../../ui/banner.dart';
@@ -49,6 +50,7 @@ import '../../data/assessment_data.dart';
 import '../../data/assessment_service.dart';
 import '../assessments/assessment_nudge.dart';
 import '../onboarding/setup_nudge.dart';
+import '../onboarding/setup_nudge_state.dart';
 import '../withdrawals/payout_arrival.dart';
 import 'app_shell.dart';
 import 'business_art.dart';
@@ -99,7 +101,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   bool _retrying = false;
   bool _built = false;
   bool _landed = false;
-  bool? _nudge;
   IqPullIndicatorState? _closingAs;
   Timer? _doneTimer;
   Timer? _shineTimer;
@@ -183,6 +184,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ref.read(activationsProvider.notifier).refreshQuietly();
     }
     refreshUnseenOn(ref);
+    unawaited(ref.read(accountRefreshProvider)(force: true));
+    unawaited(ref.read(assessmentAccessProvider.notifier).refresh(force: true));
   }
 
   /// A pull hands its overscroll to the slot, so nothing jumps, and the list
@@ -421,10 +424,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         (ref.watch(pollsShownProvider) && _pending(ref.watch(pollsProvider))) ||
         (ref.watch(activationsShownProvider) &&
             _pending(ref.watch(activationsProvider)));
-    final onboardingDone = ref.watch(
-      sessionProvider.select((s) => s.onboardingDone),
+    final nudge = ref.watch(
+      setupNudgeStateProvider.select((state) => state.visible),
     );
-    final nudge = _nudge ??= !onboardingDone;
     final assessment = ref.watch(assessmentAccessProvider);
     final needCheckIn =
         !assessment.terminalPassed &&
