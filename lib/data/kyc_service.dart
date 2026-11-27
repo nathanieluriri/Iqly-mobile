@@ -40,6 +40,7 @@ class KycEvidence {
 enum KycProblem {
   mismatch,
   unavailable,
+  notConfigured,
   review,
   failed,
   invalid,
@@ -54,7 +55,8 @@ class KycRefused implements Exception {
     'KYC_MISMATCH' => KycProblem.mismatch,
     'KYC_REVIEW' || 'KYC_PENDING' => KycProblem.review,
     'KYC_FAILED' => KycProblem.failed,
-    'KYC_NOT_CONFIGURED' || 'KYC_UNAVAILABLE' => KycProblem.unavailable,
+    'KYC_NOT_CONFIGURED' => KycProblem.notConfigured,
+    'KYC_UNAVAILABLE' => KycProblem.unavailable,
     'VALIDATION_ERROR' => KycProblem.invalid,
     _ => res.status >= 500 ? KycProblem.unavailable : KycProblem.unknown,
   }, message: res.message);
@@ -230,6 +232,8 @@ final kycServiceProvider = Provider<KycService>((ref) {
 String kycError(KycRefused refused) => switch (refused.problem) {
   KycProblem.mismatch =>
     'That name does not match this ID. Check the name and the number.',
+  KycProblem.notConfigured =>
+    'Account verification isn’t set up yet. Please try again later.',
   KycProblem.unavailable => 'The identity check did not complete. Try again.',
   KycProblem.review => 'Your details are being reviewed. Check back soon.',
   KycProblem.failed => 'The check did not pass. Review your details and retry.',

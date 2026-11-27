@@ -11,7 +11,7 @@ name: shorebird-release-ios
 #
 # Apple rejects uploads built with the default Xcode on macos-15 (16.4,
 # iOS 18.5 SDK). From April 2027 it also wants the iOS 27 SDK, so this
-# job runs on GitHub's xcode-27 image.
+# job pins GitHub's Xcode 27.2 image and selects that toolchain explicitly.
 on:
   workflow_dispatch:
     inputs:
@@ -266,8 +266,14 @@ jobs:
     runs-on: xcode-27
     env:
       SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
+      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
     steps:
       - uses: actions/checkout@v4
+      - name: Verify the pinned Xcode and iOS SDK
+        run: |
+          xcodebuild -version
+          test "$(xcodebuild -version | sed -n 's/^Xcode //p')" = "27.2"
+          xcodebuild -showsdks | grep -q 'iphoneos27.2'
       - uses: shorebirdtech/setup-shorebird@v1
         with:
           cache: true

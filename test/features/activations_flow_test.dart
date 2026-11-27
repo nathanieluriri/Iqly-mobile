@@ -15,7 +15,6 @@ import 'package:iqly_mobile/features/activations/activations_routes.dart';
 import 'package:iqly_mobile/features/activations/activations_screen.dart';
 import 'package:iqly_mobile/features/activations/activations_state.dart';
 import 'package:iqly_mobile/features/activations/activations_widgets.dart';
-import 'package:iqly_mobile/features/activations/my_activations_screen.dart';
 import 'package:iqly_mobile/features/activations/proof_player_screen.dart';
 import 'package:iqly_mobile/features/activations/proof_screen.dart';
 import 'package:iqly_mobile/features/discover/home_screen.dart';
@@ -279,8 +278,9 @@ void main() {
     );
   });
 
-  testWidgets('B8: My activations lists both under way; Done holds the paid '
-      'one; back returns to the opener', (tester) async {
+  testWidgets('B8: Available omits My activations; Completed keeps paid runs', (
+    tester,
+  ) async {
     await pumpActivations(
       tester,
       Routes.activations,
@@ -303,29 +303,17 @@ void main() {
         ],
       ),
     );
-    expect(find.text('Kudi Box · step 1 of 3 confirmed'), findsOneWidget);
-    expect(find.text('Place your first Unibooks order'), findsNothing);
-    await _tap(tester, find.text('My activations'));
-    expect(find.byType(MyActivationsScreen), findsOneWidget);
-    expect(find.text('Rate 3 recipes in the Orchid Foods app'), findsOne);
+    expect(find.text('My activations'), findsNothing);
+    expect(find.text('Kudi Box · step 1 of 3 confirmed'), findsNothing);
     expect(find.text(_kudiBox), findsOneWidget);
-    expect(find.text('Place your first Unibooks order'), findsNothing);
 
-    await _tap(tester, find.text('Done'));
+    await _tap(tester, find.text('Completed'));
     expect(find.text('Place your first Unibooks order'), findsOneWidget);
     expect(find.text('Paid to your wallet'), findsOneWidget);
     expect(find.text(_kudiBox), findsNothing);
-
-    await _tap(tester, find.text('Active'));
-    await _tap(tester, find.text(_kudiBox));
-    expect(find.byType(ActivationScreen), findsOneWidget);
-    await _tap(tester, _button('Back'));
-    expect(find.byType(MyActivationsScreen), findsOneWidget);
-    await _tap(tester, _button('Back'));
-    expect(find.byType(ActivationsScreen), findsOneWidget);
   });
 
-  testWidgets('B8: My activations opens the activation when there is one', (
+  testWidgets('B8: Available cards open directly without My activations', (
     tester,
   ) async {
     await pumpActivations(
@@ -337,8 +325,9 @@ void main() {
         seed: Figma.world(thursday, kudiBox: Figma.step1),
       ),
     );
-    await _tap(tester, find.text('My activations'));
-    expect(find.byType(MyActivationsScreen), findsNothing);
+    expect(find.text('My activations'), findsNothing);
+    await _tap(tester, find.text(_kudiBox));
+    expect(find.byType(ActivationScreen), findsOneWidget);
     expect(find.text('Step 1 of 3 confirmed'), findsOneWidget);
     await _tap(tester, _button('Back'));
     expect(find.byType(ActivationsScreen), findsOneWidget);

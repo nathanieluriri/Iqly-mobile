@@ -243,7 +243,7 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
             label: 'Verification',
             description: kyc == null
                 ? 'Check your verification status'
-                : 'Tier C${kyc.tier} of C${kyc.requiredTier}',
+                : 'Tier ${kyc.tier} of ${kyc.requiredTier}',
             icon: IqIcons.shield,
             divider: pin,
             onTap: () => context.open(Routes.kyc),
@@ -456,7 +456,7 @@ extension on _MoreScreenState {
             label: 'Verification',
             description: kyc == null
                 ? 'Check your verification status'
-                : 'Tier C${kyc.tier} of C${kyc.requiredTier}',
+                : 'Tier ${kyc.tier} of ${kyc.requiredTier}',
             icon: IqIcons.shield,
             divider: true,
             onTap: () => context.open(Routes.kyc),
