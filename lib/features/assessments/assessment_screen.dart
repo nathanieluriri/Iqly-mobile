@@ -131,9 +131,7 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
       });
       _lockScreen(session.question != null);
       if (session.status == 'passed' || session.status == 'failed') {
-        unawaited(
-          ref.read(assessmentAccessProvider.notifier).refresh(force: true),
-        );
+        await ref.read(assessmentAccessProvider.notifier).refresh(force: true);
       }
     } on ApiException catch (e) {
       _fail(e.message);
@@ -166,7 +164,13 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
                       title: 'You’re in',
                       body: 'You can start new briefs.',
                       action: 'See briefs',
-                      onTap: () => context.go(Routes.home),
+                      onTap: () {
+                        if (context.canPop()) {
+                          context.pop();
+                        } else {
+                          context.go(Routes.home);
+                        }
+                      },
                     )
                   : access.state == 'unavailable' || session?.status == 'failed'
                   ? _Done(

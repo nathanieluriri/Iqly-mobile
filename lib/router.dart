@@ -22,7 +22,7 @@ import 'features/entry/sign_in_screen.dart';
 import 'features/entry/verify_email_screen.dart';
 import 'features/entry/your_name_screen.dart';
 import 'features/help/help_routes.dart';
-import 'features/kyc/kyc_sheet.dart';
+import 'features/kyc/kyc_routes.dart';
 import 'features/more/more_routes.dart';
 import 'features/onboarding/onboarding_routes.dart';
 import 'features/profile/profile_routes.dart';
@@ -188,7 +188,7 @@ GoRouter buildRouter({
       ),
       appShellRoute(rootKey),
       ...discoverRoutes,
-      _push(Routes.kyc, const KycSheet()),
+      _push(Routes.kyc, const KycScreen()),
       ..._entryRoutes,
       ...onboardingRoutes,
       ...submissionRoutes,
