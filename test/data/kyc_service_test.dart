@@ -49,15 +49,13 @@ void main() {
   test('verified tier is required for withdrawal', () {
     expect(KycStatus.fromJson(statusJson(verified: true)).canWithdraw, isFalse);
     expect(
-      KycStatus.fromJson(
-        statusJson(verified: true, tier: 2, nextCheck: 'none'),
-      ).canWithdraw,
+      KycStatus.fromJson(statusJson(verified: true, tier: 2, nextCheck: 'none'))
+          .canWithdraw,
       isTrue,
     );
     expect(
-      KycStatus.fromJson(
-        statusJson(required: false, nextCheck: 'none'),
-      ).needsCheck,
+      KycStatus.fromJson(statusJson(required: false, nextCheck: 'none'))
+          .needsCheck,
       isFalse,
     );
   });

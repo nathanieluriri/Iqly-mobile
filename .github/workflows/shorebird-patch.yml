@@ -12,7 +12,11 @@ on:
   workflow_dispatch:
     inputs:
       release_version:
-        description: Release to patch, as pubspec.yaml had it (0.1.0+1), or latest
+        description: Android release to patch, as pubspec.yaml had it (0.1.0+1), or latest
+        required: true
+        default: latest
+      ios_release_version:
+        description: iOS release to patch, as pubspec.yaml had it (0.1.0+1), or latest
         required: true
         default: latest
       allow_diffs:
@@ -84,5 +88,5 @@ jobs:
           cache: true
       - run: shorebird patch ios --no-codesign --release-version="$RELEASE_VERSION" --track=stable $DIFFS
         env:
-          RELEASE_VERSION: ${{ inputs.release_version }}
+          RELEASE_VERSION: ${{ inputs.ios_release_version }}
           DIFFS: ${{ inputs.allow_diffs && '--allow-native-diffs --allow-asset-diffs' || '' }}
